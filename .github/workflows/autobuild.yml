@@ -1,0 +1,53 @@
+name: Autonomous Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      instruction:
+        description: "Optional override instruction"
+        required: false
+        default: ""
+  schedule:
+    - cron: "0 */6 * * *"
+
+concurrency:
+  group: autonomous-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: vars.AUTOBUILD == 'on'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are building this repository autonomously.
+
+            1. Read docs/specification.md in full. It is the contract.
+            2. Read docs/architecture.md and docs/progress.md if they exist,
+               and check the current branches and open pull requests.
+            3. Determine the next unfinished piece of work and continue it.
+               Never start a new phase whose predecessor's pull request is not merged.
+            4. Override instruction, if any: ${{ github.event.inputs.instruction }}
+            5. Work on the phase branch, never on main.
+            6. Before the run ends: commit everything, update docs/progress.md with
+               the exact resume point, and push.
+            7. If the phase is complete, open or update its pull request with the
+               full verification report. Never merge a pull request.
+            8. Never leave work uncommitted and never delete existing work.
+          claude_args: |
+            --max-turns 400
+            --model opus
