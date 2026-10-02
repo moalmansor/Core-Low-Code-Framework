@@ -78,7 +78,7 @@ final class SettingsRegistry
 
         // Files and virus scanning (§3, §5)
         $d('files', 'max_upload_mb', 10, ['required', 'integer', 'between:1,512']);
-        $d('files', 'allowed_image_types', ['png', 'jpg', 'jpeg', 'webp', 'ico'], ['required', 'array', 'min:1']);
+        $d('files', 'allowed_image_types', ['png', 'jpg', 'jpeg', 'webp', 'ico'], ['required', 'array', 'min:1', '*' => ['distinct', Rule::in(['png', 'jpg', 'jpeg', 'webp', 'ico'])]]);
         $d('clamav', 'enabled', false, ['required', 'boolean']);
         $d('clamav', 'host', 'clamav', ['required', 'string', 'max:255']);
         $d('clamav', 'port', 3310, ['required', 'integer', 'between:1,65535']);
@@ -99,12 +99,26 @@ final class SettingsRegistry
         $d('security', 'api_rate_limit_per_minute', 240, ['required', 'integer', 'between:30,10000']);
 
         // Single sign-on (§5): OIDC providers; secrets are stored per provider key.
-        $d('sso', 'providers', [], ['present', 'array', 'max:10']);
-        $d('sso', 'client_secrets', [], ['present', 'array'], secret: true);
+        $d('sso', 'providers', [], ['present', 'array', 'max:10',
+            '*.key' => ['required', 'string', 'distinct', 'regex:/^[a-z0-9_-]{1,64}$/'],
+            '*.name' => ['required', 'array'],
+            '*.name.*' => ['nullable', 'string', 'max:120'],
+            '*.issuer' => ['required', 'url:https', 'max:255'],
+            '*.client_id' => ['required', 'string', 'max:255'],
+            '*.scopes' => ['sometimes', 'array', 'max:20'],
+            '*.scopes.*' => ['string', 'regex:/^[A-Za-z0-9_.:-]{1,64}$/'],
+            '*.role_claim' => ['sometimes', 'nullable', 'string', 'max:64'],
+            '*.role_map' => ['sometimes', 'array', 'max:100'],
+            '*.role_map.*' => ['string', 'regex:/^[a-z][a-z0-9_]{1,63}$/'],
+            '*.jit_provisioning' => ['sometimes', 'boolean'],
+            '*.link_by_email' => ['sometimes', 'boolean'],
+            '*.enabled' => ['sometimes', 'boolean'],
+        ]);
+        $d('sso', 'client_secrets', [], ['present', 'array', 'max:10', '*' => ['nullable', 'string', 'max:1024']], secret: true);
 
         // LDAP (§5)
         $d('ldap', 'enabled', false, ['required', 'boolean']);
-        $d('ldap', 'hosts', [], ['present', 'array', 'max:5']);
+        $d('ldap', 'hosts', [], ['present', 'array', 'max:5', '*' => ['string', 'max:253', 'regex:/^[A-Za-z0-9.-]+$/']]);
         $d('ldap', 'port', 389, ['required', 'integer', 'between:1,65535']);
         $d('ldap', 'base_dn', null, ['nullable', 'string', 'max:512']);
         $d('ldap', 'bind_username', null, ['nullable', 'string', 'max:512']);
@@ -115,11 +129,11 @@ final class SettingsRegistry
         $d('ldap', 'login_attribute', 'mail', ['required', 'string', 'regex:/^[A-Za-z][A-Za-z0-9-]{0,63}$/']);
         $d('ldap', 'email_attribute', 'mail', ['required', 'string', 'regex:/^[A-Za-z][A-Za-z0-9-]{0,63}$/']);
         $d('ldap', 'name_attribute', 'cn', ['required', 'string', 'regex:/^[A-Za-z][A-Za-z0-9-]{0,63}$/']);
-        $d('ldap', 'group_role_map', [], ['present', 'array']);
+        $d('ldap', 'group_role_map', [], ['present', 'array', 'max:200', '*' => ['string', 'regex:/^[a-z][a-z0-9_]{1,63}$/']]);
         $d('ldap', 'jit_provisioning', false, ['required', 'boolean']);
 
         // Error monitoring alerts (§4.21)
-        $d('monitoring', 'alert_role_keys', ['super_admin'], ['present', 'array']);
+        $d('monitoring', 'alert_role_keys', ['super_admin'], ['present', 'array', 'max:20', '*' => ['string', 'regex:/^[a-z][a-z0-9_]{1,63}$/']]);
         $d('monitoring', 'alert_cooldown_minutes', 60, ['required', 'integer', 'between:1,10080']);
         $d('monitoring', 'alert_min_severity', 'error', ['required', Rule::in(['warning', 'error', 'critical', 'alert', 'emergency'])]);
     }

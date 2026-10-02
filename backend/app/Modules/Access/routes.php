@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::get('/roles', [RoleController::class, 'index']);
+    Route::get('/role-options', [RoleController::class, 'options']);
     Route::post('/roles', [RoleController::class, 'store']);
     Route::get('/roles/{role}', [RoleController::class, 'show']);
     Route::patch('/roles/{role}', [RoleController::class, 'update']);

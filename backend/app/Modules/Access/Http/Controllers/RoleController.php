@@ -29,6 +29,17 @@ final class RoleController extends Controller
         return response()->json(['data' => $roles->map(fn (Role $r): array => $this->present($r))->values()]);
     }
 
+    /** Role choices for user administration (holders of manage_users need them too). */
+    public function options(): JsonResponse
+    {
+        abort_unless(Gate::any(['system.manage_users', 'system.manage_permissions']), 403);
+        $roles = Role::query()->orderBy('sort_order')->orderBy('id')->get();
+
+        return response()->json(['data' => $roles->map(static fn (Role $r): array => [
+            'uuid' => $r->uuid, 'key' => $r->key, 'name' => $r->translate('name') ?? $r->key, 'is_admin_role' => $r->is_admin_role,
+        ])->values()]);
+    }
+
     public function show(Role $role): JsonResponse
     {
         Gate::authorize('system.manage_permissions');

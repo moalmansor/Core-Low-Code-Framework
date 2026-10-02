@@ -110,3 +110,23 @@ it('restricts settings, locales and translations to their permissions', function
     $this->postJson('/api/v1/locales', ['code' => 'de'])->assertForbidden();
     $this->putJson('/api/v1/translations', ['locale' => 'ar', 'items' => [['type' => 'ui', 'key' => 'a', 'field' => 'text', 'value' => 'b']]])->assertForbidden();
 });
+
+it('validates the structure of nested settings such as SSO providers', function () {
+    $this->patchJson('/api/v1/settings/sso', ['providers' => [['key' => 'corp', 'name' => ['en' => 'Corp'], 'issuer' => 'http://idp.example.test', 'client_id' => 'x']]])
+        ->assertUnprocessable()->assertJsonValidationErrors('providers.0.issuer');
+    $this->patchJson('/api/v1/settings/sso', ['providers' => [['key' => 'Bad Key', 'name' => ['en' => 'Corp'], 'issuer' => 'https://idp.example.test', 'client_id' => 'x']]])
+        ->assertUnprocessable()->assertJsonValidationErrors('providers.0.key');
+    $this->patchJson('/api/v1/settings/sso', [
+        'providers' => [['key' => 'corp', 'name' => ['en' => 'Corp'], 'issuer' => 'https://idp.example.test', 'client_id' => 'x', 'role_map' => ['admins' => 'admin']]],
+        'client_secrets' => ['corp' => 'shh'],
+    ])->assertOk();
+    $this->getJson('/api/v1/auth/sso/providers')->assertOk()->assertJsonFragment(['key' => 'corp', 'name' => 'Corp']);
+    $this->patchJson('/api/v1/settings/ldap', ['hosts' => ['ldap.example.test; rm -rf /']])->assertUnprocessable();
+});
+
+it('translates permission labels, which are addressed by key', function () {
+    $rows = $this->getJson('/api/v1/translations?type=permission&locale=ar&search=manage_users')->assertOk()->json('data');
+    expect($rows[0]['key'])->toBe('system.manage_users');
+    $this->putJson('/api/v1/translations', ['locale' => 'ar', 'items' => [['type' => 'permission', 'key' => 'system.manage_users', 'field' => 'label', 'value' => 'إدارة الحسابات']]])->assertOk();
+    $this->withHeader('X-Locale', 'ar')->getJson('/api/v1/permissions')->assertJsonFragment(['key' => 'system.manage_users', 'label' => 'إدارة الحسابات']);
+});

@@ -125,3 +125,12 @@ it('exports, imports and copies permission sets', function () {
     $this->postJson("/api/v1/roles/{$copy->uuid}/copy-permissions", ['from_role' => Role::query()->where('key', 'user')->value('uuid')])->assertOk();
     expect(PermissionAssignment::query()->where('subject_type', 'role')->where('subject_id', $copy->id)->count())->toBe(1);
 });
+
+it('offers role choices to user administrators without exposing role management', function () {
+    $this->flushSession();
+    $this->actingAs($this->makeUser(['admin']), 'web');
+    $this->getJson('/api/v1/role-options')->assertOk()->assertJsonFragment(['key' => 'user']);
+    $this->flushSession();
+    $this->actingAs($this->makeUser(), 'web');
+    $this->getJson('/api/v1/role-options')->assertForbidden();
+});

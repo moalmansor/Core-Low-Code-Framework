@@ -28,6 +28,7 @@ final class MeController extends Controller
         $permissions = array_keys(array_filter($resolver->effective($user)));
 
         return response()->json(['data' => [
+            'id' => $user->id,
             'uuid' => $user->uuid,
             'name' => $user->name,
             'email' => $user->email,

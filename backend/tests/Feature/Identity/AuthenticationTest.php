@@ -106,3 +106,29 @@ it('signs the user out', function () {
 it('answers unauthenticated API calls with 401 JSON', function () {
     $this->getJson('/api/v1/me')->assertUnauthorized()->assertJsonPath('code', 'unauthenticated');
 });
+
+it('does not let holders of a 2FA-required role switch 2FA off', function () {
+    $admin = $this->superAdmin();
+    $this->actingAs($admin, 'web')->withSession(['auth.password_confirmed_at' => time()]);
+    $this->deleteJson('/api/v1/auth/user/two-factor-authentication')->assertUnprocessable();
+    expect($admin->fresh()->hasEnabledTwoFactorAuthentication())->toBeTrue();
+
+    $user = $this->makeUser(twoFactor: true);
+    $this->flushSession();
+    $this->actingAs($user, 'web')->withSession(['auth.password_confirmed_at' => time()]);
+    $this->deleteJson('/api/v1/auth/user/two-factor-authentication')->assertSuccessful();
+    expect($user->fresh()->hasEnabledTwoFactorAuthentication())->toBeFalse();
+});
+
+it('lets a user enroll in 2FA with password confirmation and a valid code', function () {
+    $admin = $this->makeUser(['admin'], twoFactor: false);
+    $this->actingAs($admin, 'web');
+    $this->postJson('/api/v1/auth/user/confirm-password', ['password' => TestCase::PASSWORD])->assertStatus(201);
+    $this->postJson('/api/v1/auth/user/two-factor-authentication')->assertOk();
+    $this->getJson('/api/v1/auth/user/two-factor-qr-code')->assertOk()->assertJsonStructure(['svg', 'url']);
+    $secret = $this->getJson('/api/v1/auth/user/two-factor-secret-key')->json('secretKey');
+    $this->postJson('/api/v1/auth/user/confirmed-two-factor-authentication', ['code' => '000000'])->assertUnprocessable();
+    $this->postJson('/api/v1/auth/user/confirmed-two-factor-authentication', ['code' => $this->totp($secret)])->assertOk();
+    expect($admin->fresh()->hasEnabledTwoFactorAuthentication())->toBeTrue();
+    $this->getJson('/api/v1/users')->assertOk();
+});

@@ -1,12 +1,17 @@
 {
-  "name": "frontend",
+  "name": "lcf-frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "vue-tsc -b",
+    "lint": "eslint .",
+    "format": "prettier --write src",
+    "test": "vitest run",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@primeuix/themes": "^3.0.1",

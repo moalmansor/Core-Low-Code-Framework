@@ -31,6 +31,7 @@ final class IdentityServiceProvider extends ServiceProvider
     {
         // A reset request for an unknown address gets the same answer as a
         // known one, so the form cannot be used to discover accounts.
+        $this->app->bind(\Laravel\Fortify\Actions\DisableTwoFactorAuthentication::class, \App\Modules\Identity\Actions\DisableTwoFactorWhenAllowed::class);
         $this->app->bind(FailedPasswordResetLinkRequestResponse::class, static fn () => new SuccessfulPasswordResetLinkRequestResponse(PasswordBroker::RESET_LINK_SENT));
     }
 

@@ -101,10 +101,13 @@ final class TranslationController extends Controller
                 }
                 $info = $this->registry->get($item['type']);
                 abort_if($info === null || ! in_array($item['field'], $info['fields'], true), 422, __('validation.in', ['attribute' => 'field']));
-                $model = $info['model']::query()->where('uuid', $item['object'])->firstOrFail();
+                // Objects are addressed by UUID, or by key where the table has none (permissions).
+                $model = ! empty($item['object'])
+                    ? $info['model']::query()->where('uuid', $item['object'])->firstOrFail()
+                    : $info['model']::query()->where('key', (string) $item['key'])->firstOrFail();
                 $old = $this->translator->all($item['type'], (int) $model->getKey(), $item['field'])[$data['locale']] ?? null;
                 $this->translator->putMany($item['type'], (int) $model->getKey(), $item['field'], [$data['locale'] => $item['value']]);
-                $changes[] = ['field_key' => "{$item['type']}:{$item['object']}:{$item['field']}:{$data['locale']}", 'old' => $old, 'new' => $item['value']];
+                $changes[] = ['field_key' => "{$item['type']}:".($item['object'] ?? $item['key']).":{$item['field']}:{$data['locale']}", 'old' => $old, 'new' => $item['value']];
             }
             app(AuditWriter::class)->record('config.translations_changed', 'config', changes: $changes, meta: ['locale' => $data['locale'], 'items' => count($data['items'])]);
         });

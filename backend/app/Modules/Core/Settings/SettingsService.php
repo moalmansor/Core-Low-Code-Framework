@@ -79,7 +79,18 @@ final class SettingsService
 
                 continue;
             }
-            $rules[$key] = $definition->rules;
+            // String-keyed entries are rules for nested values ('*.key' => [...]).
+            $own = $definition->rules;
+            if (is_array($own)) {
+                foreach ($own as $sub => $rule) {
+                    if (is_string($sub)) {
+                        $rules["{$key}.{$sub}"] = $rule;
+                        unset($own[$sub]);
+                    }
+                }
+                $own = array_values($own);
+            }
+            $rules[$key] = $own;
         }
         Validator::make($input, $rules)->validate();
 

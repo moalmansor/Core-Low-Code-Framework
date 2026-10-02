@@ -18,6 +18,7 @@ return [
         'password_expired' => 'Your password has expired. Choose a new one to continue.',
         'session_expired' => 'Your session has expired. Sign in again.',
         'setup_required' => 'The system has not been set up yet.',
+        'two_factor_mandatory' => 'Two-factor authentication is mandatory for your role and cannot be turned off.',
         'two_factor_required' => 'Two-factor authentication is required for your role. Set it up to continue.',
         'unauthenticated' => 'Sign in to continue.',
     ],
