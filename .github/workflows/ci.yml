@@ -72,13 +72,15 @@ jobs:
       - name: Microsoft ODBC Driver 18 (SQL Server only)
         if: matrix.db == 'sqlsrv'
         run: |
-          if ! odbcinst -q -d 2>/dev/null | grep -q "ODBC Driver 18 for SQL Server"; then
-            curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
-            curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          if ! dpkg -s msodbcsql18 >/dev/null 2>&1; then
+            if ! grep -rqs packages.microsoft.com /etc/apt/sources.list.d/; then
+              curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+              echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" | sudo tee /etc/apt/sources.list.d/mssql-release.list
+            fi
             sudo apt-get update
-            sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+            sudo ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive apt-get install -y msodbcsql18 unixodbc-dev
           fi
-          odbcinst -q -d
+          odbcinst -q -d || true
       - uses: shivammathur/setup-php@v2
         with: { php-version: '${{ env.PHP_VERSION }}', extensions: '${{ env.PHP_EXTENSIONS }}', coverage: none, tools: composer:v2 }
       - run: composer install --no-interaction --no-progress --prefer-dist
@@ -158,13 +160,15 @@ jobs:
       - name: Microsoft ODBC Driver 18 (SQL Server only)
         if: matrix.db == 'sqlsrv'
         run: |
-          if ! odbcinst -q -d 2>/dev/null | grep -q "ODBC Driver 18 for SQL Server"; then
-            curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
-            curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          if ! dpkg -s msodbcsql18 >/dev/null 2>&1; then
+            if ! grep -rqs packages.microsoft.com /etc/apt/sources.list.d/; then
+              curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+              echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" | sudo tee /etc/apt/sources.list.d/mssql-release.list
+            fi
             sudo apt-get update
-            sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+            sudo ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive apt-get install -y msodbcsql18 unixodbc-dev
           fi
-          odbcinst -q -d
+          odbcinst -q -d || true
       - uses: shivammathur/setup-php@v2
         with: { php-version: '${{ env.PHP_VERSION }}', extensions: '${{ env.PHP_EXTENSIONS }}', coverage: none, tools: composer:v2 }
       - uses: actions/setup-node@v4
