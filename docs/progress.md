@@ -6,7 +6,7 @@ Project memory file (specification §8.1). Updated at the end of every run.
 
 | Phase | Branch | Status | Pull request |
 |---|---|---|---|
-| 0 — Architecture & Data Model | `phase-0-architecture` | **Complete. Awaiting owner review.** | opened from `phase-0-architecture` into `main` |
+| 0 — Architecture & Data Model | `phase-0-architecture` | **Complete. Awaiting owner review.** | [moalmansor/Core-Low-Code-Framework#1](https://github.com/moalmansor/Core-Low-Code-Framework/pull/1) |
 | 1 — Foundation, Security & Administration Core | `phase-1-foundation` | Not started. Blocked until the Phase 0 PR is merged and the owner approves. | — |
 | 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | Not started | — |
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | Not started | — |
@@ -70,7 +70,7 @@ as the specification states.
 
 ## Resume point
 
-Phase 0 is complete. Its pull request (`phase-0-architecture` → `main`) is open and
+Phase 0 is complete. Its pull request ([moalmansor/Core-Low-Code-Framework#1](https://github.com/moalmansor/Core-Low-Code-Framework/pull/1), `phase-0-architecture` → `main`) is open and
 awaits review. **Do not start Phase 1** until the owner merges the Phase 0 PR and
 explicitly approves Phase 1. If review comments arrive, push fixes to
 `phase-0-architecture`.
