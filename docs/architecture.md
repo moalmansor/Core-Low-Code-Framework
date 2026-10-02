@@ -724,7 +724,7 @@ Every entity of specification §7 appears below with every column, its exact
 MySQL 8 and SQL Server 2019 type, nullability, and default, plus the named primary
 key, unique constraints, indexes, foreign keys (with ON DELETE), and CHECK
 constraints. Additional supporting tables required by §2–§6 are marked
-**(supporting)**. Totals: 147 tables, 2,312 columns, 646 foreign keys, 115 unique
+**(supporting)**. Totals: 147 tables, 2,312 columns, 646 foreign keys, 183 unique
 constraints, 643 indexes.
 
 Conventions that apply to every table:
@@ -860,6 +860,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_egress_allowlist` (`id`); SQL Server clustered.
+- **Unique:** `uq_egress_allowlist_uuid` (`uuid`)
 - **Unique:** `uq_egress_allowlist_organization_id_host_pattern` (`organization_id`, `host_pattern`)
 - **Index:** `ix_egress_allowlist_created_by` (`created_by`) — supports FK
 - **Index:** `ix_egress_allowlist_updated_by` (`updated_by`) — supports FK
@@ -916,6 +917,7 @@ erDiagram
 | `applied_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` |
 
 - **Primary key:** `pk_config_packages` (`id`); SQL Server clustered.
+- **Unique:** `uq_config_packages_uuid` (`uuid`)
 - **Index:** `ix_config_packages_organization_id_status` (`organization_id`, `status`)
 - **Index:** `ix_config_packages_organization_id_created_at` (`organization_id`, `created_at`)
 - **Index:** `ix_config_packages_created_by` (`created_by`) — supports FK
@@ -955,6 +957,7 @@ erDiagram
 | `conflicting_objects` | JSON | NVARCHAR(MAX) | NULL | — |  |
 
 - **Primary key:** `pk_environment_drift_reports` (`id`); SQL Server clustered.
+- **Unique:** `uq_environment_drift_reports_uuid` (`uuid`)
 - **Index:** `ix_environment_drift_reports_organization_id_created_at` (`organization_id`, `created_at`)
 - **Index:** `ix_environment_drift_reports_created_by` (`created_by`) — supports FK
 - **Index:** `ix_environment_drift_reports_updated_by` (`updated_by`) — supports FK
@@ -1080,6 +1083,7 @@ erDiagram
 | `anonymized_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
 - **Primary key:** `pk_users` (`id`); SQL Server clustered.
+- **Unique:** `uq_users_uuid` (`uuid`)
 - **Unique:** `uq_users_email` (`email`)
 - **Unique:** `uq_users_username` (`username`) — SQL Server: filtered `WHERE username IS NOT NULL`; MySQL: unique (NULLs never collide)
 - **Unique:** `uq_users_auth_source_external_subject` (`auth_source`, `external_subject`) — SQL Server: filtered `WHERE external_subject IS NOT NULL`; MySQL: unique (NULLs never collide)
@@ -1123,6 +1127,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_departments` (`id`); SQL Server clustered.
+- **Unique:** `uq_departments_uuid` (`uuid`)
 - **Unique:** `uq_departments_organization_id_code` (`organization_id`, `code`)
 - **Index:** `ix_departments_parent_id` (`parent_id`)
 - **Index:** `ix_departments_organization_id_deleted_at` (`organization_id`, `deleted_at`)
@@ -1174,6 +1179,7 @@ erDiagram
 | `sort_order` | INT | INT | NOT NULL | 0 |  |
 
 - **Primary key:** `pk_roles` (`id`); SQL Server clustered.
+- **Unique:** `uq_roles_uuid` (`uuid`)
 - **Unique:** `uq_roles_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_roles_created_by` (`created_by`) — supports FK
 - **Index:** `ix_roles_updated_by` (`updated_by`) — supports FK
@@ -1286,6 +1292,7 @@ erDiagram
 | `rule_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | SHA-256 of (`form_id`, `target_type`, `group_id`, `field_id`, `subject_type`, `subject_id`, `status_id`, `mode`) — nullable-safe uniqueness on both engines; one rule per coordinate |
 
 - **Primary key:** `pk_field_access_rules` (`id`); SQL Server clustered.
+- **Unique:** `uq_field_access_rules_uuid` (`uuid`)
 - **Unique:** `uq_field_access_rules_rule_hash` (`rule_hash`)
 - **Index:** `ix_field_access_rules_form_id_target_type_group_id_field_id` (`form_id`, `target_type`, `group_id`, `field_id`)
 - **Index:** `ix_field_access_rules_form_id_subject_type_subject_id` (`form_id`, `subject_type`, `subject_id`)
@@ -1330,6 +1337,7 @@ erDiagram
 | `priority` | INT | INT | NOT NULL | 0 | display ordering only; resolution per §16.6 |
 
 - **Primary key:** `pk_record_access_rules` (`id`); SQL Server clustered.
+- **Unique:** `uq_record_access_rules_uuid` (`uuid`)
 - **Index:** `ix_record_access_rules_form_id_subject_type_subject_5f002f5e` (`form_id`, `subject_type`, `subject_id`, `operation`)
 - **Index:** `ix_record_access_rules_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_record_access_rules_created_by` (`created_by`) — supports FK
@@ -1475,6 +1483,7 @@ erDiagram
 | `sort_order` | INT | INT | NOT NULL | 0 |  |
 
 - **Primary key:** `pk_applications` (`id`); SQL Server clustered.
+- **Unique:** `uq_applications_uuid` (`uuid`)
 - **Unique:** `uq_applications_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_applications_organization_id_deleted_at` (`organization_id`, `deleted_at`)
 - **Index:** `ix_applications_created_by` (`created_by`) — supports FK
@@ -1518,6 +1527,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_menu_items` (`id`); SQL Server clustered.
+- **Unique:** `uq_menu_items_uuid` (`uuid`)
 - **Index:** `ix_menu_items_application_id_parent_id_sort_order` (`application_id`, `parent_id`, `sort_order`)
 - **Index:** `ix_menu_items_target_type_target_id` (`target_type`, `target_id`)
 - **Index:** `ix_menu_items_organization_id` (`organization_id`) — supports FK
@@ -1569,6 +1579,7 @@ erDiagram
 | `record_count_cache` | BIGINT | BIGINT | NOT NULL | 0 | admin record counts (refreshed by job) |
 
 - **Primary key:** `pk_forms` (`id`); SQL Server clustered.
+- **Unique:** `uq_forms_uuid` (`uuid`)
 - **Unique:** `uq_forms_organization_id_key` (`organization_id`, `key`)
 - **Unique:** `uq_forms_organization_id_table_name` (`organization_id`, `table_name`)
 - **Index:** `ix_forms_application_id_state` (`application_id`, `state`)
@@ -1708,6 +1719,7 @@ erDiagram
 | `archived_at` | DATETIME(6) | DATETIME2(6) | NULL | — | removed from draft but retained for history |
 
 - **Primary key:** `pk_field_groups` (`id`); SQL Server clustered.
+- **Unique:** `uq_field_groups_uuid` (`uuid`)
 - **Unique:** `uq_field_groups_form_id_key` (`form_id`, `key`)
 - **Index:** `ix_field_groups_form_id_parent_group_id_sort_order` (`form_id`, `parent_group_id`, `sort_order`)
 - **Index:** `ix_field_groups_organization_id` (`organization_id`) — supports FK
@@ -1778,6 +1790,7 @@ erDiagram
 | `archived_column_name` | VARCHAR(60) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(60) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
 
 - **Primary key:** `pk_fields` (`id`); SQL Server clustered.
+- **Unique:** `uq_fields_uuid` (`uuid`)
 - **Unique:** `uq_fields_form_id_key` (`form_id`, `key`)
 - **Index:** `ix_fields_form_id_group_id_sort_order` (`form_id`, `group_id`, `sort_order`)
 - **Index:** `ix_fields_form_id_column_name` (`form_id`, `column_name`)
@@ -1863,6 +1876,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_conditions` (`id`); SQL Server clustered.
+- **Unique:** `uq_conditions_uuid` (`uuid`)
 - **Index:** `ix_conditions_owner_type_owner_id` (`owner_type`, `owner_id`)
 - **Index:** `ix_conditions_form_id_is_active` (`form_id`, `is_active`)
 - **Index:** `ix_conditions_organization_id` (`organization_id`) — supports FK
@@ -1905,6 +1919,7 @@ erDiagram
 | `is_cross_application` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 
 - **Primary key:** `pk_relations` (`id`); SQL Server clustered.
+- **Unique:** `uq_relations_uuid` (`uuid`)
 - **Unique:** `uq_relations_source_form_id_key` (`source_form_id`, `key`)
 - **Index:** `ix_relations_target_form_id` (`target_form_id`)
 - **Index:** `ix_relations_organization_id` (`organization_id`) — supports FK
@@ -1941,6 +1956,7 @@ erDiagram
 | `usage_count` | INT | INT | NOT NULL | 0 |  |
 
 - **Primary key:** `pk_field_templates` (`id`); SQL Server clustered.
+- **Unique:** `uq_field_templates_uuid` (`uuid`)
 - **Index:** `ix_field_templates_organization_id_kind_category` (`organization_id`, `kind`, `category`)
 - **Index:** `ix_field_templates_created_by` (`created_by`) — supports FK
 - **Index:** `ix_field_templates_updated_by` (`updated_by`) — supports FK
@@ -2138,6 +2154,7 @@ erDiagram
 | `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 
 - **Primary key:** `pk_migration_plans` (`id`); SQL Server clustered.
+- **Unique:** `uq_migration_plans_uuid` (`uuid`)
 - **Index:** `ix_migration_plans_form_id_status` (`form_id`, `status`)
 - **Index:** `ix_migration_plans_organization_id_status` (`organization_id`, `status`)
 - **Index:** `ix_migration_plans_created_by` (`created_by`) — supports FK
@@ -2211,6 +2228,7 @@ erDiagram
 | `restored_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
 - **Primary key:** `pk_schema_snapshots` (`id`); SQL Server clustered.
+- **Unique:** `uq_schema_snapshots_uuid` (`uuid`)
 - **Index:** `ix_schema_snapshots_form_id_created_at` (`form_id`, `created_at`)
 - **Index:** `ix_schema_snapshots_expires_at` (`expires_at`)
 - **Index:** `ix_schema_snapshots_organization_id` (`organization_id`) — supports FK
@@ -2323,6 +2341,7 @@ erDiagram
 | `archived_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
 - **Primary key:** `pk_statuses` (`id`); SQL Server clustered.
+- **Unique:** `uq_statuses_uuid` (`uuid`)
 - **Unique:** `uq_statuses_form_id_key` (`form_id`, `key`)
 - **Index:** `ix_statuses_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_statuses_created_by` (`created_by`) — supports FK
@@ -2363,6 +2382,7 @@ erDiagram
 | `diagram_edge` | JSON | NVARCHAR(MAX) | NULL | — | Vue Flow edge data |
 
 - **Primary key:** `pk_transitions` (`id`); SQL Server clustered.
+- **Unique:** `uq_transitions_uuid` (`uuid`)
 - **Unique:** `uq_transitions_form_id_key` (`form_id`, `key`)
 - **Index:** `ix_transitions_form_id_from_status_id` (`form_id`, `from_status_id`)
 - **Index:** `ix_transitions_organization_id` (`organization_id`) — supports FK
@@ -2497,6 +2517,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_sla_rules` (`id`); SQL Server clustered.
+- **Unique:** `uq_sla_rules_uuid` (`uuid`)
 - **Index:** `ix_sla_rules_form_id_status_id` (`form_id`, `status_id`)
 - **Index:** `ix_sla_rules_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_sla_rules_created_by` (`created_by`) — supports FK
@@ -2587,6 +2608,7 @@ erDiagram
 | `include_in_queues` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 
 - **Primary key:** `pk_views` (`id`); SQL Server clustered.
+- **Unique:** `uq_views_uuid` (`uuid`)
 - **Unique:** `uq_views_form_id_key` (`form_id`, `key`)
 - **Index:** `ix_views_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_views_created_by` (`created_by`) — supports FK
@@ -2720,6 +2742,7 @@ erDiagram
 | `sort_order` | INT | INT | NOT NULL | 0 |  |
 
 - **Primary key:** `pk_view_panels` (`id`); SQL Server clustered.
+- **Unique:** `uq_view_panels_uuid` (`uuid`)
 - **Index:** `ix_view_panels_form_id_parent_panel_id_sort_order` (`form_id`, `parent_panel_id`, `sort_order`)
 - **Index:** `ix_view_panels_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_view_panels_created_by` (`created_by`) — supports FK
@@ -2756,6 +2779,7 @@ erDiagram
 | `drawer_enabled` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_reference_previews` (`id`); SQL Server clustered.
+- **Unique:** `uq_reference_previews_uuid` (`uuid`)
 - **Index:** `ix_reference_previews_target_form_id_field_id` (`target_form_id`, `field_id`)
 - **Index:** `ix_reference_previews_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_reference_previews_created_by` (`created_by`) — supports FK
@@ -2790,6 +2814,7 @@ erDiagram
 | `is_default` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 
 - **Primary key:** `pk_print_layouts` (`id`); SQL Server clustered.
+- **Unique:** `uq_print_layouts_uuid` (`uuid`)
 - **Unique:** `uq_print_layouts_form_id_key` (`form_id`, `key`)
 - **Index:** `ix_print_layouts_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_print_layouts_created_by` (`created_by`) — supports FK
@@ -2831,6 +2856,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_actions` (`id`); SQL Server clustered.
+- **Unique:** `uq_actions_uuid` (`uuid`)
 - **Unique:** `uq_actions_form_id_key` (`form_id`, `key`)
 - **Index:** `ix_actions_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_actions_created_by` (`created_by`) — supports FK
@@ -2891,6 +2917,7 @@ erDiagram
 | `key_field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
 
 - **Primary key:** `pk_import_mappings` (`id`); SQL Server clustered.
+- **Unique:** `uq_import_mappings_uuid` (`uuid`)
 - **Index:** `ix_import_mappings_form_id` (`form_id`)
 - **Index:** `ix_import_mappings_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_import_mappings_created_by` (`created_by`) — supports FK
@@ -3042,6 +3069,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_download_profiles` (`id`); SQL Server clustered.
+- **Unique:** `uq_download_profiles_uuid` (`uuid`)
 - **Unique:** `uq_download_profiles_form_id_key` (`form_id`, `key`)
 - **Index:** `ix_download_profiles_owner_user_id` (`owner_user_id`)
 - **Index:** `ix_download_profiles_organization_id_deleted_at` (`organization_id`, `deleted_at`)
@@ -3146,6 +3174,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_download_schedules` (`id`); SQL Server clustered.
+- **Unique:** `uq_download_schedules_uuid` (`uuid`)
 - **Index:** `ix_download_schedules_download_profile_id` (`download_profile_id`)
 - **Index:** `ix_download_schedules_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_download_schedules_created_by` (`created_by`) — supports FK
@@ -3247,6 +3276,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 | default rules none → off by default |
 
 - **Primary key:** `pk_justification_rules` (`id`); SQL Server clustered.
+- **Unique:** `uq_justification_rules_uuid` (`uuid`)
 - **Index:** `ix_justification_rules_form_id_scope` (`form_id`, `scope`)
 - **Index:** `ix_justification_rules_form_id_field_id` (`form_id`, `field_id`)
 - **Index:** `ix_justification_rules_form_id_transition_id` (`form_id`, `transition_id`)
@@ -3299,6 +3329,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_justification_reason_codes` (`id`); SQL Server clustered.
+- **Unique:** `uq_justification_reason_codes_uuid` (`uuid`)
 - **Unique:** `uq_justification_reason_codes_organization_id_set_key_code` (`organization_id`, `set_key`, `code`)
 - **Index:** `ix_justification_reason_codes_created_by` (`created_by`) — supports FK
 - **Index:** `ix_justification_reason_codes_updated_by` (`updated_by`) — supports FK
@@ -3457,6 +3488,7 @@ erDiagram
 | `sort_order` | INT | INT | NOT NULL | 0 | first matching rule applies |
 
 - **Primary key:** `pk_assignment_rules` (`id`); SQL Server clustered.
+- **Unique:** `uq_assignment_rules_uuid` (`uuid`)
 - **Index:** `ix_assignment_rules_form_id_transition_id_sort_order` (`form_id`, `transition_id`, `sort_order`)
 - **Index:** `ix_assignment_rules_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_assignment_rules_created_by` (`created_by`) — supports FK
@@ -3495,6 +3527,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_queues` (`id`); SQL Server clustered.
+- **Unique:** `uq_queues_uuid` (`uuid`)
 - **Unique:** `uq_queues_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_queues_created_by` (`created_by`) — supports FK
 - **Index:** `ix_queues_updated_by` (`updated_by`) — supports FK
@@ -3580,6 +3613,7 @@ erDiagram
 | `revoked_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 
 - **Primary key:** `pk_delegations` (`id`); SQL Server clustered.
+- **Unique:** `uq_delegations_uuid` (`uuid`)
 - **Index:** `ix_delegations_delegator_user_id_status_starts_at` (`delegator_user_id`, `status`, `starts_at`)
 - **Index:** `ix_delegations_delegate_user_id_status` (`delegate_user_id`, `status`)
 - **Index:** `ix_delegations_organization_id` (`organization_id`) — supports FK
@@ -3694,6 +3728,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_notification_rules` (`id`); SQL Server clustered.
+- **Unique:** `uq_notification_rules_uuid` (`uuid`)
 - **Index:** `ix_notification_rules_form_id_trigger_is_active` (`form_id`, `trigger`, `is_active`)
 - **Index:** `ix_notification_rules_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_notification_rules_created_by` (`created_by`) — supports FK
@@ -3737,6 +3772,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_email_templates` (`id`); SQL Server clustered.
+- **Unique:** `uq_email_templates_uuid` (`uuid`)
 - **Unique:** `uq_email_templates_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_email_templates_created_by` (`created_by`) — supports FK
 - **Index:** `ix_email_templates_updated_by` (`updated_by`) — supports FK
@@ -3896,6 +3932,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_document_templates` (`id`); SQL Server clustered.
+- **Unique:** `uq_document_templates_uuid` (`uuid`)
 - **Unique:** `uq_document_templates_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_document_templates_created_by` (`created_by`) — supports FK
 - **Index:** `ix_document_templates_updated_by` (`updated_by`) — supports FK
@@ -3934,6 +3971,7 @@ erDiagram
 | `cache_ttl_seconds` | INT | INT | NULL | — |  |
 
 - **Primary key:** `pk_reports` (`id`); SQL Server clustered.
+- **Unique:** `uq_reports_uuid` (`uuid`)
 - **Unique:** `uq_reports_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_reports_base_form_id` (`base_form_id`)
 - **Index:** `ix_reports_created_by` (`created_by`) — supports FK
@@ -3967,6 +4005,7 @@ erDiagram
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_dashboards` (`id`); SQL Server clustered.
+- **Unique:** `uq_dashboards_uuid` (`uuid`)
 - **Unique:** `uq_dashboards_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_dashboards_created_by` (`created_by`) — supports FK
 - **Index:** `ix_dashboards_updated_by` (`updated_by`) — supports FK
@@ -4027,6 +4066,7 @@ erDiagram
 | `is_default` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 
 - **Primary key:** `pk_business_calendars` (`id`); SQL Server clustered.
+- **Unique:** `uq_business_calendars_uuid` (`uuid`)
 - **Unique:** `uq_business_calendars_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_business_calendars_created_by` (`created_by`) — supports FK
 - **Index:** `ix_business_calendars_updated_by` (`updated_by`) — supports FK
@@ -4085,6 +4125,7 @@ erDiagram
 | `last_adjusted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | manual adjustment (audited + justification) |
 
 - **Primary key:** `pk_number_sequences` (`id`); SQL Server clustered.
+- **Unique:** `uq_number_sequences_uuid` (`uuid`)
 - **Unique:** `uq_number_sequences_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_number_sequences_form_id_field_id` (`form_id`, `field_id`)
 - **Index:** `ix_number_sequences_created_by` (`created_by`) — supports FK
@@ -4119,6 +4160,7 @@ erDiagram
 | `is_enabled` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_currencies` (`id`); SQL Server clustered.
+- **Unique:** `uq_currencies_uuid` (`uuid`)
 - **Unique:** `uq_currencies_organization_id_code` (`organization_id`, `code`)
 - **Index:** `ix_currencies_created_by` (`created_by`) — supports FK
 - **Index:** `ix_currencies_updated_by` (`updated_by`) — supports FK
@@ -4178,6 +4220,7 @@ erDiagram
 | `precision` | SMALLINT | SMALLINT | NOT NULL | — |  |
 
 - **Primary key:** `pk_units_of_measure` (`id`); SQL Server clustered.
+- **Unique:** `uq_units_of_measure_uuid` (`uuid`)
 - **Unique:** `uq_units_of_measure_organization_id_code` (`organization_id`, `code`)
 - **Index:** `ix_units_of_measure_created_by` (`created_by`) — supports FK
 - **Index:** `ix_units_of_measure_updated_by` (`updated_by`) — supports FK
@@ -4215,6 +4258,7 @@ admin-created, never seeded.
 | `last_sweep_operation_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `bulk_operations.id` NO ACTION |
 
 - **Primary key:** `pk_duplicate_rules` (`id`); SQL Server clustered.
+- **Unique:** `uq_duplicate_rules_uuid` (`uuid`)
 - **Index:** `ix_duplicate_rules_form_id_is_active` (`form_id`, `is_active`)
 - **Index:** `ix_duplicate_rules_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_duplicate_rules_created_by` (`created_by`) — supports FK
@@ -4363,6 +4407,7 @@ admin-created, never seeded.
 | `source_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
 
 - **Primary key:** `pk_blueprints` (`id`); SQL Server clustered.
+- **Unique:** `uq_blueprints_uuid` (`uuid`)
 - **Index:** `ix_blueprints_organization_id_kind_category` (`organization_id`, `kind`, `category`)
 - **Index:** `ix_blueprints_organization_id_deleted_at` (`organization_id`, `deleted_at`)
 - **Index:** `ix_blueprints_created_by` (`created_by`) — supports FK
@@ -4471,6 +4516,7 @@ admin-created, never seeded.
 | `max_chain_depth` | SMALLINT | SMALLINT | NOT NULL | 3 | loop protection (default 3) |
 
 - **Primary key:** `pk_automations` (`id`); SQL Server clustered.
+- **Unique:** `uq_automations_uuid` (`uuid`)
 - **Unique:** `uq_automations_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_automations_form_id_is_enabled` (`form_id`, `is_enabled`)
 - **Index:** `ix_automations_created_by` (`created_by`) — supports FK
@@ -4668,6 +4714,7 @@ admin-created, never seeded.
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_external_forms` (`id`); SQL Server clustered.
+- **Unique:** `uq_external_forms_uuid` (`uuid`)
 - **Unique:** `uq_external_forms_slug` (`slug`)
 - **Index:** `ix_external_forms_form_id` (`form_id`)
 - **Index:** `ix_external_forms_organization_id` (`organization_id`) — supports FK
@@ -4717,6 +4764,7 @@ admin-created, never seeded.
 | `anonymized_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
 - **Primary key:** `pk_external_users` (`id`); SQL Server clustered.
+- **Unique:** `uq_external_users_uuid` (`uuid`)
 - **Unique:** `uq_external_users_organization_id_email` (`organization_id`, `email`)
 - **Index:** `ix_external_users_organization_id_status` (`organization_id`, `status`)
 - **Index:** `ix_external_users_organization_id_deleted_at` (`organization_id`, `deleted_at`)
@@ -4805,6 +4853,7 @@ admin-created, never seeded.
 | `expires_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
 - **Primary key:** `pk_signature_requests` (`id`); SQL Server clustered.
+- **Unique:** `uq_signature_requests_uuid` (`uuid`)
 - **Index:** `ix_signature_requests_form_id_record_id` (`form_id`, `record_id`)
 - **Index:** `ix_signature_requests_organization_id_status` (`organization_id`, `status`)
 - **Index:** `ix_signature_requests_created_by` (`created_by`) — supports FK
@@ -4873,6 +4922,7 @@ admin-created, never seeded.
 | `last_test_status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
 
 - **Primary key:** `pk_external_data_sources` (`id`); SQL Server clustered.
+- **Unique:** `uq_external_data_sources_uuid` (`uuid`)
 - **Unique:** `uq_external_data_sources_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_external_data_sources_created_by` (`created_by`) — supports FK
 - **Index:** `ix_external_data_sources_updated_by` (`updated_by`) — supports FK
@@ -4908,6 +4958,7 @@ admin-created, never seeded.
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_sync_jobs` (`id`); SQL Server clustered.
+- **Unique:** `uq_sync_jobs_uuid` (`uuid`)
 - **Index:** `ix_sync_jobs_form_id` (`form_id`)
 - **Index:** `ix_sync_jobs_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_sync_jobs_created_by` (`created_by`) — supports FK
@@ -4983,6 +5034,7 @@ admin-created, never seeded.
 | `is_default` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 
 - **Primary key:** `pk_notification_channels` (`id`); SQL Server clustered.
+- **Unique:** `uq_notification_channels_uuid` (`uuid`)
 - **Unique:** `uq_notification_channels_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_notification_channels_created_by` (`created_by`) — supports FK
 - **Index:** `ix_notification_channels_updated_by` (`updated_by`) — supports FK
@@ -5017,6 +5069,7 @@ admin-created, never seeded.
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_inbound_endpoints` (`id`); SQL Server clustered.
+- **Unique:** `uq_inbound_endpoints_uuid` (`uuid`)
 - **Unique:** `uq_inbound_endpoints_organization_id_slug` (`organization_id`, `slug`)
 - **Index:** `ix_inbound_endpoints_created_by` (`created_by`) — supports FK
 - **Index:** `ix_inbound_endpoints_updated_by` (`updated_by`) — supports FK
@@ -5206,6 +5259,7 @@ admin-created, never seeded.
 | `last_triggered_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
 - **Primary key:** `pk_operations_alert_rules` (`id`); SQL Server clustered.
+- **Unique:** `uq_operations_alert_rules_uuid` (`uuid`)
 - **Index:** `ix_operations_alert_rules_organization_id_is_active` (`organization_id`, `is_active`)
 - **Index:** `ix_operations_alert_rules_created_by` (`created_by`) — supports FK
 - **Index:** `ix_operations_alert_rules_updated_by` (`updated_by`) — supports FK
@@ -5240,6 +5294,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `timeout_ms` | INT | INT | NOT NULL | — |  |
 
 - **Primary key:** `pk_extensions` (`id`); SQL Server clustered.
+- **Unique:** `uq_extensions_uuid` (`uuid`)
 - **Unique:** `uq_extensions_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_extensions_created_by` (`created_by`) — supports FK
 - **Index:** `ix_extensions_updated_by` (`updated_by`) — supports FK
@@ -5346,6 +5401,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_webhooks` (`id`); SQL Server clustered.
+- **Unique:** `uq_webhooks_uuid` (`uuid`)
 - **Unique:** `uq_webhooks_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_webhooks_created_by` (`created_by`) — supports FK
 - **Index:** `ix_webhooks_updated_by` (`updated_by`) — supports FK
@@ -5429,6 +5485,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `version` | INT | INT | NOT NULL | — | cache-busting |
 
 - **Primary key:** `pk_themes` (`id`); SQL Server clustered.
+- **Unique:** `uq_themes_uuid` (`uuid`)
 - **Unique:** `uq_themes_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_themes_created_by` (`created_by`) — supports FK
 - **Index:** `ix_themes_updated_by` (`updated_by`) — supports FK
@@ -5485,6 +5542,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `published_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
 - **Primary key:** `pk_pages` (`id`); SQL Server clustered.
+- **Unique:** `uq_pages_uuid` (`uuid`)
 - **Unique:** `uq_pages_application_id_key` (`application_id`, `key`)
 - **Index:** `ix_pages_organization_id_deleted_at` (`organization_id`, `deleted_at`)
 - **Index:** `ix_pages_created_by` (`created_by`) — supports FK
@@ -5553,6 +5611,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_home_screens` (`id`); SQL Server clustered.
+- **Unique:** `uq_home_screens_uuid` (`uuid`)
 - **Index:** `ix_home_screens_organization_id_application_id_targ_0e5da274` (`organization_id`, `application_id`, `target_type`, `target_id`)
 - **Index:** `ix_home_screens_created_by` (`created_by`) — supports FK
 - **Index:** `ix_home_screens_updated_by` (`updated_by`) — supports FK
@@ -5587,6 +5646,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `published_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 
 - **Primary key:** `pk_announcements` (`id`); SQL Server clustered.
+- **Unique:** `uq_announcements_uuid` (`uuid`)
 - **Index:** `ix_announcements_organization_id_is_published_starts_at` (`organization_id`, `is_published`, `starts_at`)
 - **Index:** `ix_announcements_created_by` (`created_by`) — supports FK
 - **Index:** `ix_announcements_updated_by` (`updated_by`) — supports FK
@@ -5633,6 +5693,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `sort_order` | INT | INT | NOT NULL | 0 |  |
 
 - **Primary key:** `pk_help_content` (`id`); SQL Server clustered.
+- **Unique:** `uq_help_content_uuid` (`uuid`)
 - **Index:** `ix_help_content_target_type_target_id` (`target_type`, `target_id`)
 - **Index:** `ix_help_content_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_help_content_created_by` (`created_by`) — supports FK
@@ -5664,6 +5725,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_tours` (`id`); SQL Server clustered.
+- **Unique:** `uq_tours_uuid` (`uuid`)
 - **Index:** `ix_tours_form_id` (`form_id`)
 - **Index:** `ix_tours_route_key` (`route_key`)
 - **Index:** `ix_tours_organization_id` (`organization_id`) — supports FK
@@ -5747,6 +5809,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `is_admin_policy` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 
 - **Primary key:** `pk_access_policies` (`id`); SQL Server clustered.
+- **Unique:** `uq_access_policies_uuid` (`uuid`)
 - **Unique:** `uq_access_policies_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_access_policies_created_by` (`created_by`) — supports FK
 - **Index:** `ix_access_policies_updated_by` (`updated_by`) — supports FK
@@ -5776,6 +5839,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `audience` | JSON | NVARCHAR(MAX) | NOT NULL | — | `{roles:[], departments:[], users:[]}`; empty = everyone when enabled |
 
 - **Primary key:** `pk_feature_flags` (`id`); SQL Server clustered.
+- **Unique:** `uq_feature_flags_uuid` (`uuid`)
 - **Unique:** `uq_feature_flags_organization_id_key` (`organization_id`, `key`)
 - **Index:** `ix_feature_flags_created_by` (`created_by`) — supports FK
 - **Index:** `ix_feature_flags_updated_by` (`updated_by`) — supports FK
@@ -5904,6 +5968,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
 - **Primary key:** `pk_retention_policies` (`id`); SQL Server clustered.
+- **Unique:** `uq_retention_policies_uuid` (`uuid`)
 - **Index:** `ix_retention_policies_organization_id_data_class` (`organization_id`, `data_class`)
 - **Index:** `ix_retention_policies_created_by` (`created_by`) — supports FK
 - **Index:** `ix_retention_policies_updated_by` (`updated_by`) — supports FK
@@ -6005,6 +6070,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `lift_reason` | TEXT | NVARCHAR(MAX) | NULL | — |  |
 
 - **Primary key:** `pk_legal_holds` (`id`); SQL Server clustered.
+- **Unique:** `uq_legal_holds_uuid` (`uuid`)
 - **Index:** `ix_legal_holds_form_id_record_id_lifted_at` (`form_id`, `record_id`, `lifted_at`)
 - **Index:** `ix_legal_holds_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_legal_holds_created_by` (`created_by`) — supports FK
@@ -6041,6 +6107,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `completed_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 
 - **Primary key:** `pk_personal_data_requests` (`id`); SQL Server clustered.
+- **Unique:** `uq_personal_data_requests_uuid` (`uuid`)
 - **Index:** `ix_personal_data_requests_organization_id_status` (`organization_id`, `status`)
 - **Index:** `ix_personal_data_requests_subject_hash` (`subject_hash`)
 - **Index:** `ix_personal_data_requests_created_by` (`created_by`) — supports FK
@@ -6103,6 +6170,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `state` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `ok`, `warning`, `exceeded` |
 
 - **Primary key:** `pk_storage_quotas` (`id`); SQL Server clustered.
+- **Unique:** `uq_storage_quotas_uuid` (`uuid`)
 - **Unique:** `uq_storage_quotas_scope_type_scope_id` (`scope_type`, `scope_id`)
 - **Index:** `ix_storage_quotas_organization_id` (`organization_id`) — supports FK
 - **Index:** `ix_storage_quotas_created_by` (`created_by`) — supports FK
