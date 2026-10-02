@@ -58,7 +58,7 @@ final class ErrorReporter
     /** @return array<string, mixed> */
     private function buildRecord(Throwable $e, string $reference, string $severity): array
     {
-        $request = app()->bound('request') && ! app()->runningInConsole() ? app(Request::class) : null;
+        $request = app()->bound('request') && (! app()->runningInConsole() || app()->runningUnitTests()) ? app(Request::class) : null;
         $message = $e instanceof QueryException
             ? 'SQLSTATE['.$e->getCode().'] query failed: '.$e->getSql() // SQL without bound values
             : $this->masker->text($e->getMessage());

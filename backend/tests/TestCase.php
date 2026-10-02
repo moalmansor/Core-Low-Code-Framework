@@ -26,6 +26,8 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
         // Requests look like the SPA's: same origin, so Sanctum starts the session.
         $this->withHeaders(['Origin' => 'http://localhost', 'Referer' => 'http://localhost/']);
+        // The SPA bundle is built by the frontend pipeline; the shell renders without it here.
+        $this->withoutVite();
     }
 
     /**

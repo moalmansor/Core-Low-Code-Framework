@@ -26,7 +26,7 @@ Artisan::command('audit:verify {--full : Re-verify every chain from its first en
     foreach ($result['breaks'] as $break) {
         $this->error(sprintf('Chain %d broken at sequence %d (entry %d): %s', $break['chain_id'], $break['chain_seq'], $break['id'], $break['reason']));
     }
-    $audit->record('audit.chain_break_detected', 'compliance', meta: ['breaks' => $result['breaks']]);
+    $audit->record('audit.chain_break_detected', 'security', meta: ['breaks' => $result['breaks']]);
     $errors->report(new RuntimeException('Audit hash chain verification found '.count($result['breaks']).' break(s).'), 'critical');
 
     return 1;

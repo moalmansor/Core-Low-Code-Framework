@@ -22,7 +22,8 @@ final class AuditWriter
     public const CHAINS = 16;
 
     /** Attribute names whose values are always masked in audit entries. */
-    private const SENSITIVE = ['password', 'password_hash', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'token', 'secret', 'client_secret', 'bind_password', 'encrypted_value', 'api_key'];
+    /** Field names (last path segment) whose values are never stored in clear. */
+    private const SENSITIVE = '/(^|_)(password|passwd|secret|token|api_?key|private_key|recovery_codes?|credentials?|encrypted_value)s?(_hash)?$/';
 
     public function __construct(
         private readonly DatabaseDriver $driver,
@@ -128,7 +129,7 @@ final class AuditWriter
         return array_map(static function (array $change): array {
             $key = strtolower((string) ($change['field_key'] ?? ''));
             $leaf = str_contains($key, '.') ? substr($key, (int) strrpos($key, '.') + 1) : $key;
-            if (in_array($leaf, self::SENSITIVE, true)) {
+            if (preg_match(self::SENSITIVE, $leaf) === 1) {
                 $change['old'] = $change['old'] === null ? null : '«masked»';
                 $change['new'] = $change['new'] === null ? null : '«masked»';
             }

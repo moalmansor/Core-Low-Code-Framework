@@ -87,20 +87,26 @@ final class TranslationController extends Controller
             'items.*.field' => ['required', 'string', 'max:64'],
             'items.*.value' => ['present', 'nullable', 'string', 'max:10000'],
         ]);
-        DB::transaction(function () use ($data): void {
+        $known = array_keys($this->translator->bundledUi($this->translator->defaultLocale()));
+        DB::transaction(function () use ($data, $known): void {
+            $changes = [];
             foreach ($data['items'] as $item) {
                 if ($item['type'] === Translator::UI_TYPE) {
-                    abort_if(empty($item['key']), 422, __('validation.required', ['attribute' => 'key']));
+                    abort_if(empty($item['key']) || ! in_array($item['key'], $known, true), 422, __('validation.in', ['attribute' => 'key']));
+                    $old = $this->translator->uiOverrides($data['locale'])[$item['key']] ?? null;
                     $this->translator->putMany(Translator::UI_TYPE, 0, $item['key'], [$data['locale'] => $item['value']]);
+                    $changes[] = ['field_key' => "ui:{$item['key']}:{$data['locale']}", 'old' => $old, 'new' => $item['value']];
 
                     continue;
                 }
                 $info = $this->registry->get($item['type']);
                 abort_if($info === null || ! in_array($item['field'], $info['fields'], true), 422, __('validation.in', ['attribute' => 'field']));
                 $model = $info['model']::query()->where('uuid', $item['object'])->firstOrFail();
+                $old = $this->translator->all($item['type'], (int) $model->getKey(), $item['field'])[$data['locale']] ?? null;
                 $this->translator->putMany($item['type'], (int) $model->getKey(), $item['field'], [$data['locale'] => $item['value']]);
+                $changes[] = ['field_key' => "{$item['type']}:{$item['object']}:{$item['field']}:{$data['locale']}", 'old' => $old, 'new' => $item['value']];
             }
-            app(AuditWriter::class)->record('config.translations_changed', 'config', meta: ['locale' => $data['locale'], 'items' => count($data['items'])]);
+            app(AuditWriter::class)->record('config.translations_changed', 'config', changes: $changes, meta: ['locale' => $data['locale'], 'items' => count($data['items'])]);
         });
 
         return response()->json(['data' => ['saved' => count($data['items'])]]);

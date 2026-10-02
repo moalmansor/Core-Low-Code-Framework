@@ -39,7 +39,46 @@ final class MeController extends Controller
                 'pending_confirmation' => $user->two_factor_secret !== null && $user->two_factor_confirmed_at === null,
             ],
             'password_expired' => $policy->isExpired($user),
+            'preferences' => $this->presentPreferences($user),
         ]]);
+    }
+
+    /** Personal preferences: language (and so direction), time zone, calendar, theme. */
+    public function updatePreferences(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = Auth::user();
+        $enabled = app(\App\Modules\Core\I18n\Translator::class)->enabledLocales();
+        $data = $request->validate([
+            'locale' => ['sometimes', 'nullable', \Illuminate\Validation\Rule::in($enabled)],
+            'timezone' => ['sometimes', 'nullable', 'timezone:all'],
+            'calendar' => ['sometimes', 'nullable', \Illuminate\Validation\Rule::in(['gregorian', 'hijri', 'both'])],
+            'digits' => ['sometimes', 'nullable', \Illuminate\Validation\Rule::in(['western', 'arabic_indic'])],
+            'date_format' => ['sometimes', 'nullable', 'string', 'max:32', 'regex:/^[yMdHhmsaEG\/\-\.\s,]+$/'],
+            'theme_mode' => ['sometimes', \Illuminate\Validation\Rule::in(['light', 'dark', 'system'])],
+            'density' => ['sometimes', 'nullable', \Illuminate\Validation\Rule::in(['compact', 'normal', 'comfortable'])],
+        ]);
+        $preference = $user->preference()->firstOrNew();
+        $preference->fill($data)->save();
+        $user->setRelation('preference', $preference);
+
+        return response()->json(['data' => $this->presentPreferences($user)]);
+    }
+
+    /** @return array<string, mixed> */
+    private function presentPreferences(User $user): array
+    {
+        $p = $user->preference;
+
+        return [
+            'locale' => $p?->locale,
+            'timezone' => $p?->timezone,
+            'calendar' => $p?->calendar,
+            'digits' => $p?->digits,
+            'date_format' => $p?->date_format,
+            'theme_mode' => $p->theme_mode ?? 'system',
+            'density' => $p?->density,
+        ];
     }
 
     public function update(Request $request): JsonResponse

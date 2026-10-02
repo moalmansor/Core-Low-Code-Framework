@@ -64,7 +64,7 @@ final class SettingsRegistry
         $d('formats', 'first_day_of_week', 0, ['required', 'integer', 'between:0,6']);
         $d('formats', 'digits', 'locale', ['required', Rule::in(['locale', 'western', 'arabic_indic'])]);
         $d('formats', 'decimal_separator', '.', ['required', Rule::in(['.', ','])]);
-        $d('formats', 'thousands_separator', ',', ['required', Rule::in([',', '.', ' ', "'", ''])]);
+        $d('formats', 'thousands_separator', ',', ['present', 'nullable', Rule::in([',', '.', ' ', "'", ''])]);
         $d('calendar', 'system', 'gregorian', ['required', Rule::in(['gregorian', 'hijri', 'both'])]);
 
         // Outgoing mail (§2 SMTP)

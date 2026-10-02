@@ -35,6 +35,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', SetLocale::class);
         $middleware->appendToGroup('api', SetLocale::class);
         $middleware->encryptCookies();
+        // Separators may legitimately be a single space.
+        $middleware->trimStrings(except: ['number_format.group', 'number_format.decimal', 'thousands_separator', 'decimal_separator', 'formats.thousands_separator', 'formats.decimal_separator']);
 
         // Signed-in requests: active account, tenant, idle/absolute timeouts.
         $middleware->group('lcf.session', [

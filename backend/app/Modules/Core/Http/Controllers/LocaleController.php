@@ -70,6 +70,9 @@ final class LocaleController extends Controller
     private function attributes(array $data, ?Locale $locale = null): array
     {
         $out = collect($data)->except(['fallback', 'is_default', 'code'])->all();
+        if (isset($out['number_format'])) {
+            $out['number_format']['group'] ??= ''; // "no grouping" arrives as null
+        }
         if ($locale === null) {
             $out['code'] = $data['code'];
         }
@@ -97,7 +100,7 @@ final class LocaleController extends Controller
             'time_format' => [$r, Rule::in(['12h', '24h'])],
             'number_format' => [$r, 'array'],
             'number_format.decimal' => [$r, Rule::in(['.', ',', '٫'])],
-            'number_format.group' => [$r, Rule::in([',', '.', ' ', '٬', "'", ''])],
+            'number_format.group' => [$locale === null ? 'present' : 'sometimes', 'nullable', Rule::in([',', '.', ' ', '٬', "'", ''])],
             'first_day_of_week' => [$r, 'integer', 'between:0,6'],
             'fallback' => ['sometimes', 'nullable', 'string', Rule::exists(Locale::class, 'code')],
             'is_enabled' => ['sometimes', 'boolean'],

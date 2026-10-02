@@ -13,6 +13,7 @@ Route::get('/auth/sso/providers', [SsoController::class, 'providers']);
 Route::middleware(['auth:sanctum', 'lcf.session'])->prefix('me')->group(function (): void {
     Route::get('/', [MeController::class, 'show']);
     Route::patch('/', [MeController::class, 'update']);
+    Route::patch('/preferences', [MeController::class, 'updatePreferences']);
     Route::get('/sessions', [MeController::class, 'sessions']);
     Route::delete('/sessions/{handle}', [MeController::class, 'revokeSession'])->where('handle', '[a-f0-9]{64}');
     Route::delete('/sessions', [MeController::class, 'revokeOtherSessions']);
