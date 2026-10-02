@@ -9,6 +9,7 @@ use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
+use Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
@@ -87,7 +88,7 @@ final class SettingsSmtpTransport implements TransportInterface
             $transport->setPassword((string) ($config['password'] ?? ''));
         }
         $stream = $transport->getStream();
-        if ($stream instanceof \Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream) {
+        if ($stream instanceof SocketStream) {
             $stream->setTimeout(15);
         }
 

@@ -17,7 +17,7 @@ trait AddsLogicalTypes
     /** Machine keys, tokens, enumerations: case-sensitive ASCII. */
     protected function typeCode(Fluent $column): string
     {
-        return $this->asciiType('varchar', (int) $column->length);
+        return $this->asciiType('varchar', (int) $column->get('length'));
     }
 
     /** SHA-256 hex digests. */
@@ -36,8 +36,8 @@ trait AddsLogicalTypes
         return [sprintf(
             'alter table %s add constraint %s check (%s)',
             $this->wrapTable($blueprint),
-            $this->wrap($command->index),
-            $command->expression,
+            $this->wrap((string) $command->get('index')),
+            (string) $command->get('expression'),
         )];
     }
 

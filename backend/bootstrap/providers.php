@@ -1,9 +1,15 @@
 <?php
 
+use App\Infrastructure\Database\DatabaseServiceProvider;
+use App\Modules\Core\CoreServiceProvider;
+use App\Modules\Identity\IdentityServiceProvider;
+use App\Modules\ModulesServiceProvider;
+use App\Providers\AppServiceProvider;
+
 return [
-    App\Infrastructure\Database\DatabaseServiceProvider::class,
-    App\Providers\AppServiceProvider::class,
-    App\Modules\Core\CoreServiceProvider::class,
-    App\Modules\Identity\IdentityServiceProvider::class,
-    App\Modules\ModulesServiceProvider::class,
+    DatabaseServiceProvider::class,
+    AppServiceProvider::class,
+    CoreServiceProvider::class,
+    IdentityServiceProvider::class,
+    ModulesServiceProvider::class,
 ];

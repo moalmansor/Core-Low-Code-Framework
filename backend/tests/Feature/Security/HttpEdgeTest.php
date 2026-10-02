@@ -2,8 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Modules\Access\AccessCache;
+use App\Modules\Access\Models\Permission;
+use App\Modules\Access\Models\PermissionAssignment;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Tests\TestCase;
 
 it('serves the SPA shell with a strict nonce-based CSP and security headers', function () {
     $response = $this->get('/login')->assertOk();
@@ -41,7 +45,7 @@ it('rejects state-changing requests without a CSRF token from the browser', func
     $user = $this->makeUser();
     // Re-enable CSRF verification, which the test runner normally skips.
     $this->app->instance('env', 'production');
-    $this->postJson('/api/v1/auth/login', ['email' => $user->email, 'password' => Tests\TestCase::PASSWORD])->assertStatus(419);
+    $this->postJson('/api/v1/auth/login', ['email' => $user->email, 'password' => TestCase::PASSWORD])->assertStatus(419);
     $this->app->instance('env', 'testing');
 });
 
@@ -62,11 +66,11 @@ it('shows each admin console area only to holders of its permission', function (
 
     $this->flushSession();
     $translator = $this->makeUser();
-    App\Modules\Access\Models\PermissionAssignment::query()->create([
-        'permission_id' => App\Modules\Access\Models\Permission::query()->where('key', 'system.manage_translations')->value('id'),
+    PermissionAssignment::query()->create([
+        'permission_id' => Permission::query()->where('key', 'system.manage_translations')->value('id'),
         'subject_type' => 'user', 'subject_id' => $translator->id, 'effect' => 'allow',
     ]);
-    app(App\Modules\Access\AccessCache::class)->bump();
+    app(AccessCache::class)->bump();
     $this->actingAs($translator, 'web');
     expect(collect($this->getJson('/api/v1/admin/console')->json('data.areas'))->pluck('key')->all())->toBe(['translations']);
     $this->getJson('/api/v1/admin/health')->assertForbidden();

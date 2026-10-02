@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Identity\Models\User;
 
 return [
 
@@ -63,7 +64,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'lcf-eloquent',
-            'model' => App\Modules\Identity\Models\User::class,
+            'model' => User::class,
         ],
 
         // 'users' => [

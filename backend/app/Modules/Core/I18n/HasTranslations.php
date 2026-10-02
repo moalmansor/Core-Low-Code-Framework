@@ -16,7 +16,7 @@ trait HasTranslations
     /** @return list<string> */
     public function translatableAttributes(): array
     {
-        return $this->translatable ?? [];
+        return $this->translatable;
     }
 
     /** Value in the requested (or current) locale, following the fallback chain. */

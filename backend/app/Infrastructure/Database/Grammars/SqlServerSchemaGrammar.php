@@ -28,9 +28,9 @@ final class SqlServerSchemaGrammar extends SqlServerGrammar
 
         return sprintf(
             'create unique index %s on %s (%s)%s',
-            $this->wrap($command->index),
+            $this->wrap((string) $command->get('index')),
             $this->wrapTable($blueprint),
-            $this->columnize($command->columns),
+            $this->columnize((array) $command->get('columns')),
             $where,
         );
     }
@@ -38,7 +38,7 @@ final class SqlServerSchemaGrammar extends SqlServerGrammar
     /** Name the primary key `pk_{table}` instead of a system-generated name. */
     protected function modifyIncrement(Blueprint $blueprint, Fluent $column)
     {
-        if (! $column->change && in_array($column->type, $this->serials, true) && $column->autoIncrement) {
+        if (! $column->get('change') && in_array($column->get('type'), $this->serials, true) && $column->get('autoIncrement')) {
             return $this->hasCommand($blueprint, 'primary')
                 ? ' identity'
                 : ' identity constraint '.$this->wrap('pk_'.$blueprint->getTable()).' primary key';

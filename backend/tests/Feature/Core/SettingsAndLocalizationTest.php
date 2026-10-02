@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 use App\Modules\Access\Models\Role;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Core\Mail\TestMail;
 use App\Modules\Core\Models\Setting;
 use App\Modules\Core\Settings\SettingsService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 
 beforeEach(function () {
     $this->completeSetup();
@@ -42,7 +44,7 @@ it('keeps secrets write-only and encrypted, in the database and in the cache', f
 
 it('fixes the tenancy mode after setup', function () {
     $this->patchJson('/api/v1/settings/tenancy', ['mode' => 'multi'])->assertNotFound();
-    expect(fn () => app(SettingsService::class)->update('tenancy', ['mode' => 'multi']))->toThrow(Illuminate\Validation\ValidationException::class);
+    expect(fn () => app(SettingsService::class)->update('tenancy', ['mode' => 'multi']))->toThrow(ValidationException::class);
 });
 
 it('sends a test e-mail through the configured SMTP settings', function () {
@@ -50,7 +52,7 @@ it('sends a test e-mail through the configured SMTP settings', function () {
     $this->postJson('/api/v1/settings/mail/test', ['to' => 'ops@example.test'])->assertUnprocessable();
     $this->patchJson('/api/v1/settings/mail', ['host' => 'smtp.example.test', 'from_address' => 'noreply@example.test'])->assertOk();
     $this->postJson('/api/v1/settings/mail/test', ['to' => 'ops@example.test'])->assertOk();
-    Mail::assertSent(App\Modules\Core\Mail\TestMail::class, fn ($m) => $m->hasTo('ops@example.test'));
+    Mail::assertSent(TestMail::class, fn ($m) => $m->hasTo('ops@example.test'));
 });
 
 it('renames the system per locale from branding settings', function () {

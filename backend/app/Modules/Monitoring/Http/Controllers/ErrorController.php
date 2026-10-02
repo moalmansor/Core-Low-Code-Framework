@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Modules\Monitoring\Http\Controllers;
 
+use App\Modules\Core\Tenancy\TenantContext;
 use App\Modules\Identity\Models\User;
 use App\Modules\Monitoring\Models\ErrorGroup;
 use App\Modules\Monitoring\Models\ErrorLog;
+use App\Support\Like;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -47,8 +49,7 @@ final class ErrorController extends Controller
             $q->whereIn('id', ErrorLog::query()->select('error_group_id')->where('user_id', $f['user_id']));
         }
         if (! empty($f['search'])) {
-            $term = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $f['search']).'%';
-            $q->where(static fn ($w) => $w->where('exception_class', 'like', $term)->orWhere('message_sample', 'like', $term));
+            Like::any($q, ['exception_class', 'message_sample'], $f['search']);
         }
 
         return response()->json($q->orderByDesc('last_seen_at')->paginate((int) ($f['per_page'] ?? 25)));
@@ -88,7 +89,7 @@ final class ErrorController extends Controller
     {
         Gate::authorize('system.view_errors');
         $log = ErrorLog::query()->where('reference_code', $code)
-            ->where('organization_id', app(\App\Modules\Core\Tenancy\TenantContext::class)->organizationId())->firstOrFail();
+            ->where('organization_id', app(TenantContext::class)->organizationId())->firstOrFail();
 
         return response()->json(['data' => $log]);
     }

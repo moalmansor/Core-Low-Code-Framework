@@ -6,6 +6,7 @@ namespace App\Modules\Core\Outbox;
 
 use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Core\Models\OutboxEvent;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -39,7 +40,7 @@ final class OutboxRelay
         );
     }
 
-    private function relay(\Illuminate\Database\Query\Builder $query): int
+    private function relay(Builder $query): int
     {
         $count = 0;
         DB::transaction(function () use ($query, &$count): void {

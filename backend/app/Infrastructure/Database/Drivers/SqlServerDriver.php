@@ -97,7 +97,7 @@ final class SqlServerDriver extends AbstractDriver
         return new Raw(sprintf("json_value(%s, '%s')", $this->wrap($column), $path));
     }
 
-    public function jsonColumnCheck(string $column): ?string
+    public function jsonColumnCheck(string $column): string
     {
         $this->assertIdentifier($column);
 

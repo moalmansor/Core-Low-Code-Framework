@@ -11,6 +11,7 @@ use App\Modules\Audit\AuditWriter;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Sessions\SessionRevoker;
 use App\Modules\Organization\Models\Department;
+use App\Support\Like;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -47,8 +48,7 @@ final class UserController extends Controller
         ]);
         $q = User::query()->with(['roles:id,uuid,key', 'department:id,uuid,code']);
         if (! empty($f['search'])) {
-            $term = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $f['search']).'%';
-            $q->where(static fn ($w) => $w->where('name', 'like', $term)->orWhere('email', 'like', $term)->orWhere('username', 'like', $term));
+            Like::any($q, ['name', 'email', 'username'], $f['search']);
         }
         if (! empty($f['status'])) {
             $q->where('status', $f['status']);

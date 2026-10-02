@@ -19,19 +19,20 @@ trait Auditable
 
     public static function bootAuditable(): void
     {
-        static::created(static fn (Model $m) => $m->writeAudit('created', $m->auditDiff(true)));
-        static::updated(static function (Model $m): void {
+        static::created(static fn (self $m) => $m->writeAudit('created', $m->auditDiff(true)));
+        static::updated(static function (self $m): void {
             $diff = $m->auditDiff(false);
             if ($diff !== []) {
                 $m->writeAudit('updated', $diff);
             }
         });
-        static::deleted(static fn (Model $m) => $m->writeAudit(method_exists($m, 'isForceDeleting') && ! $m->isForceDeleting() ? 'deleted' : 'purged', null));
+        static::deleted(static fn (self $m) => $m->writeAudit(method_exists($m, 'isForceDeleting') && ! $m->isForceDeleting() ? 'deleted' : 'purged', null));
         if (method_exists(static::class, 'restored')) {
-            static::restored(static fn (Model $m) => $m->writeAudit('restored', null));
+            static::restored(static fn (self $m) => $m->writeAudit('restored', null));
         }
     }
 
+    /** @param list<array<string, mixed>>|null $changes */
     protected function writeAudit(string $action, ?array $changes): void
     {
         app(AuditWriter::class)->record(

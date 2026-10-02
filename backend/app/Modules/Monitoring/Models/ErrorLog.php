@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace App\Modules\Monitoring\Models;
 
 use App\Support\Models\BaseModel;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
- * @property \Illuminate\Support\Carbon $occurred_at
+ * @property Carbon $occurred_at
  * @property int|null $organization_id
  * @property int $error_group_id
  * @property string $reference_code

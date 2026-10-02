@@ -7,6 +7,7 @@ namespace App\Modules\Access\Models;
 use App\Support\Models\BaseModel;
 use App\Support\Models\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $subject_id
  * @property string $effect
  * @property bool $include_descendants
- * @property \Illuminate\Support\Carbon|null $valid_until
+ * @property Carbon|null $valid_until
  * @property int|null $granted_by
  */
 final class PermissionAssignment extends BaseModel

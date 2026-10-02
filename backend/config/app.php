@@ -17,6 +17,8 @@ return [
 
     'version' => env('APP_VERSION', '0.1.0'),
 
+    'trusted_proxies' => env('TRUSTED_PROXIES', '127.0.0.1,::1'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

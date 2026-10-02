@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Audit;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -78,6 +79,6 @@ final class ChainVerifier
     /** Both engines return DATETIME(6) values; normalise to the writer's format. */
     public static function normalizeTime(string $value): string
     {
-        return \Illuminate\Support\Carbon::parse($value, 'UTC')->format('Y-m-d H:i:s.u');
+        return Carbon::parse($value, 'UTC')->format('Y-m-d H:i:s.u');
     }
 }

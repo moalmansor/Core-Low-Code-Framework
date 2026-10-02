@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +20,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Reverse proxies whose X-Forwarded-* headers are trusted (client IP,
+        // scheme). Configured per deployment; never "*" by default.
+        TrustProxies::at(config('app.trusted_proxies'));
     }
 }

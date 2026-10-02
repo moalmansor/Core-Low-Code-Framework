@@ -18,7 +18,6 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Validation\Rule;
 use Throwable;
 
 /** System settings (specification §4.22, Phase 1 scope). */

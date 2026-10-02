@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Identity\Auth;
 
+use App\Modules\Access\AccessCache;
 use App\Modules\Access\Models\Role;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Identity\Models\User;
@@ -75,7 +76,7 @@ final class UserProvisioner
                 }
                 if ($add !== [] || $remove !== []) {
                     $this->audit->record('user.roles_synced', 'access', objectType: 'user', objectId: $user->id, meta: ['source' => $source, 'added' => array_values($add), 'removed' => array_values($remove)]);
-                    app(\App\Modules\Access\AccessCache::class)->bump();
+                    app(AccessCache::class)->bump();
                 }
             }
 

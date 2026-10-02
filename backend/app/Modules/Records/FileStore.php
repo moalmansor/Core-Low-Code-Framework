@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Records;
 
 use App\Infrastructure\Storage\VirusScanner;
+use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Records\Models\StoredFile;
 use Illuminate\Http\UploadedFile;
@@ -58,7 +59,7 @@ final class FileStore
                 throw ValidationException::withMessages(['file' => __('ui.files.scan_unavailable')]);
             }
             if ($scan === 'infected') {
-                app(\App\Modules\Audit\AuditWriter::class)->record('file.rejected_infected', 'security', meta: ['name' => $upload->getClientOriginalName()]);
+                app(AuditWriter::class)->record('file.rejected_infected', 'security', meta: ['name' => $upload->getClientOriginalName()]);
                 throw ValidationException::withMessages(['file' => __('ui.files.infected')]);
             }
         }

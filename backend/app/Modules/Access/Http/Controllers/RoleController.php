@@ -7,8 +7,9 @@ namespace App\Modules\Access\Http\Controllers;
 use App\Modules\Access\AccessGuard;
 use App\Modules\Access\Models\PermissionAssignment;
 use App\Modules\Access\Models\Role;
-use App\Modules\Core\I18n\Translator;
-use App\Modules\Identity\Models\User;
+use App\Modules\Audit\AuditWriter;
+use App\Modules\Core\Models\Locale;
+use App\Modules\Core\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -108,7 +109,7 @@ final class RoleController extends Controller
                     'granted_by' => auth()->id(),
                 ]);
             }
-            app(\App\Modules\Audit\AuditWriter::class)->record('access.permissions_copied', 'access', objectType: 'role', objectId: $role->id, meta: ['from_role' => $source->uuid]);
+            app(AuditWriter::class)->record('access.permissions_copied', 'access', objectType: 'role', objectId: $role->id, meta: ['from_role' => $source->uuid]);
         });
 
         return response()->json(['data' => $this->present($role->loadCount('users'))]);
@@ -119,10 +120,10 @@ final class RoleController extends Controller
     {
         return $request->validate([
             'key' => [$role === null ? 'required' : 'sometimes', 'string', 'max:64', 'regex:/^[a-z][a-z0-9_]{1,63}$/',
-                Rule::unique(Role::class, 'key')->where('organization_id', app(\App\Modules\Core\Tenancy\TenantContext::class)->organizationId())->ignore($role?->id)],
+                Rule::unique(Role::class, 'key')->where('organization_id', app(TenantContext::class)->organizationId())->ignore($role?->id)],
             'name' => [$role === null ? 'required' : 'sometimes', 'array'],
             'name.*' => ['nullable', 'string', 'max:255'],
-            'name.'.(\App\Modules\Core\Models\Locale::query()->where('is_default', true)->value('code') ?? 'en') => [$role === null ? 'required' : 'sometimes', 'string', 'max:255'],
+            'name.'.(Locale::query()->where('is_default', true)->value('code') ?? 'en') => [$role === null ? 'required' : 'sometimes', 'string', 'max:255'],
             'description' => ['sometimes', 'nullable', 'array'],
             'description.*' => ['nullable', 'string', 'max:2000'],
             'requires_2fa' => ['sometimes', 'boolean'],

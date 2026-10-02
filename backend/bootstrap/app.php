@@ -13,11 +13,14 @@ use App\Modules\Identity\Http\Middleware\EnsureTwoFactorEnrolled;
 use App\Modules\Identity\Http\Middleware\SetTenantFromUser;
 use App\Modules\Monitoring\ErrorReporter;
 use App\Modules\Setup\Http\Middleware\SetupOpen;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -30,7 +33,6 @@ return Application::configure(basePath: dirname(__DIR__))
         // The SPA and the API share an origin; Sanctum authenticates the SPA
         // with the session cookie and enforces CSRF (specification §5).
         $middleware->statefulApi();
-        $middleware->trustProxies(at: (string) env('TRUSTED_PROXIES', '127.0.0.1,::1'));
         $middleware->prepend([AssignCorrelationId::class, SecurityHeaders::class]);
         $middleware->appendToGroup('web', SetLocale::class);
         $middleware->appendToGroup('api', SetLocale::class);
@@ -78,8 +80,8 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($e instanceof HttpExceptionInterface && $e->getStatusCode() < 500) {
                 return null; // framework rendering: message only, no internals
             }
-            if ($e instanceof \Illuminate\Validation\ValidationException || $e instanceof \Illuminate\Auth\Access\AuthorizationException
-                || $e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+            if ($e instanceof ValidationException || $e instanceof AuthorizationException
+                || $e instanceof ModelNotFoundException) {
                 return null;
             }
             if (config('app.debug')) {

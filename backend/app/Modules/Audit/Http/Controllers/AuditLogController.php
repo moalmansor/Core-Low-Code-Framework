@@ -7,11 +7,13 @@ namespace App\Modules\Audit\Http\Controllers;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Audit\ChainVerifier;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Core\Tenancy\TenantContext;
 use App\Support\Csv;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -31,7 +33,7 @@ final class AuditLogController extends Controller
     public function show(Request $request, int $id): JsonResponse
     {
         Gate::authorize('system.view_audit_log');
-        $entry = AuditLog::query()->where('organization_id', app(\App\Modules\Core\Tenancy\TenantContext::class)->organizationId())->findOrFail($id);
+        $entry = AuditLog::query()->where('organization_id', app(TenantContext::class)->organizationId())->findOrFail($id);
 
         return response()->json(['data' => $entry]);
     }
@@ -93,12 +95,12 @@ final class AuditLogController extends Controller
      */
     private function query(array $f): Builder
     {
-        $q = AuditLog::query()->where('organization_id', app(\App\Modules\Core\Tenancy\TenantContext::class)->organizationId());
+        $q = AuditLog::query()->where('organization_id', app(TenantContext::class)->organizationId());
         if (! empty($f['from'])) {
-            $q->where('occurred_at', '>=', \Illuminate\Support\Carbon::parse($f['from'])->format('Y-m-d H:i:s.u'));
+            $q->where('occurred_at', '>=', Carbon::parse($f['from'])->format('Y-m-d H:i:s.u'));
         }
         if (! empty($f['to'])) {
-            $q->where('occurred_at', '<=', \Illuminate\Support\Carbon::parse($f['to'])->endOfDay()->format('Y-m-d H:i:s.u'));
+            $q->where('occurred_at', '<=', Carbon::parse($f['to'])->endOfDay()->format('Y-m-d H:i:s.u'));
         }
         foreach (['event', 'category', 'object_type', 'object_id', 'actor_user_id', 'correlation_id'] as $field) {
             if (isset($f[$field]) && $f[$field] !== '') {

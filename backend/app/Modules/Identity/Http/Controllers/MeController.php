@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Identity\Http\Controllers;
 
 use App\Modules\Access\AccessResolver;
+use App\Modules\Audit\AuditWriter;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Security\PasswordPolicy;
 use App\Modules\Identity\Sessions\SessionRevoker;
@@ -14,6 +16,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Validation\Rule;
 
 /** The signed-in user's own profile, permissions, and sessions (§5). */
 final class MeController extends Controller
@@ -48,15 +51,15 @@ final class MeController extends Controller
     {
         /** @var User $user */
         $user = Auth::user();
-        $enabled = app(\App\Modules\Core\I18n\Translator::class)->enabledLocales();
+        $enabled = app(Translator::class)->enabledLocales();
         $data = $request->validate([
-            'locale' => ['sometimes', 'nullable', \Illuminate\Validation\Rule::in($enabled)],
+            'locale' => ['sometimes', 'nullable', Rule::in($enabled)],
             'timezone' => ['sometimes', 'nullable', 'timezone:all'],
-            'calendar' => ['sometimes', 'nullable', \Illuminate\Validation\Rule::in(['gregorian', 'hijri', 'both'])],
-            'digits' => ['sometimes', 'nullable', \Illuminate\Validation\Rule::in(['western', 'arabic_indic'])],
+            'calendar' => ['sometimes', 'nullable', Rule::in(['gregorian', 'hijri', 'both'])],
+            'digits' => ['sometimes', 'nullable', Rule::in(['western', 'arabic_indic'])],
             'date_format' => ['sometimes', 'nullable', 'string', 'max:32', 'regex:/^[yMdHhmsaEG\/\-\.\s,]+$/'],
-            'theme_mode' => ['sometimes', \Illuminate\Validation\Rule::in(['light', 'dark', 'system'])],
-            'density' => ['sometimes', 'nullable', \Illuminate\Validation\Rule::in(['compact', 'normal', 'comfortable'])],
+            'theme_mode' => ['sometimes', Rule::in(['light', 'dark', 'system'])],
+            'density' => ['sometimes', 'nullable', Rule::in(['compact', 'normal', 'comfortable'])],
         ]);
         $preference = $user->preference()->firstOrNew();
         $preference->fill($data)->save();
@@ -119,7 +122,7 @@ final class MeController extends Controller
         abort_if($id === null, 404);
         abort_if($id === Session::getId(), 422, __('ui.sessions.cannot_revoke_current'));
         $revoker->revoke((string) $id, (int) Auth::id());
-        app(\App\Modules\Audit\AuditWriter::class)->record('auth.session_revoked', 'auth', objectType: 'user', objectId: (int) Auth::id());
+        app(AuditWriter::class)->record('auth.session_revoked', 'auth', objectType: 'user', objectId: (int) Auth::id());
 
         return response()->json(null, 204);
     }
@@ -127,7 +130,7 @@ final class MeController extends Controller
     public function revokeOtherSessions(SessionRevoker $revoker): JsonResponse
     {
         $count = $revoker->revokeAllFor((int) Auth::id(), exceptCurrent: true);
-        app(\App\Modules\Audit\AuditWriter::class)->record('auth.sessions_revoked', 'auth', objectType: 'user', objectId: (int) Auth::id(), meta: ['count' => $count]);
+        app(AuditWriter::class)->record('auth.sessions_revoked', 'auth', objectType: 'user', objectId: (int) Auth::id(), meta: ['count' => $count]);
 
         return response()->json(['data' => ['revoked' => $count]]);
     }

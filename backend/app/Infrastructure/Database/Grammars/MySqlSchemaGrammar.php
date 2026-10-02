@@ -29,8 +29,8 @@ final class MySqlSchemaGrammar extends MySqlGrammar
         return sprintf(
             'alter table %s add unique %s(%s)',
             $this->wrapTable($blueprint),
-            $this->wrap($command->index),
-            $this->columnize($command->columns),
+            $this->wrap((string) $command->get('index')),
+            $this->columnize((array) $command->get('columns')),
         );
     }
 }

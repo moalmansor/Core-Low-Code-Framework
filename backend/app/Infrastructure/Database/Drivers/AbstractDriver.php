@@ -156,10 +156,13 @@ abstract class AbstractDriver implements DatabaseDriver
     public function caseInsensitiveLike(Builder $query, string $column, string $term): Builder
     {
         $this->assertIdentifier($column);
-        $escaped = str_replace(['\\', '%', '_', '['], ['\\\\', '\\%', '\\_', '\\['], $term);
+        // '!' is the escape character: it needs no quoting in either engine's
+        // string literals (a backslash does in MySQL), and '[' is a wildcard
+        // on SQL Server.
+        $escaped = str_replace(['!', '%', '_', '['], ['!!', '!%', '!_', '!['], $term);
 
         // Both databases are created with case- and accent-insensitive collations.
-        return $query->whereRaw($this->wrap($column)." like ? escape '\\'", ['%'.$escaped.'%']);
+        return $query->whereRaw($this->wrap($column)." like ? escape '!'", ['%'.$escaped.'%']);
     }
 
     public function lockForUpdate(Builder $query): Builder

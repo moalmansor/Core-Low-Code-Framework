@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
 /**
@@ -26,6 +27,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $email
  * @property string|null $username
  * @property string|null $password
+ * @property string|null $two_factor_secret
+ * @property string|null $two_factor_recovery_codes
  * @property int|null $department_id
  * @property int|null $manager_id
  * @property string|null $job_title
@@ -34,11 +37,11 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $auth_source
  * @property string|null $external_subject
  * @property array<string, mixed>|null $attributes
- * @property \Illuminate\Support\Carbon|null $two_factor_confirmed_at
- * @property \Illuminate\Support\Carbon|null $password_changed_at
- * @property \Illuminate\Support\Carbon|null $last_login_at
+ * @property Carbon|null $two_factor_confirmed_at
+ * @property Carbon|null $password_changed_at
+ * @property Carbon|null $last_login_at
  * @property int $failed_login_count
- * @property \Illuminate\Support\Carbon|null $locked_until
+ * @property Carbon|null $locked_until
  */
 final class User extends Authenticatable
 {

@@ -1,5 +1,6 @@
 <?php
 
+use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -59,7 +60,7 @@ return [
             'path' => env('ERROR_SINK_PATH', storage_path('logs/errors/errors.log')),
             'level' => 'debug',
             'days' => env('ERROR_SINK_DAYS', 90),
-            'formatter' => Monolog\Formatter\JsonFormatter::class,
+            'formatter' => JsonFormatter::class,
             'permission' => 0640,
         ],
 

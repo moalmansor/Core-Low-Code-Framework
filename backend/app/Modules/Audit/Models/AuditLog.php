@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Audit\Models;
 
 use App\Support\Models\BaseModel;
+use Illuminate\Support\Carbon;
 use LogicException;
 
 /**
@@ -12,7 +13,7 @@ use LogicException;
  * update or delete one; corrections are new entries.
  *
  * @property int $id
- * @property \Illuminate\Support\Carbon $occurred_at
+ * @property Carbon $occurred_at
  * @property int $organization_id
  * @property int $chain_id
  * @property int $chain_seq
@@ -44,7 +45,7 @@ final class AuditLog extends BaseModel
 
     protected static function booted(): void
     {
-        static::updating(static fn () => throw new LogicException('Audit entries are immutable.'));
-        static::deleting(static fn () => throw new LogicException('Audit entries cannot be deleted.'));
+        self::updating(static fn () => throw new LogicException('Audit entries are immutable.'));
+        self::deleting(static fn () => throw new LogicException('Audit entries cannot be deleted.'));
     }
 }

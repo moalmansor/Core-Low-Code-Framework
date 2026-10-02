@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use App\Modules\Access\AccessCache;
 use App\Modules\Access\Models\Role;
+use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Identity\Models\User;
 use Database\Seeders\DatabaseSeeder;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Laravel\Fortify\Fortify;
 use PragmaRX\Google2FA\Google2FA;
@@ -34,7 +37,7 @@ abstract class TestCase extends BaseTestCase
      * Each request of a real browser starts with fresh guards; in-process test
      * requests share the application, so forget cached guard users first.
      */
-    public function actingAs(\Illuminate\Contracts\Auth\Authenticatable $user, $guard = null)
+    public function actingAs(Authenticatable $user, $guard = null)
     {
         $this->app['auth']->forgetGuards();
 
@@ -44,7 +47,7 @@ abstract class TestCase extends BaseTestCase
     /** Mark setup as complete (most tests run against an installed system). */
     protected function completeSetup(): void
     {
-        app(\App\Modules\Core\Settings\SettingsService::class)->write('setup', 'completed_at', now()->toIso8601String());
+        app(SettingsService::class)->write('setup', 'completed_at', now()->toIso8601String());
     }
 
     /**
@@ -77,7 +80,7 @@ abstract class TestCase extends BaseTestCase
                 'two_factor_confirmed_at' => now(),
             ])->save();
         }
-        app(\App\Modules\Access\AccessCache::class)->bump();
+        app(AccessCache::class)->bump();
 
         return $user->fresh();
     }

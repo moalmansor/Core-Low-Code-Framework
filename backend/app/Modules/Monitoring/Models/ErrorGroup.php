@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Modules\Monitoring\Models;
 
 use App\Modules\Audit\Auditable;
+use App\Modules\Audit\AuditWriter;
 use App\Support\Models\BaseModel;
 use App\Support\Models\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
@@ -16,15 +18,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $message_sample
  * @property string|null $module
  * @property string $severity
- * @property \Illuminate\Support\Carbon $first_seen_at
- * @property \Illuminate\Support\Carbon $last_seen_at
+ * @property Carbon $first_seen_at
+ * @property Carbon $last_seen_at
  * @property int $occurrences
  * @property string $status
  * @property int|null $assignee_user_id
  * @property string|null $notes
- * @property \Illuminate\Support\Carbon|null $resolved_at
+ * @property Carbon|null $resolved_at
  * @property int|null $resolved_by
- * @property \Illuminate\Support\Carbon|null $last_alerted_at
+ * @property Carbon|null $last_alerted_at
  */
 final class ErrorGroup extends BaseModel
 {
@@ -60,7 +62,7 @@ final class ErrorGroup extends BaseModel
     {
         // Groups are created by the reporter, not by people; only audit edits.
         if ($action === 'updated') {
-            app(\App\Modules\Audit\AuditWriter::class)->record('error_group.updated', 'operations', $changes, 'error_group', (int) $this->getKey());
+            app(AuditWriter::class)->record('error_group.updated', 'operations', $changes, 'error_group', (int) $this->getKey());
         }
     }
 }

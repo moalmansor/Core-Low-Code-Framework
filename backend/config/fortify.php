@@ -31,6 +31,7 @@ return [
             'confirm' => true,
             'confirmPassword' => true,
             'window' => 1,
+            'secret-length' => 32, // 160-bit TOTP secrets (RFC 4226 §4)
         ]),
     ],
 ];

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Access\AccessCache;
 use App\Modules\Access\AccessResolver;
 use App\Modules\Access\Models\Permission;
 use App\Modules\Access\Models\PermissionAssignment;
@@ -15,7 +16,7 @@ function grant(string $subjectType, int $subjectId, string $effect, string $perm
         ['permission_id' => Permission::query()->where('key', $permission)->value('id'), 'subject_type' => $subjectType, 'subject_id' => $subjectId],
         ['effect' => $effect, 'include_descendants' => $descendants, 'valid_until' => $validUntil],
     );
-    app(\App\Modules\Access\AccessCache::class)->bump();
+    app(AccessCache::class)->bump();
     app(AccessResolver::class)->forget();
 }
 
@@ -112,14 +113,14 @@ it('ignores expired grants and roles outside their validity window', function ()
     expect(app(AccessResolver::class)->allows($user, 'system.manage_reports'))->toBeTrue();
     $this->travel(2)->hours();
     app(AccessResolver::class)->forget();
-    app(\App\Modules\Access\AccessCache::class)->bump();
+    app(AccessCache::class)->bump();
     expect(app(AccessResolver::class)->allows($user, 'system.manage_reports'))->toBeFalse();
 
     grant('user', $user->id, 'allow', validUntil: now()->addMinutes(5));
     expect(app(AccessResolver::class)->allows($user, 'system.manage_reports'))->toBeTrue();
     $this->travel(10)->minutes();
     app(AccessResolver::class)->forget();
-    app(\App\Modules\Access\AccessCache::class)->bump();
+    app(AccessCache::class)->bump();
     expect(app(AccessResolver::class)->allows($user, 'system.manage_reports'))->toBeFalse();
 });
 

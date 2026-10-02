@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Core\Models;
 
 use App\Support\Models\BaseModel;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
@@ -12,8 +13,8 @@ use App\Support\Models\BaseModel;
  * @property string $event_type
  * @property array<string, mixed> $payload
  * @property string $correlation_id
- * @property \Illuminate\Support\Carbon $available_at
- * @property \Illuminate\Support\Carbon|null $dispatched_at
+ * @property Carbon $available_at
+ * @property Carbon|null $dispatched_at
  * @property int $attempts
  * @property string|null $last_error
  */

@@ -177,7 +177,7 @@ final class AccessResolver
             if ($row->subject_type === 'department' && $subjectId !== $ownDept && ! $row->include_descendants) {
                 continue; // an ancestor's grant reaches sub-departments only when it says so
             }
-            $out[(string) $row->permission_key][] = [
+            $out[(string) $row->getAttribute('permission_key')][] = [
                 'tier' => (string) $row->subject_type,
                 'effect' => (string) $row->effect,
                 'subject_type' => (string) $row->subject_type,

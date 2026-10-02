@@ -12,6 +12,7 @@ use GuzzleHttp\Psr7\Uri;
 use GuzzleHttp\Psr7\UriResolver;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\UriInterface;
 
 /**
  * The only component allowed to make outbound HTTP requests (architecture §7.4,
@@ -98,7 +99,7 @@ final class EgressGateway
     /**
      * Validate the URI and return the CURLOPT_RESOLVE pin `host:port:address`.
      */
-    public function authorize(\Psr\Http\Message\UriInterface $uri): string
+    public function authorize(UriInterface $uri): string
     {
         $scheme = strtolower($uri->getScheme());
         $host = strtolower($uri->getHost());
@@ -152,7 +153,7 @@ final class EgressGateway
         return null;
     }
 
-    private function origin(\Psr\Http\Message\UriInterface $uri): string
+    private function origin(UriInterface $uri): string
     {
         $scheme = strtolower($uri->getScheme());
 

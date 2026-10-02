@@ -32,7 +32,7 @@ final class PublicController extends Controller
         return response()->json(['data' => [
             'setup_completed' => $this->settings->get('setup', 'completed_at') !== null,
             'system_name' => $platform?->translationsFor('name') ?? [],
-            'default_locale' => $locales->firstWhere('is_default', true)?->code ?? 'en',
+            'default_locale' => ($locales->firstWhere('is_default', true)->code ?? 'en'),
             'locales' => $locales->map(static fn (Locale $l): array => LocaleController::present($l))->values(),
             'formats' => $this->settings->publicGroup('formats'),
             'calendar' => $this->settings->get('calendar', 'system'),

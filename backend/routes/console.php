@@ -6,6 +6,7 @@ use App\Modules\Audit\AuditWriter;
 use App\Modules\Audit\ChainVerifier;
 use App\Modules\Core\Outbox\OutboxRelay;
 use App\Modules\Monitoring\ErrorReporter;
+use App\Modules\Setup\SetupState;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
@@ -46,7 +47,7 @@ Schedule::command('audit:verify --full')->weeklyOn(0, '03:10')->withoutOverlappi
 Schedule::command('security:prune')->dailyAt('03:40')->onOneServer();
 Schedule::command('queue:prune-failed --hours=720')->daily()->onOneServer();
 
-Artisan::command('setup:token', function (App\Modules\Setup\SetupState $state): int {
+Artisan::command('setup:token', function (SetupState $state): int {
     if ($state->isComplete()) {
         $this->error('Setup is already complete; the wizard is locked.');
 

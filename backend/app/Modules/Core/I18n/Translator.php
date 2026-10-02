@@ -101,8 +101,11 @@ final class Translator
      */
     public function many(string $type, array $ids, array $fields, ?string $locale = null): array
     {
+        if ($ids === []) {
+            return [];
+        }
         $chain = $this->fallbackChain($locale);
-        $rows = $ids === [] ? collect() : Translation::query()
+        $rows = Translation::query()
             ->where('object_type', $type)->whereIn('object_id', $ids)->whereIn('field', $fields)->whereIn('locale', $chain)
             ->get(['object_id', 'field', 'locale', 'value']);
         $indexed = [];
