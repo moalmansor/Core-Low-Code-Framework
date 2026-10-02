@@ -28,6 +28,17 @@ abstract class TestCase extends BaseTestCase
         $this->withHeaders(['Origin' => 'http://localhost', 'Referer' => 'http://localhost/']);
     }
 
+    /**
+     * Each request of a real browser starts with fresh guards; in-process test
+     * requests share the application, so forget cached guard users first.
+     */
+    public function actingAs(\Illuminate\Contracts\Auth\Authenticatable $user, $guard = null)
+    {
+        $this->app['auth']->forgetGuards();
+
+        return parent::actingAs($user, $guard);
+    }
+
     /** Mark setup as complete (most tests run against an installed system). */
     protected function completeSetup(): void
     {

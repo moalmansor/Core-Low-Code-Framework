@@ -24,7 +24,7 @@ final class EnforceSessionPolicy
             return $next($request);
         }
         $session = $request->session();
-        $now = time();
+        $now = now()->getTimestamp();
         $started = (int) $session->get('_lcf.started_at', $now);
         $lastSeen = (int) $session->get('_lcf.last_seen', $now);
         $idle = 60 * (int) $this->settings->get('security', 'session_idle_minutes');

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Identity\Http\Controllers;
 
 use App\Modules\Access\AccessGuard;
+use App\Modules\Access\EscalationGuard;
 use App\Modules\Access\Models\Role;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Identity\Models\User;
@@ -25,7 +26,14 @@ final class UserController extends Controller
     public function __construct(
         private readonly AccessGuard $guard,
         private readonly AuditWriter $audit,
+        private readonly EscalationGuard $escalation,
     ) {}
+
+    private function actor(): User
+    {
+        /** @var User */
+        return Auth::user();
+    }
 
     public function index(Request $request): JsonResponse
     {
@@ -69,7 +77,10 @@ final class UserController extends Controller
     {
         Gate::authorize('system.manage_users');
         $data = $this->validated($request, null);
-        $user = $this->guard->guarded(function () use ($data): User {
+        if (isset($data['department'])) {
+            $this->escalation->assertCanChangeDepartment($this->actor(), null, $this->departmentId($data['department']));
+        }
+        $user = $this->guard->guarded(function () use ($data, $request): User {
             $user = new User;
             $user->forceFill([
                 'name' => $data['name'],
@@ -83,7 +94,7 @@ final class UserController extends Controller
                 'auth_source' => $data['auth_source'] ?? 'local',
                 'attributes' => $data['attributes'] ?? null,
             ])->save();
-            $this->syncRoles($user, $data['roles'] ?? []);
+            $this->syncRoles($request, $user, $data['roles'] ?? [], isNew: true);
 
             return $user;
         });
@@ -97,8 +108,12 @@ final class UserController extends Controller
     public function update(Request $request, User $user): JsonResponse
     {
         Gate::authorize('system.manage_users');
+        $this->escalation->assertCanManage($this->actor(), $user);
         $data = $this->validated($request, $user);
-        $this->guard->guarded(function () use ($user, $data): void {
+        if (array_key_exists('department', $data) && $this->departmentId($data['department']) !== $user->department_id) {
+            $this->escalation->assertCanChangeDepartment($this->actor(), $user, $this->departmentId($data['department']));
+        }
+        $this->guard->guarded(function () use ($user, $data, $request): void {
             $updates = collect($data)->only(['name', 'username', 'job_title', 'phone', 'attributes'])->all();
             if (isset($data['email'])) {
                 $updates['email'] = mb_strtolower($data['email']);
@@ -112,7 +127,7 @@ final class UserController extends Controller
             }
             $user->forceFill($updates)->save();
             if (array_key_exists('roles', $data)) {
-                $this->syncRoles($user, $data['roles']);
+                $this->syncRoles($request, $user, $data['roles']);
             }
         });
 
@@ -122,6 +137,7 @@ final class UserController extends Controller
     public function setStatus(Request $request, User $user, SessionRevoker $sessions): JsonResponse
     {
         Gate::authorize('system.manage_users');
+        $this->escalation->assertCanManage($this->actor(), $user);
         $data = $request->validate(['status' => ['required', Rule::in(['active', 'suspended', 'disabled'])]]);
         abort_if($user->is(Auth::user()) && $data['status'] !== 'active', 422, __('ui.users.cannot_suspend_self'));
         $this->guard->guarded(fn () => $user->forceFill(['status' => $data['status']])->save());
@@ -135,6 +151,7 @@ final class UserController extends Controller
     public function unlock(User $user): JsonResponse
     {
         Gate::authorize('system.manage_users');
+        $this->escalation->assertCanManage($this->actor(), $user);
         $user->forceFill(['failed_login_count' => 0, 'locked_until' => null])->saveQuietly();
         $this->audit->record('user.unlocked', 'access', objectType: 'user', objectId: $user->id);
 
@@ -144,6 +161,7 @@ final class UserController extends Controller
     public function resetTwoFactor(User $user, SessionRevoker $sessions): JsonResponse
     {
         Gate::authorize('system.manage_users');
+        $this->escalation->assertCanManage($this->actor(), $user);
         abort_if($user->is(Auth::user()), 422, __('ui.users.reset_own_2fa'));
         $user->forceFill(['two_factor_secret' => null, 'two_factor_recovery_codes' => null, 'two_factor_confirmed_at' => null])->saveQuietly();
         $sessions->revokeAllFor($user->id);
@@ -155,6 +173,7 @@ final class UserController extends Controller
     public function sendPasswordLink(User $user): JsonResponse
     {
         Gate::authorize('system.manage_users');
+        $this->escalation->assertCanManage($this->actor(), $user);
         abort_if($user->auth_source !== 'local', 422, __('ui.auth.external_account'));
         Password::broker()->sendResetLink(['email' => $user->email]);
         $this->audit->record('user.password_link_sent', 'access', objectType: 'user', objectId: $user->id);
@@ -177,6 +196,7 @@ final class UserController extends Controller
     public function revokeSessions(User $user, SessionRevoker $sessions): JsonResponse
     {
         Gate::authorize('system.manage_users');
+        $this->escalation->assertCanManage($this->actor(), $user);
         $count = $sessions->revokeAllFor($user->id);
         $this->audit->record('user.sessions_revoked', 'auth', objectType: 'user', objectId: $user->id, meta: ['count' => $count]);
 
@@ -186,6 +206,7 @@ final class UserController extends Controller
     public function destroy(User $user, SessionRevoker $sessions): JsonResponse
     {
         Gate::authorize('system.manage_users');
+        $this->escalation->assertCanManage($this->actor(), $user);
         abort_if($user->is(Auth::user()), 422, __('ui.users.cannot_delete_self'));
         $this->guard->guarded(function () use ($user): void {
             $user->forceFill(['status' => 'disabled', 'deleted_by' => Auth::id()])->save();
@@ -197,10 +218,11 @@ final class UserController extends Controller
     }
 
     /** @param list<string> $roleUuids */
-    private function syncRoles(User $user, array $roleUuids): void
+    private function syncRoles(Request $request, User $user, array $roleUuids, bool $isNew = false): void
     {
-        $ids = Role::query()->whereIn('uuid', $roleUuids)->pluck('id')->all();
-        $current = $user->roles()->pluck('roles.id')->all();
+        $ids = Role::query()->whereIn('uuid', $roleUuids)->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+        $current = $user->roles()->pluck('roles.id')->map(static fn ($id): int => (int) $id)->all();
+        $this->escalation->assertCanChangeRoles($request, $this->actor(), $isNew ? null : $user, array_values(array_diff($ids, $current)), array_values(array_diff($current, $ids)));
         $now = now()->format('Y-m-d H:i:s.u');
         foreach (array_diff($ids, $current) as $id) {
             $user->roles()->attach($id, ['assigned_by' => Auth::id(), 'created_at' => $now]);

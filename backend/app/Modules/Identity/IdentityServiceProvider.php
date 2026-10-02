@@ -20,10 +20,20 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Illuminate\Contracts\Auth\PasswordBroker;
+use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse;
 use Laravel\Fortify\Fortify;
+use Laravel\Fortify\Http\Responses\SuccessfulPasswordResetLinkRequestResponse;
 
 final class IdentityServiceProvider extends ServiceProvider
 {
+    public function register(): void
+    {
+        // A reset request for an unknown address gets the same answer as a
+        // known one, so the form cannot be used to discover accounts.
+        $this->app->bind(FailedPasswordResetLinkRequestResponse::class, static fn () => new SuccessfulPasswordResetLinkRequestResponse(PasswordBroker::RESET_LINK_SENT));
+    }
+
     public function boot(): void
     {
         Auth::provider('lcf-eloquent', static fn ($app, array $config) => new TenantAwareUserProvider($app['hash'], $config['model']));
