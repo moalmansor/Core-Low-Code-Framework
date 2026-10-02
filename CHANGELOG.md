@@ -2,7 +2,28 @@
 
 All notable changes to this project are documented here, one section per phase.
 
-## [Unreleased] — Phase 0: Architecture & Data Model
+## [Unreleased] — Phase 1: Foundation, Security & Administration Core
+
+### Added
+- Laravel 12 backend (modular monolith) and Vue 3 SPA; Docker Compose stack, dev
+  container, and CI running every test on MySQL 8 and SQL Server 2019.
+- Database driver layer for MySQL and SQL Server and the 22 Phase 1 tables.
+- First-run setup wizard protected by a console-issued setup token, then locked.
+- Application shell in Arabic (RTL) and English (LTR); translations and locales managers.
+- Sign-in with Sanctum/Fortify, mandatory 2FA for administrative roles, password
+  policy, lockout, session timeouts and management, OIDC SSO, and LDAP.
+- Users, departments (tree), and the unified Roles & Permissions screen with
+  precedence, hard deny, step-up, view-as-user, explain, copy, export/import.
+- Admin Console, System health, System Settings, Audit Log (hash-chained), Error
+  Monitoring, egress gateway, security headers and nonce-based CSP.
+- ADR-0021 to ADR-0025.
+
+### Changed
+- Specification §2, §4.11 and §5 record the safeguards added in this phase.
+- Architecture §10: `uq_{table}_uuid` listed for every table with a `uuid` column;
+  §21.2 aligned with the built API.
+
+## Phase 0: Architecture & Data Model
 
 ### Added
 - `docs/architecture.md`: the complete architecture, ERD (147 tables), physical

@@ -24,3 +24,8 @@ One short record per significant decision (specification §8.1). New records are
 | [0018](0018-draft-working-tables.md) | Drafts in working tables; published versions as immutable snapshots |
 | [0019](0019-nullable-uniqueness.md) | Engine-neutral uniqueness for nullable and conditional keys |
 | [0020](0020-streaming-writers.md) | Streaming spreadsheet writers for large exports |
+| [0021](0021-deferred-foreign-key-columns.md) | Deferred foreign-key columns |
+| [0022](0022-setup-token.md) | One-time setup token for the first-run wizard |
+| [0023](0023-escalation-guard.md) | Privilege-escalation safeguards for people management |
+| [0024](0024-frontend-stack-and-csp.md) | SPA stack, interface strings, and a strict CSP |
+| [0025](0025-settings-driven-mail.md) | SMTP configured from System Settings |
