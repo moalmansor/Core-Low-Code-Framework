@@ -21,6 +21,15 @@ trait HasStableUuid
         });
     }
 
+    /**
+     * SQL Server returns UNIQUEIDENTIFIER values in upper case and MySQL stores
+     * the canonical lower-case text: the API always shows lower case.
+     */
+    public function getUuidAttribute(?string $value): ?string
+    {
+        return $value === null ? null : strtolower($value);
+    }
+
     public function getRouteKeyName(): string
     {
         return 'uuid';

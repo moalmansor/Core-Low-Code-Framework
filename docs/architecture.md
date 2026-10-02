@@ -830,7 +830,7 @@ erDiagram
 | `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
 | `group` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | e.g. `branding`, `mail`, `security`, `formats`, `files`, `sso`, `ldap`, `clamav`, `operations`, `retention`, `setup` |
 | `key` | VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(128) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
-| `value` | JSON | NVARCHAR(MAX) | NULL | — | non-secret values |
+| `value` | JSON | NVARCHAR(MAX) | NULL | — | non-secret values, stored as the envelope `{"v": value}` because SQL Server 2019 `ISJSON` rejects JSON scalars |
 | `encrypted_value` | TEXT | NVARCHAR(MAX) | NULL | — | secrets (SMTP password, SSO client secret, LDAP bind password) — never returned by the API |
 | `is_encrypted` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 | `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` |

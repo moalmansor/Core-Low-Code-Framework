@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Core\Models;
 
+use App\Support\Casts\JsonEnvelope;
 use App\Support\Models\BaseModel;
 use App\Support\Models\BelongsToOrganization;
 
@@ -26,6 +27,6 @@ final class Setting extends BaseModel
 
     protected function casts(): array
     {
-        return ['value' => 'json', 'is_encrypted' => 'boolean'];
+        return ['value' => JsonEnvelope::class, 'is_encrypted' => 'boolean'];
     }
 }

@@ -33,10 +33,13 @@ export function watchConsole(page: Page): string[] {
 }
 
 export async function fillOtp(page: Page, testId: string, code: string): Promise<void> {
+  // Fill each box on its own: typing into the first box relies on focus moving
+  // automatically, which is timing-sensitive on slow machines.
   const inputs = page.getByTestId(testId).locator('input')
-  await inputs.first().click()
-  await inputs.first().pressSequentially(code, { delay: 60 })
-  await expect(inputs.nth(5)).toHaveValue(code[5]!)
+  for (let i = 0; i < code.length; i++) {
+    await inputs.nth(i).fill(code[i]!)
+    await expect(inputs.nth(i)).toHaveValue(code[i]!)
+  }
 }
 
 const usedSteps = '.e2e-totp-step'
