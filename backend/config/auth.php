@@ -62,7 +62,7 @@ return [
 
     'providers' => [
         'users' => [
-            'driver' => 'eloquent',
+            'driver' => 'lcf-eloquent',
             'model' => App\Modules\Identity\Models\User::class,
         ],
 

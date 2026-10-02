@@ -49,6 +49,7 @@ final class SettingsRegistry
 
         // Setup and tenancy (§2, §4.27)
         $d('setup', 'completed_at', null, ['nullable', 'date']);
+        $d('setup', 'token_hash', null, ['nullable', 'string', 'size:64']);
         $d('tenancy', 'mode', 'single', ['required', Rule::in(['single', 'multi'])], immutable: true);
 
         // Branding (§2, §4.28 basics). The system name is the platform

@@ -1,0 +1,30 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Modules\Admin;
+
+/**
+ * The Admin Console's areas (specification §4.1). Each area is shown only to
+ * holders of its permission, and only once the phase that builds it has
+ * shipped: later phases add their areas here.
+ */
+final class ConsoleAreas
+{
+    /**
+     * key => [section, permission keys (any one grants visibility), client route]
+     *
+     * @var array<string, array{0: string, 1: list<string>, 2: string}>
+     */
+    public const BUILT = [
+        'system_health' => ['overview', ['system.view_errors', 'system.manage_operations'], '/admin/health'],
+        'users' => ['people', ['system.manage_users'], '/admin/users'],
+        'departments' => ['people', ['system.manage_users'], '/admin/departments'],
+        'roles_permissions' => ['people', ['system.manage_permissions'], '/admin/roles'],
+        'appearance_branding' => ['configuration', ['system.manage_branding'], '/admin/settings/branding'],
+        'translations' => ['configuration', ['system.manage_translations'], '/admin/translations'],
+        'system_settings' => ['configuration', ['system.manage_settings'], '/admin/settings'],
+        'audit_log' => ['compliance', ['system.view_audit_log'], '/admin/audit'],
+        'error_monitoring' => ['operations', ['system.view_errors'], '/admin/errors'],
+    ];
+}

@@ -30,10 +30,21 @@ return [
 
     'disks' => [
 
+        // Uploaded files (specification §5): outside the public root, never
+        // served directly; downloads go through authorized controllers.
+        'private' => [
+            'driver' => 'local',
+            'root' => env('FILES_ROOT', storage_path('app/files')),
+            'visibility' => 'private',
+            'serve' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

@@ -23,6 +23,33 @@ final class Translator
     /** @var array<string, list<string>> */
     private array $chains = [];
 
+    /** @return array<string, array{fallback: string|null, default: bool, enabled: bool, direction: string}> */
+    public function localeTable(): array
+    {
+        return Cache::remember('i18n:locales', 3600, static fn (): array => Locale::query()->with('fallback')->orderBy('sort_order')->get()
+            ->mapWithKeys(static fn (Locale $l): array => [$l->code => [
+                'fallback' => $l->fallback?->code,
+                'default' => (bool) $l->is_default,
+                'enabled' => (bool) $l->is_enabled,
+                'direction' => (string) $l->direction,
+            ]])
+            ->all());
+    }
+
+    /** @return list<string> enabled locale codes, in display order */
+    public function enabledLocales(): array
+    {
+        return array_keys(array_filter($this->localeTable(), static fn (array $l): bool => $l['enabled']));
+    }
+
+    public function defaultLocale(): string
+    {
+        $table = $this->localeTable();
+        $default = array_key_first(array_filter($table, static fn (array $l): bool => $l['default']));
+
+        return (string) ($default ?? config('app.locale'));
+    }
+
     /** @return list<string> */
     public function fallbackChain(?string $locale = null): array
     {
@@ -30,10 +57,7 @@ final class Translator
         if (isset($this->chains[$locale])) {
             return $this->chains[$locale];
         }
-        /** @var array<string, array{fallback: string|null, default: bool}> $locales */
-        $locales = Cache::remember('i18n:locales', 3600, static fn (): array => Locale::query()->with('fallback')->get()
-            ->mapWithKeys(static fn (Locale $l): array => [$l->code => ['fallback' => $l->fallback?->code, 'default' => $l->is_default]])
-            ->all());
+        $locales = $this->localeTable();
         $chain = [];
         $current = $locale;
         while ($current !== null && isset($locales[$current]) && ! in_array($current, $chain, true)) {

@@ -52,6 +52,17 @@ return [
 
     'channels' => [
 
+        // Secondary sink for error monitoring (specification §4.21): one JSON
+        // object per line, on its own path so it survives a database outage.
+        'error_sink' => [
+            'driver' => 'daily',
+            'path' => env('ERROR_SINK_PATH', storage_path('logs/errors/errors.log')),
+            'level' => 'debug',
+            'days' => env('ERROR_SINK_DAYS', 90),
+            'formatter' => Monolog\Formatter\JsonFormatter::class,
+            'permission' => 0640,
+        ],
+
         'stack' => [
             'driver' => 'stack',
             'channels' => explode(',', (string) env('LOG_STACK', 'single')),

@@ -31,7 +31,7 @@ final class TranslationController extends Controller
     public function types(): JsonResponse
     {
         Gate::authorize('system.manage_translations');
-        $types = [['type' => Translator::UI_TYPE, 'label' => 'ui.translations.type.ui', 'fields' => ['text']]];
+        $types = [['type' => Translator::UI_TYPE, 'label' => 'translations.type.ui', 'fields' => ['text']]];
         foreach ($this->registry->all() as $type => $info) {
             $types[] = ['type' => $type, 'label' => $info['label'], 'fields' => $info['fields']];
         }

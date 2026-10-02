@@ -7,12 +7,14 @@ namespace App\Modules\Identity;
 use App\Modules\Identity\Actions\ResetUserPassword;
 use App\Modules\Identity\Actions\UpdateUserPassword;
 use App\Modules\Identity\Auth\LoginAuthenticator;
+use App\Modules\Identity\Auth\TenantAwareUserProvider;
 use App\Modules\Identity\Listeners\AuthEventSubscriber;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Sessions\SessionHandler;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Session;
@@ -22,12 +24,9 @@ use Laravel\Fortify\Fortify;
 
 final class IdentityServiceProvider extends ServiceProvider
 {
-    public function register(): void
-    {
-    }
-
     public function boot(): void
     {
+        Auth::provider('lcf-eloquent', static fn ($app, array $config) => new TenantAwareUserProvider($app['hash'], $config['model']));
         Fortify::authenticateUsing(fn (Request $request): ?User => app(LoginAuthenticator::class)($request));
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);

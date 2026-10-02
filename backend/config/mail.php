@@ -14,7 +14,7 @@ return [
     |
     */
 
-    'default' => env('MAIL_MAILER', 'log'),
+    'default' => env('MAIL_MAILER', 'lcf'),
 
     /*
     |--------------------------------------------------------------------------
@@ -36,6 +36,11 @@ return [
     */
 
     'mailers' => [
+
+        // SMTP configured from System Settings → Mail (App\Modules\Core\Mail\SettingsSmtpTransport).
+        'lcf' => [
+            'transport' => 'lcf',
+        ],
 
         'smtp' => [
             'transport' => 'smtp',

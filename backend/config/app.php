@@ -13,7 +13,9 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'Low-Code Framework'),
+
+    'version' => env('APP_VERSION', '0.1.0'),
 
     /*
     |--------------------------------------------------------------------------
