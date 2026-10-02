@@ -1,0 +1,4989 @@
+{
+  "version": 1,
+  "spec": "docs/expression-language.md",
+  "notes": "Normative conformance corpus for the PHP and TypeScript evaluators. Cases are only ever added, never removed. A key absent from 'record' is a missing reference.",
+  "defaults": {
+    "context": {
+      "today": "2026-10-02",
+      "now": "2026-10-02T09:00:00Z",
+      "timezone": "UTC",
+      "mode": "edit",
+      "locale": "en",
+      "user": {
+        "id": 42,
+        "name": "Test User",
+        "email": "user@example.test",
+        "roles": [
+          "manager",
+          "employee"
+        ],
+        "department": "FIN-AP",
+        "departments": [
+          "FIN-AP",
+          "FIN",
+          "HQ"
+        ],
+        "attributes": {
+          "grade": {
+            "t": "number",
+            "v": "8"
+          }
+        }
+      },
+      "calendar": {
+        "working_days": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "holidays": [
+          "2026-10-04"
+        ]
+      }
+    }
+  },
+  "staticErrorCodes": [
+    "SYNTAX",
+    "TYPE",
+    "UNKNOWN_FUNCTION",
+    "ARITY",
+    "PATH_DEPTH",
+    "DEPTH",
+    "PRECISION"
+  ],
+  "cases": [
+    {
+      "id": "arith.add.int",
+      "expr": "1 + 2",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "1"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "2"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "3"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.add.decimal",
+      "description": "decimal, never binary float",
+      "expr": "0.1 + 0.2",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "0.1"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "0.2"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "0.3"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.sub.negative",
+      "expr": "2 - 5",
+      "ast": {
+        "k": "bin",
+        "op": "-",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "2"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "5"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "-3"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.mul.decimal",
+      "expr": "1.5 * 4",
+      "ast": {
+        "k": "bin",
+        "op": "*",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "1.5"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "4"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "6"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.div.exact",
+      "expr": "10 / 4",
+      "ast": {
+        "k": "bin",
+        "op": "/",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "10"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "4"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "2.5"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.div.repeating",
+      "description": "16 fractional digits",
+      "expr": "1 / 3",
+      "ast": {
+        "k": "bin",
+        "op": "/",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "1"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "3"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "0.3333333333333333"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.div.round_half_away",
+      "expr": "2 / 3",
+      "ast": {
+        "k": "bin",
+        "op": "/",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "2"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "3"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "0.6666666666666667"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.div.zero",
+      "expr": "5 / 0",
+      "ast": {
+        "k": "bin",
+        "op": "/",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "5"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "0"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "DIV_ZERO"
+        ]
+      }
+    },
+    {
+      "id": "arith.mod.negative_dividend",
+      "expr": "-7 % 3",
+      "ast": {
+        "k": "bin",
+        "op": "%",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "-7"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "3"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "-1"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.mod.zero",
+      "expr": "7 % 0",
+      "ast": {
+        "k": "bin",
+        "op": "%",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "7"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "0"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "DIV_ZERO"
+        ]
+      }
+    },
+    {
+      "id": "arith.precedence",
+      "expr": "2 + 3 * 4",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "2"
+        },
+        "b": {
+          "k": "bin",
+          "op": "*",
+          "a": {
+            "k": "lit",
+            "t": "number",
+            "v": "3"
+          },
+          "b": {
+            "k": "lit",
+            "t": "number",
+            "v": "4"
+          }
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "14"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.parentheses",
+      "expr": "(2 + 3) * 4",
+      "ast": {
+        "k": "bin",
+        "op": "*",
+        "a": {
+          "k": "bin",
+          "op": "+",
+          "a": {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          },
+          "b": {
+            "k": "lit",
+            "t": "number",
+            "v": "3"
+          }
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "4"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "20"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.left_assoc",
+      "expr": "10 - 4 - 3",
+      "ast": {
+        "k": "bin",
+        "op": "-",
+        "a": {
+          "k": "bin",
+          "op": "-",
+          "a": {
+            "k": "lit",
+            "t": "number",
+            "v": "10"
+          },
+          "b": {
+            "k": "lit",
+            "t": "number",
+            "v": "4"
+          }
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "3"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "3"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.null_propagates",
+      "expr": "amount + 1",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "ref",
+          "scope": "record",
+          "path": [
+            "amount"
+          ]
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "1"
+        }
+      },
+      "record": {
+        "amount": {
+          "t": "null"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.type_mismatch",
+      "expr": "\"a\" + 1",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "lit",
+          "t": "text",
+          "v": "a"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "1"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "TYPE_MISMATCH"
+        ]
+      }
+    },
+    {
+      "id": "arith.canonical.trailing_zeros",
+      "expr": "1.50 + 0",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "1.5"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "0"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1.5"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.canonical.zero",
+      "expr": "-1.5 + 1.5",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "-1.5"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "1.5"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "0"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.big_exact",
+      "expr": "123456789012345678 * 1000",
+      "ast": {
+        "k": "bin",
+        "op": "*",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "123456789012345678"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "1000"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "123456789012345678000"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.overflow",
+      "expr": "9999999999999999999999999999999999 * 10",
+      "ast": {
+        "k": "bin",
+        "op": "*",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "9999999999999999999999999999999999"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "10"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "OVERFLOW"
+        ]
+      }
+    },
+    {
+      "id": "arith.unary_ref",
+      "expr": "-amount",
+      "ast": {
+        "k": "un",
+        "op": "neg",
+        "a": {
+          "k": "ref",
+          "scope": "record",
+          "path": [
+            "amount"
+          ]
+        }
+      },
+      "record": {
+        "amount": {
+          "t": "number",
+          "v": "5"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "-5"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "concat.text",
+      "expr": "\"a\" & \"b\"",
+      "ast": {
+        "k": "bin",
+        "op": "&",
+        "a": {
+          "k": "lit",
+          "t": "text",
+          "v": "a"
+        },
+        "b": {
+          "k": "lit",
+          "t": "text",
+          "v": "b"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "ab"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "concat.null_is_empty",
+      "expr": "\"x\" & null",
+      "ast": {
+        "k": "bin",
+        "op": "&",
+        "a": {
+          "k": "lit",
+          "t": "text",
+          "v": "x"
+        },
+        "b": {
+          "k": "lit",
+          "t": "null"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "x"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "concat.number_canonical",
+      "expr": "\"n=\" & 2.50",
+      "ast": {
+        "k": "bin",
+        "op": "&",
+        "a": {
+          "k": "lit",
+          "t": "text",
+          "v": "n="
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "2.5"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "n=2.5"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "concat.date",
+      "expr": "\"d:\" & d\"2026-01-05\"",
+      "ast": {
+        "k": "bin",
+        "op": "&",
+        "a": {
+          "k": "lit",
+          "t": "text",
+          "v": "d:"
+        },
+        "b": {
+          "k": "lit",
+          "t": "date",
+          "v": "2026-01-05"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "d:2026-01-05"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "cmp.number.numeric_equality",
+      "expr": "1 = 1.0",
+      "ast": {
+        "k": "bin",
+        "op": "=",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "1"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "1"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "cmp.different_types_not_equal",
+      "expr": "1 = \"1\"",
+      "ast": {
+        "k": "bin",
+        "op": "=",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "1"
+        },
+        "b": {
+          "k": "lit",
+          "t": "text",
+          "v": "1"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "cmp.null_equals_null",
+      "expr": "null = null",
+      "ast": {
+        "k": "bin",
+        "op": "=",
+        "a": {
+          "k": "lit",
+          "t": "null"
+        },
+        "b": {
+          "k": "lit",
+          "t": "null"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "cmp.not_equal_null",
+      "expr": "amount != null",
+      "ast": {
+        "k": "bin",
+        "op": "!=",
+        "a": {
+          "k": "ref",
+          "scope": "record",
+          "path": [
+            "amount"
+          ]
+        },
+        "b": {
+          "k": "lit",
+          "t": "null"
+        }
+      },
+      "record": {
+        "amount": {
+          "t": "number",
+          "v": "3"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "cmp.order_with_null",
+      "expr": "amount < 5",
+      "ast": {
+        "k": "bin",
+        "op": "<",
+        "a": {
+          "k": "ref",
+          "scope": "record",
+          "path": [
+            "amount"
+          ]
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "5"
+        }
+      },
+      "record": {
+        "amount": {
+          "t": "null"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "cmp.text.order",
+      "expr": "\"apple\" < \"banana\"",
+      "ast": {
+        "k": "bin",
+        "op": "<",
+        "a": {
+          "k": "lit",
+          "t": "text",
+          "v": "apple"
+        },
+        "b": {
+          "k": "lit",
+          "t": "text",
+          "v": "banana"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "cmp.order_type_mismatch",
+      "expr": "1 < \"2\"",
+      "ast": {
+        "k": "bin",
+        "op": "<",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "1"
+        },
+        "b": {
+          "k": "lit",
+          "t": "text",
+          "v": "2"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "TYPE_MISMATCH"
+        ]
+      }
+    },
+    {
+      "id": "cmp.date.order",
+      "expr": "d\"2026-01-01\" < d\"2026-01-02\"",
+      "ast": {
+        "k": "bin",
+        "op": "<",
+        "a": {
+          "k": "lit",
+          "t": "date",
+          "v": "2026-01-01"
+        },
+        "b": {
+          "k": "lit",
+          "t": "date",
+          "v": "2026-01-02"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "cmp.list.equality",
+      "expr": "[1, 2] = [1, 2.0]",
+      "ast": {
+        "k": "bin",
+        "op": "=",
+        "a": {
+          "k": "list",
+          "items": [
+            {
+              "k": "lit",
+              "t": "number",
+              "v": "1"
+            },
+            {
+              "k": "lit",
+              "t": "number",
+              "v": "2"
+            }
+          ]
+        },
+        "b": {
+          "k": "list",
+          "items": [
+            {
+              "k": "lit",
+              "t": "number",
+              "v": "1"
+            },
+            {
+              "k": "lit",
+              "t": "number",
+              "v": "2"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "cmp.text.case_sensitive",
+      "expr": "\"A\" = \"a\"",
+      "ast": {
+        "k": "bin",
+        "op": "=",
+        "a": {
+          "k": "lit",
+          "t": "text",
+          "v": "A"
+        },
+        "b": {
+          "k": "lit",
+          "t": "text",
+          "v": "a"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "cmp.text.nfc",
+      "description": "NFC normalization on input",
+      "expr": "\"e\\u0301\" = \"é\"",
+      "ast": {
+        "k": "bin",
+        "op": "=",
+        "a": {
+          "k": "lit",
+          "t": "text",
+          "v": "é"
+        },
+        "b": {
+          "k": "lit",
+          "t": "text",
+          "v": "é"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "logic.and.true_null",
+      "expr": "true and null",
+      "ast": {
+        "k": "bin",
+        "op": "and",
+        "a": {
+          "k": "lit",
+          "t": "boolean",
+          "v": true
+        },
+        "b": {
+          "k": "lit",
+          "t": "null"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "logic.and.false_null",
+      "expr": "false and null",
+      "ast": {
+        "k": "bin",
+        "op": "and",
+        "a": {
+          "k": "lit",
+          "t": "boolean",
+          "v": false
+        },
+        "b": {
+          "k": "lit",
+          "t": "null"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "logic.or.true_null",
+      "expr": "true or null",
+      "ast": {
+        "k": "bin",
+        "op": "or",
+        "a": {
+          "k": "lit",
+          "t": "boolean",
+          "v": true
+        },
+        "b": {
+          "k": "lit",
+          "t": "null"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "logic.or.false_null",
+      "expr": "false or null",
+      "ast": {
+        "k": "bin",
+        "op": "or",
+        "a": {
+          "k": "lit",
+          "t": "boolean",
+          "v": false
+        },
+        "b": {
+          "k": "lit",
+          "t": "null"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "logic.not.null",
+      "expr": "not null",
+      "ast": {
+        "k": "un",
+        "op": "not",
+        "a": {
+          "k": "lit",
+          "t": "null"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "logic.short_circuit",
+      "description": "right side not evaluated: no DIV_ZERO",
+      "expr": "false and (1 / 0 = 1)",
+      "ast": {
+        "k": "bin",
+        "op": "and",
+        "a": {
+          "k": "lit",
+          "t": "boolean",
+          "v": false
+        },
+        "b": {
+          "k": "bin",
+          "op": "=",
+          "a": {
+            "k": "bin",
+            "op": "/",
+            "a": {
+              "k": "lit",
+              "t": "number",
+              "v": "1"
+            },
+            "b": {
+              "k": "lit",
+              "t": "number",
+              "v": "0"
+            }
+          },
+          "b": {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          }
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "logic.precedence",
+      "expr": "true or false and false",
+      "ast": {
+        "k": "bin",
+        "op": "or",
+        "a": {
+          "k": "lit",
+          "t": "boolean",
+          "v": true
+        },
+        "b": {
+          "k": "bin",
+          "op": "and",
+          "a": {
+            "k": "lit",
+            "t": "boolean",
+            "v": false
+          },
+          "b": {
+            "k": "lit",
+            "t": "boolean",
+            "v": false
+          }
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "logic.not_below_comparison",
+      "expr": "not 1 = 2",
+      "ast": {
+        "k": "un",
+        "op": "not",
+        "a": {
+          "k": "bin",
+          "op": "=",
+          "a": {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          },
+          "b": {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          }
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "logic.type_mismatch",
+      "expr": "1 and true",
+      "ast": {
+        "k": "bin",
+        "op": "and",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "1"
+        },
+        "b": {
+          "k": "lit",
+          "t": "boolean",
+          "v": true
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "TYPE_MISMATCH"
+        ]
+      }
+    },
+    {
+      "id": "if.true_branch",
+      "expr": "if(amount > 1000, \"high\", \"low\")",
+      "ast": {
+        "k": "call",
+        "fn": "if",
+        "args": [
+          {
+            "k": "bin",
+            "op": ">",
+            "a": {
+              "k": "ref",
+              "scope": "record",
+              "path": [
+                "amount"
+              ]
+            },
+            "b": {
+              "k": "lit",
+              "t": "number",
+              "v": "1000"
+            }
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "high"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "low"
+          }
+        ]
+      },
+      "record": {
+        "amount": {
+          "t": "number",
+          "v": "1500"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "high"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "if.null_condition_takes_else",
+      "expr": "if(null, 1, 2)",
+      "ast": {
+        "k": "call",
+        "fn": "if",
+        "args": [
+          {
+            "k": "lit",
+            "t": "null"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "2"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "if.lazy",
+      "expr": "if(true, 1, 1 / 0)",
+      "ast": {
+        "k": "call",
+        "fn": "if",
+        "args": [
+          {
+            "k": "lit",
+            "t": "boolean",
+            "v": true
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          },
+          {
+            "k": "bin",
+            "op": "/",
+            "a": {
+              "k": "lit",
+              "t": "number",
+              "v": "1"
+            },
+            "b": {
+              "k": "lit",
+              "t": "number",
+              "v": "0"
+            }
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "switch.match",
+      "expr": "switch(category, \"a\", 1, \"b\", 2, 0)",
+      "ast": {
+        "k": "call",
+        "fn": "switch",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "category"
+            ]
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "a"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "b"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "0"
+          }
+        ]
+      },
+      "record": {
+        "category": {
+          "t": "text",
+          "v": "b"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "2"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "switch.no_default",
+      "expr": "switch(\"z\", \"a\", 1)",
+      "ast": {
+        "k": "call",
+        "fn": "switch",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "z"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "a"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "coalesce.first_non_null",
+      "expr": "coalesce(null, null, 3)",
+      "ast": {
+        "k": "call",
+        "fn": "coalesce",
+        "args": [
+          {
+            "k": "lit",
+            "t": "null"
+          },
+          {
+            "k": "lit",
+            "t": "null"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "3"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "3"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "is_empty.text",
+      "expr": "is_empty(\"\")",
+      "ast": {
+        "k": "call",
+        "fn": "is_empty",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": ""
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "is_empty.list",
+      "expr": "is_empty([])",
+      "ast": {
+        "k": "call",
+        "fn": "is_empty",
+        "args": [
+          {
+            "k": "list",
+            "items": []
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "is_null.zero",
+      "expr": "is_null(0)",
+      "ast": {
+        "k": "call",
+        "fn": "is_null",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "0"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "in.list",
+      "expr": "in(\"b\", [\"a\", \"b\"])",
+      "ast": {
+        "k": "call",
+        "fn": "in",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "b"
+          },
+          {
+            "k": "list",
+            "items": [
+              {
+                "k": "lit",
+                "t": "text",
+                "v": "a"
+              },
+              {
+                "k": "lit",
+                "t": "text",
+                "v": "b"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "in.null_list",
+      "expr": "in(1, null)",
+      "ast": {
+        "k": "call",
+        "fn": "in",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          },
+          {
+            "k": "lit",
+            "t": "null"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "changed.update",
+      "expr": "changed(amount)",
+      "ast": {
+        "k": "call",
+        "fn": "changed",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "amount"
+            ]
+          }
+        ]
+      },
+      "record": {
+        "amount": {
+          "t": "number",
+          "v": "5"
+        }
+      },
+      "old": {
+        "amount": {
+          "t": "number",
+          "v": "3"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "changed.create",
+      "expr": "changed(amount)",
+      "ast": {
+        "k": "call",
+        "fn": "changed",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "amount"
+            ]
+          }
+        ]
+      },
+      "record": {
+        "amount": {
+          "t": "number",
+          "v": "5"
+        }
+      },
+      "context": {
+        "mode": "create"
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "changed_from_to.match",
+      "expr": "changed_from_to(category, \"draft\", \"final\")",
+      "ast": {
+        "k": "call",
+        "fn": "changed_from_to",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "category"
+            ]
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "draft"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "final"
+          }
+        ]
+      },
+      "record": {
+        "category": {
+          "t": "text",
+          "v": "final"
+        }
+      },
+      "old": {
+        "category": {
+          "t": "text",
+          "v": "draft"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "has_role.member",
+      "expr": "has_role(\"manager\")",
+      "ast": {
+        "k": "call",
+        "fn": "has_role",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "manager"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "in_department.descendant",
+      "expr": "in_department(\"FIN\", true)",
+      "ast": {
+        "k": "call",
+        "fn": "in_department",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "FIN"
+          },
+          {
+            "k": "lit",
+            "t": "boolean",
+            "v": true
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "in_department.exact_only",
+      "expr": "in_department(\"FIN\")",
+      "ast": {
+        "k": "call",
+        "fn": "in_department",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "FIN"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "round.half_away.positive",
+      "expr": "round(2.5)",
+      "ast": {
+        "k": "call",
+        "fn": "round",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2.5"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "3"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "round.half_away.negative",
+      "expr": "round(-2.5)",
+      "ast": {
+        "k": "call",
+        "fn": "round",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "-2.5"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "-3"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "round.decimal_exact",
+      "description": "binary float would give 1",
+      "expr": "round(1.005, 2)",
+      "ast": {
+        "k": "call",
+        "fn": "round",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1.005"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1.01"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "round.negative_digits",
+      "expr": "round(1250, -2)",
+      "ast": {
+        "k": "call",
+        "fn": "round",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1250"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "-2"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1300"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "floor.negative",
+      "expr": "floor(-1.5)",
+      "ast": {
+        "k": "call",
+        "fn": "floor",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "-1.5"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "-2"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "ceil.positive",
+      "expr": "ceil(1.2)",
+      "ast": {
+        "k": "call",
+        "fn": "ceil",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1.2"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "2"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "trunc.digits",
+      "expr": "trunc(-1.99, 1)",
+      "ast": {
+        "k": "call",
+        "fn": "trunc",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "-1.99"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "-1.9"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "abs.negative",
+      "expr": "abs(-3)",
+      "ast": {
+        "k": "call",
+        "fn": "abs",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "-3"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "3"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "power.integer",
+      "expr": "power(2, 10)",
+      "ast": {
+        "k": "call",
+        "fn": "power",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "10"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1024"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "power.non_integer_exponent",
+      "expr": "power(2, 0.5)",
+      "ast": {
+        "k": "call",
+        "fn": "power",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "0.5"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "INVALID_ARG"
+        ]
+      }
+    },
+    {
+      "id": "sqrt.perfect",
+      "expr": "sqrt(16)",
+      "ast": {
+        "k": "call",
+        "fn": "sqrt",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "16"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "4"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "sqrt.irrational",
+      "description": "1.41421356237309504880… rounded to 16 fractional digits, canonical form drops the trailing zero",
+      "expr": "sqrt(2)",
+      "ast": {
+        "k": "call",
+        "fn": "sqrt",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1.414213562373095"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "sqrt.negative",
+      "expr": "sqrt(-1)",
+      "ast": {
+        "k": "call",
+        "fn": "sqrt",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "-1"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "INVALID_ARG"
+        ]
+      }
+    },
+    {
+      "id": "min.variadic_ignores_null",
+      "expr": "min(3, null, 1, 2)",
+      "ast": {
+        "k": "call",
+        "fn": "min",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "3"
+          },
+          {
+            "k": "lit",
+            "t": "null"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "max.dates",
+      "expr": "max(d\"2026-01-01\", d\"2025-12-31\")",
+      "ast": {
+        "k": "call",
+        "fn": "max",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-01-01"
+          },
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2025-12-31"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2026-01-01"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "clamp.upper",
+      "expr": "clamp(15, 0, 10)",
+      "ast": {
+        "k": "call",
+        "fn": "clamp",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "15"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "0"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "10"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "10"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "sign.negative",
+      "expr": "sign(-0.5)",
+      "ast": {
+        "k": "call",
+        "fn": "sign",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "-0.5"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "-1"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "mod.function",
+      "expr": "mod(10, 3)",
+      "ast": {
+        "k": "call",
+        "fn": "mod",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "10"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "3"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "len.arabic",
+      "expr": "len(\"مرحبا\")",
+      "ast": {
+        "k": "call",
+        "fn": "len",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "مرحبا"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "5"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "len.astral_code_point",
+      "description": "code points, not UTF-16 units",
+      "expr": "len(\"a😀\")",
+      "ast": {
+        "k": "call",
+        "fn": "len",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "a😀"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "2"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "len.nfc",
+      "expr": "len(\"e\\u0301\")",
+      "ast": {
+        "k": "call",
+        "fn": "len",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "é"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "upper.latin",
+      "expr": "upper(\"abc\")",
+      "ast": {
+        "k": "call",
+        "fn": "upper",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "abc"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "ABC"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "trim.spaces",
+      "expr": "trim(\"  x  \")",
+      "ast": {
+        "k": "call",
+        "fn": "trim",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "  x  "
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "x"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "left.arabic",
+      "expr": "left(\"السلام\", 2)",
+      "ast": {
+        "k": "call",
+        "fn": "left",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "السلام"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "ال"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "right.latin",
+      "expr": "right(\"abcdef\", 3)",
+      "ast": {
+        "k": "call",
+        "fn": "right",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "abcdef"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "3"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "def"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "mid.one_based",
+      "expr": "mid(\"abcdef\", 2, 3)",
+      "ast": {
+        "k": "call",
+        "fn": "mid",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "abcdef"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "3"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "bcd"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "contains.true",
+      "expr": "contains(\"hello\", \"ell\")",
+      "ast": {
+        "k": "call",
+        "fn": "contains",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "hello"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "ell"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "starts_with.true",
+      "expr": "starts_with(\"INV-001\", \"INV\")",
+      "ast": {
+        "k": "call",
+        "fn": "starts_with",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "INV-001"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "INV"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "ends_with.case_sensitive",
+      "expr": "ends_with(\"file.PDF\", \".pdf\")",
+      "ast": {
+        "k": "call",
+        "fn": "ends_with",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "file.PDF"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": ".pdf"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "replace.all_literal",
+      "expr": "replace(\"a-b-c\", \"-\", \"/\")",
+      "ast": {
+        "k": "call",
+        "fn": "replace",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "a-b-c"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "-"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "/"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "a/b/c"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "split.basic",
+      "expr": "split(\"a,b,c\", \",\")",
+      "ast": {
+        "k": "call",
+        "fn": "split",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "a,b,c"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": ","
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "list",
+          "v": [
+            {
+              "t": "text",
+              "v": "a"
+            },
+            {
+              "t": "text",
+              "v": "b"
+            },
+            {
+              "t": "text",
+              "v": "c"
+            }
+          ]
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "split.empty_separator",
+      "expr": "split(\"abc\", \"\")",
+      "ast": {
+        "k": "call",
+        "fn": "split",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "abc"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": ""
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "INVALID_ARG"
+        ]
+      }
+    },
+    {
+      "id": "pad_left.zeros",
+      "expr": "pad_left(\"7\", 3, \"0\")",
+      "ast": {
+        "k": "call",
+        "fn": "pad_left",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "7"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "3"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "0"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "007"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "matches.iban_pattern",
+      "expr": "matches(\"SA0380000000608010167519\", \"^SA[0-9]{22}$\")",
+      "ast": {
+        "k": "call",
+        "fn": "matches",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "SA0380000000608010167519"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "^SA[0-9]{22}$"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "matches.invalid_pattern",
+      "expr": "matches(\"x\", \"(a\")",
+      "ast": {
+        "k": "call",
+        "fn": "matches",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "x"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "(a"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "INVALID_ARG"
+        ]
+      }
+    },
+    {
+      "id": "matches.lookaround_not_in_subset",
+      "expr": "matches(\"x\", \"(?=x)\")",
+      "ast": {
+        "k": "call",
+        "fn": "matches",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "x"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "(?=x)"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "INVALID_ARG"
+        ]
+      }
+    },
+    {
+      "id": "normalize_arabic.alef",
+      "expr": "normalize_arabic(\"أحمد\")",
+      "ast": {
+        "k": "call",
+        "fn": "normalize_arabic",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "أحمد"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "احمد"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "normalize_arabic.digits",
+      "expr": "normalize_arabic(\"١٢٣\")",
+      "ast": {
+        "k": "call",
+        "fn": "normalize_arabic",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "١٢٣"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "123"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "normalize_arabic.ta_marbuta",
+      "expr": "normalize_arabic(\"مدرسة\")",
+      "ast": {
+        "k": "call",
+        "fn": "normalize_arabic",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "مدرسة"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "مدرسه"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "concat.function",
+      "expr": "concat(\"a\", null, 1)",
+      "ast": {
+        "k": "call",
+        "fn": "concat",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "a"
+          },
+          {
+            "k": "lit",
+            "t": "null"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "a1"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "text.limit",
+      "expr": "pad_left(\"x\", 70000, \"y\")",
+      "ast": {
+        "k": "call",
+        "fn": "pad_left",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "x"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "70000"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "y"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "LIMIT_EXCEEDED"
+        ]
+      }
+    },
+    {
+      "id": "to_number.trim_and_canonical",
+      "expr": "to_number(\" 12.50 \")",
+      "ast": {
+        "k": "call",
+        "fn": "to_number",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": " 12.50 "
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "12.5"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "to_number.arabic_indic",
+      "expr": "to_number(\"٤٢\")",
+      "ast": {
+        "k": "call",
+        "fn": "to_number",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "٤٢"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "42"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "to_number.invalid",
+      "expr": "to_number(\"12a\")",
+      "ast": {
+        "k": "call",
+        "fn": "to_number",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "12a"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "INVALID_ARG"
+        ]
+      }
+    },
+    {
+      "id": "to_text.boolean",
+      "expr": "to_text(true)",
+      "ast": {
+        "k": "call",
+        "fn": "to_text",
+        "args": [
+          {
+            "k": "lit",
+            "t": "boolean",
+            "v": true
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "true"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "to_text.list",
+      "expr": "to_text([1, 2])",
+      "ast": {
+        "k": "call",
+        "fn": "to_text",
+        "args": [
+          {
+            "k": "list",
+            "items": [
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "1"
+              },
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "2"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "1, 2"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "to_boolean.case_insensitive",
+      "expr": "to_boolean(\"TRUE\")",
+      "ast": {
+        "k": "call",
+        "fn": "to_boolean",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "TRUE"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "date.today_from_context",
+      "expr": "today()",
+      "ast": {
+        "k": "call",
+        "fn": "today",
+        "args": []
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2026-10-02"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "date.now_from_context",
+      "expr": "now()",
+      "ast": {
+        "k": "call",
+        "fn": "now",
+        "args": []
+      },
+      "expect": {
+        "value": {
+          "t": "datetime",
+          "v": "2026-10-02T09:00:00Z"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "date.plus_days",
+      "expr": "d\"2026-01-30\" + 3",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "lit",
+          "t": "date",
+          "v": "2026-01-30"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "3"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2026-02-02"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "date.minus_date",
+      "expr": "d\"2026-03-01\" - d\"2026-02-01\"",
+      "ast": {
+        "k": "bin",
+        "op": "-",
+        "a": {
+          "k": "lit",
+          "t": "date",
+          "v": "2026-03-01"
+        },
+        "b": {
+          "k": "lit",
+          "t": "date",
+          "v": "2026-02-01"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "28"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "date.plus_fraction",
+      "expr": "d\"2026-01-01\" + 1.5",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "lit",
+          "t": "date",
+          "v": "2026-01-01"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "1.5"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "INVALID_ARG"
+        ]
+      }
+    },
+    {
+      "id": "add_months.clamp",
+      "expr": "add_months(d\"2026-01-31\", 1)",
+      "ast": {
+        "k": "call",
+        "fn": "add_months",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-01-31"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2026-02-28"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "add_months.leap",
+      "expr": "add_months(d\"2024-01-31\", 1)",
+      "ast": {
+        "k": "call",
+        "fn": "add_months",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2024-01-31"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2024-02-29"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "add_years.leap_day",
+      "expr": "add_years(d\"2024-02-29\", 1)",
+      "ast": {
+        "k": "call",
+        "fn": "add_years",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2024-02-29"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2025-02-28"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "add_days.negative",
+      "expr": "add_days(d\"2026-03-01\", -1)",
+      "ast": {
+        "k": "call",
+        "fn": "add_days",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-03-01"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "-1"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2026-02-28"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "add_years.out_of_range",
+      "expr": "add_years(d\"9999-06-01\", 1)",
+      "ast": {
+        "k": "call",
+        "fn": "add_years",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "9999-06-01"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "INVALID_DATE"
+        ]
+      }
+    },
+    {
+      "id": "weekday.friday",
+      "expr": "weekday(d\"2026-10-02\")",
+      "ast": {
+        "k": "call",
+        "fn": "weekday",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-10-02"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "5"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "diff_days.negative",
+      "expr": "diff_days(d\"2026-01-01\", d\"2025-12-25\")",
+      "ast": {
+        "k": "call",
+        "fn": "diff_days",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-01-01"
+          },
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2025-12-25"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "-7"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "diff_months.not_full",
+      "expr": "diff_months(d\"2026-01-31\", d\"2026-02-28\")",
+      "ast": {
+        "k": "call",
+        "fn": "diff_months",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-01-31"
+          },
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-02-28"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "0"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "diff_months.full",
+      "expr": "diff_months(d\"2026-01-15\", d\"2026-03-15\")",
+      "ast": {
+        "k": "call",
+        "fn": "diff_months",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-01-15"
+          },
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-03-15"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "2"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "date.invalid_parts",
+      "expr": "date(2026, 2, 30)",
+      "ast": {
+        "k": "call",
+        "fn": "date",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2026"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "30"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "INVALID_ARG"
+        ]
+      }
+    },
+    {
+      "id": "end_of_month.february",
+      "expr": "end_of_month(d\"2026-02-10\")",
+      "ast": {
+        "k": "call",
+        "fn": "end_of_month",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-02-10"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2026-02-28"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "start_of_month",
+      "expr": "start_of_month(d\"2026-02-10\")",
+      "ast": {
+        "k": "call",
+        "fn": "start_of_month",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-02-10"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2026-02-01"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "date.parts",
+      "expr": "year(d\"2026-10-02\") * 10000 + month(d\"2026-10-02\") * 100 + day(d\"2026-10-02\")",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "bin",
+          "op": "+",
+          "a": {
+            "k": "bin",
+            "op": "*",
+            "a": {
+              "k": "call",
+              "fn": "year",
+              "args": [
+                {
+                  "k": "lit",
+                  "t": "date",
+                  "v": "2026-10-02"
+                }
+              ]
+            },
+            "b": {
+              "k": "lit",
+              "t": "number",
+              "v": "10000"
+            }
+          },
+          "b": {
+            "k": "bin",
+            "op": "*",
+            "a": {
+              "k": "call",
+              "fn": "month",
+              "args": [
+                {
+                  "k": "lit",
+                  "t": "date",
+                  "v": "2026-10-02"
+                }
+              ]
+            },
+            "b": {
+              "k": "lit",
+              "t": "number",
+              "v": "100"
+            }
+          }
+        },
+        "b": {
+          "k": "call",
+          "fn": "day",
+          "args": [
+            {
+              "k": "lit",
+              "t": "date",
+              "v": "2026-10-02"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "20261002"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "datetime.difference",
+      "expr": "duration_seconds(dt\"2026-10-02T10:00:00Z\" - dt\"2026-10-02T09:30:00Z\")",
+      "ast": {
+        "k": "call",
+        "fn": "duration_seconds",
+        "args": [
+          {
+            "k": "bin",
+            "op": "-",
+            "a": {
+              "k": "lit",
+              "t": "datetime",
+              "v": "2026-10-02T10:00:00Z"
+            },
+            "b": {
+              "k": "lit",
+              "t": "datetime",
+              "v": "2026-10-02T09:30:00Z"
+            }
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1800"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "datetime.plus_duration",
+      "expr": "dt\"2026-10-02T23:30:00Z\" + hours(1)",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "lit",
+          "t": "datetime",
+          "v": "2026-10-02T23:30:00Z"
+        },
+        "b": {
+          "k": "call",
+          "fn": "hours",
+          "args": [
+            {
+              "k": "lit",
+              "t": "number",
+              "v": "1"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "datetime",
+          "v": "2026-10-03T00:30:00Z"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "duration.divide",
+      "expr": "duration_seconds(minutes(90) / 4)",
+      "ast": {
+        "k": "call",
+        "fn": "duration_seconds",
+        "args": [
+          {
+            "k": "bin",
+            "op": "/",
+            "a": {
+              "k": "call",
+              "fn": "minutes",
+              "args": [
+                {
+                  "k": "lit",
+                  "t": "number",
+                  "v": "90"
+                }
+              ]
+            },
+            "b": {
+              "k": "lit",
+              "t": "number",
+              "v": "4"
+            }
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1350"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "to_date.text",
+      "expr": "to_date(\"2026-05-01\")",
+      "ast": {
+        "k": "call",
+        "fn": "to_date",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "2026-05-01"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2026-05-01"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "to_date.datetime_in_context_timezone",
+      "expr": "to_date(dt\"2026-10-02T22:30:00Z\")",
+      "ast": {
+        "k": "call",
+        "fn": "to_date",
+        "args": [
+          {
+            "k": "lit",
+            "t": "datetime",
+            "v": "2026-10-02T22:30:00Z"
+          }
+        ]
+      },
+      "context": {
+        "timezone": "Asia/Riyadh"
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2026-10-03"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "hijri.year",
+      "expr": "hijri_year(d\"2026-10-02\")",
+      "ast": {
+        "k": "call",
+        "fn": "hijri_year",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-10-02"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1448"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "hijri.month",
+      "expr": "hijri_month(d\"2026-10-02\")",
+      "ast": {
+        "k": "call",
+        "fn": "hijri_month",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-10-02"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "4"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "hijri.day",
+      "expr": "hijri_day(d\"2026-10-02\")",
+      "ast": {
+        "k": "call",
+        "fn": "hijri_day",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-10-02"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "21"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "hijri.text_ramadan_start",
+      "expr": "hijri_text(d\"2026-02-18\")",
+      "ast": {
+        "k": "call",
+        "fn": "hijri_text",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-02-18"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "1447-09-01"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "hijri.from_shawwal_1",
+      "expr": "from_hijri(1447, 10, 1)",
+      "ast": {
+        "k": "call",
+        "fn": "from_hijri",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1447"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "10"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2026-03-20"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "hijri.from_ramadan_30",
+      "expr": "from_hijri(1447, 9, 30)",
+      "ast": {
+        "k": "call",
+        "fn": "from_hijri",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1447"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "9"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "30"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2026-03-19"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "hijri.from_new_year",
+      "expr": "from_hijri(1447, 1, 1)",
+      "ast": {
+        "k": "call",
+        "fn": "from_hijri",
+        "args": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1447"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2025-06-26"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "hijri.out_of_table",
+      "expr": "hijri_year(d\"1800-01-01\")",
+      "ast": {
+        "k": "call",
+        "fn": "hijri_year",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "1800-01-01"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "INVALID_DATE"
+        ]
+      }
+    },
+    {
+      "id": "calendar.is_working_day.weekend",
+      "expr": "is_working_day(d\"2026-10-02\")",
+      "ast": {
+        "k": "call",
+        "fn": "is_working_day",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-10-02"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "calendar.add_working_days.skips_weekend_and_holiday",
+      "expr": "add_working_days(d\"2026-10-01\", 2)",
+      "ast": {
+        "k": "call",
+        "fn": "add_working_days",
+        "args": [
+          {
+            "k": "lit",
+            "t": "date",
+            "v": "2026-10-01"
+          },
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "2"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "date",
+          "v": "2026-10-06"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.sum.row_form",
+      "description": "null qty row contributes null, which sum ignores",
+      "expr": "sum(items, qty * price)",
+      "ast": {
+        "k": "call",
+        "fn": "sum",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "items"
+            ]
+          },
+          {
+            "k": "bin",
+            "op": "*",
+            "a": {
+              "k": "ref",
+              "scope": "record",
+              "path": [
+                "qty"
+              ]
+            },
+            "b": {
+              "k": "ref",
+              "scope": "record",
+              "path": [
+                "price"
+              ]
+            }
+          }
+        ]
+      },
+      "record": {
+        "items": {
+          "t": "rows",
+          "v": [
+            {
+              "qty": {
+                "t": "number",
+                "v": "2"
+              },
+              "price": {
+                "t": "number",
+                "v": "10.5"
+              }
+            },
+            {
+              "qty": {
+                "t": "number",
+                "v": "1"
+              },
+              "price": {
+                "t": "number",
+                "v": "4"
+              }
+            },
+            {
+              "qty": {
+                "t": "null"
+              },
+              "price": {
+                "t": "number",
+                "v": "3"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "25"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.sum.list_form",
+      "expr": "sum(items.qty)",
+      "ast": {
+        "k": "call",
+        "fn": "sum",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "items",
+              "qty"
+            ]
+          }
+        ]
+      },
+      "record": {
+        "items": {
+          "t": "rows",
+          "v": [
+            {
+              "qty": {
+                "t": "number",
+                "v": "2"
+              },
+              "price": {
+                "t": "number",
+                "v": "10.5"
+              }
+            },
+            {
+              "qty": {
+                "t": "number",
+                "v": "1"
+              },
+              "price": {
+                "t": "number",
+                "v": "4"
+              }
+            },
+            {
+              "qty": {
+                "t": "null"
+              },
+              "price": {
+                "t": "number",
+                "v": "3"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "3"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.avg.ignores_null",
+      "expr": "avg(items.qty)",
+      "ast": {
+        "k": "call",
+        "fn": "avg",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "items",
+              "qty"
+            ]
+          }
+        ]
+      },
+      "record": {
+        "items": {
+          "t": "rows",
+          "v": [
+            {
+              "qty": {
+                "t": "number",
+                "v": "2"
+              },
+              "price": {
+                "t": "number",
+                "v": "10.5"
+              }
+            },
+            {
+              "qty": {
+                "t": "number",
+                "v": "1"
+              },
+              "price": {
+                "t": "number",
+                "v": "4"
+              }
+            },
+            {
+              "qty": {
+                "t": "null"
+              },
+              "price": {
+                "t": "number",
+                "v": "3"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "1.5"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.count.list_non_null",
+      "expr": "count(items.qty)",
+      "ast": {
+        "k": "call",
+        "fn": "count",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "items",
+              "qty"
+            ]
+          }
+        ]
+      },
+      "record": {
+        "items": {
+          "t": "rows",
+          "v": [
+            {
+              "qty": {
+                "t": "number",
+                "v": "2"
+              },
+              "price": {
+                "t": "number",
+                "v": "10.5"
+              }
+            },
+            {
+              "qty": {
+                "t": "number",
+                "v": "1"
+              },
+              "price": {
+                "t": "number",
+                "v": "4"
+              }
+            },
+            {
+              "qty": {
+                "t": "null"
+              },
+              "price": {
+                "t": "number",
+                "v": "3"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "2"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.count.row_condition",
+      "expr": "count(items, price > 3.5)",
+      "ast": {
+        "k": "call",
+        "fn": "count",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "items"
+            ]
+          },
+          {
+            "k": "bin",
+            "op": ">",
+            "a": {
+              "k": "ref",
+              "scope": "record",
+              "path": [
+                "price"
+              ]
+            },
+            "b": {
+              "k": "lit",
+              "t": "number",
+              "v": "3.5"
+            }
+          }
+        ]
+      },
+      "record": {
+        "items": {
+          "t": "rows",
+          "v": [
+            {
+              "qty": {
+                "t": "number",
+                "v": "2"
+              },
+              "price": {
+                "t": "number",
+                "v": "10.5"
+              }
+            },
+            {
+              "qty": {
+                "t": "number",
+                "v": "1"
+              },
+              "price": {
+                "t": "number",
+                "v": "4"
+              }
+            },
+            {
+              "qty": {
+                "t": "null"
+              },
+              "price": {
+                "t": "number",
+                "v": "3"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "2"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.min.list",
+      "expr": "min(items.price)",
+      "ast": {
+        "k": "call",
+        "fn": "min",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "items",
+              "price"
+            ]
+          }
+        ]
+      },
+      "record": {
+        "items": {
+          "t": "rows",
+          "v": [
+            {
+              "qty": {
+                "t": "number",
+                "v": "2"
+              },
+              "price": {
+                "t": "number",
+                "v": "10.5"
+              }
+            },
+            {
+              "qty": {
+                "t": "number",
+                "v": "1"
+              },
+              "price": {
+                "t": "number",
+                "v": "4"
+              }
+            },
+            {
+              "qty": {
+                "t": "null"
+              },
+              "price": {
+                "t": "number",
+                "v": "3"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "3"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.max.list",
+      "expr": "max(items.price)",
+      "ast": {
+        "k": "call",
+        "fn": "max",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "items",
+              "price"
+            ]
+          }
+        ]
+      },
+      "record": {
+        "items": {
+          "t": "rows",
+          "v": [
+            {
+              "qty": {
+                "t": "number",
+                "v": "2"
+              },
+              "price": {
+                "t": "number",
+                "v": "10.5"
+              }
+            },
+            {
+              "qty": {
+                "t": "number",
+                "v": "1"
+              },
+              "price": {
+                "t": "number",
+                "v": "4"
+              }
+            },
+            {
+              "qty": {
+                "t": "null"
+              },
+              "price": {
+                "t": "number",
+                "v": "3"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "10.5"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.last",
+      "expr": "last(items.price)",
+      "ast": {
+        "k": "call",
+        "fn": "last",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "items",
+              "price"
+            ]
+          }
+        ]
+      },
+      "record": {
+        "items": {
+          "t": "rows",
+          "v": [
+            {
+              "qty": {
+                "t": "number",
+                "v": "2"
+              },
+              "price": {
+                "t": "number",
+                "v": "10.5"
+              }
+            },
+            {
+              "qty": {
+                "t": "number",
+                "v": "1"
+              },
+              "price": {
+                "t": "number",
+                "v": "4"
+              }
+            },
+            {
+              "qty": {
+                "t": "null"
+              },
+              "price": {
+                "t": "number",
+                "v": "3"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "3"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.first",
+      "expr": "first(items.price)",
+      "ast": {
+        "k": "call",
+        "fn": "first",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "items",
+              "price"
+            ]
+          }
+        ]
+      },
+      "record": {
+        "items": {
+          "t": "rows",
+          "v": [
+            {
+              "qty": {
+                "t": "number",
+                "v": "2"
+              },
+              "price": {
+                "t": "number",
+                "v": "10.5"
+              }
+            },
+            {
+              "qty": {
+                "t": "number",
+                "v": "1"
+              },
+              "price": {
+                "t": "number",
+                "v": "4"
+              }
+            },
+            {
+              "qty": {
+                "t": "null"
+              },
+              "price": {
+                "t": "number",
+                "v": "3"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "10.5"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.join.row_form",
+      "expr": "join(items, to_text(qty), \"|\")",
+      "ast": {
+        "k": "call",
+        "fn": "join",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "items"
+            ]
+          },
+          {
+            "k": "call",
+            "fn": "to_text",
+            "args": [
+              {
+                "k": "ref",
+                "scope": "record",
+                "path": [
+                  "qty"
+                ]
+              }
+            ]
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "|"
+          }
+        ]
+      },
+      "record": {
+        "items": {
+          "t": "rows",
+          "v": [
+            {
+              "qty": {
+                "t": "number",
+                "v": "2"
+              },
+              "price": {
+                "t": "number",
+                "v": "10.5"
+              }
+            },
+            {
+              "qty": {
+                "t": "number",
+                "v": "1"
+              },
+              "price": {
+                "t": "number",
+                "v": "4"
+              }
+            },
+            {
+              "qty": {
+                "t": "null"
+              },
+              "price": {
+                "t": "number",
+                "v": "3"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "2|1"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.sum.empty",
+      "expr": "sum([])",
+      "ast": {
+        "k": "call",
+        "fn": "sum",
+        "args": [
+          {
+            "k": "list",
+            "items": []
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "0"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.avg.empty",
+      "expr": "avg([])",
+      "ast": {
+        "k": "call",
+        "fn": "avg",
+        "args": [
+          {
+            "k": "list",
+            "items": []
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.distinct",
+      "expr": "distinct([1, 2, 1, 3])",
+      "ast": {
+        "k": "call",
+        "fn": "distinct",
+        "args": [
+          {
+            "k": "list",
+            "items": [
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "1"
+              },
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "2"
+              },
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "1"
+              },
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "3"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "list",
+          "v": [
+            {
+              "t": "number",
+              "v": "1"
+            },
+            {
+              "t": "number",
+              "v": "2"
+            },
+            {
+              "t": "number",
+              "v": "3"
+            }
+          ]
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.parent_scope",
+      "expr": "sum(items, price * @parent.rate)",
+      "ast": {
+        "k": "call",
+        "fn": "sum",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "items"
+            ]
+          },
+          {
+            "k": "bin",
+            "op": "*",
+            "a": {
+              "k": "ref",
+              "scope": "record",
+              "path": [
+                "price"
+              ]
+            },
+            "b": {
+              "k": "ref",
+              "scope": "parent",
+              "path": [
+                "rate"
+              ]
+            }
+          }
+        ]
+      },
+      "record": {
+        "items": {
+          "t": "rows",
+          "v": [
+            {
+              "qty": {
+                "t": "number",
+                "v": "2"
+              },
+              "price": {
+                "t": "number",
+                "v": "10.5"
+              }
+            },
+            {
+              "qty": {
+                "t": "number",
+                "v": "1"
+              },
+              "price": {
+                "t": "number",
+                "v": "4"
+              }
+            },
+            {
+              "qty": {
+                "t": "null"
+              },
+              "price": {
+                "t": "number",
+                "v": "3"
+              }
+            }
+          ]
+        },
+        "rate": {
+          "t": "number",
+          "v": "2"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "35"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "ref.relation_path",
+      "expr": "employee.department.name",
+      "ast": {
+        "k": "ref",
+        "scope": "record",
+        "path": [
+          "employee",
+          "department",
+          "name"
+        ]
+      },
+      "record": {
+        "employee": {
+          "t": "record",
+          "v": {
+            "department": {
+              "t": "record",
+              "v": {
+                "name": {
+                  "t": "text",
+                  "v": "Finance"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "Finance"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "ref.user_attribute",
+      "expr": "@user.attributes.grade >= 7",
+      "ast": {
+        "k": "bin",
+        "op": ">=",
+        "a": {
+          "k": "ref",
+          "scope": "user",
+          "path": [
+            "attributes",
+            "grade"
+          ]
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "7"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "ref.context_mode",
+      "expr": "@context.mode = \"create\"",
+      "ast": {
+        "k": "bin",
+        "op": "=",
+        "a": {
+          "k": "ref",
+          "scope": "context",
+          "path": [
+            "mode"
+          ]
+        },
+        "b": {
+          "k": "lit",
+          "t": "text",
+          "v": "create"
+        }
+      },
+      "context": {
+        "mode": "create"
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "ref.old_on_create",
+      "expr": "@old.amount",
+      "ast": {
+        "k": "ref",
+        "scope": "old",
+        "path": [
+          "amount"
+        ]
+      },
+      "record": {
+        "amount": {
+          "t": "number",
+          "v": "1"
+        }
+      },
+      "context": {
+        "mode": "create"
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "ref.missing",
+      "expr": "ghost + 1",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "ref",
+          "scope": "record",
+          "path": [
+            "ghost"
+          ]
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "1"
+        }
+      },
+      "record": {},
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          "MISSING_REF"
+        ]
+      }
+    },
+    {
+      "id": "ref.user_department",
+      "expr": "@user.department",
+      "ast": {
+        "k": "ref",
+        "scope": "user",
+        "path": [
+          "department"
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "FIN-AP"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "static.comparison_non_associative",
+      "expr": "1 < 2 < 3",
+      "expectStatic": {
+        "error": "SYNTAX"
+      }
+    },
+    {
+      "id": "static.condition_type",
+      "description": "first argument of if must be boolean",
+      "expr": "if(1, 2, 3)",
+      "expectStatic": {
+        "error": "TYPE"
+      }
+    },
+    {
+      "id": "static.unknown_function",
+      "expr": "foo(1)",
+      "expectStatic": {
+        "error": "UNKNOWN_FUNCTION"
+      }
+    },
+    {
+      "id": "static.arity",
+      "expr": "round()",
+      "expectStatic": {
+        "error": "ARITY"
+      }
+    },
+    {
+      "id": "static.path_depth",
+      "description": "5 hops > 4",
+      "expr": "a.b.c.d.e.f",
+      "expectStatic": {
+        "error": "PATH_DEPTH"
+      }
+    },
+    {
+      "id": "static.ast_depth",
+      "description": "depth 34 > 32",
+      "expr": "abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(1)))))))))))))))))))))))))))))))))",
+      "expectStatic": {
+        "error": "DEPTH"
+      }
+    },
+    {
+      "id": "static.reserved_keyword_as_reference",
+      "expr": "and + 1",
+      "expectStatic": {
+        "error": "SYNTAX"
+      }
+    },
+    {
+      "id": "static.number_too_precise",
+      "description": "literal with 35 significant digits",
+      "expr": "12345678901234567890123456789012345",
+      "expectStatic": {
+        "error": "PRECISION"
+      }
+    }
+  ]
+}
