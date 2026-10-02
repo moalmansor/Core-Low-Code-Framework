@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\User;
 
 return [
 
@@ -64,7 +63,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', User::class),
+            'model' => App\Modules\Identity\Models\User::class,
         ],
 
         // 'users' => [
@@ -93,9 +92,11 @@ return [
     */
 
     'passwords' => [
+        // Reset tokens live in the cache (Redis): no extra table (ERD §10.4).
         'users' => [
+            'driver' => 'cache',
+            'store' => env('PASSWORD_RESET_CACHE_STORE'),
             'provider' => 'users',
-            'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
             'expire' => 60,
             'throttle' => 60,
         ],
