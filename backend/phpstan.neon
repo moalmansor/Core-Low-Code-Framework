@@ -8,7 +8,7 @@ parameters:
         - routes
         - database
         - bootstrap/app.php
-    tmpDir: storage/framework/phpstan
+    tmpDir: storage/framework/cache/phpstan
     treatPhpDocTypesAsCertain: false
     ignoreErrors:
         # Fortify's event classes document their user as App\Models\User; this
