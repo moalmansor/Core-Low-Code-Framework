@@ -78,7 +78,9 @@ Custom code is a rare exception, reserved for developers (see 4.19).
 - Engine-specific differences (e.g. JSON handling, schema introspection) are isolated in a dedicated driver layer, with implementations and tests for both engines.
 
 **Languages**
-- Arabic (RTL) and English (LTR), with a translation manager in the UI for adding languages.
+- Arabic (RTL) and English (LTR) ship enabled, with a translation manager in the UI for adding more.
+- Every translatable label, option, message, and template is stored in a **translations table keyed by object and locale**, never as fixed Arabic and English columns, so a third language needs no schema change. Where this specification writes "(AR/EN)" it means "translatable in every enabled locale", and the two shipped locales are simply the first two rows.
+- Each locale declares its text direction, calendar preference, number formatting, and fallback locale. Missing translations fall back rather than rendering empty, and the translation manager lists what is untranslated.
 
 **Testing**
 - Pest (backend), Vitest (frontend), Playwright (end-to-end).
@@ -102,6 +104,7 @@ A single, well-organized control center with navigation to:
 - Roles & Permissions
 - Workflows & Statuses
 - Views, Filters & Actions
+- Assignment, Queues & Delegation
 - Custom Downloads
 - Email Templates & Notification Rules
 - Document Templates
@@ -111,6 +114,7 @@ A single, well-organized control center with navigation to:
 - Error Monitoring
 - Developer Extensions
 - Configuration Packages
+- Retention & Storage
 - Translations
 - System Settings
 
@@ -359,7 +363,8 @@ Clicking any field shows a complete properties panel. It is organized in tabs an
 - Calendar settings: calendar system (Gregorian, Hijri, dual), first day of week, time step, 12h/24h, timezone handling.
 - File storage: storage disk, folder pattern, file naming.
 - Reference behavior: auto-fill other fields when a referenced record is selected.
-- Edit tracking: track changes in the audit log (on/off); mark as sensitive, which masks the value in logs and errors.
+- Edit tracking: track changes in the audit log (on/off); mark as sensitive, which masks the value in logs and errors; mark as personal data, which includes the field in personal-data search, export, and anonymization (4.26).
+- Justification: whether changing this field requires a reason, and at which level (not required, optional, mandatory), per role, user, department, and status (4.24).
 
 **Access (per field)**
 - For every role, specific user, department, status, and form mode (create/edit/view/print), set the field to **Hidden / Read-only / Editable / Required**.
@@ -412,6 +417,14 @@ Clicking any field shows a complete properties panel. It is organized in tabs an
 - Scope: rules apply to fields, groups, options, actions, transitions, and notifications.
 - Enforcement: every rule is evaluated both on the client (for UX) and on the server (for enforcement).
 
+**Expression language (single definition, two runtimes)**
+- Conditions, formulas, default values, and placeholder expressions all use **one** language with a written grammar, defined in `docs/expression-language.md` during Phase 0. It is not free-form PHP or JavaScript.
+- The language is pure and side-effect free: no I/O, no loops, no assignment. It provides typed values (text, number, date, boolean, list, record reference, null), explicit null handling, and a fixed function library covering math, text, date and calendar (Gregorian and Hijri), conditional logic, lookups across relation paths, and aggregates over repeater rows.
+- It is parsed into an **abstract syntax tree stored as JSON**, never as a string that each side re-parses differently. Both runtimes consume the same tree.
+- **Parity is tested, not assumed:** a shared conformance corpus of expressions and expected results lives in the repository and runs in CI against both the PHP and the TypeScript evaluator. A disagreement fails the build.
+- Evaluation is bounded: maximum AST depth, maximum relation-path depth, and an execution timeout. The server is always authoritative; the client result is a convenience.
+- Division by zero, overflow, type mismatch, and missing references produce defined results, not exceptions, and surface as validation messages.
+
 ### 4.8 Collections (Tables & Option Sources)
 - Admins create collections, from simple key/value lists to full tables, using the same field engine as forms.
 - Records are managed in the UI, with Excel import/export.
@@ -427,6 +440,14 @@ Clicking any field shows a complete properties panel. It is organized in tabs an
 - Repeaters and inline sub-forms become child tables.
 - A metadata layer describes all tables, fields, and relations for the runtime engine.
 - Referential integrity is enforced: no orphaned records, and configurable on-delete rules (restrict, cascade, set null).
+- **Optimistic concurrency:** every record table carries a `row_version` column, incremented on each write. Saves pass the version the user loaded; a mismatch is rejected with a conflict screen showing which fields changed and who changed them, and the user chooses to reload, overwrite field by field, or cancel. Silent last-write-wins is never acceptable.
+
+**Schema change execution (DDL safety)**
+- MySQL cannot roll back DDL inside a transaction, and SQL Server behaves differently again, so schema changes are never assumed atomic. Each publish runs as an ordered **migration plan** of individually reversible steps, persisted before execution, with each step marked pending, applied, or failed.
+- On failure the system stops, attempts the recorded reverse steps, and if it cannot fully reverse, places the form in a **Schema Inconsistent** state: the form is locked for users and for further publishing, the admin sees exactly which steps applied, and a guided repair screen offers retry, manual reconciliation, or restore from the pre-publish snapshot.
+- A **schema reconciliation check**, runnable on demand and on a schedule, compares the metadata against the physical schema of each engine and reports every difference.
+- **Locking and concurrency:** publishing takes an exclusive lock on the form and on every form related to it; a second admin publishing a related form is queued and told why. Long-running changes on large tables are executed online where the engine supports it, with the estimated duration and lock impact shown in the impact analysis before the admin confirms.
+- **Pre-publish safety:** a logical backup of the affected tables is taken before any destructive step, with its location and retention shown to the admin.
 
 ### 4.10 Versioning & Safe Changes
 - **Workflow:** draft → preview → impact analysis → publish.
@@ -442,6 +463,11 @@ Clicking any field shows a complete properties panel. It is organized in tabs an
   - type changes validate existing data first and report conflicts.
 - **Status changes:** renaming, adding, removing, or merging statuses opens a guided mapping screen for existing records.
 - **History:** full version history, visual diff between versions, one-click rollback.
+- **Rollback classes.** The UI states plainly which class a rollback falls into before it runs:
+  - *metadata-only* (labels, layout, conditions, permissions): always reversible;
+  - *additive schema* (a field was added): reversible by archiving the new column;
+  - *destructive or lossy* (a type narrowed, a field removed and its data archived, a status merged): not fully reversible. The system offers restore-from-snapshot instead, names the affected records, and requires explicit confirmation.
+- **Environment drift.** Because physical tables are generated from metadata, two environments can diverge. A **compare environments** tool diffs metadata and physical schema between any two environments and reports differences before a configuration package is imported. Importing a package refuses to proceed when the target's drift would make the result ambiguous, and says exactly which objects conflict.
 - Each record stores the form version it was submitted with.
 
 ### 4.11 Roles & Permissions (Unified Interface)
@@ -457,13 +483,24 @@ All access control lives in **one** interface.
 - **System permissions:**
   - View Errors, Manage Operations, Manage Code, Manage Settings;
   - Manage Forms, Manage Permissions, Manage Users, View Audit Log;
-  - Manage Download Profiles, Create Personal Download Profiles.
+  - Manage Download Profiles, Create Personal Download Profiles;
+  - Manage Justification Rules, View Justifications;
+  - Assign Records, Reassign Records, Manage Delegation, Delegate Own Work;
+  - Manage Retention, Manage Personal Data Requests, Apply Legal Hold.
 - **Precedence:** user overrides department, which overrides role; deny overrides allow.
 - **Tools:**
   - "View as user" to see effective permissions;
   - copy permissions between roles;
   - export/import permission sets.
 - **Enforcement:** server-side via Laravel Policies/Gates on every request, with no reliance on UI hiding.
+
+**Resolution model (inheritance and sparse storage)**
+- Access is **computed, not enumerated**. Only deviations are stored, so the number of rows stays proportional to the exceptions an admin actually creates, not to forms × fields × roles × statuses × modes.
+- Resolution order, most general to most specific: system default → form default → field group → field → status override → mode override → department → role → specific user. The most specific matching rule wins, and an explicit deny always beats an allow.
+- Every field inherits from its group unless overridden; every group inherits from the form. The UI marks inherited values distinctly from explicit ones, and offers "reset to inherited".
+- **Effective permissions** for a given user are resolved once per request and cached, with invalidation on any change to permissions, roles, departments, form versions, or statuses.
+- The matrix UI is filtered and paged by role, status, or group rather than rendering every combination at once, shows only fields that deviate by default, and supports bulk edit across a selection.
+- **Explain access:** for any user, form, field, and status the admin can see which rule produced the outcome and where it was defined.
 
 ### 4.12 Workflow Engine
 - **Statuses:** name (AR/EN), color, icon, initial/final flags.
@@ -544,6 +581,19 @@ All access control lives in **one** interface.
   - create a linked record prefilled with data.
 - Steps can be chained, with conditions between them.
 
+**Outbound webhook safety**
+- Target URLs are checked against an **egress allowlist** of hosts configured in system settings. Anything not listed is refused.
+- Private, loopback, link-local, and cloud metadata address ranges are blocked, in both IPv4 and IPv6. The resolved address is validated at request time, not only the hostname, and the connection is pinned to the validated address so a second DNS answer cannot redirect it.
+- Redirects are not followed across hosts. Requests carry a timeout, a response-size cap, and a retry limit with backoff.
+- Requests are signed with a per-webhook secret. Secrets and headers are stored encrypted and masked in logs.
+- Every call and its outcome are logged and visible in the Operations Center.
+
+**Import and export safety**
+- Imports enforce a maximum file size, a maximum row count, and a time limit, and run as background jobs.
+- Uploaded spreadsheets are parsed with external entities and remote references disabled; formulas in imported cells are read as text and never evaluated.
+- Exported CSV and Excel cells beginning with `=`, `+`, `-`, `@`, tab, or carriage return are escaped so spreadsheet software cannot execute them.
+- Imports run inside a transaction per batch, are idempotent on retry, and produce a downloadable error report that names the row and the reason.
+
 **Execution**
 - Placement: row, bulk, toolbar, or view page.
 - Each action has its own permission and optional confirmation dialog.
@@ -614,7 +664,9 @@ All access control lives in **one** interface.
   - logins and failed logins;
   - retries and resends;
   - permission and configuration changes.
-- **Detail per record and per field:** who, when, old value, new value, IP, user agent.
+- **Detail per record and per field:** who, when, old value, new value, IP, user agent, correlation ID, the acting user and, where delegation applies, the user acted for.
+- **Justifications** are stored with the entry that required them (4.24) and are immutable.
+- **Integrity:** audit entries are append-only. No interface, including Super Admin, can edit or delete one; corrections are new entries. Entries are hash-chained so tampering at the database level is detectable, and a verification job reports breaks in the chain.
 - **Viewer:** filterable and exportable, per record and system-wide.
 
 ### 4.21 Error Monitoring
@@ -626,6 +678,7 @@ All access control lives in **one** interface.
   - environment, timestamp.
 - A correlation ID follows the request across jobs, emails, and hooks.
 - Users see a friendly message with a reference ID.
+- **Durability:** errors are written to a secondary sink (file or external log service) as well as the database, so failures that take the database down are still recorded. The in-app console reads the database; the secondary sink is the fallback the admin is pointed to when it is unavailable.
 - **Error management:**
   - grouping of duplicates, with frequency and first/last seen;
   - status (New / In Progress / Resolved / Ignored), assignee, notes;
@@ -698,6 +751,74 @@ Admins create reusable **download profiles** for any form. A profile defines exa
 - Failures appear in the Operations Center with a retry option.
 - Profiles can be duplicated and are included in configuration packages.
 
+### 4.24 Edit Justification & Change Control
+Admins can require users to state **why** a record was changed. The requirement is configurable, never hard-coded, and off by default.
+
+**Where a justification can be required**
+- **Per form:** any edit to the record.
+- **Per field or field group:** only edits touching those fields. A salary or an amount can require a reason while a phone number does not.
+- **Per status:** only once the record has reached a given status, so corrections before submission stay frictionless and changes after approval are documented.
+- **Per role, user, or department:** mandatory for one audience, optional or absent for another.
+- **Per action and per transition:** including bulk actions, imports, and status changes.
+- **On delete and restore**, where a reason can be required independently of edits.
+
+**Requirement levels**
+Each rule is set to one of:
+- **Not required** — no prompt.
+- **Optional** — a reason box is shown and may be left empty.
+- **Mandatory** — the save is blocked until a reason is given.
+Conditional rules from 4.7 can switch between these levels, so a justification can become mandatory only when, for example, an amount changes by more than a configured threshold or the record is already approved.
+
+**What the prompt collects**
+- A free-text reason, with configurable minimum and maximum length, in the user's language.
+- Optionally a **reason code** chosen from an admin-defined list (a collection), with its own validation, and optionally a free-text note required only for certain codes such as "Other".
+- Optionally one or more attachments as supporting evidence, with the file rules of 4.6.
+- The admin writes the prompt's title and help text in Arabic and English, and can show the user a summary of exactly which fields changed before they write the reason.
+
+**Behavior**
+- The prompt appears at save time, after validation passes, so the user never writes a justification for a save that then fails.
+- Enforcement is server-side. A save that should carry a justification and does not is rejected regardless of what the client sent.
+- Bulk edits ask once and apply the same justification to every affected record, with the count shown. Imports take a justification for the batch.
+- A justification is immutable once saved. It cannot be edited or deleted by anyone, including Super Admin; a correction is added as a new entry.
+
+**Where justifications appear**
+- Attached to the audit log entry for that change, beside the old and new values.
+- In the record's history timeline, as its own entry showing who, when, which fields, the reason code, the text, and any attachment.
+- As columns available in table views, download profiles, and reports, subject to the same field-level permissions as any other data.
+- Viewing justifications is governed by a dedicated permission, since a reason can itself contain sensitive information.
+
+### 4.25 Assignment, Queues & Delegation
+A status alone does not say who is expected to act, so records carry assignment as a first-class concept.
+
+**Assignment**
+- A record can be assigned to a user, to a role, or to a department, automatically on a transition or manually by anyone with the permission.
+- Assignment rules per transition: assign to a specific user or role, to the user in a chosen field, to the record creator's manager, round-robin within a role, or least-loaded within a role.
+- Reassignment is permission-controlled and recorded in the audit log, with an optional justification under the rules of 4.24.
+
+**Work queues**
+- Every user has a **My Work** view listing records assigned to them or to their roles and departments, across all forms, with due dates, SLA state, and priority.
+- Role and department queues support **claim** and **release**, so a record taken from a shared queue is locked to one person rather than worked twice.
+- Admins configure which forms appear in queues and which columns are shown.
+
+**Delegation and cover**
+- A user can delegate their work to another user for a period, with a reason; delegation is permission-controlled and can be restricted to specific forms.
+- Out-of-office cover can be set by an admin on a user's behalf.
+- Actions taken under delegation are recorded as performed by the delegate **on behalf of** the original user, in both the audit log and notifications.
+
+**Parallel and multi-party approvals**
+- A transition can require approval from several roles or users, as **all of**, **any N of**, or a weighted quorum.
+- Each approver's decision, timestamp, and comment is recorded separately; the transition completes only when the rule is satisfied.
+- Rejection behavior is configurable: return to a chosen status immediately, or wait for all decisions.
+- Approval requests appear in the approver's queue and notifications, with reminders and escalation under the SLA rules of 4.12.
+
+### 4.26 Data Retention, Archiving & Personal Data
+- **Retention policies** per data class, configurable in the UI: records, audit logs, error logs, email logs, notification logs, submission journal entries, download files, and uploaded attachments.
+- Each policy sets a retention period and an end action: archive to cold storage, export then delete, or delete. Policies run as scheduled jobs and every run is audited.
+- **Log growth is planned for, not discovered:** audit and error tables are partitioned by time, with an archive path and a documented restore procedure. The system warns when a table or the storage volume crosses configurable thresholds.
+- **Storage quotas** per form and per application, with a warning threshold and a hard limit, and a report of storage used by form and by user.
+- **Personal data handling:** an admin can locate every record and log entry relating to a given person, export them, and action a deletion or anonymization request. Anonymization preserves the audit trail's integrity by replacing identifying values while keeping the sequence of events intact. Fields are markable as personal data in the field properties, which is what drives this search.
+- Legal hold: a record or a set of records can be exempted from deletion until the hold is lifted, with the reason recorded.
+
 ## 5. Security Requirements
 - **Standards:** full OWASP Top 10 compliance.
 - **Access control:**
@@ -719,7 +840,10 @@ Admins create reusable **download profiles** for any form. A profile defines exa
   - session timeout and active session management (view/revoke);
   - SSO (OAuth2/OIDC) and LDAP;
   - rate limiting.
-- **Data protection:** encryption of sensitive fields; secrets only in environment config.
+- **Server-side request forgery:** all outbound calls made on a user's or admin's behalf (webhooks, action steps, remote template or image fetches) go through a single egress gateway enforcing the allowlist, blocked address ranges, address pinning, redirect and size limits described in 4.15. No module issues outbound HTTP directly.
+- **Untrusted input parsing:** spreadsheet, document, and image parsing runs with external entities and remote references disabled, with size and time limits, and produces escaped output (4.15).
+- **Expression safety:** the expression language is pure, bounded in depth and time, and cannot reach the filesystem, the network, or arbitrary code (4.7). Developer hooks remain the only code path, and they are reviewed and approved (4.19).
+- **Data protection:** encryption of sensitive fields; secrets only in environment config; per-tenant and per-field key management with a documented key rotation procedure.
 - **Operations:** scheduled backups with a documented restore procedure; dependency vulnerability scanning (composer audit, npm audit).
 - No sensitive data in logs or in user-facing errors.
 
@@ -728,7 +852,8 @@ Admins create reusable **download profiles** for any form. A profile defines exa
   - server-side pagination, filtering, and sorting;
   - metadata caching with automatic invalidation;
   - background jobs for heavy work.
-- **Data integrity:** transactions, constraints, and idempotent retries.
+- **Data integrity:** transactions, constraints, idempotent retries, and optimistic concurrency on every record write (4.9).
+- **Performance budgets**, verified by load tests in Phase 6: a form renders and a record list returns within a defined target at a stated record count; permission resolution is cached; a defined number of concurrent users is supported. The targets are written into `docs/architecture.md` in Phase 0 and tested against, not left implicit.
 - **UI:** fully responsive, accessible (WCAG 2.1 AA), and consistent in design across RTL and LTR.
 - **Code quality:**
   - modular, strictly typed, documented;
@@ -752,18 +877,23 @@ Design complete schemas (all columns, types, indexes, foreign keys) for the foll
   - ViewPanels, ReferencePreviews;
   - Actions, ActionSteps.
 - **Custom downloads:** DownloadProfiles, DownloadProfileColumns, DownloadProfileFilters, DownloadSchedules, DownloadJobs.
+- **Justification & change control:** JustificationRules, Justifications, JustificationReasonCodes, JustificationAttachments.
+- **Assignment & delegation:** Assignments, AssignmentRules, Queues, QueueClaims, Delegations, ApprovalRequests, ApprovalDecisions.
+- **Retention & personal data:** RetentionPolicies, RetentionRuns, ArchivedRecords, LegalHolds, PersonalDataRequests, StorageQuotas.
+- **Schema management:** MigrationPlans, MigrationSteps, SchemaSnapshots, SchemaReconciliationReports, PublishLocks.
+- **Localization:** Locales, Translations (keyed by object type, object id, field, and locale).
 - **Notifications:** NotificationRules, EmailTemplates, EmailQueue, InAppNotifications.
 - **Documents & reports:** DocumentTemplates, Reports, Dashboards, DashboardWidgets.
 - **Operations & monitoring:** SubmissionJournal, AuditLogs, ErrorLogs, ErrorGroups.
 - **Extensibility & integration:** Extensions, ExtensionVersions, ApiTokens, Webhooks, WebhookDeliveries.
-- **System:** ConfigPackages, Translations, Settings.
+- **System:** ConfigPackages, Settings, EgressAllowlist.
 
 Physical per-form and per-collection tables are generated from this metadata.
 
 ## 8. Delivery Plan: Phase-by-Phase with Verification
 
 ### 8.1 Execution Rules
-- The system is delivered in **seven phases (Phase 0 to Phase 6)**, in the exact order below.
+- The system is delivered in **eight phases (Phase 0, 1, 2, 2.5, 3, 4, 5, 6)**, in the exact order below.
 - **Each phase must be fully complete before it ends.**
   - Every feature in the phase's scope works end to end.
   - No placeholders, stubs, TODOs, mock data, fake endpoints, or "to be implemented" sections for in-scope features.
@@ -824,7 +954,11 @@ When resuming:
   - queue, job, and event design.
 - **Complete ERD** for all metadata entities in section 7, with every column, type, index, and foreign key.
 - **Physical table generation strategy**, including migration handling, versioning, and archiving of removed fields.
-- **Metadata JSON schema:** how forms, groups, fields, conditions, rules, and download profiles are represented and stored.
+- **Metadata JSON schema:** how forms, groups, fields, conditions, rules, justification rules, and download profiles are represented and stored.
+- **Expression language specification** in `docs/expression-language.md`: grammar, type system, function library, null and error semantics, AST JSON format, and the conformance corpus both runtimes are tested against (4.7).
+- **Permission resolution algorithm:** the inheritance order, sparse storage model, caching, and invalidation strategy (4.11).
+- **Schema change strategy:** migration plans, failure and recovery handling, locking, snapshots, and reconciliation (4.9).
+- **Performance budgets and capacity assumptions** (section 6).
 - **Relation traversal design:** how multi-level relation paths are resolved and queried efficiently (used by filters, view panels, reports, and custom downloads).
 - **API outline:** every endpoint group, with methods, payloads, and required permissions.
 - **Frontend architecture:**
@@ -875,9 +1009,11 @@ When resuming:
   - **all input types** and layout/group elements (4.4);
   - full group properties (4.5);
   - full field properties (4.6).
-- **Conditions engine** (4.7), enforced on client and server.
+- **Conditions engine** (4.7), including the expression language with both runtimes and the shared conformance corpus passing in CI.
 - **Data layer:**
   - physical table generation, relations, repeaters as child tables (4.9);
+  - migration plans with failure recovery, publish locking, snapshots, and schema reconciliation;
+  - optimistic concurrency with the conflict screen;
   - database binding and schema introspection.
 - **Versioning:** draft, preview, impact analysis, diff, rollback (4.10).
 - **Publishing:** sidebar placement and the menu editor (4.13).
@@ -885,7 +1021,15 @@ When resuming:
 - **Submission journal:** capture of every submission. Its management UI comes in Phase 4.
 - **Permission matrix extended:**
   - form-level permissions;
-  - group and field access rules per role, user, department, and mode.
+  - group and field access rules per role, user, department, and mode;
+  - the inheritance and sparse-override resolution model, effective-permission caching, and "explain access" (4.11).
+
+**Phase 2.5: Pilot & Validation (short, mandatory)**
+- Before building further engines, prove the ones that exist against reality.
+- The repository owner builds two or three **real** forms from their own organization in the running system, with real users, including at least one form linked to another.
+- Claude's role is to fix what the pilot exposes, not to create the forms, and never to seed them into the product.
+- Deliverables: a findings report in `docs/pilot-findings.md`, fixes applied, and a list of specification changes the pilot proved necessary, applied to `docs/specification.md` before Phase 3 begins.
+- This phase ends when the owner confirms the pilot forms work for their users.
 
 **Phase 3: Workflow, Records & Views**
 - **Workflow engine:**
@@ -902,6 +1046,8 @@ When resuming:
   - saved/shared views, bulk selection;
   - soft delete and restore.
 - **Record-level security rules.**
+- **Edit justification** (4.24): rule configuration per form, field, group, status, role, and transition; the save-time prompt with reason codes and attachments; server-side enforcement; immutability; display in history, tables, and the audit log.
+- **Assignment, queues, delegation, and multi-party approvals** (4.25), including My Work, claim and release, and on-behalf-of recording.
 - **View Mode:** related-data panels, derived fields, summary widgets, timeline, comments, attachments.
 - **Edit Mode:** reference preview card, auto-fill, side drawer.
 - **Print view** and PDF export (mPDF).
@@ -911,7 +1057,7 @@ When resuming:
   - export;
   - import with mapping, dry run, and upsert;
   - bulk operations, print, duplicate.
-- **Custom actions:** chained steps and conditions, with per-action permissions in the matrix.
+- **Custom actions:** chained steps and conditions, with per-action permissions in the matrix, and all outbound calls routed through the egress gateway (4.15).
 - **Custom Downloads** (4.23):
   - profile builder with a relation tree explorer at unlimited depth;
   - one-to-many handling and runtime parameters;
@@ -935,14 +1081,15 @@ When resuming:
   - versioning and rollback.
 - **REST API:** auto-generated, with scoped tokens, rate limits, and OpenAPI docs.
 - **Webhooks:** incoming and outgoing, with signing and delivery logs.
-- **Configuration packages:** export/import with conflict resolution.
+- **Configuration packages:** export/import with conflict resolution, plus the compare-environments drift report (4.10).
 - **Reports & dashboards:** report builder, pivot tables, charts, drag-and-drop dashboards.
 
 **Phase 6: Hardening & Final Delivery**
-- **Full security review** of the entire system against section 5, with fixes applied.
+- **Retention, archiving, storage quotas, and personal data handling** (4.26), including partitioning of audit and error tables and the documented restore path.
+- **Full security review** of the entire system against section 5, with fixes applied, including an SSRF and file-parsing review and an audit-chain verification run.
 - **Performance:**
   - performance tuning (indexes, caching, query optimization);
-  - load testing of large tables, imports, and multi-level custom downloads.
+  - load testing of large tables, imports, and multi-level custom downloads, measured against the Phase 0 performance budgets.
 - **Accessibility** review (WCAG 2.1 AA) and RTL/LTR visual consistency pass.
 - **Complete end-to-end test suite** on both database engines.
 - **Documentation:**
@@ -956,6 +1103,10 @@ When resuming:
 - Every capability must be configurable from the admin UI without code.
 - Never add a feature that bypasses permissions or security.
 - The UI must be modern, elegant, and professional in both Arabic and English.
+- Audit entries and saved justifications are immutable; no interface may edit or delete them.
+- No module issues outbound HTTP except through the egress gateway.
+- Conditions, formulas, and defaults use the expression language only; never generated code.
+- Every record write uses optimistic concurrency; silent overwrite is never acceptable.
 
 ## 10. Repository & Delivery Workflow (GitHub)
 
