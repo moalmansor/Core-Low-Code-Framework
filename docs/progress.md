@@ -45,6 +45,7 @@ The design coverage check passed. Every requirement in §2–§7 is covered (see
 
 - Every foreign-key target in the ERD is a defined table (147 defined, 0 missing).
 - Every specification §7 entity maps to a defined table (0 missing).
+- Every ERD table is owned by exactly one module in architecture §4 (0 unassigned, 0 duplicates).
 - Every internal section reference in `architecture.md` and `design-coverage.md`
   resolves.
 - Every corpus case parses under the grammar in `expression-language.md` with the

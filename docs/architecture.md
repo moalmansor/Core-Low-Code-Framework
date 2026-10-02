@@ -258,37 +258,37 @@ module's models.
 
 | Module | Owns (tables, §10) | Public contracts | Delivered |
 |---|---|---|---|
-| **Core** | settings, locales, translations, organizations, egress_allowlist, feature_flags | `Settings`, `Translator`, `TenantContext`, `Clock`, `CorrelationId` | P1 |
+| **Core** | settings, locales, translations, organizations, egress_allowlist, feature_flags, encryption_keys, outbox_events | `Settings`, `Translator`, `TenantContext`, `Clock`, `CorrelationId` | P1 |
 | **Identity** | users, sessions, user_preferences, access_policies, impersonation_sessions, password_histories, login_attempts, trusted_devices | `CurrentUser`, `PasswordPolicy`, `SessionManager` | P1 (impersonation, access policies UI P5) |
-| **Organization** | departments, business units in organizations | `DepartmentTree` | P1 |
+| **Organization** | departments, department_closure | `DepartmentTree` | P1 |
 | **Access** | roles, user_roles, permissions, permission_assignments, field_access_rules, record_access_rules, access_cache_versions | `AccessResolver`, `PermissionCatalog`, `ExplainAccess` | P1 (system), P2 (form/field), P3 (status/record) |
 | **Audit** | audit_logs, audit_chain_heads | `AuditWriter`, `ChainVerifier` | P1 |
 | **Monitoring** | error_logs, error_groups | `ErrorReporter` | P1 |
 | **Schema** | migration_plans, migration_steps, schema_snapshots, schema_reconciliation_reports, publish_locks | `SchemaManager`, `Introspector`, driver layer | P2 |
-| **Forms** | applications(form side), forms, form_versions, collections, field_groups, fields, field_options, conditions, relations, field_templates, menu_items | `DefinitionRepository`, `DefinitionCompiler` | P2 |
+| **Forms** | applications, forms, form_versions, collections, field_groups, fields, field_options, conditions, relations, field_templates, menu_items | `DefinitionRepository`, `DefinitionCompiler` | P2 |
 | **Expressions** | — (pure) | `ExpressionService` | P2 |
 | **Records** | per-form tables, submission_journal, record_comments, record_attachments, files | `RecordPipeline`, `QueryPlanner`, `DynamicRecord` | P2 (P3 views) |
 | **Reference** | business_calendars, holidays, number_sequences, currencies, exchange_rates, units_of_measure | `WorkingTimeCalculator`, `NumberGenerator`, `FxConverter` | P2 |
 | **Blueprints** | blueprints, blueprint_versions, blueprint_instances | `BlueprintService` | P2 (library completed P5) |
 | **Workflow** | statuses, transitions, status_history, status_mappings, sla_rules, sla_timers | `WorkflowEngine` | P3 |
-| **Views** | views, view_columns, filters, saved_views, view_panels, reference_previews, print_layouts | `ViewResolver` | P3 |
+| **Views** | views, view_columns, filters, saved_views, saved_view_shares, view_panels, reference_previews, print_layouts | `ViewResolver` | P3 |
 | **Justification** | justification_rules, justifications, justification_reason_codes, justification_attachments | `JustificationGate` | P3 |
-| **Assignment** | assignments, assignment_rules, queues, queue_claims, delegations, approval_requests, approval_decisions | `AssignmentService`, `DelegationResolver` | P3 |
-| **Actions** | actions, action_steps, bulk_operations, import_jobs, export_jobs | `ActionRunner` | P4 |
+| **Assignment** | assignments, assignment_rules, queues, queue_forms, queue_claims, delegations, approval_requests, approval_decisions | `AssignmentService`, `DelegationResolver` | P3 |
+| **Actions** | actions, action_steps, bulk_operations, import_mappings, import_jobs, export_jobs | `ActionRunner` | P4 |
 | **Downloads** | download_profiles, download_profile_columns, download_profile_filters, download_schedules, download_jobs | `DownloadEngine` | P4 |
 | **Notifications** | notification_rules, email_templates, email_queue, in_app_notifications, notification_channels, notification_deliveries | `Notifier` | P4 (extra channels P5) |
 | **Documents** | document_templates | `DocumentRenderer` | P4 |
 | **Automation** | automations, automation_triggers, automation_steps, automation_runs, scheduled_tasks | `AutomationEngine` | P4 |
 | **DataQuality** | duplicate_rules, merge_history, recycle_bin | `DuplicateDetector`, `MergeService` | P4 |
-| **Operations** | operations_alert_rules (+ reads journal, email_queue, failed_jobs) | `HealthProbe` | P4 |
+| **Operations** | operations_alert_rules (reads the submission journal, the email queue, and Laravel failed jobs through their owners' contracts) | `HealthProbe` | P4 |
 | **Reports** | reports, dashboards, dashboard_widgets | `ReportEngine` | P5 |
-| **Platform** | api_tokens, webhooks, webhook_deliveries, inbound_endpoints, config_packages, environment_compares | `OpenApiGenerator`, `PackageService` | P5 |
+| **Platform** | api_tokens, webhooks, webhook_deliveries, inbound_endpoints, config_packages, environment_drift_reports | `OpenApiGenerator`, `PackageService` | P5 |
 | **Extensions** | extensions, extension_versions | `HookRunner` | P5 |
-| **Experience** | applications(nav side), themes, theme_assets, pages, page_widgets, home_screens, announcements, help_content, tours, tour_progress, search_configs | `ThemeCompiler`, `PageRenderer` | P5 |
+| **Experience** | themes, theme_assets, pages, page_widgets, home_screens, announcements, announcement_dismissals, help_content, tours, tour_progress, search_configs (uses Forms' application records for navigation and theming) | `ThemeCompiler`, `PageRenderer` | P5 |
 | **Integrations** | external_data_sources, sync_jobs, sync_runs | `DataSourceDriver`s | P5 |
 | **External** | external_forms, external_users, access_tokens, signature_requests, submission_throttles | `ExternalGate` | P5 |
 | **Adoption** | usage_metrics | `UsageRecorder` | P5 |
-| **Retention** | retention_policies, retention_runs, archived_records, legal_holds, personal_data_requests, storage_quotas | `RetentionEngine`, `PersonalDataLocator` | P6 |
+| **Retention** | retention_policies, retention_runs, archived_records, legal_holds, personal_data_requests, storage_quotas, subject_keys | `RetentionEngine`, `PersonalDataLocator` | P6 |
 
 Phase 1 creates *all* tables for modules delivered in P1; each later phase adds
 its own module migrations. Tables are never created ahead of the phase that uses
