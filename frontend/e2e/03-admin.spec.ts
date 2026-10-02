@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { signIn, watchConsole } from './support'
+import { signIn, watchConsole } from './support.ts'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, readFileSync('e2e/.secret', 'utf8').trim())

@@ -119,9 +119,7 @@ function setEffect(key: string, effect: Effect): void {
 async function saveGrants(): Promise<void> {
   const grants = changes.value.map((k) => ({ permission: k, effect: draft.value[k]?.effect ?? null, include_descendants: draft.value[k]?.include_descendants ?? false }))
   try {
-    const done = await withStepUp(stepUp, (code) =>
-      send('put', '/permission-assignments', { subject_type: subjectType.value, subject: subjectUuid.value, grants, confirmation_code: code }),
-    )
+    const done = await withStepUp(stepUp, (code) => send('put', '/permission-assignments', { subject_type: subjectType.value, subject: subjectUuid.value, grants, confirmation_code: code }))
     if (done === null) return
     toast.add({ severity: 'success', summary: t('common.saved'), life: 3000 })
     await loadGrants()
@@ -132,7 +130,9 @@ async function saveGrants(): Promise<void> {
 }
 
 // Role editing
-const roleDialog = ref<{ uuid?: string; key: string; names: Record<string, string>; descriptions: Record<string, string>; requires_2fa: boolean; is_admin_role: boolean; is_system?: boolean } | null>(null)
+const roleDialog = ref<{ uuid?: string; key: string; names: Record<string, string>; descriptions: Record<string, string>; requires_2fa: boolean; is_admin_role: boolean; is_system?: boolean } | null>(
+  null,
+)
 const roleErrors = ref<Record<string, string>>({})
 function newRole(): void {
   roleErrors.value = {}
@@ -259,7 +259,9 @@ async function explain(key: string): Promise<void> {
               <div class="flex flex-wrap items-center gap-2 mb-3">
                 <Message severity="secondary" class="flex-1" size="small">{{ t('access.precedence_hint') }}</Message>
                 <Button icon="pi pi-download" severity="secondary" :label="t('access.export')" @click="exportSet" />
-                <label class="p-button p-button-secondary cursor-pointer"><i class="pi pi-upload me-2" />{{ t('access.import') }}<input type="file" accept="application/json" class="hidden" @change="importSet" /></label>
+                <label class="p-button p-button-secondary cursor-pointer"
+                  ><i class="pi pi-upload me-2" />{{ t('access.import') }}<input type="file" accept="application/json" class="hidden" @change="importSet"
+                /></label>
               </div>
               <div v-if="subjectType === 'role'" class="flex flex-wrap items-center gap-2 mb-3">
                 <Select v-model="copyFrom" :options="roles.filter((r) => r.uuid !== selectedRole?.uuid)" option-label="name" option-value="uuid" :placeholder="t('access.copy_from')" show-clear />
@@ -276,7 +278,15 @@ async function explain(key: string): Promise<void> {
                     <label v-if="subjectType === 'department' && draft[p.key]?.effect" class="flex items-center gap-1 text-sm">
                       <ToggleSwitch v-model="draft[p.key]!.include_descendants" />{{ t('access.include_sub_departments') }}
                     </label>
-                    <SelectButton :model-value="draft[p.key]?.effect ?? null" :options="effectOptions" option-label="label" option-value="value" :allow-empty="false" size="small" @update:model-value="(v: Effect) => setEffect(p.key, v)" />
+                    <SelectButton
+                      :model-value="draft[p.key]?.effect ?? null"
+                      :options="effectOptions"
+                      option-label="label"
+                      option-value="value"
+                      :allow-empty="false"
+                      size="small"
+                      @update:model-value="(v: Effect) => setEffect(p.key, v)"
+                    />
                   </div>
                 </div>
               </div>
@@ -304,19 +314,40 @@ async function explain(key: string): Promise<void> {
     </TabPanels>
   </Tabs>
 
-  <Dialog :visible="!!explanation" modal :header="t('access.explain_title', { permission: explainPermission })" :style="{ width: '32rem' }" @update:visible="(v: boolean) => !v && (explanation = null)">
+  <Dialog
+    :visible="!!explanation"
+    modal
+    :header="t('access.explain_title', { permission: explainPermission })"
+    :style="{ width: '32rem' }"
+    @update:visible="(v: boolean) => !v && (explanation = null)"
+  >
     <div v-if="explanation" class="flex flex-col gap-2">
       <ol class="list-decimal ps-5">
-        <li v-for="(s, i) in explanation.steps" :key="i">{{ t(`access.tier.${s.tier}`) }}: {{ s.effects.map((e) => t(`access.effect.${e}`)).join(', ') }} → {{ s.value_after ? t('access.granted') : t('access.denied') }}</li>
+        <li v-for="(s, i) in explanation.steps" :key="i">
+          {{ t(`access.tier.${s.tier}`) }}: {{ s.effects.map((e) => t(`access.effect.${e}`)).join(', ') }} → {{ s.value_after ? t('access.granted') : t('access.denied') }}
+        </li>
         <li v-if="!explanation.steps.length">{{ t('access.decided_by.default_deny') }}</li>
       </ol>
-      <Message :severity="explanation.granted ? 'success' : 'warn'">{{ explanation.granted ? t('access.granted') : t('access.denied') }} — {{ t(`access.decided_by.${explanation.decided_by}`) }}</Message>
+      <Message :severity="explanation.granted ? 'success' : 'warn'"
+        >{{ explanation.granted ? t('access.granted') : t('access.denied') }} — {{ t(`access.decided_by.${explanation.decided_by}`) }}</Message
+      >
     </div>
   </Dialog>
 
-  <Dialog :visible="!!roleDialog" modal :header="roleDialog?.uuid ? t('access.edit_role') : t('access.new_role')" :style="{ width: '34rem' }" @update:visible="(v: boolean) => !v && (roleDialog = null)">
+  <Dialog
+    :visible="!!roleDialog"
+    modal
+    :header="roleDialog?.uuid ? t('access.edit_role') : t('access.new_role')"
+    :style="{ width: '34rem' }"
+    @update:visible="(v: boolean) => !v && (roleDialog = null)"
+  >
     <form v-if="roleDialog" class="flex flex-col gap-3" @submit.prevent="saveRole">
-      <div class="field"><label for="rk">{{ t('access.role_key') }}</label><InputText id="rk" v-model="roleDialog.key" :disabled="!!roleDialog.uuid" class="ltr-value" data-testid="role-key" /><span v-if="roleErrors.key" class="field-error">{{ roleErrors.key }}</span></div>
+      <div class="field">
+        <label for="rk">{{ t('access.role_key') }}</label
+        ><InputText id="rk" v-model="roleDialog.key" :disabled="!!roleDialog.uuid" class="ltr-value" data-testid="role-key" /><span v-if="roleErrors.key" class="field-error">{{
+          roleErrors.key
+        }}</span>
+      </div>
       <div v-for="l in session.boot?.locales ?? []" :key="l.code" class="field">
         <label :for="`rn-${l.code}`">{{ t('access.role_name') }} ({{ l.native_name }})</label>
         <InputText :id="`rn-${l.code}`" v-model="roleDialog.names[l.code]" :dir="l.direction" :data-testid="`role-name-${l.code}`" />

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Identity;
 
+use App\Modules\Identity\Actions\DisableTwoFactorWhenAllowed;
 use App\Modules\Identity\Actions\ResetUserPassword;
 use App\Modules\Identity\Actions\UpdateUserPassword;
 use App\Modules\Identity\Auth\LoginAuthenticator;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
 use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse;
 use Laravel\Fortify\Fortify;
 use Laravel\Fortify\Http\Responses\SuccessfulPasswordResetLinkRequestResponse;
@@ -31,7 +33,7 @@ final class IdentityServiceProvider extends ServiceProvider
     {
         // A reset request for an unknown address gets the same answer as a
         // known one, so the form cannot be used to discover accounts.
-        $this->app->bind(\Laravel\Fortify\Actions\DisableTwoFactorAuthentication::class, \App\Modules\Identity\Actions\DisableTwoFactorWhenAllowed::class);
+        $this->app->bind(DisableTwoFactorAuthentication::class, DisableTwoFactorWhenAllowed::class);
         $this->app->bind(FailedPasswordResetLinkRequestResponse::class, static fn () => new SuccessfulPasswordResetLinkRequestResponse(PasswordBroker::RESET_LINK_SENT));
     }
 

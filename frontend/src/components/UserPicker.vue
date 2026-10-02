@@ -21,7 +21,9 @@ async function search(e: { query: string }): Promise<void> {
 <template>
   <AutoComplete v-model="model" :suggestions="suggestions" option-label="name" :placeholder="t('access.pick_user')" force-selection @complete="search">
     <template #option="{ option }">
-      <div>{{ option.name }} <span class="text-sm text-muted-color ltr-value">{{ option.email }}</span></div>
+      <div>
+        {{ option.name }} <span class="text-sm text-muted-color ltr-value">{{ option.email }}</span>
+      </div>
     </template>
   </AutoComplete>
 </template>

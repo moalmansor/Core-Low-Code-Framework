@@ -46,7 +46,10 @@ async function load(): Promise<void> {
   total.value = res.total
   edits.value = {}
 }
-watch(() => [filters.type, filters.locale, filters.untranslated], () => ((filters.page = 1), load()))
+watch(
+  () => [filters.type, filters.locale, filters.untranslated],
+  () => ((filters.page = 1), load()),
+)
 
 function onPage(e: DataTablePageEvent): void {
   filters.page = e.page + 1
@@ -55,9 +58,7 @@ function onPage(e: DataTablePageEvent): void {
 }
 
 async function save(): Promise<void> {
-  const items = rows.value
-    .filter((r) => edits.value[rowId(r)] !== undefined)
-    .map((r) => ({ type: r.type, object: r.object, key: r.key, field: r.field, value: edits.value[rowId(r)] || null }))
+  const items = rows.value.filter((r) => edits.value[rowId(r)] !== undefined).map((r) => ({ type: r.type, object: r.object, key: r.key, field: r.field, value: edits.value[rowId(r)] || null }))
   try {
     await send('put', '/translations', { locale: filters.locale, items })
     toast.add({ severity: 'success', summary: t('common.saved'), life: 3000 })
@@ -98,21 +99,46 @@ const pending = computed(() => Object.keys(edits.value).length)
 <template>
   <h1 class="page-title">{{ t('admin.area.translations') }}</h1>
   <div class="flex flex-wrap items-end gap-3 mb-3">
-    <div class="field"><label for="tt">{{ t('translations.type') }}</label><Select v-model="filters.type" input-id="tt" :options="types.map((x) => ({ v: x.type, l: t(x.label) }))" option-label="l" option-value="v" data-testid="translation-type" /></div>
-    <div class="field"><label for="tl">{{ t('translations.locale') }}</label><Select v-model="filters.locale" input-id="tl" :options="locales" option-label="native_name" option-value="code" /></div>
-    <div class="field"><label for="ts">{{ t('common.search') }}</label><InputText id="ts" v-model="filters.search" @keyup.enter="load" /></div>
+    <div class="field">
+      <label for="tt">{{ t('translations.type') }}</label
+      ><Select v-model="filters.type" input-id="tt" :options="types.map((x) => ({ v: x.type, l: t(x.label) }))" option-label="l" option-value="v" data-testid="translation-type" />
+    </div>
+    <div class="field">
+      <label for="tl">{{ t('translations.locale') }}</label
+      ><Select v-model="filters.locale" input-id="tl" :options="locales" option-label="native_name" option-value="code" />
+    </div>
+    <div class="field">
+      <label for="ts">{{ t('common.search') }}</label
+      ><InputText id="ts" v-model="filters.search" @keyup.enter="load" />
+    </div>
     <label class="flex items-center gap-2 mb-2"><ToggleSwitch v-model="filters.untranslated" />{{ t('translations.only_missing') }}</label>
     <div class="flex-1" />
     <Button severity="secondary" icon="pi pi-download" :label="t('access.export')" @click="exportCatalog" />
-    <label class="p-button p-button-secondary cursor-pointer"><i class="pi pi-upload me-2" />{{ t('access.import') }}<input type="file" accept="application/json" class="hidden" @change="importCatalog" /></label>
+    <label class="p-button p-button-secondary cursor-pointer"
+      ><i class="pi pi-upload me-2" />{{ t('access.import') }}<input type="file" accept="application/json" class="hidden" @change="importCatalog"
+    /></label>
   </div>
   <DataTable :value="rows" lazy paginator :rows="filters.per_page" :total-records="total" :data-key="rowId" size="small" @page="onPage">
     <template #empty>{{ filters.untranslated ? t('translations.all_done') : t('common.no_results') }}</template>
-    <Column :header="t('translations.key')" style="width: 25%"><template #body="{ data }"><span class="ltr-value text-sm">{{ data.key }}</span><div v-if="data.type !== 'ui'" class="text-xs text-muted-color">{{ data.field }}</div></template></Column>
-    <Column :header="t('translations.source')" style="width: 30%"><template #body="{ data }">{{ data.source }}</template></Column>
+    <Column :header="t('translations.key')" style="width: 25%"
+      ><template #body="{ data }"
+        ><span class="ltr-value text-sm">{{ data.key }}</span>
+        <div v-if="data.type !== 'ui'" class="text-xs text-muted-color">{{ data.field }}</div></template
+      ></Column
+    >
+    <Column :header="t('translations.source')" style="width: 30%"
+      ><template #body="{ data }">{{ data.source }}</template></Column
+    >
     <Column :header="t('translations.translation')">
       <template #body="{ data }">
-        <Textarea :model-value="edits[rowId(data)] ?? data.value ?? ''" :dir="direction" rows="1" auto-resize class="w-full" @update:model-value="(v: string | undefined) => (edits[rowId(data)] = v ?? '')" />
+        <Textarea
+          :model-value="edits[rowId(data)] ?? data.value ?? ''"
+          :dir="direction"
+          rows="1"
+          auto-resize
+          class="w-full"
+          @update:model-value="(v: string | undefined) => (edits[rowId(data)] = v ?? '')"
+        />
       </template>
     </Column>
   </DataTable>

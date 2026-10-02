@@ -100,10 +100,11 @@ async function run(fn: () => Promise<void>): Promise<void> {
 const next = () => (step.value = steps[stepIndex.value + 1]!)
 const back = () => (step.value = steps[stepIndex.value - 1]!)
 
-const verifyToken = () => run(async () => {
-  await http.post('/setup/token', { token: token.value.trim() })
-  next()
-})
+const verifyToken = () =>
+  run(async () => {
+    await http.post('/setup/token', { token: token.value.trim() })
+    next()
+  })
 
 async function upload(kind: 'logo' | 'favicon', event: Event): Promise<void> {
   const file = (event.target as HTMLInputElement).files?.[0]
@@ -119,33 +120,40 @@ async function upload(kind: 'logo' | 'favicon', event: Event): Promise<void> {
 const brandingValid = computed(() => !!form.system_name[form.default_locale]?.trim() || !!Object.values(form.system_name).some((v) => v?.trim()))
 const languagesValid = computed(() => form.enabled_locales.includes(form.default_locale))
 
-const testMail = () => run(async () => {
-  mailResult.value = null
-  try {
-    await http.post('/setup/mail-test', { mail: form.mail, to: testTo.value }, { headers: headers() })
-    mailResult.value = { ok: true, text: t('setup.mail_test_ok') }
-  } catch (e) {
-    mailResult.value = { ok: false, text: e instanceof ApiError ? `${e.message} ${(e.body as { detail?: string }).detail ?? ''}` : t('errors.unexpected') }
-  }
-})
+const testMail = () =>
+  run(async () => {
+    mailResult.value = null
+    try {
+      await http.post('/setup/mail-test', { mail: form.mail, to: testTo.value }, { headers: headers() })
+      mailResult.value = { ok: true, text: t('setup.mail_test_ok') }
+    } catch (e) {
+      mailResult.value = { ok: false, text: e instanceof ApiError ? `${e.message} ${(e.body as { detail?: string }).detail ?? ''}` : t('errors.unexpected') }
+    }
+  })
 
-const startTwoFactor = () => run(async () => {
-  const { data } = await http.post<{ data: { secret: string; qr: string } }>('/setup/two-factor', { email: form.admin.email, issuer: Object.values(form.system_name).find(Boolean) }, { headers: headers() })
-  secret.value = data.data.secret
-  qr.value = data.data.qr
-})
+const startTwoFactor = () =>
+  run(async () => {
+    const { data } = await http.post<{ data: { secret: string; qr: string } }>(
+      '/setup/two-factor',
+      { email: form.admin.email, issuer: Object.values(form.system_name).find(Boolean) },
+      { headers: headers() },
+    )
+    secret.value = data.data.secret
+    qr.value = data.data.qr
+  })
 
-const complete = () => run(async () => {
-  const payload = {
-    ...form,
-    system_name: Object.fromEntries(Object.entries(form.system_name).filter(([, v]) => v?.trim())),
-    mail: skipMail.value ? null : form.mail,
-    two_factor_code: code.value,
-  }
-  const { data } = await http.post<{ data: { recovery_codes: string[] } }>('/setup/complete', payload, { headers: headers() })
-  recoveryCodes.value = data.data.recovery_codes
-  step.value = 'done'
-})
+const complete = () =>
+  run(async () => {
+    const payload = {
+      ...form,
+      system_name: Object.fromEntries(Object.entries(form.system_name).filter(([, v]) => v?.trim())),
+      mail: skipMail.value ? null : form.mail,
+      two_factor_code: code.value,
+    }
+    const { data } = await http.post<{ data: { recovery_codes: string[] } }>('/setup/complete', payload, { headers: headers() })
+    recoveryCodes.value = data.data.recovery_codes
+    step.value = 'done'
+  })
 
 async function finish(): Promise<void> {
   await session.loadBootstrap()
@@ -163,7 +171,13 @@ async function finish(): Promise<void> {
     <main class="w-full max-w-3xl bg-surface-0 dark:bg-surface-900 rounded-xl shadow p-6" data-testid="setup-wizard">
       <h1 class="page-title">{{ t('setup.title') }}</h1>
       <ol class="flex flex-wrap gap-2 mb-6 text-sm" :aria-label="t('setup.progress')">
-        <li v-for="(s, i) in steps" :key="s" class="px-3 py-1 rounded-full" :class="i === stepIndex ? 'bg-primary text-primary-contrast' : i < stepIndex ? 'bg-primary-100 text-primary-700' : 'bg-surface-100 dark:bg-surface-800'" :aria-current="i === stepIndex ? 'step' : undefined">
+        <li
+          v-for="(s, i) in steps"
+          :key="s"
+          class="px-3 py-1 rounded-full"
+          :class="i === stepIndex ? 'bg-primary text-primary-contrast' : i < stepIndex ? 'bg-primary-100 text-primary-700' : 'bg-surface-100 dark:bg-surface-800'"
+          :aria-current="i === stepIndex ? 'step' : undefined"
+        >
           {{ i + 1 }}. {{ t(`setup.step.${s}`) }}
         </li>
       </ol>
@@ -198,7 +212,9 @@ async function finish(): Promise<void> {
             <small v-if="form.favicon_file" class="text-green-600">{{ t('setup.uploaded') }}</small>
           </div>
         </div>
-        <div class="flex justify-between"><Button severity="secondary" :label="t('common.back')" @click="back" /><Button :label="t('common.continue')" :disabled="!brandingValid" data-testid="setup-next" @click="next" /></div>
+        <div class="flex justify-between">
+          <Button severity="secondary" :label="t('common.back')" @click="back" /><Button :label="t('common.continue')" :disabled="!brandingValid" data-testid="setup-next" @click="next" />
+        </div>
       </section>
 
       <section v-else-if="step === 'languages'" class="flex flex-col gap-4">
@@ -214,17 +230,43 @@ async function finish(): Promise<void> {
           <label class="flex items-center gap-2"><RadioButton v-model="form.tenancy.mode" value="multi" />{{ t('setup.tenancy.multi') }}</label>
           <small class="text-muted-color">{{ t('setup.tenancy_fixed') }}</small>
         </div>
-        <div class="flex justify-between"><Button severity="secondary" :label="t('common.back')" @click="back" /><Button :label="t('common.continue')" :disabled="!languagesValid" data-testid="setup-next" @click="next" /></div>
+        <div class="flex justify-between">
+          <Button severity="secondary" :label="t('common.back')" @click="back" /><Button :label="t('common.continue')" :disabled="!languagesValid" data-testid="setup-next" @click="next" />
+        </div>
       </section>
 
       <section v-else-if="step === 'regional'" class="flex flex-col gap-4">
         <div class="form-grid">
-          <div class="field"><label for="tz">{{ t('settings.formats.timezone') }}</label><Select v-model="form.formats.timezone" input-id="tz" :options="timezones" filter /></div>
-          <div class="field"><label for="df">{{ t('settings.formats.date_format') }}</label><InputText id="df" v-model="form.formats.date_format as string" class="ltr-value" /></div>
-          <div class="field"><label for="tf">{{ t('settings.formats.time_format') }}</label><Select v-model="form.formats.time_format" input-id="tf" :options="['24h', '12h']" /></div>
-          <div class="field"><label for="fd">{{ t('settings.formats.first_day_of_week') }}</label><Select v-model="form.formats.first_day_of_week" input-id="fd" :options="weekdays" option-label="label" option-value="value" /></div>
-          <div class="field"><label for="dg">{{ t('settings.formats.digits') }}</label><Select v-model="form.formats.digits" input-id="dg" :options="['locale', 'western', 'arabic_indic'].map((v) => ({ v, l: t(`settings.digits.${v}`) }))" option-label="l" option-value="v" /></div>
-          <div class="field"><label for="cal">{{ t('settings.calendar.system') }}</label><Select v-model="form.calendar.system" input-id="cal" :options="['gregorian', 'hijri', 'both'].map((v) => ({ v, l: t(`settings.calendar_system.${v}`) }))" option-label="l" option-value="v" /></div>
+          <div class="field">
+            <label for="tz">{{ t('settings.formats.timezone') }}</label
+            ><Select v-model="form.formats.timezone" input-id="tz" :options="timezones" filter />
+          </div>
+          <div class="field">
+            <label for="df">{{ t('settings.formats.date_format') }}</label
+            ><InputText id="df" v-model="form.formats.date_format as string" class="ltr-value" />
+          </div>
+          <div class="field">
+            <label for="tf">{{ t('settings.formats.time_format') }}</label
+            ><Select v-model="form.formats.time_format" input-id="tf" :options="['24h', '12h']" />
+          </div>
+          <div class="field">
+            <label for="fd">{{ t('settings.formats.first_day_of_week') }}</label
+            ><Select v-model="form.formats.first_day_of_week" input-id="fd" :options="weekdays" option-label="label" option-value="value" />
+          </div>
+          <div class="field">
+            <label for="dg">{{ t('settings.formats.digits') }}</label
+            ><Select v-model="form.formats.digits" input-id="dg" :options="['locale', 'western', 'arabic_indic'].map((v) => ({ v, l: t(`settings.digits.${v}`) }))" option-label="l" option-value="v" />
+          </div>
+          <div class="field">
+            <label for="cal">{{ t('settings.calendar.system') }}</label
+            ><Select
+              v-model="form.calendar.system"
+              input-id="cal"
+              :options="['gregorian', 'hijri', 'both'].map((v) => ({ v, l: t(`settings.calendar_system.${v}`) }))"
+              option-label="l"
+              option-value="v"
+            />
+          </div>
         </div>
         <div class="flex justify-between"><Button severity="secondary" :label="t('common.back')" @click="back" /><Button :label="t('common.continue')" data-testid="setup-next" @click="next" /></div>
       </section>
@@ -233,28 +275,67 @@ async function finish(): Promise<void> {
         <label class="flex items-center gap-2"><Checkbox v-model="skipMail" binary input-id="skip-mail" />{{ t('setup.skip_mail') }}</label>
         <template v-if="!skipMail">
           <div class="form-grid">
-            <div class="field"><label for="mh">{{ t('settings.mail.host') }}</label><InputText id="mh" v-model="form.mail.host" class="ltr-value" /></div>
-            <div class="field"><label for="mp">{{ t('settings.mail.port') }}</label><InputNumber v-model="form.mail.port" input-id="mp" :use-grouping="false" :min="1" :max="65535" /></div>
-            <div class="field"><label for="me">{{ t('settings.mail.encryption') }}</label><Select v-model="form.mail.encryption" input-id="me" :options="['tls', 'ssl', 'none']" /></div>
-            <div class="field"><label for="mu">{{ t('settings.mail.username') }}</label><InputText id="mu" v-model="form.mail.username" class="ltr-value" autocomplete="off" /></div>
-            <div class="field"><label for="mpw">{{ t('settings.mail.password') }}</label><Password v-model="form.mail.password" input-id="mpw" :feedback="false" toggle-mask autocomplete="new-password" fluid /></div>
-            <div class="field"><label for="mfa">{{ t('settings.mail.from_address') }}</label><InputText id="mfa" v-model="form.mail.from_address" type="email" class="ltr-value" /></div>
-            <div class="field"><label for="mfn">{{ t('settings.mail.from_name') }}</label><InputText id="mfn" v-model="form.mail.from_name" /></div>
+            <div class="field">
+              <label for="mh">{{ t('settings.mail.host') }}</label
+              ><InputText id="mh" v-model="form.mail.host" class="ltr-value" />
+            </div>
+            <div class="field">
+              <label for="mp">{{ t('settings.mail.port') }}</label
+              ><InputNumber v-model="form.mail.port" input-id="mp" :use-grouping="false" :min="1" :max="65535" />
+            </div>
+            <div class="field">
+              <label for="me">{{ t('settings.mail.encryption') }}</label
+              ><Select v-model="form.mail.encryption" input-id="me" :options="['tls', 'ssl', 'none']" />
+            </div>
+            <div class="field">
+              <label for="mu">{{ t('settings.mail.username') }}</label
+              ><InputText id="mu" v-model="form.mail.username" class="ltr-value" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="mpw">{{ t('settings.mail.password') }}</label
+              ><Password v-model="form.mail.password" input-id="mpw" :feedback="false" toggle-mask autocomplete="new-password" fluid />
+            </div>
+            <div class="field">
+              <label for="mfa">{{ t('settings.mail.from_address') }}</label
+              ><InputText id="mfa" v-model="form.mail.from_address" type="email" class="ltr-value" />
+            </div>
+            <div class="field">
+              <label for="mfn">{{ t('settings.mail.from_name') }}</label
+              ><InputText id="mfn" v-model="form.mail.from_name" />
+            </div>
           </div>
           <div class="flex flex-wrap items-end gap-2">
-            <div class="field grow"><label for="mt">{{ t('settings.mail.test_to') }}</label><InputText id="mt" v-model="testTo" type="email" class="ltr-value" /></div>
+            <div class="field grow">
+              <label for="mt">{{ t('settings.mail.test_to') }}</label
+              ><InputText id="mt" v-model="testTo" type="email" class="ltr-value" />
+            </div>
             <Button severity="secondary" icon="pi pi-send" :label="t('settings.mail.send_test')" :loading="busy" :disabled="!testTo || !form.mail.host" @click="testMail" />
           </div>
           <Message v-if="mailResult" :severity="mailResult.ok ? 'success' : 'error'">{{ mailResult.text }}</Message>
         </template>
-        <div class="flex justify-between"><Button severity="secondary" :label="t('common.back')" @click="back" /><Button :label="t('common.continue')" :disabled="!skipMail && (!form.mail.host || !form.mail.from_address)" data-testid="setup-next" @click="next" /></div>
+        <div class="flex justify-between">
+          <Button severity="secondary" :label="t('common.back')" @click="back" /><Button
+            :label="t('common.continue')"
+            :disabled="!skipMail && (!form.mail.host || !form.mail.from_address)"
+            data-testid="setup-next"
+            @click="next"
+          />
+        </div>
       </section>
 
       <section v-else-if="step === 'admin'" class="flex flex-col gap-4">
         <p class="text-muted-color">{{ t('setup.admin_hint') }}</p>
         <div class="form-grid">
-          <div class="field"><label for="an">{{ t('users.name') }}</label><InputText id="an" v-model="form.admin.name" autocomplete="name" data-testid="admin-name" /></div>
-          <div class="field"><label for="ae">{{ t('users.email') }}</label><InputText id="ae" v-model="form.admin.email" type="email" autocomplete="email" class="ltr-value" data-testid="admin-email" /><span v-if="errors['admin.email']" class="field-error">{{ errors['admin.email'] }}</span></div>
+          <div class="field">
+            <label for="an">{{ t('users.name') }}</label
+            ><InputText id="an" v-model="form.admin.name" autocomplete="name" data-testid="admin-name" />
+          </div>
+          <div class="field">
+            <label for="ae">{{ t('users.email') }}</label
+            ><InputText id="ae" v-model="form.admin.email" type="email" autocomplete="email" class="ltr-value" data-testid="admin-email" /><span v-if="errors['admin.email']" class="field-error">{{
+              errors['admin.email']
+            }}</span>
+          </div>
         </div>
         <PasswordFields v-model:password="form.admin.password" v-model:confirmation="form.admin.password_confirmation" :errors="errors" />
         <div class="border-t border-surface-200 dark:border-surface-700 pt-4 flex flex-col gap-3">
@@ -263,7 +344,9 @@ async function finish(): Promise<void> {
           <Button v-if="!qr" severity="secondary" icon="pi pi-qrcode" :label="t('setup.show_qr')" :disabled="!form.admin.email" :loading="busy" data-testid="show-qr" @click="startTwoFactor" />
           <template v-else>
             <img :src="qr" :alt="t('profile.qr_alt')" class="w-48 h-48 bg-white p-2 rounded" />
-            <p class="text-sm">{{ t('profile.manual_key') }} <code class="ltr-value" data-testid="totp-secret">{{ secret }}</code></p>
+            <p class="text-sm">
+              {{ t('profile.manual_key') }} <code class="ltr-value" data-testid="totp-secret">{{ secret }}</code>
+            </p>
             <div class="flex flex-col gap-2 ltr-value items-start">
               <label for="setup-otp">{{ t('auth.authenticator_code') }}</label>
               <InputOtp id="setup-otp" v-model="code" :length="6" integer-only data-testid="setup-otp" />
@@ -271,7 +354,16 @@ async function finish(): Promise<void> {
             </div>
           </template>
         </div>
-        <div class="flex justify-between"><Button severity="secondary" :label="t('common.back')" @click="back" /><Button :label="t('setup.finish')" icon="pi pi-check" :loading="busy" :disabled="code.length !== 6 || !form.admin.password" data-testid="setup-complete" @click="complete" /></div>
+        <div class="flex justify-between">
+          <Button severity="secondary" :label="t('common.back')" @click="back" /><Button
+            :label="t('setup.finish')"
+            icon="pi pi-check"
+            :loading="busy"
+            :disabled="code.length !== 6 || !form.admin.password"
+            data-testid="setup-complete"
+            @click="complete"
+          />
+        </div>
       </section>
 
       <section v-else class="flex flex-col gap-4">

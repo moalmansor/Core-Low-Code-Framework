@@ -1,0 +1,14 @@
+{
+  "name": "Low-Code Framework",
+  "dockerComposeFile": ["../docker-compose.yml", "docker-compose.devcontainer.yml"],
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+  "runServices": ["devcontainer", "mysql", "redis", "clamav", "mailpit"],
+  "forwardPorts": [5173, 8000, 8025],
+  "postCreateCommand": "cd backend && composer install && cp -n .env.example .env && php artisan key:generate && cd ../frontend && npm ci",
+  "customizations": {
+    "vscode": {
+      "extensions": ["Vue.volar", "bmewburn.vscode-intelephense-client", "dbaeumer.vscode-eslint", "esbenp.prettier-vscode", "open-southeners.laravel-pint"]
+    }
+  }
+}

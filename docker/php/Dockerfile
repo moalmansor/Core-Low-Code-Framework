@@ -29,6 +29,15 @@ COPY docker/php/php.ini /usr/local/etc/php/conf.d/zz-lcf.ini
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/backend
 
+FROM base AS dev
+# Development tooling for the dev container: Node for the SPA, mysql/redis clients.
+COPY --from=frontend /usr/local/bin/node /usr/local/bin/node
+COPY --from=frontend /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && apt-get update && apt-get install -y --no-install-recommends default-mysql-client redis-tools && rm -rf /var/lib/apt/lists/*
+WORKDIR /workspace
+
 FROM base AS app
 COPY backend/composer.json backend/composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction

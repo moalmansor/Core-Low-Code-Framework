@@ -134,8 +134,14 @@ async function sendTest(): Promise<void> {
                 </div>
               </div>
               <div class="form-grid">
-                <div class="field"><label for="bl">{{ t('setup.logo') }}</label><input id="bl" type="file" accept=".png,.jpg,.jpeg,.webp" @change="(e) => upload('logo', e)" /></div>
-                <div class="field"><label for="bf">{{ t('setup.favicon') }}</label><input id="bf" type="file" accept=".png,.ico" @change="(e) => upload('favicon', e)" /></div>
+                <div class="field">
+                  <label for="bl">{{ t('setup.logo') }}</label
+                  ><input id="bl" type="file" accept=".png,.jpg,.jpeg,.webp" @change="(e) => upload('logo', e)" />
+                </div>
+                <div class="field">
+                  <label for="bf">{{ t('setup.favicon') }}</label
+                  ><input id="bf" type="file" accept=".png,.ico" @change="(e) => upload('favicon', e)" />
+                </div>
               </div>
             </template>
             <SsoProvidersEditor v-else-if="g === 'sso'" v-model="ssoProviders" v-model:secrets="ssoSecrets" :errors="errors" />
@@ -144,7 +150,10 @@ async function sendTest(): Promise<void> {
             <div class="flex justify-end"><Button type="submit" :label="t('common.save')" icon="pi pi-check" :data-testid="`settings-save-${g}`" /></div>
           </form>
           <div v-if="g === 'mail'" class="flex flex-wrap items-end gap-2 mt-6 max-w-4xl">
-            <div class="field grow"><label for="tt">{{ t('settings.mail.test_to') }}</label><InputText id="tt" v-model="testTo" type="email" class="ltr-value" /></div>
+            <div class="field grow">
+              <label for="tt">{{ t('settings.mail.test_to') }}</label
+              ><InputText id="tt" v-model="testTo" type="email" class="ltr-value" />
+            </div>
             <Button severity="secondary" icon="pi pi-send" :label="t('settings.mail.send_test')" :disabled="!testTo" @click="sendTest" />
           </div>
         </template>

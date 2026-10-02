@@ -1,0 +1,12 @@
+# Development container: the production image's base stage (PHP 8.3 with every
+# extension, including the SQL Server drivers) plus Node, repository mounted.
+services:
+  devcontainer:
+    build:
+      context: ..
+      dockerfile: docker/php/Dockerfile
+      target: dev
+    volumes:
+      - ..:/workspace:cached
+    command: sleep infinity
+    depends_on: [mysql, redis]

@@ -64,7 +64,9 @@ async function submit(): Promise<void> {
     <RouterLink :to="{ name: 'forgot' }" class="text-sm text-primary">{{ t('auth.forgot_link') }}</RouterLink>
   </form>
   <template v-if="providers.length">
-    <Divider align="center"><span class="text-sm text-muted-color">{{ t('auth.or') }}</span></Divider>
+    <Divider align="center"
+      ><span class="text-sm text-muted-color">{{ t('auth.or') }}</span></Divider
+    >
     <div class="flex flex-col gap-2">
       <a v-for="p in providers" :key="p.key" :href="`/auth/sso/${p.key}/redirect`" class="p-button p-button-outlined justify-center no-underline">
         {{ t('auth.sso_with', { name: p.name }) }}

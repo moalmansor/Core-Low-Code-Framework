@@ -48,7 +48,7 @@ const loading = ref(false)
 const filters = reactive({ search: '', status: null as string | null, page: 1, per_page: 25 })
 const roles = ref<{ uuid: string; name: string }[]>([])
 const tree = ref<DepartmentNode[]>([])
-const editing = ref<Partial<UserRow> & { roleUuids?: string[]; departmentKey?: Record<string, boolean> | null } | null>(null)
+const editing = ref<(Partial<UserRow> & { roleUuids?: string[]; departmentKey?: Record<string, boolean> | null }) | null>(null)
 const errors = ref<Record<string, string>>({})
 const actionsMenu = ref<InstanceType<typeof Menu> | null>(null)
 const actionsFor = ref<UserRow | null>(null)
@@ -100,9 +100,7 @@ async function save(): Promise<void> {
   }
   errors.value = {}
   try {
-    const done = await withStepUp(stepUp, (code) =>
-      e.uuid ? send('patch', `/users/${e.uuid}`, { ...body, confirmation_code: code }) : send('post', '/users', { ...body, confirmation_code: code }),
-    )
+    const done = await withStepUp(stepUp, (code) => (e.uuid ? send('patch', `/users/${e.uuid}`, { ...body, confirmation_code: code }) : send('post', '/users', { ...body, confirmation_code: code })))
     if (done === null) return
     editing.value = null
     toast.add({ severity: 'success', summary: e.uuid ? t('common.saved') : t('users.created'), life: 4000 })
@@ -133,9 +131,19 @@ const menuItems = computed(() => {
     u.status === 'active'
       ? { label: t('users.suspend'), icon: 'pi pi-pause', command: () => act(() => send('post', `/users/${u.uuid}/status`, { status: 'suspended' }), t('users.suspended')) }
       : { label: t('users.activate'), icon: 'pi pi-play', command: () => act(() => send('post', `/users/${u.uuid}/status`, { status: 'active' }), t('users.activated')) },
-    { label: t('users.disable'), icon: 'pi pi-ban', visible: u.status !== 'disabled', command: () => act(() => send('post', `/users/${u.uuid}/status`, { status: 'disabled' }), t('users.disabled_msg')) },
+    {
+      label: t('users.disable'),
+      icon: 'pi pi-ban',
+      visible: u.status !== 'disabled',
+      command: () => act(() => send('post', `/users/${u.uuid}/status`, { status: 'disabled' }), t('users.disabled_msg')),
+    },
     { label: t('users.unlock'), icon: 'pi pi-lock-open', visible: u.locked, command: () => act(() => send('post', `/users/${u.uuid}/unlock`), t('users.unlocked')) },
-    { label: t('users.send_password_link'), icon: 'pi pi-envelope', visible: u.auth_source === 'local', command: () => act(() => send('post', `/users/${u.uuid}/password-link`), t('users.link_sent')) },
+    {
+      label: t('users.send_password_link'),
+      icon: 'pi pi-envelope',
+      visible: u.auth_source === 'local',
+      command: () => act(() => send('post', `/users/${u.uuid}/password-link`), t('users.link_sent')),
+    },
     { label: t('users.reset_2fa'), icon: 'pi pi-shield', visible: u.two_factor_enabled, command: () => act(() => send('post', `/users/${u.uuid}/reset-2fa`), t('users.two_factor_reset')) },
     { label: t('users.revoke_sessions'), icon: 'pi pi-sign-out', command: () => act(() => send('delete', `/users/${u.uuid}/sessions`), t('users.sessions_revoked')) },
     { separator: true },
@@ -183,8 +191,12 @@ const statusSeverity = (s: string) => ({ active: 'success', suspended: 'warn', d
         <div class="text-sm text-muted-color ltr-value">{{ data.email }}</div>
       </template>
     </Column>
-    <Column :header="t('users.department')"><template #body="{ data }">{{ data.department?.name ?? '—' }}</template></Column>
-    <Column :header="t('users.roles')"><template #body="{ data }"><Tag v-for="r in data.roles" :key="r.uuid" :value="r.name" class="me-1" severity="secondary" /></template></Column>
+    <Column :header="t('users.department')"
+      ><template #body="{ data }">{{ data.department?.name ?? '—' }}</template></Column
+    >
+    <Column :header="t('users.roles')"
+      ><template #body="{ data }"><Tag v-for="r in data.roles" :key="r.uuid" :value="r.name" class="me-1" severity="secondary" /></template
+    ></Column>
     <Column :header="t('users.status_label')">
       <template #body="{ data }">
         <Tag :severity="statusSeverity(data.status)" :value="t(`users.status.${data.status}`)" />
@@ -200,13 +212,38 @@ const statusSeverity = (s: string) => ({ active: 'success', suspended: 'warn', d
 
   <Dialog :visible="!!editing" modal :header="editing?.uuid ? t('users.edit') : t('users.new')" :style="{ width: '40rem' }" @update:visible="(v: boolean) => !v && (editing = null)">
     <form v-if="editing" class="form-grid" @submit.prevent="save">
-      <div class="field"><label for="un">{{ t('users.name') }}</label><InputText id="un" v-model="editing.name" data-testid="user-name" /><span v-if="errors.name" class="field-error">{{ errors.name }}</span></div>
-      <div class="field"><label for="ue">{{ t('users.email') }}</label><InputText id="ue" v-model="editing.email" type="email" class="ltr-value" data-testid="user-email" /><span v-if="errors.email" class="field-error">{{ errors.email }}</span></div>
-      <div class="field"><label for="uu">{{ t('users.username') }}</label><InputText id="uu" v-model="editing.username as string" class="ltr-value" /><span v-if="errors.username" class="field-error">{{ errors.username }}</span></div>
-      <div class="field"><label for="uj">{{ t('users.job_title') }}</label><InputText id="uj" v-model="editing.job_title as string" /></div>
-      <div class="field"><label for="up">{{ t('users.phone') }}</label><InputText id="up" v-model="editing.phone as string" class="ltr-value" /><span v-if="errors.phone" class="field-error">{{ errors.phone }}</span></div>
-      <div class="field"><label for="ud">{{ t('users.department') }}</label><TreeSelect v-model="editing.departmentKey" input-id="ud" :options="tree" selection-mode="single" show-clear :placeholder="t('common.none')" /></div>
-      <div class="field col-span-full"><label for="ur">{{ t('users.roles') }}</label><MultiSelect v-model="editing.roleUuids" input-id="ur" :options="roles" option-label="name" option-value="uuid" display="chip" data-testid="user-roles" /><span v-if="errors.roles" class="field-error">{{ errors.roles }}</span></div>
+      <div class="field">
+        <label for="un">{{ t('users.name') }}</label
+        ><InputText id="un" v-model="editing.name" data-testid="user-name" /><span v-if="errors.name" class="field-error">{{ errors.name }}</span>
+      </div>
+      <div class="field">
+        <label for="ue">{{ t('users.email') }}</label
+        ><InputText id="ue" v-model="editing.email" type="email" class="ltr-value" data-testid="user-email" /><span v-if="errors.email" class="field-error">{{ errors.email }}</span>
+      </div>
+      <div class="field">
+        <label for="uu">{{ t('users.username') }}</label
+        ><InputText id="uu" v-model="editing.username as string" class="ltr-value" /><span v-if="errors.username" class="field-error">{{ errors.username }}</span>
+      </div>
+      <div class="field">
+        <label for="uj">{{ t('users.job_title') }}</label
+        ><InputText id="uj" v-model="editing.job_title as string" />
+      </div>
+      <div class="field">
+        <label for="up">{{ t('users.phone') }}</label
+        ><InputText id="up" v-model="editing.phone as string" class="ltr-value" /><span v-if="errors.phone" class="field-error">{{ errors.phone }}</span>
+      </div>
+      <div class="field">
+        <label for="ud">{{ t('users.department') }}</label
+        ><TreeSelect v-model="editing.departmentKey" input-id="ud" :options="tree" selection-mode="single" show-clear :placeholder="t('common.none')" />
+      </div>
+      <div class="field col-span-full">
+        <label for="ur">{{ t('users.roles') }}</label
+        ><MultiSelect v-model="editing.roleUuids" input-id="ur" :options="roles" option-label="name" option-value="uuid" display="chip" data-testid="user-roles" /><span
+          v-if="errors.roles"
+          class="field-error"
+          >{{ errors.roles }}</span
+        >
+      </div>
       <p v-if="!editing.uuid" class="col-span-full text-sm text-muted-color">{{ t('users.invite_hint') }}</p>
       <div class="col-span-full flex justify-end gap-2">
         <Button type="button" severity="secondary" :label="t('common.cancel')" @click="editing = null" />

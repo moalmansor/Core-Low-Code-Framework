@@ -34,7 +34,10 @@ const toast = useToast()
 const route = useRoute()
 const session = useSession()
 const tab = ref(String(route.query.tab ?? 'details'))
-watch(() => route.query.tab, (v) => v && (tab.value = String(v)))
+watch(
+  () => route.query.tab,
+  (v) => v && (tab.value = String(v)),
+)
 
 const details = reactive({ name: session.me?.name ?? '', phone: '' })
 const prefs = reactive<Me['preferences']>({ locale: null, timezone: null, calendar: null, digits: null, date_format: null, density: null, theme_mode: 'system', ...(session.me?.preferences ?? {}) })
@@ -164,19 +167,50 @@ async function revokeOthers(): Promise<void> {
     <TabPanels>
       <TabPanel value="details">
         <form class="form-grid max-w-2xl" @submit.prevent="saveDetails">
-          <div class="field"><label for="pn">{{ t('users.name') }}</label><InputText id="pn" v-model="details.name" /></div>
-          <div class="field"><label for="pe">{{ t('users.email') }}</label><InputText id="pe" :model-value="session.me?.email" disabled class="ltr-value" /></div>
-          <div class="field"><label for="pp">{{ t('users.phone') }}</label><InputText id="pp" v-model="details.phone" class="ltr-value" /></div>
+          <div class="field">
+            <label for="pn">{{ t('users.name') }}</label
+            ><InputText id="pn" v-model="details.name" />
+          </div>
+          <div class="field">
+            <label for="pe">{{ t('users.email') }}</label
+            ><InputText id="pe" :model-value="session.me?.email" disabled class="ltr-value" />
+          </div>
+          <div class="field">
+            <label for="pp">{{ t('users.phone') }}</label
+            ><InputText id="pp" v-model="details.phone" class="ltr-value" />
+          </div>
           <div class="flex items-end"><Button type="submit" :label="t('common.save')" /></div>
         </form>
       </TabPanel>
       <TabPanel value="preferences">
         <form class="form-grid max-w-2xl" @submit.prevent="savePrefs">
-          <div class="field"><label for="pl">{{ t('shell.language') }}</label><Select v-model="prefs.locale" input-id="pl" :options="session.boot?.locales ?? []" option-label="native_name" option-value="code" show-clear /></div>
-          <div class="field"><label for="pt">{{ t('profile.theme') }}</label><Select v-model="prefs.theme_mode" input-id="pt" :options="['system', 'light', 'dark'].map((v) => ({ v, l: t(`profile.theme_mode.${v}`) }))" option-label="l" option-value="v" /></div>
-          <div class="field"><label for="ptz">{{ t('settings.formats.timezone') }}</label><Select v-model="prefs.timezone" input-id="ptz" :options="timezones" filter show-clear /></div>
-          <div class="field"><label for="pc">{{ t('settings.calendar.system') }}</label><Select v-model="prefs.calendar" input-id="pc" :options="['gregorian', 'hijri', 'both'].map((v) => ({ v, l: t(`settings.calendar_system.${v}`) }))" option-label="l" option-value="v" show-clear /></div>
-          <div class="field"><label for="pd">{{ t('settings.formats.digits') }}</label><Select v-model="prefs.digits" input-id="pd" :options="['western', 'arabic_indic'].map((v) => ({ v, l: t(`settings.digits.${v}`) }))" option-label="l" option-value="v" show-clear /></div>
+          <div class="field">
+            <label for="pl">{{ t('shell.language') }}</label
+            ><Select v-model="prefs.locale" input-id="pl" :options="session.boot?.locales ?? []" option-label="native_name" option-value="code" show-clear />
+          </div>
+          <div class="field">
+            <label for="pt">{{ t('profile.theme') }}</label
+            ><Select v-model="prefs.theme_mode" input-id="pt" :options="['system', 'light', 'dark'].map((v) => ({ v, l: t(`profile.theme_mode.${v}`) }))" option-label="l" option-value="v" />
+          </div>
+          <div class="field">
+            <label for="ptz">{{ t('settings.formats.timezone') }}</label
+            ><Select v-model="prefs.timezone" input-id="ptz" :options="timezones" filter show-clear />
+          </div>
+          <div class="field">
+            <label for="pc">{{ t('settings.calendar.system') }}</label
+            ><Select
+              v-model="prefs.calendar"
+              input-id="pc"
+              :options="['gregorian', 'hijri', 'both'].map((v) => ({ v, l: t(`settings.calendar_system.${v}`) }))"
+              option-label="l"
+              option-value="v"
+              show-clear
+            />
+          </div>
+          <div class="field">
+            <label for="pd">{{ t('settings.formats.digits') }}</label
+            ><Select v-model="prefs.digits" input-id="pd" :options="['western', 'arabic_indic'].map((v) => ({ v, l: t(`settings.digits.${v}`) }))" option-label="l" option-value="v" show-clear />
+          </div>
           <div class="flex items-end"><Button type="submit" :label="t('common.save')" data-testid="save-preferences" /></div>
         </form>
       </TabPanel>
@@ -202,7 +236,9 @@ async function revokeOthers(): Promise<void> {
           <template v-if="enrolling">
             <p>{{ t('profile.scan_qr') }}</p>
             <img :src="qr" :alt="t('profile.qr_alt')" class="w-48 h-48 bg-white p-2 rounded" />
-            <p class="text-sm">{{ t('profile.manual_key') }} <code class="ltr-value">{{ secretKey }}</code></p>
+            <p class="text-sm">
+              {{ t('profile.manual_key') }} <code class="ltr-value">{{ secretKey }}</code>
+            </p>
             <div class="ltr-value"><InputOtp v-model="code" :length="6" integer-only data-testid="enroll-otp" /></div>
             <Button :label="t('auth.verify')" :disabled="code.length !== 6" data-testid="enroll-confirm" @click="confirmEnrollment" />
           </template>
@@ -212,7 +248,14 @@ async function revokeOthers(): Promise<void> {
               <Password v-model="confirmPassword" input-id="cp" :feedback="false" toggle-mask autocomplete="current-password" fluid data-testid="confirm-password" />
             </div>
             <div class="flex flex-wrap gap-2">
-              <Button v-if="!session.me?.two_factor.enabled" :label="t('profile.enable_two_factor')" icon="pi pi-shield" :disabled="!confirmPassword" data-testid="enable-2fa" @click="startEnrollment" />
+              <Button
+                v-if="!session.me?.two_factor.enabled"
+                :label="t('profile.enable_two_factor')"
+                icon="pi pi-shield"
+                :disabled="!confirmPassword"
+                data-testid="enable-2fa"
+                @click="startEnrollment"
+              />
               <template v-else>
                 <Button severity="secondary" :label="t('profile.regenerate_codes')" :disabled="!confirmPassword" @click="regenerateCodes" />
                 <Button v-if="!session.me?.two_factor.required" severity="danger" :label="t('profile.disable_two_factor')" :disabled="!confirmPassword" @click="disableTwoFactor" />
@@ -230,9 +273,19 @@ async function revokeOthers(): Promise<void> {
       <TabPanel value="sessions">
         <div class="flex justify-end mb-2"><Button severity="secondary" :label="t('profile.revoke_others')" icon="pi pi-sign-out" @click="revokeOthers" /></div>
         <DataTable :value="sessions" data-key="handle" size="small">
-          <Column :header="t('profile.device')"><template #body="{ data }"><span class="text-sm">{{ data.user_agent }}</span></template></Column>
-          <Column field="ip_address" :header="t('profile.ip')"><template #body="{ data }"><span class="ltr-value">{{ data.ip_address }}</span></template></Column>
-          <Column :header="t('profile.last_active')"><template #body="{ data }">{{ new Date(data.last_activity).toLocaleString(session.locale) }}</template></Column>
+          <Column :header="t('profile.device')"
+            ><template #body="{ data }"
+              ><span class="text-sm">{{ data.user_agent }}</span></template
+            ></Column
+          >
+          <Column field="ip_address" :header="t('profile.ip')"
+            ><template #body="{ data }"
+              ><span class="ltr-value">{{ data.ip_address }}</span></template
+            ></Column
+          >
+          <Column :header="t('profile.last_active')"
+            ><template #body="{ data }">{{ new Date(data.last_activity).toLocaleString(session.locale) }}</template></Column
+          >
           <Column>
             <template #body="{ data }">
               <Tag v-if="data.current" :value="t('profile.this_device')" severity="success" />

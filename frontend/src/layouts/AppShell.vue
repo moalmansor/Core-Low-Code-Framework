@@ -96,14 +96,7 @@ const userItems = computed(() => [
         <Button class="lg:hidden" icon="pi pi-bars" text rounded :aria-label="t('shell.menu')" @click="sidebarOpen = true" />
         <div class="flex-1" />
         <LanguageSwitcher />
-        <Button
-          :label="session.me?.name"
-          icon="pi pi-user"
-          text
-          aria-haspopup="true"
-          data-testid="user-menu"
-          @click="(e: Event) => userMenu?.toggle(e)"
-        />
+        <Button :label="session.me?.name" icon="pi pi-user" text aria-haspopup="true" data-testid="user-menu" @click="(e: Event) => userMenu?.toggle(e)" />
         <Menu ref="userMenu" :model="userItems" popup />
       </header>
       <main class="flex-1 overflow-auto p-4 lg:p-6">

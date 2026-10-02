@@ -25,7 +25,15 @@ export const settingsSchema: Record<string, FieldDef[]> = {
     { key: 'thousands_separator', type: 'select', options: [',', '.', ' ', "'", ''] },
   ],
   calendar: [{ key: 'system', type: 'select', options: ['gregorian', 'hijri', 'both'] }],
-  mail: [s('host', true), n('port', 1, 65535), { key: 'encryption', type: 'select', options: ['tls', 'ssl', 'none'] }, s('username', true), { key: 'password', type: 'secret' }, s('from_address', true), s('from_name')],
+  mail: [
+    s('host', true),
+    n('port', 1, 65535),
+    { key: 'encryption', type: 'select', options: ['tls', 'ssl', 'none'] },
+    s('username', true),
+    { key: 'password', type: 'secret' },
+    s('from_address', true),
+    s('from_name'),
+  ],
   files: [n('max_upload_mb', 1, 512), { key: 'allowed_image_types', type: 'multiselect', options: ['png', 'jpg', 'jpeg', 'webp', 'ico'] }],
   clamav: [b('enabled'), s('host', true), n('port', 1, 65535), n('timeout_seconds', 1, 300)],
   security: [
@@ -58,5 +66,9 @@ export const settingsSchema: Record<string, FieldDef[]> = {
     { key: 'group_role_map', type: 'map', ltr: true },
     b('jit_provisioning'),
   ],
-  monitoring: [{ key: 'alert_role_keys', type: 'list', ltr: true }, n('alert_cooldown_minutes', 1, 10080), { key: 'alert_min_severity', type: 'select', options: ['warning', 'error', 'critical', 'alert', 'emergency'] }],
+  monitoring: [
+    { key: 'alert_role_keys', type: 'list', ltr: true },
+    n('alert_cooldown_minutes', 1, 10080),
+    { key: 'alert_min_severity', type: 'select', options: ['warning', 'error', 'critical', 'alert', 'emergency'] },
+  ],
 }

@@ -98,10 +98,16 @@ function archive(d: DepartmentApi): void {
   <TreeTable :value="nodes" size="small" data-testid="department-tree">
     <template #empty>{{ t('departments.empty') }}</template>
     <Column field="label" :header="t('departments.name')" expander>
-      <template #body="{ node }">{{ node.data.name }} <span class="text-muted-color text-sm ltr-value">{{ node.data.code }}</span></template>
+      <template #body="{ node }"
+        >{{ node.data.name }} <span class="text-muted-color text-sm ltr-value">{{ node.data.code }}</span></template
+      >
     </Column>
-    <Column :header="t('departments.members')"><template #body="{ node }">{{ node.data.members_count }}</template></Column>
-    <Column :header="t('users.status_label')"><template #body="{ node }"><Tag :severity="node.data.is_active ? 'success' : 'secondary'" :value="node.data.is_active ? t('common.active') : t('common.inactive')" /></template></Column>
+    <Column :header="t('departments.members')"
+      ><template #body="{ node }">{{ node.data.members_count }}</template></Column
+    >
+    <Column :header="t('users.status_label')"
+      ><template #body="{ node }"><Tag :severity="node.data.is_active ? 'success' : 'secondary'" :value="node.data.is_active ? t('common.active') : t('common.inactive')" /></template
+    ></Column>
     <Column style="width: 10rem">
       <template #body="{ node }">
         <Button v-tooltip="t('departments.add_child')" icon="pi pi-plus" text rounded :aria-label="t('departments.add_child')" @click="openCreate(node.data)" />
@@ -114,15 +120,28 @@ function archive(d: DepartmentApi): void {
   <Dialog :visible="!!editing" modal :header="editing?.uuid ? t('departments.edit') : t('departments.new')" :style="{ width: '36rem' }" @update:visible="(v: boolean) => !v && (editing = null)">
     <form v-if="editing" class="flex flex-col gap-3" @submit.prevent="save">
       <p v-if="errors._" class="field-error">{{ errors._ }}</p>
-      <div class="field"><label for="dc">{{ t('departments.code') }}</label><InputText id="dc" v-model="editing.code" class="ltr-value" data-testid="department-code" /><span v-if="errors.code" class="field-error">{{ errors.code }}</span></div>
+      <div class="field">
+        <label for="dc">{{ t('departments.code') }}</label
+        ><InputText id="dc" v-model="editing.code" class="ltr-value" data-testid="department-code" /><span v-if="errors.code" class="field-error">{{ errors.code }}</span>
+      </div>
       <div v-for="l in session.boot?.locales ?? []" :key="l.code" class="field">
         <label :for="`dn-${l.code}`">{{ t('departments.name') }} ({{ l.native_name }})</label>
         <InputText :id="`dn-${l.code}`" v-model="editing.name[l.code]" :dir="l.direction" :data-testid="`department-name-${l.code}`" />
         <span v-if="errors[`name.${l.code}`]" class="field-error">{{ errors[`name.${l.code}`] }}</span>
       </div>
-      <div class="field"><label for="dp">{{ t('departments.parent') }}</label><TreeSelect v-model="editing.parentKey" input-id="dp" :options="nodes" selection-mode="single" show-clear :placeholder="t('departments.top_level')" /><span v-if="errors.parent || errors.department" class="field-error">{{ errors.parent || errors.department }}</span></div>
+      <div class="field">
+        <label for="dp">{{ t('departments.parent') }}</label
+        ><TreeSelect v-model="editing.parentKey" input-id="dp" :options="nodes" selection-mode="single" show-clear :placeholder="t('departments.top_level')" /><span
+          v-if="errors.parent || errors.department"
+          class="field-error"
+          >{{ errors.parent || errors.department }}</span
+        >
+      </div>
       <div class="flex gap-4">
-        <div class="field"><label for="ds">{{ t('common.sort_order') }}</label><InputNumber v-model="editing.sort_order" input-id="ds" :min="0" :use-grouping="false" /></div>
+        <div class="field">
+          <label for="ds">{{ t('common.sort_order') }}</label
+          ><InputNumber v-model="editing.sort_order" input-id="ds" :min="0" :use-grouping="false" />
+        </div>
         <label class="flex items-center gap-2 mt-6"><ToggleSwitch v-model="editing.is_active" />{{ t('common.active') }}</label>
       </div>
       <div class="flex justify-end gap-2">

@@ -11,7 +11,18 @@ const { t } = useI18n()
 <template>
   <div class="field">
     <label for="new-password">{{ t('auth.new_password') }}</label>
-    <Password v-model="password" input-id="new-password" toggle-mask autocomplete="new-password" fluid :prompt-label="t('auth.password_prompt')" :weak-label="t('auth.password_weak')" :medium-label="t('auth.password_medium')" :strong-label="t('auth.password_strong')" data-testid="new-password" />
+    <Password
+      v-model="password"
+      input-id="new-password"
+      toggle-mask
+      autocomplete="new-password"
+      fluid
+      :prompt-label="t('auth.password_prompt')"
+      :weak-label="t('auth.password_weak')"
+      :medium-label="t('auth.password_medium')"
+      :strong-label="t('auth.password_strong')"
+      data-testid="new-password"
+    />
     <small class="text-muted-color">{{ t('auth.password_rules') }}</small>
     <span v-if="errors?.password" class="field-error">{{ errors.password }}</span>
   </div>

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { admin, artisan, fillOtp, freshTotp, watchConsole } from './support'
+import { admin, artisan, fillOtp, freshTotp, watchConsole } from './support.ts'
 import { rmSync, writeFileSync } from 'node:fs'
 
 test.beforeAll(() => {
