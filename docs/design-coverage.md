@@ -8,9 +8,9 @@ Legend: **A§n** = `docs/architecture.md` section n; **EL§n** =
 `docs/expression-language.md` section n; **ADR-n** = `docs/decisions/`; table names
 refer to the ERD (A§10). The **Phase** column says where each requirement will be
 built (A§25). Result of the check: **every requirement in §2–§7 is covered**. One
-specification conflict was found and resolved by a recorded decision (ADR-0009),
-and one inconsistency between CLAUDE.md and the specification was noted
-(ADR-0016). Both are flagged for owner review.
+specification conflict (§4.11 precedence) was decided by the owner and the
+specification updated (ADR-0009). The phase count follows the specification's
+eight phases, confirmed by the owner (ADR-0016).
 
 ## §2 First-run behavior
 
@@ -221,7 +221,7 @@ and one inconsistency between CLAUDE.md and the specification was noted
 | Record level: own, department, tree, all, custom | `record_access_rules`, A§16.6 | 3 |
 | Menu level | `menu.{uuid}.view` | 2 |
 | Full system permission list | A§21.1 (all spec names mapped) | 1 |
-| Precedence user > department > role; deny overrides allow | A§16.2, ADR-0009 (conflict resolved) | 1 |
+| Precedence user > role > department; deny beats allow within a tier; more specific tier overrides a less specific one incl. its deny; hard deny overrides every tier | A§16.2, ADR-0009 (owner decision) | 1 |
 | View as user; copy permissions; export/import sets | A§21.2 Roles & permissions | 1 |
 | Server-side enforcement via Policies/Gates on every request | A§7.2 | 1 |
 | Computed, sparse storage | A§16.4 | 2 |

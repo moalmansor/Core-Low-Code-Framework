@@ -425,7 +425,7 @@ interface DatabaseDriver {
 
 | Concern | MySQL 8 | SQL Server 2019 | Driver strategy |
 |---|---|---|---|
-| Unicode text | `utf8mb4`, `utf8mb4_0900_ai_ci` | `nvarchar`, `Arabic_100_CI_AI_SC_UTF8`-compatible collation on DB | `string`→`varchar`/`nvarchar`. DB created with case- and accent-insensitive collation on both; binary collation for keys/tokens columns. |
+| Unicode text | `utf8mb4`, `utf8mb4_0900_ai_ci` | `NVARCHAR`, database collation `Arabic_100_CI_AI_SC` | `string`→`varchar`/`nvarchar`. DB created with case- and accent-insensitive collation on both; binary collation for keys/tokens columns. |
 | JSON | native `JSON` | `nvarchar(max)` + `CHECK (ISJSON(col)=1)` | `json` logical type; extraction via `JSON_EXTRACT`/`JSON_VALUE`; indexed JSON paths become generated/computed persisted columns. |
 | Boolean | `tinyint(1)` | `bit` | `bool` logical type, cast in model. |
 | Datetime | `datetime(6)` | `datetime2(6)` | All stored UTC, `datetime` logical type (no `timestamp` 2038 limit). |
@@ -488,7 +488,7 @@ matrix entry: `DB_CONNECTION=mysql` and `DB_CONNECTION=sqlsrv`.
   masked unless `view_sensitive` is granted for that field.
 - Mass assignment: dynamic models fill only the access-filtered fillable set;
   metadata models use explicit `$fillable`.
-- Deny overrides allow (§16).
+- Deny overrides allow within a tier; more specific tiers override less specific ones; hard deny overrides everything (§16).
 
 ### 7.3 Input & output safety
 
@@ -651,39 +651,42 @@ and returned in the response header so users can quote it.
   `c_{collection_key}` (collections), child tables `f_{form_key}__{group_key}`,
   pivots `p_{relation_key}`; archived columns renamed `zz_{column}_{yyyymmddhhmm}`.
   All generated identifiers ≤ 60 chars (hash suffix when truncated). See §11.
-- Indexes: `{table}_{cols}_idx`, unique `{table}_{cols}_uq`, FKs `{table}_{col}_fk`.
+- Constraints and indexes: `pk_{table}`, `uq_{table}_{cols}`, `ix_{table}_{cols}`,
+  `fk_{table}_{col}`, `ck_{table}_{col}` (JSON checks `ck_{table}_{col}_json`);
+  names longer than 60 characters are cut to 51 characters plus `_` and an 8-hex hash.
 
 ### 9.2 Logical types (both engines)
 
 | Logical type | MySQL 8 | SQL Server 2019 | Notes |
 |---|---|---|---|
-| `bigint` / `id` | `BIGINT UNSIGNED` (`AUTO_INCREMENT` for PK) | `BIGINT` (`IDENTITY(1,1)` for PK) | all PKs and FKs |
+| `bigint` / `id` | `BIGINT UNSIGNED` for ids and FKs (`AUTO_INCREMENT` for PK); `BIGINT` for counters/sizes | `BIGINT` (`IDENTITY(1,1)` for PK) | |
 | `int` | `INT` | `INT` | |
 | `smallint` | `SMALLINT` | `SMALLINT` | small enums by number, orders |
 | `bool` | `TINYINT(1)` | `BIT` | |
 | `decimal(p,s)` | `DECIMAL(p,s)` | `DECIMAL(p,s)` | money uses `decimal(19,4)`, rates `decimal(20,10)` |
 | `string(n)` | `VARCHAR(n)` utf8mb4 | `NVARCHAR(n)` | n ≤ 255 when indexed |
-| `code(n)` | `VARCHAR(n)` `utf8mb4_bin` | `VARCHAR(n)` `Latin1_General_BIN2` | machine keys, hashes, tokens (case-sensitive, ASCII) |
-| `text` | `TEXT` / `MEDIUMTEXT` | `NVARCHAR(MAX)` | |
+| `code(n)` | `VARCHAR(n) CHARACTER SET ascii COLLATE ascii_bin` | `VARCHAR(n) COLLATE Latin1_General_100_BIN2` | machine keys, tokens (case-sensitive, ASCII) |
+| `text` | `TEXT` | `NVARCHAR(MAX)` | |
 | `longtext` | `LONGTEXT` | `NVARCHAR(MAX)` | |
 | `json` | `JSON` | `NVARCHAR(MAX)` + `CHECK (ISJSON(col)=1)` | never filtered directly; indexed paths → generated/computed columns |
-| `uuid` | `CHAR(36)` | `UNIQUEIDENTIFIER` | Laravel `uuid()`; generated as UUIDv7 (time-ordered) |
+| `uuid` | `CHAR(36) CHARACTER SET ascii COLLATE ascii_bin` | `UNIQUEIDENTIFIER` | Laravel `uuid()`; generated as UUIDv7 (time-ordered) |
 | `datetime` | `DATETIME(6)` | `DATETIME2(6)` | always UTC |
 | `date` | `DATE` | `DATE` | |
-| `time` | `TIME` | `TIME` | |
-| `hash` | `CHAR(64)` binary collation | `CHAR(64)` BIN2 | SHA-256 hex |
-| `enum<…>` | `VARCHAR(32)` + PHP backed enum | `NVARCHAR(32)` + `CHECK` constraint | listed values are exhaustive |
+| `time` | `TIME(0)` | `TIME(0)` | |
+| `hash` | `CHAR(64) CHARACTER SET ascii COLLATE ascii_bin` | `CHAR(64) COLLATE Latin1_General_100_BIN2` | SHA-256 hex |
+| `enum<…>` | `VARCHAR(n) CHARACTER SET ascii COLLATE ascii_bin` + `CHECK (col IN (…))` | `VARCHAR(n) COLLATE Latin1_General_100_BIN2` + `CHECK (col IN (…))` | n = max(32, longest value); PHP backed enum; listed values are exhaustive |
 
 ### 9.3 Column mixins
 
-To keep the ERD readable, recurring column sets are written as mixins. A mixin
-expands to exactly these columns (they are real columns of the table):
+Recurring column sets have names. §10 lists every table **fully expanded**, with
+the mixin columns written out as real columns; the names below just explain where
+those columns come from:
 
 | Mixin | Columns |
 |---|---|
 | `@pk` | `id` id PK |
 | `@uuid` | `uuid` uuid NOT NULL, **unique** — stable cross-environment identity used by configuration packages, blueprints, drift compare, and public URLs |
-| `@org` | `organization_id` bigint NOT NULL FK → `organizations.id` (NO ACTION); every composite index on the table starts with it |
+| `@org` | `organization_id` bigint NOT NULL FK → `organizations.id` (NO ACTION) |
 | `@ts` | `created_at` datetime NOT NULL, `updated_at` datetime NOT NULL |
 | `@by` | `created_by` bigint NULL FK → `users.id` (SET NULL is avoided for SQL Server cascade paths: NO ACTION; user rows are never hard-deleted), `updated_by` bigint NULL FK → `users.id` (NO ACTION) |
 | `@soft` | `deleted_at` datetime NULL, `deleted_by` bigint NULL FK → `users.id` (NO ACTION); index (`organization_id`, `deleted_at`) |
@@ -717,10 +720,31 @@ holding Super Admin are the global administrators (ADR-0004).
 
 ## 10. ERD — complete metadata schema
 
-Every entity of specification §7 appears below with every column, type, index,
-and foreign key. Additional supporting tables required by §2–§6 are marked
-**(supporting)**. Notation: `?` after a type means NULL allowed; otherwise NOT
-NULL. `→` denotes a foreign key with its delete rule.
+Every entity of specification §7 appears below with every column, its exact
+MySQL 8 and SQL Server 2019 type, nullability, and default, plus the named primary
+key, unique constraints, indexes, foreign keys (with ON DELETE), and CHECK
+constraints. Additional supporting tables required by §2–§6 are marked
+**(supporting)**. Totals: 147 tables, 2,312 columns, 646 foreign keys, 115 unique
+constraints, 643 indexes.
+
+Conventions that apply to every table:
+
+- **MySQL 8:** `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  ROW_FORMAT=DYNAMIC`; CHECK constraints are enforced (8.0.16+). `NO ACTION` behaves
+  as `RESTRICT`.
+- **SQL Server 2019:** schema `dbo`; database collation `Arabic_100_CI_AI_SC`
+  (case- and accent-insensitive, supplementary characters); primary keys are
+  clustered; `NVARCHAR` for all user text.
+- A unique constraint over a nullable column is a plain unique index on MySQL
+  (NULLs never collide) and a **filtered** unique index `WHERE col IS NOT NULL` on
+  SQL Server (ADR-0019).
+- Every FK column has an index whose leading column is that FK — listed explicitly
+  ("supports FK") because SQL Server does not create them automatically.
+- Defaults shown as "—" have no database default; the application always supplies
+  the value. Timestamps are written by the application in UTC.
+- The cascade graph was checked: no table is reachable through more than one
+  `CASCADE`/`SET NULL` path and there are no cascade cycles, so every FK is valid on
+  SQL Server (error 1785 cannot occur).
 
 ### 10.1 Domain overview
 
@@ -764,137 +788,240 @@ erDiagram
 
 **`organizations`** (supporting — tenancy root, §4.27)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts @by` | | |
-| `parent_id` | bigint? | → `organizations.id` NO ACTION; NULL only for the platform org |
-| `key` | code(64) | unique |
-| `is_platform` | bool | exactly one row = 1 |
-| `status` | enum<active,suspended,archived> | |
-| `default_locale` | code(10) | |
-| `timezone` | string(64) | IANA name |
-| `theme_id` | bigint? | → `themes.id` NO ACTION (default theme) |
-| `settings_overrides` | json? | org-specific overrides of global settings keys allowed to vary |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `parent_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `organizations.id` NO ACTION; NULL only for the platform org |
+| `key` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | unique |
+| `is_platform` | TINYINT(1) | BIT | NOT NULL | 0 | exactly one row = 1 |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `active`, `suspended`, `archived` |
+| `default_locale` | VARCHAR(10) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(10) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `timezone` | VARCHAR(64) | NVARCHAR(64) | NOT NULL | — | IANA name |
+| `theme_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `themes.id` NO ACTION (default theme) |
+| `settings_overrides` | JSON | NVARCHAR(MAX) | NULL | — | org-specific overrides of global settings keys allowed to vary |
 
-Translatable: `name`. Indexes: `key` unique; `parent_id`.
+- **Primary key:** `pk_organizations` (`id`); SQL Server clustered.
+- **Unique:** `uq_organizations_key` (`key`)
+- **Unique:** `uq_organizations_uuid` (`uuid`)
+- **Index:** `ix_organizations_parent_id` (`parent_id`)
+- **Index:** `ix_organizations_created_by` (`created_by`) — supports FK
+- **Index:** `ix_organizations_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_organizations_theme_id` (`theme_id`) — supports FK
+- **Foreign key:** `fk_organizations_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_organizations_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_organizations_parent_id`: `parent_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_organizations_theme_id`: `theme_id` → `themes`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_organizations_status`: `status IN ('active', 'suspended', 'archived')` (both engines)
+- **Check (SQL Server):** `ck_organizations_settings_overrides_json`: `ISJSON(settings_overrides) = 1`
+- Translatable: `name`.
 
 **`settings`** (§7 System)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts` | | |
-| `group` | code(64) | e.g. `branding`, `mail`, `security`, `formats`, `files`, `sso`, `ldap`, `clamav`, `operations`, `retention`, `setup` |
-| `key` | code(128) | |
-| `value` | json? | non-secret values |
-| `encrypted_value` | text? | secrets (SMTP password, SSO client secret, LDAP bind password) — never returned by the API |
-| `is_encrypted` | bool | |
-| `updated_by` | bigint? | → `users.id` |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `group` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | e.g. `branding`, `mail`, `security`, `formats`, `files`, `sso`, `ldap`, `clamav`, `operations`, `retention`, `setup` |
+| `key` | VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(128) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `value` | JSON | NVARCHAR(MAX) | NULL | — | non-secret values |
+| `encrypted_value` | TEXT | NVARCHAR(MAX) | NULL | — | secrets (SMTP password, SSO client secret, LDAP bind password) — never returned by the API |
+| `is_encrypted` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` |
 
-Indexes: (`organization_id`, `group`, `key`) unique.
+- **Primary key:** `pk_settings` (`id`); SQL Server clustered.
+- **Unique:** `uq_settings_organization_id_group_key` (`organization_id`, `group`, `key`)
+- **Index:** `ix_settings_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_settings_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_settings_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_settings_value_json`: `ISJSON(value) = 1`
 
 **`egress_allowlist`** (§7 System, §4.15)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `host_pattern` | string(253) | exact host or `*.example.com`; IP literals rejected |
-| `ports` | json | e.g. `[443]` |
-| `allow_http` | bool | default 0 |
-| `description` | string(255)? | |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `host_pattern` | VARCHAR(253) | NVARCHAR(253) | NOT NULL | — | exact host or `*.example.com`; IP literals rejected |
+| `ports` | JSON | NVARCHAR(MAX) | NOT NULL | — | e.g. `[443]` |
+| `allow_http` | TINYINT(1) | BIT | NOT NULL | 0 | default 0 |
+| `description` | VARCHAR(255) | NVARCHAR(255) | NULL | — |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Indexes: (`organization_id`, `host_pattern`) unique.
+- **Primary key:** `pk_egress_allowlist` (`id`); SQL Server clustered.
+- **Unique:** `uq_egress_allowlist_organization_id_host_pattern` (`organization_id`, `host_pattern`)
+- **Index:** `ix_egress_allowlist_created_by` (`created_by`) — supports FK
+- **Index:** `ix_egress_allowlist_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_egress_allowlist_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_egress_allowlist_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_egress_allowlist_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_egress_allowlist_ports_json`: `ISJSON(ports) = 1`
 
 **`encryption_keys`** (supporting — §5 key management)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts` | | |
-| `key_id` | code(64) | unique; embedded in ciphertext prefix |
-| `wrapped_key` | text | data key encrypted by the master key / KMS |
-| `kms_key_ref` | string(255)? | external KMS key identifier when used |
-| `algorithm` | code(32) | `aes-256-gcm` |
-| `purpose` | enum<fields,files,secrets,blind_index> | |
-| `status` | enum<active,retiring,retired> | one active per (org, purpose) |
-| `rotated_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `key_id` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | unique; embedded in ciphertext prefix |
+| `wrapped_key` | TEXT | NVARCHAR(MAX) | NOT NULL | — | data key encrypted by the master key / KMS |
+| `kms_key_ref` | VARCHAR(255) | NVARCHAR(255) | NULL | — | external KMS key identifier when used |
+| `algorithm` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | `aes-256-gcm` |
+| `purpose` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `fields`, `files`, `secrets`, `blind_index` |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | one active per (org, purpose); values: `active`, `retiring`, `retired` |
+| `rotated_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: `key_id` unique; (`organization_id`, `purpose`, `status`).
+- **Primary key:** `pk_encryption_keys` (`id`); SQL Server clustered.
+- **Unique:** `uq_encryption_keys_key_id` (`key_id`)
+- **Index:** `ix_encryption_keys_organization_id_purpose_status` (`organization_id`, `purpose`, `status`)
+- **Foreign key:** `fk_encryption_keys_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_encryption_keys_purpose`: `purpose IN ('fields', 'files', 'secrets', 'blind_index')` (both engines)
+- **Check:** `ck_encryption_keys_status`: `status IN ('active', 'retiring', 'retired')` (both engines)
 
 **`config_packages`** (§7 System, §4.22)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `direction` | enum<export,import> | |
-| `name` | string(255) | |
-| `manifest` | json | object list: type, uuid, version, hash, dependencies |
-| `file_id` | bigint? | → `files.id` (package archive, signed) |
-| `checksum` | hash | |
-| `source_environment` | string(128)? | |
-| `status` | enum<draft,validated,conflicts,applying,applied,failed,rolled_back> | |
-| `conflict_report` | json? | per object: none / changed-in-target / missing-dependency / drift |
-| `resolution` | json? | admin choice per conflict: keep target / take package / rename |
-| `drift_report_id` | bigint? | → `environment_drift_reports.id` |
-| `applied_at` | datetime? | |
-| `applied_by` | bigint? | → `users.id` |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `direction` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `export`, `import` |
+| `name` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — |  |
+| `manifest` | JSON | NVARCHAR(MAX) | NOT NULL | — | object list: type, uuid, version, hash, dependencies |
+| `file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` (package archive, signed) |
+| `checksum` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `source_environment` | VARCHAR(128) | NVARCHAR(128) | NULL | — |  |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `draft`, `validated`, `conflicts`, `applying`, `applied`, `failed`, `rolled_back` |
+| `conflict_report` | JSON | NVARCHAR(MAX) | NULL | — | per object: none / changed-in-target / missing-dependency / drift |
+| `resolution` | JSON | NVARCHAR(MAX) | NULL | — | admin choice per conflict: keep target / take package / rename |
+| `drift_report_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `environment_drift_reports.id` |
+| `applied_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `applied_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` |
 
-Indexes: (`organization_id`, `status`); (`organization_id`, `created_at`).
+- **Primary key:** `pk_config_packages` (`id`); SQL Server clustered.
+- **Index:** `ix_config_packages_organization_id_status` (`organization_id`, `status`)
+- **Index:** `ix_config_packages_organization_id_created_at` (`organization_id`, `created_at`)
+- **Index:** `ix_config_packages_created_by` (`created_by`) — supports FK
+- **Index:** `ix_config_packages_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_config_packages_file_id` (`file_id`) — supports FK
+- **Index:** `ix_config_packages_drift_report_id` (`drift_report_id`) — supports FK
+- **Index:** `ix_config_packages_applied_by` (`applied_by`) — supports FK
+- **Foreign key:** `fk_config_packages_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_config_packages_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_config_packages_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_config_packages_file_id`: `file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_config_packages_drift_report_id`: `drift_report_id` → `environment_drift_reports`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_config_packages_applied_by`: `applied_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_config_packages_direction`: `direction IN ('export', 'import')` (both engines)
+- **Check:** `ck_config_packages_status`: `status IN ('draft', 'validated', 'conflicts', 'applying', 'applied', 'failed', 'rolled_back')` (both engines)
+- **Check (SQL Server):** `ck_config_packages_manifest_json`: `ISJSON(manifest) = 1`
+- **Check (SQL Server):** `ck_config_packages_conflict_report_json`: `ISJSON(conflict_report) = 1`
+- **Check (SQL Server):** `ck_config_packages_resolution_json`: `ISJSON(resolution) = 1`
 
 **`environment_drift_reports`** (supporting — §4.10 compare environments)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `source_label` | string(128) | environment name of the package / remote snapshot |
-| `target_label` | string(128) | |
-| `source_manifest_hash` | hash | |
-| `metadata_differences` | json | per object uuid: added/removed/changed with field-level diff |
-| `schema_differences` | json | per physical table: column/index/FK differences |
-| `is_ambiguous` | bool | import refused when 1 |
-| `conflicting_objects` | json? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `source_label` | VARCHAR(128) | NVARCHAR(128) | NOT NULL | — | environment name of the package / remote snapshot |
+| `target_label` | VARCHAR(128) | NVARCHAR(128) | NOT NULL | — |  |
+| `source_manifest_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `metadata_differences` | JSON | NVARCHAR(MAX) | NOT NULL | — | per object uuid: added/removed/changed with field-level diff |
+| `schema_differences` | JSON | NVARCHAR(MAX) | NOT NULL | — | per physical table: column/index/FK differences |
+| `is_ambiguous` | TINYINT(1) | BIT | NOT NULL | 0 | import refused when 1 |
+| `conflicting_objects` | JSON | NVARCHAR(MAX) | NULL | — |  |
 
-Indexes: (`organization_id`, `created_at`).
+- **Primary key:** `pk_environment_drift_reports` (`id`); SQL Server clustered.
+- **Index:** `ix_environment_drift_reports_organization_id_created_at` (`organization_id`, `created_at`)
+- **Index:** `ix_environment_drift_reports_created_by` (`created_by`) — supports FK
+- **Index:** `ix_environment_drift_reports_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_environment_drift_reports_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_environment_drift_reports_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_environment_drift_reports_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_environment_drift_reports_metadata_differences_json`: `ISJSON(metadata_differences) = 1`
+- **Check (SQL Server):** `ck_environment_drift_reports_schema_differences_json`: `ISJSON(schema_differences) = 1`
+- **Check (SQL Server):** `ck_environment_drift_reports_conflicting_objects_json`: `ISJSON(conflicting_objects) = 1`
 
 ### 10.3 Localization
 
 **`locales`** (§7 Localization)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @ts` | | global (platform) |
-| `code` | code(10) | unique, BCP 47 (`ar`, `en`) |
-| `native_name` | string(64) | |
-| `direction` | enum<ltr,rtl> | |
-| `calendar` | enum<gregorian,hijri,both> | preference |
-| `digits` | enum<western,arabic_indic> | |
-| `date_format` | string(32) | |
-| `time_format` | enum<12h,24h> | |
-| `number_format` | json | decimal & group separators, grouping |
-| `first_day_of_week` | smallint | 0=Sunday … 6=Saturday |
-| `fallback_locale_id` | bigint? | → `locales.id` NO ACTION |
-| `is_enabled` | bool | |
-| `is_default` | bool | exactly one |
-| `sort_order` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `code` | VARCHAR(10) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(10) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | unique, BCP 47 (`ar`, `en`) |
+| `native_name` | VARCHAR(64) | NVARCHAR(64) | NOT NULL | — |  |
+| `direction` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `ltr`, `rtl` |
+| `calendar` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | preference; values: `gregorian`, `hijri`, `both` |
+| `digits` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `western`, `arabic_indic` |
+| `date_format` | VARCHAR(32) | NVARCHAR(32) | NOT NULL | — |  |
+| `time_format` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `12h`, `24h` |
+| `number_format` | JSON | NVARCHAR(MAX) | NOT NULL | — | decimal & group separators, grouping |
+| `first_day_of_week` | SMALLINT | SMALLINT | NOT NULL | — | 0=Sunday … 6=Saturday |
+| `fallback_locale_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `locales.id` NO ACTION |
+| `is_enabled` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `is_default` | TINYINT(1) | BIT | NOT NULL | 0 | exactly one |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
 
-Indexes: `code` unique.
+- **Primary key:** `pk_locales` (`id`); SQL Server clustered.
+- **Unique:** `uq_locales_code` (`code`)
+- **Index:** `ix_locales_fallback_locale_id` (`fallback_locale_id`) — supports FK
+- **Foreign key:** `fk_locales_fallback_locale_id`: `fallback_locale_id` → `locales`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_locales_direction`: `direction IN ('ltr', 'rtl')` (both engines)
+- **Check:** `ck_locales_calendar`: `calendar IN ('gregorian', 'hijri', 'both')` (both engines)
+- **Check:** `ck_locales_digits`: `digits IN ('western', 'arabic_indic')` (both engines)
+- **Check:** `ck_locales_time_format`: `time_format IN ('12h', '24h')` (both engines)
+- **Check (SQL Server):** `ck_locales_number_format_json`: `ISJSON(number_format) = 1`
+- **Note:** global (platform)
 
 **`translations`** (§7 Localization; §3 Languages)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org` | | |
-| `object_type` | code(64) | morph alias: `form`, `field`, `field_option`, `status`, `ui`, … |
-| `object_id` | bigint | 0 for `ui` strings |
-| `field` | code(191) | attribute (`label`, `placeholder`, `validation.required`, UI message key) |
-| `locale` | code(10) | → `locales.code` (FK on code, NO ACTION) |
-| `value` | text | |
-| `updated_by` | bigint? | → `users.id` |
-| `updated_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `object_type` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | morph alias: `form`, `field`, `field_option`, `status`, `ui`, … |
+| `object_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | 0 for `ui` strings |
+| `field` | VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(191) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | attribute (`label`, `placeholder`, `validation.required`, UI message key) |
+| `locale` | VARCHAR(10) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(10) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | → `locales.code` (FK on code, NO ACTION) |
+| `value` | TEXT | NVARCHAR(MAX) | NOT NULL | — |  |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-Indexes: (`object_type`, `object_id`, `field`, `locale`) unique;
-(`organization_id`, `locale`, `object_type`). Missing rows fall back along
-`fallback_locale_id` then the default locale; the translation manager lists
-(object × translatable field × enabled locale) combinations with no row.
+- **Primary key:** `pk_translations` (`id`); SQL Server clustered.
+- **Unique:** `uq_translations_object_type_object_id_field_locale` (`object_type`, `object_id`, `field`, `locale`)
+- **Index:** `ix_translations_organization_id_locale_object_type` (`organization_id`, `locale`, `object_type`)
+- **Index:** `ix_translations_locale` (`locale`) — supports FK
+- **Index:** `ix_translations_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_translations_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_translations_locale`: `locale` → `locales`(`code`) ON DELETE NO ACTION
+- **Foreign key:** `fk_translations_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- Missing rows fall back along `fallback_locale_id` then the default locale; the translation manager lists (object × translatable field × enabled locale) combinations with no row.
 
 ### 10.4 Identity & access
 
@@ -917,218 +1044,391 @@ erDiagram
 
 **`users`** (§7 Access)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta @soft` | | users are never hard-deleted; anonymization (§4.26) overwrites PII |
-| `name` | string(255) | |
-| `email` | string(255) | unique across installation |
-| `username` | string(128)? | unique when present (LDAP) |
-| `password` | string(255)? | argon2id; NULL for SSO-only |
-| `email_verified_at` | datetime? | |
-| `two_factor_secret` | text? | encrypted |
-| `two_factor_recovery_codes` | text? | encrypted |
-| `two_factor_confirmed_at` | datetime? | |
-| `department_id` | bigint? | → `departments.id` NO ACTION |
-| `manager_id` | bigint? | → `users.id` NO ACTION |
-| `job_title` | string(255)? | |
-| `phone` | string(32)? | |
-| `status` | enum<pending,active,suspended,disabled> | |
-| `auth_source` | enum<local,ldap,oidc> | |
-| `external_subject` | string(255)? | IdP subject / LDAP objectGUID |
-| `attributes` | json? | admin-defined user attributes used by conditions |
-| `password_changed_at` | datetime? | |
-| `last_login_at` | datetime? | |
-| `last_login_ip` | string(45)? | |
-| `failed_login_count` | smallint | default 0 |
-| `locked_until` | datetime? | |
-| `remember_token` | string(100)? | |
-| `anonymized_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `deleted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | soft delete |
+| `deleted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `name` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — |  |
+| `email` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — | unique across installation |
+| `username` | VARCHAR(128) | NVARCHAR(128) | NULL | — | unique when present (LDAP) |
+| `password` | VARCHAR(255) | NVARCHAR(255) | NULL | — | argon2id; NULL for SSO-only |
+| `email_verified_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `two_factor_secret` | TEXT | NVARCHAR(MAX) | NULL | — | encrypted |
+| `two_factor_recovery_codes` | TEXT | NVARCHAR(MAX) | NULL | — | encrypted |
+| `two_factor_confirmed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `department_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `departments.id` NO ACTION |
+| `manager_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `job_title` | VARCHAR(255) | NVARCHAR(255) | NULL | — |  |
+| `phone` | VARCHAR(32) | NVARCHAR(32) | NULL | — |  |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `pending`, `active`, `suspended`, `disabled` |
+| `auth_source` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `local`, `ldap`, `oidc` |
+| `external_subject` | VARCHAR(255) | NVARCHAR(255) | NULL | — | IdP subject / LDAP objectGUID |
+| `attributes` | JSON | NVARCHAR(MAX) | NULL | — | admin-defined user attributes used by conditions |
+| `password_changed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `last_login_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `last_login_ip` | VARCHAR(45) | NVARCHAR(45) | NULL | — |  |
+| `failed_login_count` | SMALLINT | SMALLINT | NOT NULL | 0 | default 0 |
+| `locked_until` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `remember_token` | VARCHAR(100) | NVARCHAR(100) | NULL | — |  |
+| `anonymized_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: `email` unique; `username` unique (filtered/generated, nullable);
-(`organization_id`, `department_id`); (`auth_source`, `external_subject`) unique (nullable-partial); `manager_id`.
+- **Primary key:** `pk_users` (`id`); SQL Server clustered.
+- **Unique:** `uq_users_email` (`email`)
+- **Unique:** `uq_users_username` (`username`) — SQL Server: filtered `WHERE username IS NOT NULL`; MySQL: unique (NULLs never collide)
+- **Unique:** `uq_users_auth_source_external_subject` (`auth_source`, `external_subject`) — SQL Server: filtered `WHERE external_subject IS NOT NULL`; MySQL: unique (NULLs never collide)
+- **Index:** `ix_users_organization_id_department_id` (`organization_id`, `department_id`)
+- **Index:** `ix_users_manager_id` (`manager_id`)
+- **Index:** `ix_users_organization_id_deleted_at` (`organization_id`, `deleted_at`)
+- **Index:** `ix_users_created_by` (`created_by`) — supports FK
+- **Index:** `ix_users_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_users_deleted_by` (`deleted_by`) — supports FK
+- **Index:** `ix_users_department_id` (`department_id`) — supports FK
+- **Foreign key:** `fk_users_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_users_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_users_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_users_deleted_by`: `deleted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_users_department_id`: `department_id` → `departments`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_users_manager_id`: `manager_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_users_status`: `status IN ('pending', 'active', 'suspended', 'disabled')` (both engines)
+- **Check:** `ck_users_auth_source`: `auth_source IN ('local', 'ldap', 'oidc')` (both engines)
+- **Check (SQL Server):** `ck_users_attributes_json`: `ISJSON(attributes) = 1`
+- **Note:** users are never hard-deleted; anonymization (§4.26) overwrites PII
 
 **`departments`** (§7 Access)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta @soft` | | |
-| `parent_id` | bigint? | → `departments.id` NO ACTION |
-| `code` | code(64) | unique per org |
-| `manager_user_id` | bigint? | → `users.id` NO ACTION |
-| `business_calendar_id` | bigint? | → `business_calendars.id` NO ACTION |
-| `depth` | smallint | |
-| `sort_order` | int | |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `deleted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | soft delete |
+| `deleted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `parent_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `departments.id` NO ACTION |
+| `code` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | unique per org |
+| `manager_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `business_calendar_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `business_calendars.id` NO ACTION |
+| `depth` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `name`. Indexes: (`organization_id`, `code`) unique; `parent_id`.
+- **Primary key:** `pk_departments` (`id`); SQL Server clustered.
+- **Unique:** `uq_departments_organization_id_code` (`organization_id`, `code`)
+- **Index:** `ix_departments_parent_id` (`parent_id`)
+- **Index:** `ix_departments_organization_id_deleted_at` (`organization_id`, `deleted_at`)
+- **Index:** `ix_departments_created_by` (`created_by`) — supports FK
+- **Index:** `ix_departments_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_departments_deleted_by` (`deleted_by`) — supports FK
+- **Index:** `ix_departments_manager_user_id` (`manager_user_id`) — supports FK
+- **Index:** `ix_departments_business_calendar_id` (`business_calendar_id`) — supports FK
+- **Foreign key:** `fk_departments_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_departments_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_departments_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_departments_deleted_by`: `deleted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_departments_parent_id`: `parent_id` → `departments`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_departments_manager_user_id`: `manager_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_departments_business_calendar_id`: `business_calendar_id` → `business_calendars`(`id`) ON DELETE NO ACTION
+- Translatable: `name`.
 
 **`department_closure`** (supporting — department tree queries)
 
-| Column | Type | Notes |
-|---|---|---|
-| `ancestor_id` | bigint | → `departments.id` CASCADE |
-| `descendant_id` | bigint | → `departments.id` NO ACTION (single cascade path) |
-| `depth` | smallint | 0 = self |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `ancestor_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `departments.id` CASCADE |
+| `descendant_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `departments.id` NO ACTION (single cascade path) |
+| `depth` | SMALLINT | SMALLINT | NOT NULL | 0 | 0 = self |
 
-PK (`ancestor_id`, `descendant_id`); index (`descendant_id`, `depth`).
+- **Primary key:** `pk_department_closure` (`ancestor_id`, `descendant_id`); SQL Server clustered.
+- **Index:** `ix_department_closure_descendant_id_depth` (`descendant_id`, `depth`)
+- **Foreign key:** `fk_department_closure_ancestor_id`: `ancestor_id` → `departments`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_department_closure_descendant_id`: `descendant_id` → `departments`(`id`) ON DELETE NO ACTION
 
 **`roles`** (§7 Access)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | seeded: `super_admin`, `admin`, `developer`, `user` on the platform org |
-| `key` | code(64) | |
-| `is_system` | bool | system roles cannot be deleted or renamed by key |
-| `audience` | enum<internal,external> | external roles serve external users (§4.32) |
-| `application_id` | bigint? | → `applications.id` NO ACTION — application-scoped role |
-| `requires_2fa` | bool | |
-| `is_admin_role` | bool | stricter access policy applies |
-| `access_policy_id` | bigint? | → `access_policies.id` NO ACTION |
-| `sort_order` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `key` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `is_system` | TINYINT(1) | BIT | NOT NULL | 0 | system roles cannot be deleted or renamed by key |
+| `audience` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | external roles serve external users (§4.32); values: `internal`, `external` |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `applications.id` NO ACTION — application-scoped role |
+| `requires_2fa` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `is_admin_role` | TINYINT(1) | BIT | NOT NULL | 0 | stricter access policy applies |
+| `access_policy_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `access_policies.id` NO ACTION |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
 
-Translatable: `name`, `description`. Indexes: (`organization_id`, `key`) unique.
+- **Primary key:** `pk_roles` (`id`); SQL Server clustered.
+- **Unique:** `uq_roles_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_roles_created_by` (`created_by`) — supports FK
+- **Index:** `ix_roles_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_roles_application_id` (`application_id`) — supports FK
+- **Index:** `ix_roles_access_policy_id` (`access_policy_id`) — supports FK
+- **Foreign key:** `fk_roles_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_roles_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_roles_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_roles_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_roles_access_policy_id`: `access_policy_id` → `access_policies`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_roles_audience`: `audience IN ('internal', 'external')` (both engines)
+- **Note:** seeded: `super_admin`, `admin`, `developer`, `user` on the platform org
+- Translatable: `name`, `description`.
 
 **`user_roles`** (§7 Access)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk` | | |
-| `user_id` | bigint | → `users.id` CASCADE |
-| `role_id` | bigint | → `roles.id` NO ACTION |
-| `valid_from` | datetime? | |
-| `valid_until` | datetime? | |
-| `assigned_by` | bigint? | → `users.id` NO ACTION |
-| `created_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` CASCADE |
+| `role_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `roles.id` NO ACTION |
+| `valid_from` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `valid_until` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `assigned_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-Indexes: (`user_id`, `role_id`) unique; `role_id`.
+- **Primary key:** `pk_user_roles` (`id`); SQL Server clustered.
+- **Unique:** `uq_user_roles_user_id_role_id` (`user_id`, `role_id`)
+- **Index:** `ix_user_roles_role_id` (`role_id`)
+- **Index:** `ix_user_roles_assigned_by` (`assigned_by`) — supports FK
+- **Foreign key:** `fk_user_roles_user_id`: `user_id` → `users`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_user_roles_role_id`: `role_id` → `roles`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_user_roles_assigned_by`: `assigned_by` → `users`(`id`) ON DELETE NO ACTION
 
 **`permissions`** (§7 Access) — the catalog; seeded system rows + auto-registered rows
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts` | | |
-| `key` | code(191) | `system.manage_forms`, `form.{uuid}.export`, `action.{uuid}.run`, `download.{uuid}.use`, `menu.{uuid}.view`, `transition.{uuid}.perform`, `app.{uuid}.access`, `page.{uuid}.view`, `report.{uuid}.view`, `dashboard.{uuid}.view`, `view.{uuid}.use`, `field.{uuid}.view_sensitive` |
-| `scope_type` | enum<system,application,form,action,download_profile,menu_item,transition,page,report,dashboard,view,field> | |
-| `scope_id` | bigint? | id of the scoped object (polymorphic) |
-| `ability` | code(64) | `view`, `create`, `edit`, `delete`, `restore`, `export`, `import`, `print`, `view_log`, `run`, `use`, `perform`, `access`, `view_sensitive`, or system ability |
-| `category` | code(64) | grouping for the UI |
-| `is_system` | bool | |
-| `is_dangerous` | bool | requires 2FA re-confirmation to grant |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `key` | VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(191) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | `system.manage_forms`, `form.{uuid}.export`, `action.{uuid}.run`, `download.{uuid}.use`, `menu.{uuid}.view`, `transition.{uuid}.perform`, `app.{uuid}.access`, `page.{uuid}.view`, `report.{uuid}.view`, `dashboard.{uuid}.view`, `view.{uuid}.use`, `field.{uuid}.view_sensitive` |
+| `scope_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `system`, `application`, `form`, `action`, `download_profile`, `menu_item`, `transition`, `page`, `report`, `dashboard`, `view`, `field` |
+| `scope_id` | BIGINT UNSIGNED | BIGINT | NULL | — | id of the scoped object (polymorphic) |
+| `ability` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | `view`, `create`, `edit`, `delete`, `restore`, `export`, `import`, `print`, `view_log`, `run`, `use`, `perform`, `access`, `view_sensitive`, or system ability |
+| `category` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | grouping for the UI |
+| `is_system` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `is_dangerous` | TINYINT(1) | BIT | NOT NULL | 0 | requires 2FA re-confirmation to grant |
 
-Translatable: `label`, `description`. Indexes: `key` unique; (`scope_type`, `scope_id`).
+- **Primary key:** `pk_permissions` (`id`); SQL Server clustered.
+- **Unique:** `uq_permissions_key` (`key`)
+- **Index:** `ix_permissions_scope_type_scope_id` (`scope_type`, `scope_id`)
+- **Index:** `ix_permissions_organization_id` (`organization_id`) — supports FK
+- **Foreign key:** `fk_permissions_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_permissions_scope_type`: `scope_type IN ('system', 'application', 'form', 'action', 'download_profile', 'menu_item', 'transition', 'page', 'report', 'dashboard', 'view', 'field')` (both engines)
+- Translatable: `label`, `description`.
 
 **`permission_assignments`** (§7 Access)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts` | | |
-| `permission_id` | bigint | → `permissions.id` CASCADE |
-| `subject_type` | enum<role,user,department> | |
-| `subject_id` | bigint | |
-| `effect` | enum<allow,deny> | |
-| `include_descendants` | bool | department subject applies to sub-departments |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION (custom condition) |
-| `valid_until` | datetime? | |
-| `granted_by` | bigint? | → `users.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `permission_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `permissions.id` CASCADE |
+| `subject_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `role`, `user`, `department` |
+| `subject_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `effect` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | §16.2; `hard_deny` is a dangerous grant (2FA re-confirmation, lockout guard); values: `allow`, `deny`, `hard_deny` |
+| `include_descendants` | TINYINT(1) | BIT | NOT NULL | 0 | department subject applies to sub-departments |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION (custom condition) |
+| `valid_until` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `granted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 
-Indexes: (`permission_id`, `subject_type`, `subject_id`) unique;
-(`subject_type`, `subject_id`).
+- **Primary key:** `pk_permission_assignments` (`id`); SQL Server clustered.
+- **Unique:** `uq_permission_assignments_permission_id_subject_typ_fc5e337d` (`permission_id`, `subject_type`, `subject_id`)
+- **Index:** `ix_permission_assignments_subject_type_subject_id` (`subject_type`, `subject_id`)
+- **Index:** `ix_permission_assignments_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_permission_assignments_condition_id` (`condition_id`) — supports FK
+- **Index:** `ix_permission_assignments_granted_by` (`granted_by`) — supports FK
+- **Foreign key:** `fk_permission_assignments_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_permission_assignments_permission_id`: `permission_id` → `permissions`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_permission_assignments_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_permission_assignments_granted_by`: `granted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_permission_assignments_subject_type`: `subject_type IN ('role', 'user', 'department')` (both engines)
+- **Check:** `ck_permission_assignments_effect`: `effect IN ('allow', 'deny', 'hard_deny')` (both engines)
 
 **`field_access_rules`** (§7 Structure — sparse overrides, §16)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `target_type` | enum<form,group,field> | |
-| `group_id` | bigint? | → `field_groups.id` NO ACTION |
-| `field_id` | bigint? | → `fields.id` NO ACTION |
-| `subject_type` | enum<everyone,role,department,user> | |
-| `subject_id` | bigint? | NULL for `everyone` |
-| `status_id` | bigint? | → `statuses.id` NO ACTION; NULL = any status |
-| `mode` | enum<create,edit,view,print>? | NULL = any mode |
-| `access` | enum<hidden,read_only,editable,required> | |
-| `is_deny` | bool | an explicit ceiling: beats any allow at any specificity (§16.3) |
-| `rule_hash` | hash | SHA-256 of (`form_id`, `target_type`, `group_id`, `field_id`, `subject_type`, `subject_id`, `status_id`, `mode`) — nullable-safe uniqueness on both engines |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `target_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `form`, `group`, `field` |
+| `group_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `field_groups.id` NO ACTION |
+| `field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
+| `subject_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `everyone`, `role`, `department`, `user` |
+| `subject_id` | BIGINT UNSIGNED | BIGINT | NULL | — | NULL for `everyone` |
+| `status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION; NULL = any status |
+| `mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | NULL = any mode; values: `create`, `edit`, `view`, `print` |
+| `access` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `hidden`, `read_only`, `editable`, `required` |
+| `effect` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | `allow` sets the level; `deny` caps it within its tier; `hard_deny` caps it at every tier (§16.3); values: `allow`, `deny`, `hard_deny` |
+| `rule_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | SHA-256 of (`form_id`, `target_type`, `group_id`, `field_id`, `subject_type`, `subject_id`, `status_id`, `mode`) — nullable-safe uniqueness on both engines; one rule per coordinate |
 
-Indexes: `rule_hash` unique; (`form_id`, `target_type`, `group_id`, `field_id`); (`form_id`, `subject_type`, `subject_id`); (`form_id`, `status_id`, `mode`).
+- **Primary key:** `pk_field_access_rules` (`id`); SQL Server clustered.
+- **Unique:** `uq_field_access_rules_rule_hash` (`rule_hash`)
+- **Index:** `ix_field_access_rules_form_id_target_type_group_id_field_id` (`form_id`, `target_type`, `group_id`, `field_id`)
+- **Index:** `ix_field_access_rules_form_id_subject_type_subject_id` (`form_id`, `subject_type`, `subject_id`)
+- **Index:** `ix_field_access_rules_form_id_status_id_mode` (`form_id`, `status_id`, `mode`)
+- **Index:** `ix_field_access_rules_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_field_access_rules_created_by` (`created_by`) — supports FK
+- **Index:** `ix_field_access_rules_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_field_access_rules_group_id` (`group_id`) — supports FK
+- **Index:** `ix_field_access_rules_field_id` (`field_id`) — supports FK
+- **Index:** `ix_field_access_rules_status_id` (`status_id`) — supports FK
+- **Foreign key:** `fk_field_access_rules_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_access_rules_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_access_rules_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_access_rules_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_field_access_rules_group_id`: `group_id` → `field_groups`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_access_rules_field_id`: `field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_access_rules_status_id`: `status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_field_access_rules_target_type`: `target_type IN ('form', 'group', 'field')` (both engines)
+- **Check:** `ck_field_access_rules_subject_type`: `subject_type IN ('everyone', 'role', 'department', 'user')` (both engines)
+- **Check:** `ck_field_access_rules_mode`: `mode IN ('create', 'edit', 'view', 'print')` (both engines)
+- **Check:** `ck_field_access_rules_access`: `access IN ('hidden', 'read_only', 'editable', 'required')` (both engines)
+- **Check:** `ck_field_access_rules_effect`: `effect IN ('allow', 'deny', 'hard_deny')` (both engines)
 
 **`record_access_rules`** (§7 Access)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `subject_type` | enum<everyone,role,department,user> | |
-| `subject_id` | bigint? | |
-| `operation` | enum<view,edit,delete,all> | |
-| `scope` | enum<none,own,own_department,department_tree,assigned,all,custom> | |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION; for `custom` |
-| `effect` | enum<allow,deny> | |
-| `priority` | int | display ordering only; resolution per §16.6 |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `subject_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `everyone`, `role`, `department`, `user` |
+| `subject_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `operation` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `view`, `edit`, `delete`, `all` |
+| `scope` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `none`, `own`, `own_department`, `department_tree`, `assigned`, `all`, `custom` |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION; for `custom` |
+| `effect` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | §16.6; values: `allow`, `deny`, `hard_deny` |
+| `priority` | INT | INT | NOT NULL | 0 | display ordering only; resolution per §16.6 |
 
-Indexes: (`form_id`, `subject_type`, `subject_id`, `operation`).
+- **Primary key:** `pk_record_access_rules` (`id`); SQL Server clustered.
+- **Index:** `ix_record_access_rules_form_id_subject_type_subject_5f002f5e` (`form_id`, `subject_type`, `subject_id`, `operation`)
+- **Index:** `ix_record_access_rules_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_record_access_rules_created_by` (`created_by`) — supports FK
+- **Index:** `ix_record_access_rules_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_record_access_rules_condition_id` (`condition_id`) — supports FK
+- **Foreign key:** `fk_record_access_rules_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_record_access_rules_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_record_access_rules_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_record_access_rules_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_record_access_rules_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_record_access_rules_subject_type`: `subject_type IN ('everyone', 'role', 'department', 'user')` (both engines)
+- **Check:** `ck_record_access_rules_operation`: `operation IN ('view', 'edit', 'delete', 'all')` (both engines)
+- **Check:** `ck_record_access_rules_scope`: `scope IN ('none', 'own', 'own_department', 'department_tree', 'assigned', 'all', 'custom')` (both engines)
+- **Check:** `ck_record_access_rules_effect`: `effect IN ('allow', 'deny', 'hard_deny')` (both engines)
 
 **`sessions`** (§7 Access)
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | code(128) | PK (session ID) |
-| `user_id` | bigint? | → `users.id` CASCADE |
-| `external_user_id` | bigint? | → `external_users.id` NO ACTION |
-| `guard` | enum<web,external> | |
-| `ip_address` | string(45)? | |
-| `user_agent` | text? | |
-| `payload` | longtext | encrypted session data |
-| `last_activity` | int | unix time |
-| `created_at` | datetime | |
-| `absolute_expires_at` | datetime | |
-| `two_factor_passed_at` | datetime? | |
-| `trusted_device_id` | bigint? | → `trusted_devices.id` NO ACTION |
-| `impersonation_session_id` | bigint? | → `impersonation_sessions.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(128) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | PK (session ID) |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` CASCADE |
+| `external_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `external_users.id` NO ACTION |
+| `guard` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `web`, `external` |
+| `ip_address` | VARCHAR(45) | NVARCHAR(45) | NULL | — |  |
+| `user_agent` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `payload` | LONGTEXT | NVARCHAR(MAX) | NOT NULL | — | encrypted session data |
+| `last_activity` | INT | INT | NOT NULL | — | unix time |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `absolute_expires_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `two_factor_passed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `trusted_device_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `trusted_devices.id` NO ACTION |
+| `impersonation_session_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `impersonation_sessions.id` NO ACTION |
 
-Indexes: `user_id`; `last_activity`; `external_user_id`.
+- **Primary key:** `pk_sessions` (`id`); SQL Server clustered.
+- **Index:** `ix_sessions_user_id` (`user_id`)
+- **Index:** `ix_sessions_last_activity` (`last_activity`)
+- **Index:** `ix_sessions_external_user_id` (`external_user_id`)
+- **Index:** `ix_sessions_trusted_device_id` (`trusted_device_id`) — supports FK
+- **Index:** `ix_sessions_impersonation_session_id` (`impersonation_session_id`) — supports FK
+- **Foreign key:** `fk_sessions_user_id`: `user_id` → `users`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_sessions_external_user_id`: `external_user_id` → `external_users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sessions_trusted_device_id`: `trusted_device_id` → `trusted_devices`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sessions_impersonation_session_id`: `impersonation_session_id` → `impersonation_sessions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_sessions_guard`: `guard IN ('web', 'external')` (both engines)
 
 **`password_histories`** (supporting)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk` | | |
-| `user_id` | bigint | → `users.id` CASCADE |
-| `password_hash` | string(255) | |
-| `created_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` CASCADE |
+| `password_hash` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-Index (`user_id`, `created_at`).
+- **Primary key:** `pk_password_histories` (`id`); SQL Server clustered.
+- **Index:** `ix_password_histories_user_id_created_at` (`user_id`, `created_at`)
+- **Foreign key:** `fk_password_histories_user_id`: `user_id` → `users`(`id`) ON DELETE CASCADE
 
 **`login_attempts`** (supporting — lockout evidence and alerts)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org` | | |
-| `identifier_hash` | hash | HMAC of the submitted login (no plaintext) |
-| `user_id` | bigint? | → `users.id` NO ACTION |
-| `guard` | enum<web,external,api> | |
-| `ip_address` | string(45) | |
-| `user_agent` | text? | |
-| `successful` | bool | |
-| `failure_reason` | code(32)? | `bad_password`, `locked`, `2fa_failed`, `policy_ip`, `policy_time`, … |
-| `attempted_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `identifier_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | HMAC of the submitted login (no plaintext) |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `guard` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `web`, `external`, `api` |
+| `ip_address` | VARCHAR(45) | NVARCHAR(45) | NOT NULL | — |  |
+| `user_agent` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `successful` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `failure_reason` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | `bad_password`, `locked`, `2fa_failed`, `policy_ip`, `policy_time`, … |
+| `attempted_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-Indexes: (`identifier_hash`, `attempted_at`); (`ip_address`, `attempted_at`); (`organization_id`, `attempted_at`).
+- **Primary key:** `pk_login_attempts` (`id`); SQL Server clustered.
+- **Index:** `ix_login_attempts_identifier_hash_attempted_at` (`identifier_hash`, `attempted_at`)
+- **Index:** `ix_login_attempts_ip_address_attempted_at` (`ip_address`, `attempted_at`)
+- **Index:** `ix_login_attempts_organization_id_attempted_at` (`organization_id`, `attempted_at`)
+- **Index:** `ix_login_attempts_user_id` (`user_id`) — supports FK
+- **Foreign key:** `fk_login_attempts_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_login_attempts_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_login_attempts_guard`: `guard IN ('web', 'external', 'api')` (both engines)
 
 **`trusted_devices`** (supporting — §4.36 device trust)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @ts` | | |
-| `user_id` | bigint | → `users.id` CASCADE |
-| `device_hash` | hash | HMAC of device cookie value |
-| `label` | string(255)? | derived from user agent |
-| `last_used_at` | datetime? | |
-| `expires_at` | datetime | |
-| `revoked_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` CASCADE |
+| `device_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | HMAC of device cookie value |
+| `label` | VARCHAR(255) | NVARCHAR(255) | NULL | — | derived from user agent |
+| `last_used_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `expires_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `revoked_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`user_id`, `device_hash`) unique.
+- **Primary key:** `pk_trusted_devices` (`id`); SQL Server clustered.
+- **Unique:** `uq_trusted_devices_user_id_device_hash` (`user_id`, `device_hash`)
+- **Foreign key:** `fk_trusted_devices_user_id`: `user_id` → `users`(`id`) ON DELETE CASCADE
 
 ### 10.5 Structure (applications, forms, fields)
 
@@ -1151,322 +1451,648 @@ erDiagram
 
 **`applications`** (§7 Structure, §4.27)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta @soft` | | |
-| `key` | code(64) | |
-| `icon` | string(64)? | |
-| `color` | string(16)? | |
-| `theme_id` | bigint? | → `themes.id` NO ACTION |
-| `home_screen_id` | bigint? | → `home_screens.id` NO ACTION (default) |
-| `status` | enum<active,archived,retired> | |
-| `data_sharing_default` | enum<shared,isolated> | default for new forms |
-| `maintenance_mode` | bool | |
-| `maintenance_until` | datetime? | |
-| `settings` | json? | per-application setting overrides |
-| `sort_order` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `deleted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | soft delete |
+| `deleted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `key` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `icon` | VARCHAR(64) | NVARCHAR(64) | NULL | — |  |
+| `color` | VARCHAR(16) | NVARCHAR(16) | NULL | — |  |
+| `theme_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `themes.id` NO ACTION |
+| `home_screen_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `home_screens.id` NO ACTION (default) |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `active`, `archived`, `retired` |
+| `data_sharing_default` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | default for new forms; values: `shared`, `isolated` |
+| `maintenance_mode` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `maintenance_until` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `settings` | JSON | NVARCHAR(MAX) | NULL | — | per-application setting overrides |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
 
-Translatable: `name`, `description`, `maintenance_message`. Indexes: (`organization_id`, `key`) unique.
-Access: permission `app.{uuid}.access` (auto-registered) granted to roles/departments enables it.
+- **Primary key:** `pk_applications` (`id`); SQL Server clustered.
+- **Unique:** `uq_applications_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_applications_organization_id_deleted_at` (`organization_id`, `deleted_at`)
+- **Index:** `ix_applications_created_by` (`created_by`) — supports FK
+- **Index:** `ix_applications_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_applications_deleted_by` (`deleted_by`) — supports FK
+- **Index:** `ix_applications_theme_id` (`theme_id`) — supports FK
+- **Index:** `ix_applications_home_screen_id` (`home_screen_id`) — supports FK
+- **Foreign key:** `fk_applications_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_applications_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_applications_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_applications_deleted_by`: `deleted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_applications_theme_id`: `theme_id` → `themes`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_applications_home_screen_id`: `home_screen_id` → `home_screens`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_applications_status`: `status IN ('active', 'archived', 'retired')` (both engines)
+- **Check:** `ck_applications_data_sharing_default`: `data_sharing_default IN ('shared', 'isolated')` (both engines)
+- **Check (SQL Server):** `ck_applications_settings_json`: `ISJSON(settings) = 1`
+- Translatable: `name`, `description`, `maintenance_message`. Access: permission `app.{uuid}.access` (auto-registered) granted to roles/departments enables it.
 
 **`menu_items`** (§7 Structure, §4.13, §4.29)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `application_id` | bigint | → `applications.id` CASCADE |
-| `parent_id` | bigint? | → `menu_items.id` NO ACTION |
-| `type` | enum<form,collection,page,report,dashboard,my_work,link,separator,header> | |
-| `target_type` | code(32)? | morph alias |
-| `target_id` | bigint? | |
-| `url` | string(2048)? | for `link` (validated `https://` or app-relative) |
-| `open_in_new_tab` | bool | |
-| `icon` | string(64)? | |
-| `badge` | json? | `{source:"my_work"|"query", form_uuid, filter AST}` live count |
-| `visibility_condition_id` | bigint? | → `conditions.id` NO ACTION |
-| `sort_order` | int | |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `applications.id` CASCADE |
+| `parent_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `menu_items.id` NO ACTION |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `form`, `collection`, `page`, `report`, `dashboard`, `my_work`, `link`, `separator`, `header` |
+| `target_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | morph alias |
+| `target_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `url` | VARCHAR(2048) | NVARCHAR(2048) | NULL | — | for `link` (validated `https://` or app-relative) |
+| `open_in_new_tab` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `icon` | VARCHAR(64) | NVARCHAR(64) | NULL | — |  |
+| `badge` | JSON | NVARCHAR(MAX) | NULL | — | `{source:"my_work"\|"query", form_uuid, filter AST}` live count |
+| `visibility_condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `label`. Indexes: (`application_id`, `parent_id`, `sort_order`); (`target_type`, `target_id`).
-Visibility by role/department/user via permission `menu.{uuid}.view`.
+- **Primary key:** `pk_menu_items` (`id`); SQL Server clustered.
+- **Index:** `ix_menu_items_application_id_parent_id_sort_order` (`application_id`, `parent_id`, `sort_order`)
+- **Index:** `ix_menu_items_target_type_target_id` (`target_type`, `target_id`)
+- **Index:** `ix_menu_items_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_menu_items_created_by` (`created_by`) — supports FK
+- **Index:** `ix_menu_items_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_menu_items_parent_id` (`parent_id`) — supports FK
+- **Index:** `ix_menu_items_visibility_condition_id` (`visibility_condition_id`) — supports FK
+- **Foreign key:** `fk_menu_items_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_menu_items_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_menu_items_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_menu_items_application_id`: `application_id` → `applications`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_menu_items_parent_id`: `parent_id` → `menu_items`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_menu_items_visibility_condition_id`: `visibility_condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_menu_items_type`: `type IN ('form', 'collection', 'page', 'report', 'dashboard', 'my_work', 'link', 'separator', 'header')` (both engines)
+- **Check (SQL Server):** `ck_menu_items_badge_json`: `ISJSON(badge) = 1`
+- Translatable: `label`. Visibility by role/department/user via permission `menu.{uuid}.view`.
 
 **`forms`** (§7 Structure)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta @soft` | | |
-| `application_id` | bigint | → `applications.id` NO ACTION |
-| `kind` | enum<form,collection> | collections use the same engine (§4.8) |
-| `key` | code(48) | immutable after first publish; drives table name |
-| `table_name` | code(60) | `f_{key}` / `c_{key}` or a bound existing table |
-| `binding_mode` | enum<managed,bound> | `bound` = existing table via introspection |
-| `state` | enum<draft,published,unpublished,archived,schema_inconsistent> | |
-| `current_version_id` | bigint? | → `form_versions.id` NO ACTION (published) |
-| `draft_version_number` | int | next version number |
-| `draft_updated_at` | datetime? | autosave timestamp |
-| `draft_updated_by` | bigint? | → `users.id` NO ACTION |
-| `icon` | string(64)? | |
-| `data_sharing` | enum<shared,isolated> | §4.27 |
-| `workflow_enabled` | bool | |
-| `numbering_sequence_id` | bigint? | → `number_sequences.id` NO ACTION (record number) |
-| `business_calendar_id` | bigint? | → `business_calendars.id` NO ACTION |
-| `title_template` | json? | expression AST producing the record title |
-| `settings` | json | §14.2 form settings (autosave, conflict UI, print, comments, attachments, etc.) |
-| `blueprint_instance_id` | bigint? | → `blueprint_instances.id` NO ACTION |
-| `record_count_cache` | bigint | admin record counts (refreshed by job) |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `deleted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | soft delete |
+| `deleted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `applications.id` NO ACTION |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | collections use the same engine (§4.8); values: `form`, `collection` |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | immutable after first publish; drives table name |
+| `table_name` | VARCHAR(60) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(60) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | `f_{key}` / `c_{key}` or a bound existing table |
+| `binding_mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | `bound` = existing table via introspection; values: `managed`, `bound` |
+| `state` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `draft`, `published`, `unpublished`, `archived`, `schema_inconsistent` |
+| `current_version_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `form_versions.id` NO ACTION (published) |
+| `draft_version_number` | INT | INT | NOT NULL | — | next version number |
+| `draft_updated_at` | DATETIME(6) | DATETIME2(6) | NULL | — | autosave timestamp |
+| `draft_updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `icon` | VARCHAR(64) | NVARCHAR(64) | NULL | — |  |
+| `data_sharing` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | §4.27; values: `shared`, `isolated` |
+| `workflow_enabled` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `numbering_sequence_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `number_sequences.id` NO ACTION (record number) |
+| `business_calendar_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `business_calendars.id` NO ACTION |
+| `title_template` | JSON | NVARCHAR(MAX) | NULL | — | expression AST producing the record title |
+| `settings` | JSON | NVARCHAR(MAX) | NOT NULL | — | §14.2 form settings (autosave, conflict UI, print, comments, attachments, etc.) |
+| `blueprint_instance_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `blueprint_instances.id` NO ACTION |
+| `record_count_cache` | BIGINT | BIGINT | NOT NULL | 0 | admin record counts (refreshed by job) |
 
-Translatable: `name`, `description`. Indexes: (`organization_id`, `key`) unique; (`organization_id`, `table_name`) unique; (`application_id`, `state`).
+- **Primary key:** `pk_forms` (`id`); SQL Server clustered.
+- **Unique:** `uq_forms_organization_id_key` (`organization_id`, `key`)
+- **Unique:** `uq_forms_organization_id_table_name` (`organization_id`, `table_name`)
+- **Index:** `ix_forms_application_id_state` (`application_id`, `state`)
+- **Index:** `ix_forms_organization_id_deleted_at` (`organization_id`, `deleted_at`)
+- **Index:** `ix_forms_created_by` (`created_by`) — supports FK
+- **Index:** `ix_forms_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_forms_deleted_by` (`deleted_by`) — supports FK
+- **Index:** `ix_forms_current_version_id` (`current_version_id`) — supports FK
+- **Index:** `ix_forms_draft_updated_by` (`draft_updated_by`) — supports FK
+- **Index:** `ix_forms_numbering_sequence_id` (`numbering_sequence_id`) — supports FK
+- **Index:** `ix_forms_business_calendar_id` (`business_calendar_id`) — supports FK
+- **Index:** `ix_forms_blueprint_instance_id` (`blueprint_instance_id`) — supports FK
+- **Foreign key:** `fk_forms_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_forms_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_forms_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_forms_deleted_by`: `deleted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_forms_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_forms_current_version_id`: `current_version_id` → `form_versions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_forms_draft_updated_by`: `draft_updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_forms_numbering_sequence_id`: `numbering_sequence_id` → `number_sequences`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_forms_business_calendar_id`: `business_calendar_id` → `business_calendars`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_forms_blueprint_instance_id`: `blueprint_instance_id` → `blueprint_instances`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_forms_kind`: `kind IN ('form', 'collection')` (both engines)
+- **Check:** `ck_forms_binding_mode`: `binding_mode IN ('managed', 'bound')` (both engines)
+- **Check:** `ck_forms_state`: `state IN ('draft', 'published', 'unpublished', 'archived', 'schema_inconsistent')` (both engines)
+- **Check:** `ck_forms_data_sharing`: `data_sharing IN ('shared', 'isolated')` (both engines)
+- **Check (SQL Server):** `ck_forms_title_template_json`: `ISJSON(title_template) = 1`
+- **Check (SQL Server):** `ck_forms_settings_json`: `ISJSON(settings) = 1`
+- Translatable: `name`, `description`.
 
 **`collections`** (§7 Structure, §4.8)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @ts` | | |
-| `form_id` | bigint | → `forms.id` CASCADE; unique (1:1 with a `kind=collection` form) |
-| `collection_type` | enum<key_value,table> | |
-| `is_shared_reference` | bool | §4.34 shared reference collection |
-| `owner_application_id` | bigint? | → `applications.id` NO ACTION; others read-only |
-| `value_field_id` | bigint? | → `fields.id` NO ACTION (default option value) |
-| `label_field_id` | bigint? | → `fields.id` NO ACTION (default option label) |
-| `parent_field_id` | bigint? | → `fields.id` NO ACTION (cascading/hierarchical lists) |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE; unique (1:1 with a `kind=collection` form) |
+| `collection_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `key_value`, `table` |
+| `is_shared_reference` | TINYINT(1) | BIT | NOT NULL | 0 | §4.34 shared reference collection |
+| `owner_application_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `applications.id` NO ACTION; others read-only |
+| `value_field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION (default option value) |
+| `label_field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION (default option label) |
+| `parent_field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION (cascading/hierarchical lists) |
 
-Indexes: `form_id` unique.
+- **Primary key:** `pk_collections` (`id`); SQL Server clustered.
+- **Unique:** `uq_collections_form_id` (`form_id`)
+- **Index:** `ix_collections_owner_application_id` (`owner_application_id`) — supports FK
+- **Index:** `ix_collections_value_field_id` (`value_field_id`) — supports FK
+- **Index:** `ix_collections_label_field_id` (`label_field_id`) — supports FK
+- **Index:** `ix_collections_parent_field_id` (`parent_field_id`) — supports FK
+- **Foreign key:** `fk_collections_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_collections_owner_application_id`: `owner_application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_collections_value_field_id`: `value_field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_collections_label_field_id`: `label_field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_collections_parent_field_id`: `parent_field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_collections_collection_type`: `collection_type IN ('key_value', 'table')` (both engines)
 
 **`form_versions`** (§7 Structure, §4.10)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts @by` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `version_number` | int | |
-| `state` | enum<published,superseded,rolled_back> | drafts live in the working tables |
-| `definition` | json | full snapshot: form, groups, fields, options, conditions, relations, access rules, justification rules, statuses, transitions (§14) |
-| `definition_hash` | hash | |
-| `schema_hash` | hash | hash of the physical-schema-relevant subset |
-| `change_class` | enum<metadata_only,additive_schema,destructive> | rollback class (§13.4) |
-| `diff_from_previous` | json? | structured diff for the visual diff screen |
-| `impact_report` | json? | impact analysis shown before publish |
-| `migration_plan_id` | bigint? | → `migration_plans.id` NO ACTION |
-| `snapshot_id` | bigint? | → `schema_snapshots.id` NO ACTION (pre-publish) |
-| `rollback_of_version_id` | bigint? | → `form_versions.id` NO ACTION |
-| `published_at` | datetime | |
-| `published_by` | bigint | → `users.id` NO ACTION |
-| `change_note` | text? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `version_number` | INT | INT | NOT NULL | — |  |
+| `state` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | drafts live in the working tables; values: `published`, `superseded`, `rolled_back` |
+| `definition` | JSON | NVARCHAR(MAX) | NOT NULL | — | full snapshot: form, groups, fields, options, conditions, relations, access rules, justification rules, statuses, transitions (§14) |
+| `definition_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `schema_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | hash of the physical-schema-relevant subset |
+| `change_class` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | rollback class (§13.4); values: `metadata_only`, `additive_schema`, `destructive` |
+| `diff_from_previous` | JSON | NVARCHAR(MAX) | NULL | — | structured diff for the visual diff screen |
+| `impact_report` | JSON | NVARCHAR(MAX) | NULL | — | impact analysis shown before publish |
+| `migration_plan_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `migration_plans.id` NO ACTION |
+| `snapshot_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `schema_snapshots.id` NO ACTION (pre-publish) |
+| `rollback_of_version_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `form_versions.id` NO ACTION |
+| `published_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `published_by` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `change_note` | TEXT | NVARCHAR(MAX) | NULL | — |  |
 
-Indexes: (`form_id`, `version_number`) unique; (`form_id`, `state`).
+- **Primary key:** `pk_form_versions` (`id`); SQL Server clustered.
+- **Unique:** `uq_form_versions_form_id_version_number` (`form_id`, `version_number`)
+- **Unique:** `uq_form_versions_uuid` (`uuid`)
+- **Index:** `ix_form_versions_form_id_state` (`form_id`, `state`)
+- **Index:** `ix_form_versions_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_form_versions_created_by` (`created_by`) — supports FK
+- **Index:** `ix_form_versions_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_form_versions_migration_plan_id` (`migration_plan_id`) — supports FK
+- **Index:** `ix_form_versions_snapshot_id` (`snapshot_id`) — supports FK
+- **Index:** `ix_form_versions_rollback_of_version_id` (`rollback_of_version_id`) — supports FK
+- **Index:** `ix_form_versions_published_by` (`published_by`) — supports FK
+- **Foreign key:** `fk_form_versions_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_form_versions_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_form_versions_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_form_versions_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_form_versions_migration_plan_id`: `migration_plan_id` → `migration_plans`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_form_versions_snapshot_id`: `snapshot_id` → `schema_snapshots`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_form_versions_rollback_of_version_id`: `rollback_of_version_id` → `form_versions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_form_versions_published_by`: `published_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_form_versions_state`: `state IN ('published', 'superseded', 'rolled_back')` (both engines)
+- **Check:** `ck_form_versions_change_class`: `change_class IN ('metadata_only', 'additive_schema', 'destructive')` (both engines)
+- **Check (SQL Server):** `ck_form_versions_definition_json`: `ISJSON(definition) = 1`
+- **Check (SQL Server):** `ck_form_versions_diff_from_previous_json`: `ISJSON(diff_from_previous) = 1`
+- **Check (SQL Server):** `ck_form_versions_impact_report_json`: `ISJSON(impact_report) = 1`
 
 **`field_groups`** (§7 Structure, §4.5)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `parent_group_id` | bigint? | → `field_groups.id` NO ACTION |
-| `key` | code(48) | unique per form |
-| `type` | enum<section,fieldset,card,tabs,tab,wizard,step,row,column,panel,accordion,repeater,subform> | |
-| `sort_order` | int | |
-| `layout` | json | columns per breakpoint, column span (for `column`), spacing, border, background, css_class, icon |
-| `collapsible` | bool | |
-| `default_state` | enum<open,closed> | |
-| `validation` | json? | `{min_filled, rules:[{ast, message_key}]}` |
-| `repeater` | json? | `{min_rows, max_rows, default_rows, display:"table"|"cards", aggregates:[…], row_permissions:{add,remove,reorder:[role uuids]}}` |
-| `wizard` | json? | `{validate_before_next, allow_jump}` |
-| `child_table_name` | code(60)? | repeater / subform child table |
-| `subform_form_id` | bigint? | → `forms.id` NO ACTION (inline sub-form of a linked form) |
-| `relation_id` | bigint? | → `relations.id` NO ACTION (repeater/subform FK) |
-| `justification_level` | enum<inherit,not_required,optional,mandatory> | default for fields inside (§4.24) |
-| `archived_at` | datetime? | removed from draft but retained for history |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `parent_group_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `field_groups.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | unique per form |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `section`, `fieldset`, `card`, `tabs`, `tab`, `wizard`, `step`, `row`, `column`, `panel`, `accordion`, `repeater`, `subform` |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `layout` | JSON | NVARCHAR(MAX) | NOT NULL | — | columns per breakpoint, column span (for `column`), spacing, border, background, css_class, icon |
+| `collapsible` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `default_state` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `open`, `closed` |
+| `validation` | JSON | NVARCHAR(MAX) | NULL | — | `{min_filled, rules:[{ast, message_key}]}` |
+| `repeater` | JSON | NVARCHAR(MAX) | NULL | — | `{min_rows, max_rows, default_rows, display:"table"\|"cards", aggregates:[…], row_permissions:{add,remove,reorder:[role uuids]}}` |
+| `wizard` | JSON | NVARCHAR(MAX) | NULL | — | `{validate_before_next, allow_jump}` |
+| `child_table_name` | VARCHAR(60) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(60) COLLATE Latin1_General_100_BIN2 | NULL | — | repeater / subform child table |
+| `subform_form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION (inline sub-form of a linked form) |
+| `relation_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `relations.id` NO ACTION (repeater/subform FK) |
+| `justification_level` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | default for fields inside (§4.24); values: `inherit`, `not_required`, `optional`, `mandatory` |
+| `archived_at` | DATETIME(6) | DATETIME2(6) | NULL | — | removed from draft but retained for history |
 
-Translatable: `title`, `description`. Indexes: (`form_id`, `key`) unique; (`form_id`, `parent_group_id`, `sort_order`).
+- **Primary key:** `pk_field_groups` (`id`); SQL Server clustered.
+- **Unique:** `uq_field_groups_form_id_key` (`form_id`, `key`)
+- **Index:** `ix_field_groups_form_id_parent_group_id_sort_order` (`form_id`, `parent_group_id`, `sort_order`)
+- **Index:** `ix_field_groups_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_field_groups_created_by` (`created_by`) — supports FK
+- **Index:** `ix_field_groups_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_field_groups_parent_group_id` (`parent_group_id`) — supports FK
+- **Index:** `ix_field_groups_subform_form_id` (`subform_form_id`) — supports FK
+- **Index:** `ix_field_groups_relation_id` (`relation_id`) — supports FK
+- **Foreign key:** `fk_field_groups_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_groups_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_groups_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_groups_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_field_groups_parent_group_id`: `parent_group_id` → `field_groups`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_groups_subform_form_id`: `subform_form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_groups_relation_id`: `relation_id` → `relations`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_field_groups_type`: `type IN ('section', 'fieldset', 'card', 'tabs', 'tab', 'wizard', 'step', 'row', 'column', 'panel', 'accordion', 'repeater', 'subform')` (both engines)
+- **Check:** `ck_field_groups_default_state`: `default_state IN ('open', 'closed')` (both engines)
+- **Check:** `ck_field_groups_justification_level`: `justification_level IN ('inherit', 'not_required', 'optional', 'mandatory')` (both engines)
+- **Check (SQL Server):** `ck_field_groups_layout_json`: `ISJSON(layout) = 1`
+- **Check (SQL Server):** `ck_field_groups_validation_json`: `ISJSON(validation) = 1`
+- **Check (SQL Server):** `ck_field_groups_repeater_json`: `ISJSON(repeater) = 1`
+- **Check (SQL Server):** `ck_field_groups_wizard_json`: `ISJSON(wizard) = 1`
+- Translatable: `title`, `description`.
 
 **`fields`** (§7 Structure, §4.6)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `group_id` | bigint? | → `field_groups.id` NO ACTION |
-| `key` | code(48) | unique per form (auto-generated, editable before first publish) |
-| `type` | code(48) | registered field type (§14.4) |
-| `sort_order` | int | |
-| `is_stored` | bool | false for display elements (heading, divider, static HTML…) |
-| `column_name` | code(60)? | physical column |
-| `db_type` | code(32)? | logical type (§9.2) |
-| `length` | int? | |
-| `precision` | smallint? | |
-| `scale` | smallint? | |
-| `is_nullable` | bool | |
-| `db_default` | json? | DB-level default |
-| `index_type` | enum<none,index,unique> | |
-| `unique_scope` | json? | field keys the uniqueness is scoped by (e.g. department) |
-| `is_encrypted` | bool | |
-| `blind_index` | bool | exact-match search on encrypted value |
-| `is_sensitive` | bool | masked in logs/errors/exports without permission |
-| `is_personal_data` | bool | §4.26 |
-| `track_changes` | bool | audit field-level diff |
-| `relation_id` | bigint? | → `relations.id` NO ACTION |
-| `options_source` | json? | §14.5 |
-| `validation` | json | §14.6 |
-| `behavior` | json | defaults, formula AST, transforms, masks, number/date formatting, calendar, file storage, autofill (§14.7) |
-| `ui` | json | size, icon, width per breakpoint, label position, autofocus, tab index, autocomplete, spellcheck, css class |
-| `table_settings` | json | visible by default, sortable, filterable, searchable, display format |
-| `export_settings` | json | exportable, importable, excel column name, print/PDF inclusion |
-| `events` | json? | on change/focus/blur → actions (§14.8) |
-| `hook_binding` | json? | developer hook reference (visible with Manage Code only) |
-| `justification_level` | enum<inherit,not_required,optional,mandatory> | |
-| `template_id` | bigint? | → `field_templates.id` NO ACTION (created from library) |
-| `archived_at` | datetime? | field removed: column archived (§11.5) |
-| `archived_column_name` | code(60)? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `group_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `field_groups.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | unique per form (auto-generated, editable before first publish) |
+| `type` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | registered field type (§14.4) |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `is_stored` | TINYINT(1) | BIT | NOT NULL | 1 | false for display elements (heading, divider, static HTML…) |
+| `column_name` | VARCHAR(60) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(60) COLLATE Latin1_General_100_BIN2 | NULL | — | physical column |
+| `db_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | logical type (§9.2) |
+| `length` | INT | INT | NULL | — |  |
+| `precision` | SMALLINT | SMALLINT | NULL | — |  |
+| `scale` | SMALLINT | SMALLINT | NULL | — |  |
+| `is_nullable` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `db_default` | JSON | NVARCHAR(MAX) | NULL | — | DB-level default |
+| `index_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `none`, `index`, `unique` |
+| `unique_scope` | JSON | NVARCHAR(MAX) | NULL | — | field keys the uniqueness is scoped by (e.g. department) |
+| `is_encrypted` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `blind_index` | TINYINT(1) | BIT | NOT NULL | 0 | exact-match search on encrypted value |
+| `is_sensitive` | TINYINT(1) | BIT | NOT NULL | 0 | masked in logs/errors/exports without permission |
+| `is_personal_data` | TINYINT(1) | BIT | NOT NULL | 0 | §4.26 |
+| `track_changes` | TINYINT(1) | BIT | NOT NULL | 1 | audit field-level diff |
+| `relation_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `relations.id` NO ACTION |
+| `options_source` | JSON | NVARCHAR(MAX) | NULL | — | §14.5 |
+| `validation` | JSON | NVARCHAR(MAX) | NOT NULL | — | §14.6 |
+| `behavior` | JSON | NVARCHAR(MAX) | NOT NULL | — | defaults, formula AST, transforms, masks, number/date formatting, calendar, file storage, autofill (§14.7) |
+| `ui` | JSON | NVARCHAR(MAX) | NOT NULL | — | size, icon, width per breakpoint, label position, autofocus, tab index, autocomplete, spellcheck, css class |
+| `table_settings` | JSON | NVARCHAR(MAX) | NOT NULL | — | visible by default, sortable, filterable, searchable, display format |
+| `export_settings` | JSON | NVARCHAR(MAX) | NOT NULL | — | exportable, importable, excel column name, print/PDF inclusion |
+| `events` | JSON | NVARCHAR(MAX) | NULL | — | on change/focus/blur → actions (§14.8) |
+| `hook_binding` | JSON | NVARCHAR(MAX) | NULL | — | developer hook reference (visible with Manage Code only) |
+| `justification_level` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `inherit`, `not_required`, `optional`, `mandatory` |
+| `template_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `field_templates.id` NO ACTION (created from library) |
+| `archived_at` | DATETIME(6) | DATETIME2(6) | NULL | — | field removed: column archived (§11.5) |
+| `archived_column_name` | VARCHAR(60) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(60) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
 
-Translatable: `label`, `placeholder`, `help_text`, `tooltip`, `description`, `prefix`, `suffix`, `column_label`, `validation.<rule>` messages, `consent_terms`.
-Indexes: (`form_id`, `key`) unique; (`form_id`, `group_id`, `sort_order`); (`form_id`, `column_name`); `relation_id`.
+- **Primary key:** `pk_fields` (`id`); SQL Server clustered.
+- **Unique:** `uq_fields_form_id_key` (`form_id`, `key`)
+- **Index:** `ix_fields_form_id_group_id_sort_order` (`form_id`, `group_id`, `sort_order`)
+- **Index:** `ix_fields_form_id_column_name` (`form_id`, `column_name`)
+- **Index:** `ix_fields_relation_id` (`relation_id`)
+- **Index:** `ix_fields_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_fields_created_by` (`created_by`) — supports FK
+- **Index:** `ix_fields_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_fields_group_id` (`group_id`) — supports FK
+- **Index:** `ix_fields_template_id` (`template_id`) — supports FK
+- **Foreign key:** `fk_fields_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_fields_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_fields_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_fields_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_fields_group_id`: `group_id` → `field_groups`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_fields_relation_id`: `relation_id` → `relations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_fields_template_id`: `template_id` → `field_templates`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_fields_index_type`: `index_type IN ('none', 'index', 'unique')` (both engines)
+- **Check:** `ck_fields_justification_level`: `justification_level IN ('inherit', 'not_required', 'optional', 'mandatory')` (both engines)
+- **Check (SQL Server):** `ck_fields_db_default_json`: `ISJSON(db_default) = 1`
+- **Check (SQL Server):** `ck_fields_unique_scope_json`: `ISJSON(unique_scope) = 1`
+- **Check (SQL Server):** `ck_fields_options_source_json`: `ISJSON(options_source) = 1`
+- **Check (SQL Server):** `ck_fields_validation_json`: `ISJSON(validation) = 1`
+- **Check (SQL Server):** `ck_fields_behavior_json`: `ISJSON(behavior) = 1`
+- **Check (SQL Server):** `ck_fields_ui_json`: `ISJSON(ui) = 1`
+- **Check (SQL Server):** `ck_fields_table_settings_json`: `ISJSON(table_settings) = 1`
+- **Check (SQL Server):** `ck_fields_export_settings_json`: `ISJSON(export_settings) = 1`
+- **Check (SQL Server):** `ck_fields_events_json`: `ISJSON(events) = 1`
+- **Check (SQL Server):** `ck_fields_hook_binding_json`: `ISJSON(hook_binding) = 1`
+- Translatable: `label`, `placeholder`, `help_text`, `tooltip`, `description`, `prefix`, `suffix`, `column_label`, `validation.<rule>` messages, `consent_terms`.
 
 **`field_options`** (§7 Structure)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `field_id` | bigint | → `fields.id` CASCADE |
-| `value` | string(255) | stored value |
-| `group_key` | code(48)? | optgroup / option grouping |
-| `parent_value` | string(255)? | static cascading |
-| `color` | string(16)? | |
-| `icon` | string(64)? | |
-| `is_default` | bool | |
-| `is_active` | bool | |
-| `sort_order` | int | |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION (option visibility) |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `field_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `fields.id` CASCADE |
+| `value` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — | stored value |
+| `group_key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NULL | — | optgroup / option grouping |
+| `parent_value` | VARCHAR(255) | NVARCHAR(255) | NULL | — | static cascading |
+| `color` | VARCHAR(16) | NVARCHAR(16) | NULL | — |  |
+| `icon` | VARCHAR(64) | NVARCHAR(64) | NULL | — |  |
+| `is_default` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION (option visibility) |
 
-Translatable: `label`. Indexes: (`field_id`, `value`) unique; (`field_id`, `sort_order`).
+- **Primary key:** `pk_field_options` (`id`); SQL Server clustered.
+- **Unique:** `uq_field_options_field_id_value` (`field_id`, `value`)
+- **Unique:** `uq_field_options_uuid` (`uuid`)
+- **Index:** `ix_field_options_field_id_sort_order` (`field_id`, `sort_order`)
+- **Index:** `ix_field_options_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_field_options_condition_id` (`condition_id`) — supports FK
+- **Foreign key:** `fk_field_options_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_options_field_id`: `field_id` → `fields`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_field_options_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- Translatable: `label`.
 
 **`conditions`** (§7 Structure, §4.7)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint? | → `forms.id` CASCADE; NULL for non-form owners (menus, permissions…) |
-| `owner_type` | enum<field,group,option,action,action_step,transition,notification_rule,justification_rule,automation,automation_step,view,view_panel,menu_item,page_widget,permission_assignment,record_access_rule,sla_rule,assignment_rule,legal_hold,form> | |
-| `owner_id` | bigint | |
-| `name` | string(255)? | |
-| `ast` | json | expression AST (boolean) — §15 |
-| `effects` | json | `[{effect, target_ref?, params?}]` (§14.3); empty for pure predicates |
-| `else_effects` | json? | effects applied when the predicate is false |
-| `evaluate_on` | enum<always,change> | `change` supports *changed from/to* |
-| `runtime` | enum<client_and_server,server_only> | server_only for secrets/lookups beyond client scope |
-| `sort_order` | int | |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` CASCADE; NULL for non-form owners (menus, permissions…) |
+| `owner_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `field`, `group`, `option`, `action`, `action_step`, `transition`, `notification_rule`, `justification_rule`, `automation`, `automation_step`, `view`, `view_panel`, `menu_item`, `page_widget`, `permission_assignment`, `record_access_rule`, `sla_rule`, `assignment_rule`, `legal_hold`, `form` |
+| `owner_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `name` | VARCHAR(255) | NVARCHAR(255) | NULL | — |  |
+| `ast` | JSON | NVARCHAR(MAX) | NOT NULL | — | expression AST (boolean) — §15 |
+| `effects` | JSON | NVARCHAR(MAX) | NOT NULL | — | `[{effect, target_ref?, params?}]` (§14.3); empty for pure predicates |
+| `else_effects` | JSON | NVARCHAR(MAX) | NULL | — | effects applied when the predicate is false |
+| `evaluate_on` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | `change` supports *changed from/to*; values: `always`, `change` |
+| `runtime` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | server_only for secrets/lookups beyond client scope; values: `client_and_server`, `server_only` |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Indexes: (`owner_type`, `owner_id`); (`form_id`, `is_active`).
+- **Primary key:** `pk_conditions` (`id`); SQL Server clustered.
+- **Index:** `ix_conditions_owner_type_owner_id` (`owner_type`, `owner_id`)
+- **Index:** `ix_conditions_form_id_is_active` (`form_id`, `is_active`)
+- **Index:** `ix_conditions_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_conditions_created_by` (`created_by`) — supports FK
+- **Index:** `ix_conditions_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_conditions_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_conditions_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_conditions_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_conditions_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Check:** `ck_conditions_owner_type`: `owner_type IN ('field', 'group', 'option', 'action', 'action_step', 'transition', 'notification_rule', 'justification_rule', 'automation', 'automation_step', 'view', 'view_panel', 'menu_item', 'page_widget', 'permission_assignment', 'record_access_rule', 'sla_rule', 'assignment_rule', 'legal_hold', 'form')` (both engines)
+- **Check:** `ck_conditions_evaluate_on`: `evaluate_on IN ('always', 'change')` (both engines)
+- **Check:** `ck_conditions_runtime`: `runtime IN ('client_and_server', 'server_only')` (both engines)
+- **Check (SQL Server):** `ck_conditions_ast_json`: `ISJSON(ast) = 1`
+- **Check (SQL Server):** `ck_conditions_effects_json`: `ISJSON(effects) = 1`
+- **Check (SQL Server):** `ck_conditions_else_effects_json`: `ISJSON(else_effects) = 1`
 
 **`relations`** (§7 Structure)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `key` | code(48) | unique per source form |
-| `source_form_id` | bigint | → `forms.id` NO ACTION |
-| `target_form_id` | bigint | → `forms.id` NO ACTION |
-| `type` | enum<one_to_one,one_to_many,many_to_one,many_to_many> | |
-| `kind` | enum<reference,child_table,subform> | repeaters & inline sub-forms are `child_table` / `subform` |
-| `fk_table` | code(60) | table holding the FK column |
-| `fk_column` | code(60)? | NULL for many_to_many |
-| `pivot_table` | code(60)? | `p_{key}` for many_to_many |
-| `display_field_id` | bigint? | → `fields.id` NO ACTION |
-| `value_field_id` | bigint? | → `fields.id` NO ACTION (default target PK) |
-| `on_delete` | enum<restrict,cascade,set_null> | enforced in DB where the cascade graph allows, otherwise in the pipeline (§9.4) |
-| `inverse_key` | code(48)? | name of the reverse relation for traversal |
-| `is_cross_application` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | unique per source form |
+| `source_form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `target_form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `one_to_one`, `one_to_many`, `many_to_one`, `many_to_many` |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | repeaters & inline sub-forms are `child_table` / `subform`; values: `reference`, `child_table`, `subform` |
+| `fk_table` | VARCHAR(60) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(60) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | table holding the FK column |
+| `fk_column` | VARCHAR(60) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(60) COLLATE Latin1_General_100_BIN2 | NULL | — | NULL for many_to_many |
+| `pivot_table` | VARCHAR(60) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(60) COLLATE Latin1_General_100_BIN2 | NULL | — | `p_{key}` for many_to_many |
+| `display_field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
+| `value_field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION (default target PK) |
+| `on_delete` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | enforced in DB where the cascade graph allows, otherwise in the pipeline (§9.4); values: `restrict`, `cascade`, `set_null` |
+| `inverse_key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NULL | — | name of the reverse relation for traversal |
+| `is_cross_application` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 
-Indexes: (`source_form_id`, `key`) unique; `target_form_id`.
+- **Primary key:** `pk_relations` (`id`); SQL Server clustered.
+- **Unique:** `uq_relations_source_form_id_key` (`source_form_id`, `key`)
+- **Index:** `ix_relations_target_form_id` (`target_form_id`)
+- **Index:** `ix_relations_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_relations_created_by` (`created_by`) — supports FK
+- **Index:** `ix_relations_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_relations_display_field_id` (`display_field_id`) — supports FK
+- **Index:** `ix_relations_value_field_id` (`value_field_id`) — supports FK
+- **Foreign key:** `fk_relations_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_relations_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_relations_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_relations_source_form_id`: `source_form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_relations_target_form_id`: `target_form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_relations_display_field_id`: `display_field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_relations_value_field_id`: `value_field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_relations_type`: `type IN ('one_to_one', 'one_to_many', 'many_to_one', 'many_to_many')` (both engines)
+- **Check:** `ck_relations_kind`: `kind IN ('reference', 'child_table', 'subform')` (both engines)
+- **Check:** `ck_relations_on_delete`: `on_delete IN ('restrict', 'cascade', 'set_null')` (both engines)
 
 **`field_templates`** (§7 Structure — reusable field library, §4.3)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `application_id` | bigint? | → `applications.id` NO ACTION; NULL = global |
-| `kind` | enum<field,group> | |
-| `category` | code(64)? | |
-| `definition` | json | field or group subtree in §14 format (keys regenerated on insert) |
-| `usage_count` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `applications.id` NO ACTION; NULL = global |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `field`, `group` |
+| `category` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `definition` | JSON | NVARCHAR(MAX) | NOT NULL | — | field or group subtree in §14 format (keys regenerated on insert) |
+| `usage_count` | INT | INT | NOT NULL | 0 |  |
 
-Translatable: `name`, `description`. Indexes: (`organization_id`, `kind`, `category`).
+- **Primary key:** `pk_field_templates` (`id`); SQL Server clustered.
+- **Index:** `ix_field_templates_organization_id_kind_category` (`organization_id`, `kind`, `category`)
+- **Index:** `ix_field_templates_created_by` (`created_by`) — supports FK
+- **Index:** `ix_field_templates_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_field_templates_application_id` (`application_id`) — supports FK
+- **Foreign key:** `fk_field_templates_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_templates_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_templates_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_field_templates_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_field_templates_kind`: `kind IN ('field', 'group')` (both engines)
+- **Check (SQL Server):** `ck_field_templates_definition_json`: `ISJSON(definition) = 1`
+- Translatable: `name`, `description`.
 
 ### 10.6 Records support
 
 **`files`** (supporting — every upload, attachment, generated file)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `disk` | code(32) | storage disk name (local private / s3) |
-| `path` | string(1024) | never under the public root |
-| `original_name` | string(255) | sanitized |
-| `mime_type` | string(127) | sniffed |
-| `extension` | code(16) | |
-| `size_bytes` | bigint | |
-| `sha256` | hash | |
-| `scan_status` | enum<pending,clean,infected,skipped,error> | |
-| `scanned_at` | datetime? | |
-| `width` | int? | |
-| `height` | int? | |
-| `is_encrypted` | bool | |
-| `is_temporary` | bool | uploaded but not yet linked; purged after 24 h |
-| `owner_type` | code(32)? | morph alias (record, justification, theme_asset, …) |
-| `owner_id` | bigint? | |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `record_id` | bigint? | |
-| `field_id` | bigint? | → `fields.id` NO ACTION |
-| `uploaded_by` | bigint? | → `users.id` NO ACTION |
-| `external_user_id` | bigint? | → `external_users.id` NO ACTION |
-| `deleted_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `disk` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | storage disk name (local private / s3) |
+| `path` | VARCHAR(1024) | NVARCHAR(1024) | NOT NULL | — | never under the public root |
+| `original_name` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — | sanitized |
+| `mime_type` | VARCHAR(127) | NVARCHAR(127) | NOT NULL | — | sniffed |
+| `extension` | VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(16) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `size_bytes` | BIGINT | BIGINT | NOT NULL | — |  |
+| `sha256` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `scan_status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `pending`, `clean`, `infected`, `skipped`, `error` |
+| `scanned_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `width` | INT | INT | NULL | — |  |
+| `height` | INT | INT | NULL | — |  |
+| `is_encrypted` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `is_temporary` | TINYINT(1) | BIT | NOT NULL | 0 | uploaded but not yet linked; purged after 24 h |
+| `owner_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | morph alias (record, justification, theme_asset, …) |
+| `owner_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
+| `uploaded_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `external_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `external_users.id` NO ACTION |
+| `deleted_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`form_id`, `record_id`); (`owner_type`, `owner_id`); (`organization_id`, `is_temporary`, `created_at`); `sha256`.
+- **Primary key:** `pk_files` (`id`); SQL Server clustered.
+- **Unique:** `uq_files_uuid` (`uuid`)
+- **Index:** `ix_files_form_id_record_id` (`form_id`, `record_id`)
+- **Index:** `ix_files_owner_type_owner_id` (`owner_type`, `owner_id`)
+- **Index:** `ix_files_organization_id_is_temporary_created_at` (`organization_id`, `is_temporary`, `created_at`)
+- **Index:** `ix_files_sha256` (`sha256`)
+- **Index:** `ix_files_field_id` (`field_id`) — supports FK
+- **Index:** `ix_files_uploaded_by` (`uploaded_by`) — supports FK
+- **Index:** `ix_files_external_user_id` (`external_user_id`) — supports FK
+- **Foreign key:** `fk_files_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_files_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_files_field_id`: `field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_files_uploaded_by`: `uploaded_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_files_external_user_id`: `external_user_id` → `external_users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_files_scan_status`: `scan_status IN ('pending', 'clean', 'infected', 'skipped', 'error')` (both engines)
 
 **`record_comments`** (supporting — §4.14 comments thread)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts @soft` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `record_id` | bigint | |
-| `parent_id` | bigint? | → `record_comments.id` NO ACTION |
-| `body` | text | sanitized rich text |
-| `author_user_id` | bigint | → `users.id` NO ACTION |
-| `on_behalf_of_user_id` | bigint? | → `users.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `deleted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | soft delete |
+| `deleted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `parent_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `record_comments.id` NO ACTION |
+| `body` | TEXT | NVARCHAR(MAX) | NOT NULL | — | sanitized rich text |
+| `author_user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `on_behalf_of_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 
-Indexes: (`form_id`, `record_id`, `created_at`).
+- **Primary key:** `pk_record_comments` (`id`); SQL Server clustered.
+- **Unique:** `uq_record_comments_uuid` (`uuid`)
+- **Index:** `ix_record_comments_form_id_record_id_created_at` (`form_id`, `record_id`, `created_at`)
+- **Index:** `ix_record_comments_organization_id_deleted_at` (`organization_id`, `deleted_at`)
+- **Index:** `ix_record_comments_deleted_by` (`deleted_by`) — supports FK
+- **Index:** `ix_record_comments_parent_id` (`parent_id`) — supports FK
+- **Index:** `ix_record_comments_author_user_id` (`author_user_id`) — supports FK
+- **Index:** `ix_record_comments_on_behalf_of_user_id` (`on_behalf_of_user_id`) — supports FK
+- **Foreign key:** `fk_record_comments_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_record_comments_deleted_by`: `deleted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_record_comments_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_record_comments_parent_id`: `parent_id` → `record_comments`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_record_comments_author_user_id`: `author_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_record_comments_on_behalf_of_user_id`: `on_behalf_of_user_id` → `users`(`id`) ON DELETE NO ACTION
 
 **`submission_journal`** (§7 Operations — durable journal, §4.2)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `idempotency_key` | code(64) | unique; client-generated per submit attempt or derived for imports/API |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `form_version_id` | bigint | → `form_versions.id` NO ACTION |
-| `record_id` | bigint? | set when processed |
-| `operation` | enum<create,update,delete,restore,transition,action> | |
-| `source` | enum<ui,api,import,automation,action,external,inbound_webhook,sync> | |
-| `user_id` | bigint? | → `users.id` NO ACTION |
-| `on_behalf_of_user_id` | bigint? | → `users.id` NO ACTION |
-| `external_user_id` | bigint? | → `external_users.id` NO ACTION |
-| `payload` | longtext | JSON; values of encrypted/sensitive fields encrypted with the field key |
-| `expected_row_version` | bigint? | |
-| `status` | enum<received,processing,processed,failed,retrying,discarded> | |
-| `attempts` | smallint | |
-| `error_message` | text? | masked |
-| `error_trace` | longtext? | masked |
-| `error_log_id` | bigint? | → `error_logs.id` (logical; no FK — partitioned table) |
-| `correlation_id` | code(36) | |
-| `edited_payload` | longtext? | admin edit before retry (original kept) |
-| `edited_by` | bigint? | → `users.id` NO ACTION |
-| `discard_reason` | text? | mandatory on discard |
-| `discarded_by` | bigint? | → `users.id` NO ACTION |
-| `processed_at` | datetime? | |
-| `import_job_id` | bigint? | → `import_jobs.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `idempotency_key` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | unique; client-generated per submit attempt or derived for imports/API |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `form_version_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `form_versions.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NULL | — | set when processed |
+| `operation` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `create`, `update`, `delete`, `restore`, `transition`, `action` |
+| `source` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `ui`, `api`, `import`, `automation`, `action`, `external`, `inbound_webhook`, `sync` |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `on_behalf_of_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `external_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `external_users.id` NO ACTION |
+| `payload` | LONGTEXT | NVARCHAR(MAX) | NOT NULL | — | JSON; values of encrypted/sensitive fields encrypted with the field key |
+| `expected_row_version` | BIGINT | BIGINT | NULL | — |  |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `received`, `processing`, `processed`, `failed`, `retrying`, `discarded` |
+| `attempts` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `error_message` | TEXT | NVARCHAR(MAX) | NULL | — | masked |
+| `error_trace` | LONGTEXT | NVARCHAR(MAX) | NULL | — | masked |
+| `error_log_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `error_logs.id` (logical; no FK — partitioned table) |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `edited_payload` | LONGTEXT | NVARCHAR(MAX) | NULL | — | admin edit before retry (original kept) |
+| `edited_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `discard_reason` | TEXT | NVARCHAR(MAX) | NULL | — | mandatory on discard |
+| `discarded_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `processed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `import_job_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `import_jobs.id` NO ACTION |
 
-Indexes: `idempotency_key` unique; (`organization_id`, `status`, `created_at`); (`form_id`, `record_id`); `correlation_id`.
+- **Primary key:** `pk_submission_journal` (`id`); SQL Server clustered.
+- **Unique:** `uq_submission_journal_idempotency_key` (`idempotency_key`)
+- **Unique:** `uq_submission_journal_uuid` (`uuid`)
+- **Index:** `ix_submission_journal_organization_id_status_created_at` (`organization_id`, `status`, `created_at`)
+- **Index:** `ix_submission_journal_form_id_record_id` (`form_id`, `record_id`)
+- **Index:** `ix_submission_journal_correlation_id` (`correlation_id`)
+- **Index:** `ix_submission_journal_form_version_id` (`form_version_id`) — supports FK
+- **Index:** `ix_submission_journal_user_id` (`user_id`) — supports FK
+- **Index:** `ix_submission_journal_on_behalf_of_user_id` (`on_behalf_of_user_id`) — supports FK
+- **Index:** `ix_submission_journal_external_user_id` (`external_user_id`) — supports FK
+- **Index:** `ix_submission_journal_edited_by` (`edited_by`) — supports FK
+- **Index:** `ix_submission_journal_discarded_by` (`discarded_by`) — supports FK
+- **Index:** `ix_submission_journal_import_job_id` (`import_job_id`) — supports FK
+- **Foreign key:** `fk_submission_journal_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_submission_journal_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_submission_journal_form_version_id`: `form_version_id` → `form_versions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_submission_journal_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_submission_journal_on_behalf_of_user_id`: `on_behalf_of_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_submission_journal_external_user_id`: `external_user_id` → `external_users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_submission_journal_edited_by`: `edited_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_submission_journal_discarded_by`: `discarded_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_submission_journal_import_job_id`: `import_job_id` → `import_jobs`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_submission_journal_operation`: `operation IN ('create', 'update', 'delete', 'restore', 'transition', 'action')` (both engines)
+- **Check:** `ck_submission_journal_source`: `source IN ('ui', 'api', 'import', 'automation', 'action', 'external', 'inbound_webhook', 'sync')` (both engines)
+- **Check:** `ck_submission_journal_status`: `status IN ('received', 'processing', 'processed', 'failed', 'retrying', 'discarded')` (both engines)
 
 **`outbox_events`** — see §10.21.
 
@@ -1485,104 +2111,182 @@ erDiagram
 
 **`migration_plans`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `from_version_id` | bigint? | → `form_versions.id` NO ACTION |
-| `to_version_number` | int | |
-| `purpose` | enum<publish,rollback,status_mapping,repair,restore_snapshot> | |
-| `status` | enum<pending,locked,running,applied,failed,reversing,reversed,inconsistent> | |
-| `steps_total` | int | |
-| `steps_applied` | int | |
-| `snapshot_id` | bigint? | → `schema_snapshots.id` NO ACTION |
-| `impact` | json | estimated duration, lock impact, online/offline per step, affected rows |
-| `lock_token` | code(64)? | |
-| `confirmed_by` | bigint? | → `users.id` NO ACTION |
-| `confirmed_at` | datetime? | |
-| `started_at` | datetime? | |
-| `finished_at` | datetime? | |
-| `error` | text? | |
-| `correlation_id` | code(36) | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `from_version_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `form_versions.id` NO ACTION |
+| `to_version_number` | INT | INT | NOT NULL | — |  |
+| `purpose` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `publish`, `rollback`, `status_mapping`, `repair`, `restore_snapshot` |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `pending`, `locked`, `running`, `applied`, `failed`, `reversing`, `reversed`, `inconsistent` |
+| `steps_total` | INT | INT | NOT NULL | 0 |  |
+| `steps_applied` | INT | INT | NOT NULL | 0 |  |
+| `snapshot_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `schema_snapshots.id` NO ACTION |
+| `impact` | JSON | NVARCHAR(MAX) | NOT NULL | — | estimated duration, lock impact, online/offline per step, affected rows |
+| `lock_token` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `confirmed_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `confirmed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `started_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `finished_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 
-Indexes: (`form_id`, `status`); (`organization_id`, `status`).
+- **Primary key:** `pk_migration_plans` (`id`); SQL Server clustered.
+- **Index:** `ix_migration_plans_form_id_status` (`form_id`, `status`)
+- **Index:** `ix_migration_plans_organization_id_status` (`organization_id`, `status`)
+- **Index:** `ix_migration_plans_created_by` (`created_by`) — supports FK
+- **Index:** `ix_migration_plans_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_migration_plans_from_version_id` (`from_version_id`) — supports FK
+- **Index:** `ix_migration_plans_snapshot_id` (`snapshot_id`) — supports FK
+- **Index:** `ix_migration_plans_confirmed_by` (`confirmed_by`) — supports FK
+- **Foreign key:** `fk_migration_plans_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_migration_plans_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_migration_plans_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_migration_plans_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_migration_plans_from_version_id`: `from_version_id` → `form_versions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_migration_plans_snapshot_id`: `snapshot_id` → `schema_snapshots`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_migration_plans_confirmed_by`: `confirmed_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_migration_plans_purpose`: `purpose IN ('publish', 'rollback', 'status_mapping', 'repair', 'restore_snapshot')` (both engines)
+- **Check:** `ck_migration_plans_status`: `status IN ('pending', 'locked', 'running', 'applied', 'failed', 'reversing', 'reversed', 'inconsistent')` (both engines)
+- **Check (SQL Server):** `ck_migration_plans_impact_json`: `ISJSON(impact) = 1`
 
 **`migration_steps`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @ts` | | |
-| `migration_plan_id` | bigint | → `migration_plans.id` CASCADE |
-| `sequence` | int | |
-| `operation` | enum<create_table,drop_table_archive,add_column,rename_column,alter_column,archive_column,restore_column,add_index,drop_index,add_foreign_key,drop_foreign_key,create_pivot,copy_data,backfill,validate_data,map_status,rename_table> | |
-| `table_name` | code(60) | |
-| `forward` | json | operation spec (driver-neutral) |
-| `reverse` | json | inverse operation spec; `{"irreversible":true,"restore":"snapshot"}` if lossy |
-| `sql_preview` | longtext? | statements per engine for review |
-| `is_destructive` | bool | requires backup before execution |
-| `is_online` | bool | |
-| `estimated_ms` | bigint? | |
-| `status` | enum<pending,applied,failed,reversed,reverse_failed,skipped> | |
-| `started_at` | datetime? | |
-| `applied_at` | datetime? | |
-| `reversed_at` | datetime? | |
-| `duration_ms` | bigint? | |
-| `error` | text? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `migration_plan_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `migration_plans.id` CASCADE |
+| `sequence` | INT | INT | NOT NULL | — |  |
+| `operation` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `create_table`, `drop_table_archive`, `add_column`, `rename_column`, `alter_column`, `archive_column`, `restore_column`, `add_index`, `drop_index`, `add_foreign_key`, `drop_foreign_key`, `create_pivot`, `copy_data`, `backfill`, `validate_data`, `map_status`, `rename_table` |
+| `table_name` | VARCHAR(60) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(60) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `forward` | JSON | NVARCHAR(MAX) | NOT NULL | — | operation spec (driver-neutral) |
+| `reverse` | JSON | NVARCHAR(MAX) | NOT NULL | — | inverse operation spec; `{"irreversible":true,"restore":"snapshot"}` if lossy |
+| `sql_preview` | LONGTEXT | NVARCHAR(MAX) | NULL | — | statements per engine for review |
+| `is_destructive` | TINYINT(1) | BIT | NOT NULL | 0 | requires backup before execution |
+| `is_online` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `estimated_ms` | BIGINT | BIGINT | NULL | — |  |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `pending`, `applied`, `failed`, `reversed`, `reverse_failed`, `skipped` |
+| `started_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `applied_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `reversed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `duration_ms` | BIGINT | BIGINT | NULL | — |  |
+| `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
 
-Indexes: (`migration_plan_id`, `sequence`) unique.
+- **Primary key:** `pk_migration_steps` (`id`); SQL Server clustered.
+- **Unique:** `uq_migration_steps_migration_plan_id_sequence` (`migration_plan_id`, `sequence`)
+- **Foreign key:** `fk_migration_steps_migration_plan_id`: `migration_plan_id` → `migration_plans`(`id`) ON DELETE CASCADE
+- **Check:** `ck_migration_steps_operation`: `operation IN ('create_table', 'drop_table_archive', 'add_column', 'rename_column', 'alter_column', 'archive_column', 'restore_column', 'add_index', 'drop_index', 'add_foreign_key', 'drop_foreign_key', 'create_pivot', 'copy_data', 'backfill', 'validate_data', 'map_status', 'rename_table')` (both engines)
+- **Check:** `ck_migration_steps_status`: `status IN ('pending', 'applied', 'failed', 'reversed', 'reverse_failed', 'skipped')` (both engines)
+- **Check (SQL Server):** `ck_migration_steps_forward_json`: `ISJSON(forward) = 1`
+- **Check (SQL Server):** `ck_migration_steps_reverse_json`: `ISJSON(reverse) = 1`
 
 **`schema_snapshots`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `migration_plan_id` | bigint? | → `migration_plans.id` NO ACTION |
-| `kind` | enum<metadata,physical_schema,data_backup> | |
-| `tables` | json | tables included with row counts |
-| `disk` | code(32) | |
-| `path` | string(1024) | |
-| `size_bytes` | bigint | |
-| `checksum` | hash | |
-| `expires_at` | datetime | retention shown to admin |
-| `restored_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `migration_plan_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `migration_plans.id` NO ACTION |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `metadata`, `physical_schema`, `data_backup` |
+| `tables` | JSON | NVARCHAR(MAX) | NOT NULL | — | tables included with row counts |
+| `disk` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `path` | VARCHAR(1024) | NVARCHAR(1024) | NOT NULL | — |  |
+| `size_bytes` | BIGINT | BIGINT | NOT NULL | — |  |
+| `checksum` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `expires_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | retention shown to admin |
+| `restored_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`form_id`, `created_at`); `expires_at`.
+- **Primary key:** `pk_schema_snapshots` (`id`); SQL Server clustered.
+- **Index:** `ix_schema_snapshots_form_id_created_at` (`form_id`, `created_at`)
+- **Index:** `ix_schema_snapshots_expires_at` (`expires_at`)
+- **Index:** `ix_schema_snapshots_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_schema_snapshots_created_by` (`created_by`) — supports FK
+- **Index:** `ix_schema_snapshots_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_schema_snapshots_migration_plan_id` (`migration_plan_id`) — supports FK
+- **Foreign key:** `fk_schema_snapshots_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_schema_snapshots_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_schema_snapshots_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_schema_snapshots_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_schema_snapshots_migration_plan_id`: `migration_plan_id` → `migration_plans`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_schema_snapshots_kind`: `kind IN ('metadata', 'physical_schema', 'data_backup')` (both engines)
+- **Check (SQL Server):** `ck_schema_snapshots_tables_json`: `ISJSON(tables) = 1`
 
 **`schema_reconciliation_reports`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts` | | |
-| `form_id` | bigint? | → `forms.id` NO ACTION; NULL = all forms |
-| `trigger` | enum<on_demand,scheduled,post_publish,post_failure> | |
-| `engine` | enum<mysql,sqlsrv> | |
-| `status` | enum<running,clean,drift,error> | |
-| `difference_count` | int | |
-| `differences` | json | `[{table, kind: missing_table|missing_column|extra_column|type_mismatch|nullability|index|fk, expected, actual}]` |
-| `triggered_by` | bigint? | → `users.id` NO ACTION |
-| `started_at` | datetime | |
-| `finished_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION; NULL = all forms |
+| `trigger` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `on_demand`, `scheduled`, `post_publish`, `post_failure` |
+| `engine` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `mysql`, `sqlsrv` |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `running`, `clean`, `drift`, `error` |
+| `difference_count` | INT | INT | NOT NULL | 0 |  |
+| `differences` | JSON | NVARCHAR(MAX) | NOT NULL | — | `[{table, kind: missing_table\|missing_column\|extra_column\|type_mismatch\|nullability\|index\|fk, expected, actual}]` |
+| `triggered_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `started_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `finished_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`organization_id`, `created_at`); (`form_id`, `created_at`).
+- **Primary key:** `pk_schema_reconciliation_reports` (`id`); SQL Server clustered.
+- **Index:** `ix_schema_reconciliation_reports_organization_id_created_at` (`organization_id`, `created_at`)
+- **Index:** `ix_schema_reconciliation_reports_form_id_created_at` (`form_id`, `created_at`)
+- **Index:** `ix_schema_reconciliation_reports_triggered_by` (`triggered_by`) — supports FK
+- **Foreign key:** `fk_schema_reconciliation_reports_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_schema_reconciliation_reports_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_schema_reconciliation_reports_triggered_by`: `triggered_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_schema_reconciliation_reports_trigger`: `trigger IN ('on_demand', 'scheduled', 'post_publish', 'post_failure')` (both engines)
+- **Check:** `ck_schema_reconciliation_reports_engine`: `engine IN ('mysql', 'sqlsrv')` (both engines)
+- **Check:** `ck_schema_reconciliation_reports_status`: `status IN ('running', 'clean', 'drift', 'error')` (both engines)
+- **Check (SQL Server):** `ck_schema_reconciliation_reports_differences_json`: `ISJSON(differences) = 1`
 
 **`publish_locks`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `lock_group` | hash | hash of the sorted set of related form ids locked together |
-| `status` | enum<held,waiting,released,expired> | |
-| `migration_plan_id` | bigint? | → `migration_plans.id` NO ACTION |
-| `owner_user_id` | bigint | → `users.id` NO ACTION |
-| `blocked_by_lock_id` | bigint? | → `publish_locks.id` NO ACTION (why queued) |
-| `acquired_at` | datetime? | |
-| `heartbeat_at` | datetime? | |
-| `expires_at` | datetime | |
-| `held_key` | code(32)? | = form_id while `status=held`, else NULL; **unique** → at most one holder per form (MySQL allows many NULLs; SQL Server uses a filtered index) |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `lock_group` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | hash of the sorted set of related form ids locked together |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `held`, `waiting`, `released`, `expired` |
+| `migration_plan_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `migration_plans.id` NO ACTION |
+| `owner_user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `blocked_by_lock_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `publish_locks.id` NO ACTION (why queued) |
+| `acquired_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `heartbeat_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `expires_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `held_key` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | = form_id while `status=held`, else NULL; **unique** → at most one holder per form (MySQL allows many NULLs; SQL Server uses a filtered index) |
 
-Indexes: `held_key` unique (partial); (`form_id`, `status`, `created_at`).
+- **Primary key:** `pk_publish_locks` (`id`); SQL Server clustered.
+- **Unique:** `uq_publish_locks_held_key` (`held_key`) — SQL Server: filtered `WHERE held_key IS NOT NULL`; MySQL: unique (NULLs never collide)
+- **Index:** `ix_publish_locks_form_id_status_created_at` (`form_id`, `status`, `created_at`)
+- **Index:** `ix_publish_locks_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_publish_locks_migration_plan_id` (`migration_plan_id`) — supports FK
+- **Index:** `ix_publish_locks_owner_user_id` (`owner_user_id`) — supports FK
+- **Index:** `ix_publish_locks_blocked_by_lock_id` (`blocked_by_lock_id`) — supports FK
+- **Foreign key:** `fk_publish_locks_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_publish_locks_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_publish_locks_migration_plan_id`: `migration_plan_id` → `migration_plans`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_publish_locks_owner_user_id`: `owner_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_publish_locks_blocked_by_lock_id`: `blocked_by_lock_id` → `publish_locks`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_publish_locks_status`: `status IN ('held', 'waiting', 'released', 'expired')` (both engines)
 
 ### 10.8 Workflow
 
@@ -1599,123 +2303,248 @@ erDiagram
 
 **`statuses`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `key` | code(48) | |
-| `color` | string(16) | |
-| `icon` | string(64)? | |
-| `is_initial` | bool | exactly one per form |
-| `is_final` | bool | |
-| `sort_order` | int | |
-| `diagram_position` | json? | Vue Flow node position |
-| `archived_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `color` | VARCHAR(16) | NVARCHAR(16) | NOT NULL | — |  |
+| `icon` | VARCHAR(64) | NVARCHAR(64) | NULL | — |  |
+| `is_initial` | TINYINT(1) | BIT | NOT NULL | 0 | exactly one per form |
+| `is_final` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `diagram_position` | JSON | NVARCHAR(MAX) | NULL | — | Vue Flow node position |
+| `archived_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Translatable: `name`, `description`. Indexes: (`form_id`, `key`) unique.
+- **Primary key:** `pk_statuses` (`id`); SQL Server clustered.
+- **Unique:** `uq_statuses_form_id_key` (`form_id`, `key`)
+- **Index:** `ix_statuses_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_statuses_created_by` (`created_by`) — supports FK
+- **Index:** `ix_statuses_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_statuses_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_statuses_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_statuses_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_statuses_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Check (SQL Server):** `ck_statuses_diagram_position_json`: `ISJSON(diagram_position) = 1`
+- Translatable: `name`, `description`.
 
 **`transitions`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `key` | code(48) | |
-| `from_status_id` | bigint? | → `statuses.id` NO ACTION; NULL = from any status |
-| `to_status_id` | bigint | → `statuses.id` NO ACTION |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION |
-| `required_fields` | json? | field uuids that must be filled |
-| `comment_level` | enum<none,optional,mandatory> | |
-| `attachments_level` | enum<none,optional,mandatory> | |
-| `approval_mode` | enum<none,all,any_n,quorum> | §4.25 |
-| `approval_config` | json? | approvers `[{type:user|role|department, uuid, weight}]`, `n`, `quorum_weight` |
-| `rejection_behavior` | enum<immediate,wait_all> | |
-| `rejection_status_id` | bigint? | → `statuses.id` NO ACTION |
-| `confirmation` | bool | |
-| `button_style` | json? | color/icon/placement |
-| `sort_order` | int | |
-| `diagram_edge` | json? | Vue Flow edge data |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `from_status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION; NULL = from any status |
+| `to_status_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `statuses.id` NO ACTION |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION |
+| `required_fields` | JSON | NVARCHAR(MAX) | NULL | — | field uuids that must be filled |
+| `comment_level` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `none`, `optional`, `mandatory` |
+| `attachments_level` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `none`, `optional`, `mandatory` |
+| `approval_mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | §4.25; values: `none`, `all`, `any_n`, `quorum` |
+| `approval_config` | JSON | NVARCHAR(MAX) | NULL | — | approvers `[{type:user\|role\|department, uuid, weight}]`, `n`, `quorum_weight` |
+| `rejection_behavior` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `immediate`, `wait_all` |
+| `rejection_status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION |
+| `confirmation` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `button_style` | JSON | NVARCHAR(MAX) | NULL | — | color/icon/placement |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `diagram_edge` | JSON | NVARCHAR(MAX) | NULL | — | Vue Flow edge data |
 
-Translatable: `label`, `confirmation_text`. Indexes: (`form_id`, `key`) unique; (`form_id`, `from_status_id`).
-Who performs it: permission `transition.{uuid}.perform` (auto-registered).
+- **Primary key:** `pk_transitions` (`id`); SQL Server clustered.
+- **Unique:** `uq_transitions_form_id_key` (`form_id`, `key`)
+- **Index:** `ix_transitions_form_id_from_status_id` (`form_id`, `from_status_id`)
+- **Index:** `ix_transitions_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_transitions_created_by` (`created_by`) — supports FK
+- **Index:** `ix_transitions_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_transitions_from_status_id` (`from_status_id`) — supports FK
+- **Index:** `ix_transitions_to_status_id` (`to_status_id`) — supports FK
+- **Index:** `ix_transitions_condition_id` (`condition_id`) — supports FK
+- **Index:** `ix_transitions_rejection_status_id` (`rejection_status_id`) — supports FK
+- **Foreign key:** `fk_transitions_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_transitions_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_transitions_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_transitions_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_transitions_from_status_id`: `from_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_transitions_to_status_id`: `to_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_transitions_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_transitions_rejection_status_id`: `rejection_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_transitions_comment_level`: `comment_level IN ('none', 'optional', 'mandatory')` (both engines)
+- **Check:** `ck_transitions_attachments_level`: `attachments_level IN ('none', 'optional', 'mandatory')` (both engines)
+- **Check:** `ck_transitions_approval_mode`: `approval_mode IN ('none', 'all', 'any_n', 'quorum')` (both engines)
+- **Check:** `ck_transitions_rejection_behavior`: `rejection_behavior IN ('immediate', 'wait_all')` (both engines)
+- **Check (SQL Server):** `ck_transitions_required_fields_json`: `ISJSON(required_fields) = 1`
+- **Check (SQL Server):** `ck_transitions_approval_config_json`: `ISJSON(approval_config) = 1`
+- **Check (SQL Server):** `ck_transitions_button_style_json`: `ISJSON(button_style) = 1`
+- **Check (SQL Server):** `ck_transitions_diagram_edge_json`: `ISJSON(diagram_edge) = 1`
+- Translatable: `label`, `confirmation_text`. Who performs it: permission `transition.{uuid}.perform` (auto-registered).
 
 **`status_history`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org` | | append-only |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `record_id` | bigint | |
-| `from_status_id` | bigint? | → `statuses.id` NO ACTION |
-| `to_status_id` | bigint | → `statuses.id` NO ACTION |
-| `transition_id` | bigint? | → `transitions.id` NO ACTION (NULL for mapping/automation) |
-| `source` | enum<user,automation,sla_escalation,status_mapping,bulk,api,external> | |
-| `comment` | text? | |
-| `attachment_file_ids` | json? | |
-| `acted_by` | bigint? | → `users.id` NO ACTION |
-| `on_behalf_of_user_id` | bigint? | → `users.id` NO ACTION |
-| `external_user_id` | bigint? | → `external_users.id` NO ACTION |
-| `justification_id` | bigint? | → `justifications.id` NO ACTION |
-| `approval_request_id` | bigint? | → `approval_requests.id` NO ACTION |
-| `seconds_in_previous` | bigint? | |
-| `working_seconds_in_previous` | bigint? | |
-| `correlation_id` | code(36) | |
-| `acted_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `from_status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION |
+| `to_status_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `statuses.id` NO ACTION |
+| `transition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `transitions.id` NO ACTION (NULL for mapping/automation) |
+| `source` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `user`, `automation`, `sla_escalation`, `status_mapping`, `bulk`, `api`, `external` |
+| `comment` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `attachment_file_ids` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `acted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `on_behalf_of_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `external_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `external_users.id` NO ACTION |
+| `justification_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `justifications.id` NO ACTION |
+| `approval_request_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `approval_requests.id` NO ACTION |
+| `seconds_in_previous` | BIGINT | BIGINT | NULL | — |  |
+| `working_seconds_in_previous` | BIGINT | BIGINT | NULL | — |  |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `acted_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-Indexes: (`form_id`, `record_id`, `acted_at`); (`to_status_id`, `acted_at`).
+- **Primary key:** `pk_status_history` (`id`); SQL Server clustered.
+- **Index:** `ix_status_history_form_id_record_id_acted_at` (`form_id`, `record_id`, `acted_at`)
+- **Index:** `ix_status_history_to_status_id_acted_at` (`to_status_id`, `acted_at`)
+- **Index:** `ix_status_history_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_status_history_from_status_id` (`from_status_id`) — supports FK
+- **Index:** `ix_status_history_transition_id` (`transition_id`) — supports FK
+- **Index:** `ix_status_history_acted_by` (`acted_by`) — supports FK
+- **Index:** `ix_status_history_on_behalf_of_user_id` (`on_behalf_of_user_id`) — supports FK
+- **Index:** `ix_status_history_external_user_id` (`external_user_id`) — supports FK
+- **Index:** `ix_status_history_justification_id` (`justification_id`) — supports FK
+- **Index:** `ix_status_history_approval_request_id` (`approval_request_id`) — supports FK
+- **Foreign key:** `fk_status_history_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_history_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_history_from_status_id`: `from_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_history_to_status_id`: `to_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_history_transition_id`: `transition_id` → `transitions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_history_acted_by`: `acted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_history_on_behalf_of_user_id`: `on_behalf_of_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_history_external_user_id`: `external_user_id` → `external_users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_history_justification_id`: `justification_id` → `justifications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_history_approval_request_id`: `approval_request_id` → `approval_requests`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_status_history_source`: `source IN ('user', 'automation', 'sla_escalation', 'status_mapping', 'bulk', 'api', 'external')` (both engines)
+- **Check (SQL Server):** `ck_status_history_attachment_file_ids_json`: `ISJSON(attachment_file_ids) = 1`
+- **Note:** append-only
 
 **`status_mappings`** (§4.10 guided mapping)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts @by` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `form_version_id` | bigint? | → `form_versions.id` NO ACTION (version applying it) |
-| `change_type` | enum<rename,add,remove,merge> | |
-| `from_status_key` | code(48) | |
-| `to_status_id` | bigint? | → `statuses.id` NO ACTION |
-| `records_affected` | int | |
-| `migration_plan_id` | bigint? | → `migration_plans.id` NO ACTION |
-| `applied_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `form_version_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `form_versions.id` NO ACTION (version applying it) |
+| `change_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `rename`, `add`, `remove`, `merge` |
+| `from_status_key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `to_status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION |
+| `records_affected` | INT | INT | NOT NULL | 0 |  |
+| `migration_plan_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `migration_plans.id` NO ACTION |
+| `applied_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`form_id`, `form_version_id`).
+- **Primary key:** `pk_status_mappings` (`id`); SQL Server clustered.
+- **Index:** `ix_status_mappings_form_id_form_version_id` (`form_id`, `form_version_id`)
+- **Index:** `ix_status_mappings_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_status_mappings_created_by` (`created_by`) — supports FK
+- **Index:** `ix_status_mappings_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_status_mappings_form_version_id` (`form_version_id`) — supports FK
+- **Index:** `ix_status_mappings_to_status_id` (`to_status_id`) — supports FK
+- **Index:** `ix_status_mappings_migration_plan_id` (`migration_plan_id`) — supports FK
+- **Foreign key:** `fk_status_mappings_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_mappings_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_mappings_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_mappings_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_mappings_form_version_id`: `form_version_id` → `form_versions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_mappings_to_status_id`: `to_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_status_mappings_migration_plan_id`: `migration_plan_id` → `migration_plans`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_status_mappings_change_type`: `change_type IN ('rename', 'add', 'remove', 'merge')` (both engines)
 
 **`sla_rules`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `status_id` | bigint | → `statuses.id` NO ACTION |
-| `duration_minutes` | int | |
-| `use_working_time` | bool | |
-| `business_calendar_id` | bigint? | → `business_calendars.id` NO ACTION; NULL = form/department calendar |
-| `warn_before_minutes` | int? | |
-| `escalations` | json | `[{after_minutes, action: notify|reassign|transition, params}]` |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `status_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `statuses.id` NO ACTION |
+| `duration_minutes` | INT | INT | NOT NULL | — |  |
+| `use_working_time` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `business_calendar_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `business_calendars.id` NO ACTION; NULL = form/department calendar |
+| `warn_before_minutes` | INT | INT | NULL | — |  |
+| `escalations` | JSON | NVARCHAR(MAX) | NOT NULL | — | `[{after_minutes, action: notify\|reassign\|transition, params}]` |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Indexes: (`form_id`, `status_id`).
+- **Primary key:** `pk_sla_rules` (`id`); SQL Server clustered.
+- **Index:** `ix_sla_rules_form_id_status_id` (`form_id`, `status_id`)
+- **Index:** `ix_sla_rules_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_sla_rules_created_by` (`created_by`) — supports FK
+- **Index:** `ix_sla_rules_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_sla_rules_status_id` (`status_id`) — supports FK
+- **Index:** `ix_sla_rules_business_calendar_id` (`business_calendar_id`) — supports FK
+- **Index:** `ix_sla_rules_condition_id` (`condition_id`) — supports FK
+- **Foreign key:** `fk_sla_rules_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sla_rules_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sla_rules_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sla_rules_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_sla_rules_status_id`: `status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sla_rules_business_calendar_id`: `business_calendar_id` → `business_calendars`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sla_rules_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_sla_rules_escalations_json`: `ISJSON(escalations) = 1`
 
 **`sla_timers`** (supporting — runtime state)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `record_id` | bigint | |
-| `sla_rule_id` | bigint | → `sla_rules.id` NO ACTION |
-| `status_history_id` | bigint | → `status_history.id` NO ACTION |
-| `started_at` | datetime | |
-| `due_at` | datetime | precomputed with the business calendar |
-| `warned_at` | datetime? | |
-| `breached_at` | datetime? | |
-| `escalation_level` | smallint | |
-| `next_check_at` | datetime | |
-| `state` | enum<running,warned,breached,completed,cancelled> | |
-| `completed_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `sla_rule_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `sla_rules.id` NO ACTION |
+| `status_history_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `status_history.id` NO ACTION |
+| `started_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `due_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | precomputed with the business calendar |
+| `warned_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `breached_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `escalation_level` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `next_check_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `state` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `running`, `warned`, `breached`, `completed`, `cancelled` |
+| `completed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`state`, `next_check_at`); (`form_id`, `record_id`).
+- **Primary key:** `pk_sla_timers` (`id`); SQL Server clustered.
+- **Index:** `ix_sla_timers_state_next_check_at` (`state`, `next_check_at`)
+- **Index:** `ix_sla_timers_form_id_record_id` (`form_id`, `record_id`)
+- **Index:** `ix_sla_timers_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_sla_timers_sla_rule_id` (`sla_rule_id`) — supports FK
+- **Index:** `ix_sla_timers_status_history_id` (`status_history_id`) — supports FK
+- **Foreign key:** `fk_sla_timers_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sla_timers_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sla_timers_sla_rule_id`: `sla_rule_id` → `sla_rules`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sla_timers_status_history_id`: `status_history_id` → `status_history`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_sla_timers_state`: `state IN ('running', 'warned', 'breached', 'completed', 'cancelled')` (both engines)
 
 ### 10.9 Views & actions
 
@@ -1736,228 +2565,439 @@ erDiagram
 
 **`views`** (table configuration per form, per role)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `key` | code(48) | |
-| `is_default` | bool | fallback when no role-specific view matches |
-| `priority` | int | lowest wins when a user's roles match several views |
-| `page_size` | smallint | |
-| `default_sort` | json | `[{path, dir}]` |
-| `show_totals` | bool | |
-| `allow_column_chooser` | bool | |
-| `allow_global_search` | bool | |
-| `row_options` | json | `{view, edit, log}` toggles (still permission-checked) |
-| `include_in_queues` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `is_default` | TINYINT(1) | BIT | NOT NULL | 0 | fallback when no role-specific view matches |
+| `priority` | INT | INT | NOT NULL | 0 | lowest wins when a user's roles match several views |
+| `page_size` | SMALLINT | SMALLINT | NOT NULL | — |  |
+| `default_sort` | JSON | NVARCHAR(MAX) | NOT NULL | — | `[{path, dir}]` |
+| `show_totals` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `allow_column_chooser` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `allow_global_search` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `row_options` | JSON | NVARCHAR(MAX) | NOT NULL | — | `{view, edit, log}` toggles (still permission-checked) |
+| `include_in_queues` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 
-Translatable: `name`. Indexes: (`form_id`, `key`) unique. Audience: permission `view.{uuid}.use`.
+- **Primary key:** `pk_views` (`id`); SQL Server clustered.
+- **Unique:** `uq_views_form_id_key` (`form_id`, `key`)
+- **Index:** `ix_views_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_views_created_by` (`created_by`) — supports FK
+- **Index:** `ix_views_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_views_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_views_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_views_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_views_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Check (SQL Server):** `ck_views_default_sort_json`: `ISJSON(default_sort) = 1`
+- **Check (SQL Server):** `ck_views_row_options_json`: `ISJSON(row_options) = 1`
+- Translatable: `name`. Audience: permission `view.{uuid}.use`.
 
 **`view_columns`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts` | | |
-| `view_id` | bigint | → `views.id` CASCADE |
-| `path` | json | relation path (§17): `["employee","department","name"]` |
-| `path_hash` | hash | |
-| `sort_order` | int | |
-| `width` | smallint? | px |
-| `pinned` | enum<none,start,end> | logical start/end for RTL |
-| `is_visible` | bool | |
-| `is_sortable` | bool | |
-| `format` | json? | display format override |
-| `aggregate` | enum<none,count,sum,avg,min,max> | totals row |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `view_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `views.id` CASCADE |
+| `path` | JSON | NVARCHAR(MAX) | NOT NULL | — | relation path (§17): `["employee","department","name"]` |
+| `path_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `width` | SMALLINT | SMALLINT | NULL | — | px |
+| `pinned` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | logical start/end for RTL; values: `none`, `start`, `end` |
+| `is_visible` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `is_sortable` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `format` | JSON | NVARCHAR(MAX) | NULL | — | display format override |
+| `aggregate` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | totals row; values: `none`, `count`, `sum`, `avg`, `min`, `max` |
 
-Translatable: `label`. Indexes: (`view_id`, `path_hash`) unique; (`view_id`, `sort_order`).
+- **Primary key:** `pk_view_columns` (`id`); SQL Server clustered.
+- **Unique:** `uq_view_columns_view_id_path_hash` (`view_id`, `path_hash`)
+- **Unique:** `uq_view_columns_uuid` (`uuid`)
+- **Index:** `ix_view_columns_view_id_sort_order` (`view_id`, `sort_order`)
+- **Foreign key:** `fk_view_columns_view_id`: `view_id` → `views`(`id`) ON DELETE CASCADE
+- **Check:** `ck_view_columns_pinned`: `pinned IN ('none', 'start', 'end')` (both engines)
+- **Check:** `ck_view_columns_aggregate`: `aggregate IN ('none', 'count', 'sum', 'avg', 'min', 'max')` (both engines)
+- **Check (SQL Server):** `ck_view_columns_path_json`: `ISJSON(path) = 1`
+- **Check (SQL Server):** `ck_view_columns_format_json`: `ISJSON(format) = 1`
+- Translatable: `label`.
 
 **`filters`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts` | | |
-| `view_id` | bigint | → `views.id` CASCADE |
-| `path` | json | |
-| `path_hash` | hash | |
-| `filter_type` | code(32) | derived from field type (text, number_range, date_range, options, user, boolean, status…) |
-| `operators` | json | allowed operators |
-| `is_quick` | bool | |
-| `default_value` | json? | |
-| `sort_order` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `view_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `views.id` CASCADE |
+| `path` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `path_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `filter_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | derived from field type (text, number_range, date_range, options, user, boolean, status…) |
+| `operators` | JSON | NVARCHAR(MAX) | NOT NULL | — | allowed operators |
+| `is_quick` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `default_value` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
 
-Translatable: `label`. Indexes: (`view_id`, `path_hash`) unique.
+- **Primary key:** `pk_filters` (`id`); SQL Server clustered.
+- **Unique:** `uq_filters_view_id_path_hash` (`view_id`, `path_hash`)
+- **Unique:** `uq_filters_uuid` (`uuid`)
+- **Foreign key:** `fk_filters_view_id`: `view_id` → `views`(`id`) ON DELETE CASCADE
+- **Check (SQL Server):** `ck_filters_path_json`: `ISJSON(path) = 1`
+- **Check (SQL Server):** `ck_filters_operators_json`: `ISJSON(operators) = 1`
+- **Check (SQL Server):** `ck_filters_default_value_json`: `ISJSON(default_value) = 1`
+- Translatable: `label`.
 
 **`saved_views`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `view_id` | bigint | → `views.id` NO ACTION |
-| `owner_user_id` | bigint | → `users.id` NO ACTION |
-| `name` | string(255) | user text (not translated) |
-| `state` | json | columns, order, widths, filters, sort, page size, search |
-| `is_shared` | bool | |
-| `is_default` | bool | user's default for this form |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `view_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `views.id` NO ACTION |
+| `owner_user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `name` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — | user text (not translated) |
+| `state` | JSON | NVARCHAR(MAX) | NOT NULL | — | columns, order, widths, filters, sort, page size, search |
+| `is_shared` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `is_default` | TINYINT(1) | BIT | NOT NULL | 0 | user's default for this form |
 
-Indexes: (`owner_user_id`, `form_id`); (`form_id`, `is_shared`).
+- **Primary key:** `pk_saved_views` (`id`); SQL Server clustered.
+- **Unique:** `uq_saved_views_uuid` (`uuid`)
+- **Index:** `ix_saved_views_owner_user_id_form_id` (`owner_user_id`, `form_id`)
+- **Index:** `ix_saved_views_form_id_is_shared` (`form_id`, `is_shared`)
+- **Index:** `ix_saved_views_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_saved_views_view_id` (`view_id`) — supports FK
+- **Foreign key:** `fk_saved_views_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_saved_views_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_saved_views_view_id`: `view_id` → `views`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_saved_views_owner_user_id`: `owner_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_saved_views_state_json`: `ISJSON(state) = 1`
 
 **`saved_view_shares`** (supporting)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk` | | |
-| `saved_view_id` | bigint | → `saved_views.id` CASCADE |
-| `subject_type` | enum<role,department,user,everyone> | |
-| `subject_id` | bigint? | |
-| `created_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `saved_view_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `saved_views.id` CASCADE |
+| `subject_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `role`, `department`, `user`, `everyone` |
+| `subject_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-Indexes: (`saved_view_id`); (`subject_type`, `subject_id`).
+- **Primary key:** `pk_saved_view_shares` (`id`); SQL Server clustered.
+- **Index:** `ix_saved_view_shares_saved_view_id` (`saved_view_id`)
+- **Index:** `ix_saved_view_shares_subject_type_subject_id` (`subject_type`, `subject_id`)
+- **Foreign key:** `fk_saved_view_shares_saved_view_id`: `saved_view_id` → `saved_views`(`id`) ON DELETE CASCADE
+- **Check:** `ck_saved_view_shares_subject_type`: `subject_type IN ('role', 'department', 'user', 'everyone')` (both engines)
 
 **`view_panels`** (View Mode composition)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `parent_panel_id` | bigint? | → `view_panels.id` NO ACTION (tabs/sections) |
-| `type` | enum<tabs,tab,section,related_table,derived_fields,summary_widget,status_timeline,comments,attachments,form_body,html> | |
-| `relation_path` | json? | for related tables / derived fields |
-| `config` | json | columns, filters, actions, widget definition, derived field paths |
-| `visibility_condition_id` | bigint? | → `conditions.id` NO ACTION (per role etc.) |
-| `sort_order` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `parent_panel_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `view_panels.id` NO ACTION (tabs/sections) |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `tabs`, `tab`, `section`, `related_table`, `derived_fields`, `summary_widget`, `status_timeline`, `comments`, `attachments`, `form_body`, `html` |
+| `relation_path` | JSON | NVARCHAR(MAX) | NULL | — | for related tables / derived fields |
+| `config` | JSON | NVARCHAR(MAX) | NOT NULL | — | columns, filters, actions, widget definition, derived field paths |
+| `visibility_condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION (per role etc.) |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
 
-Translatable: `title`, `content` (html). Indexes: (`form_id`, `parent_panel_id`, `sort_order`).
+- **Primary key:** `pk_view_panels` (`id`); SQL Server clustered.
+- **Index:** `ix_view_panels_form_id_parent_panel_id_sort_order` (`form_id`, `parent_panel_id`, `sort_order`)
+- **Index:** `ix_view_panels_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_view_panels_created_by` (`created_by`) — supports FK
+- **Index:** `ix_view_panels_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_view_panels_parent_panel_id` (`parent_panel_id`) — supports FK
+- **Index:** `ix_view_panels_visibility_condition_id` (`visibility_condition_id`) — supports FK
+- **Foreign key:** `fk_view_panels_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_view_panels_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_view_panels_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_view_panels_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_view_panels_parent_panel_id`: `parent_panel_id` → `view_panels`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_view_panels_visibility_condition_id`: `visibility_condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_view_panels_type`: `type IN ('tabs', 'tab', 'section', 'related_table', 'derived_fields', 'summary_widget', 'status_timeline', 'comments', 'attachments', 'form_body', 'html')` (both engines)
+- **Check (SQL Server):** `ck_view_panels_relation_path_json`: `ISJSON(relation_path) = 1`
+- **Check (SQL Server):** `ck_view_panels_config_json`: `ISJSON(config) = 1`
+- Translatable: `title`, `content` (html).
 
 **`reference_previews`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `target_form_id` | bigint | → `forms.id` CASCADE (form being previewed) |
-| `field_id` | bigint? | → `fields.id` NO ACTION (lookup-specific override) |
-| `display_paths` | json | fields shown on the card |
-| `layout` | json | |
-| `autofill_map` | json? | `[{from_path, to_field_uuid, overwrite}]` |
-| `drawer_enabled` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `target_form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE (form being previewed) |
+| `field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION (lookup-specific override) |
+| `display_paths` | JSON | NVARCHAR(MAX) | NOT NULL | — | fields shown on the card |
+| `layout` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `autofill_map` | JSON | NVARCHAR(MAX) | NULL | — | `[{from_path, to_field_uuid, overwrite}]` |
+| `drawer_enabled` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Indexes: (`target_form_id`, `field_id`).
+- **Primary key:** `pk_reference_previews` (`id`); SQL Server clustered.
+- **Index:** `ix_reference_previews_target_form_id_field_id` (`target_form_id`, `field_id`)
+- **Index:** `ix_reference_previews_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_reference_previews_created_by` (`created_by`) — supports FK
+- **Index:** `ix_reference_previews_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_reference_previews_field_id` (`field_id`) — supports FK
+- **Foreign key:** `fk_reference_previews_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_reference_previews_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_reference_previews_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_reference_previews_target_form_id`: `target_form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_reference_previews_field_id`: `field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_reference_previews_display_paths_json`: `ISJSON(display_paths) = 1`
+- **Check (SQL Server):** `ck_reference_previews_layout_json`: `ISJSON(layout) = 1`
+- **Check (SQL Server):** `ck_reference_previews_autofill_map_json`: `ISJSON(autofill_map) = 1`
 
 **`print_layouts`** (supporting — §4.14 print view)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `key` | code(48) | |
-| `paper` | enum<a4,a3,letter,legal> | |
-| `orientation` | enum<portrait,landscape> | |
-| `layout` | json | sections/fields/panels included, page breaks |
-| `show_logo` | bool | |
-| `is_default` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `paper` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `a4`, `a3`, `letter`, `legal` |
+| `orientation` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `portrait`, `landscape` |
+| `layout` | JSON | NVARCHAR(MAX) | NOT NULL | — | sections/fields/panels included, page breaks |
+| `show_logo` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `is_default` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 
-Translatable: `name`, `header_html`, `footer_html`. Indexes: (`form_id`, `key`) unique.
+- **Primary key:** `pk_print_layouts` (`id`); SQL Server clustered.
+- **Unique:** `uq_print_layouts_form_id_key` (`form_id`, `key`)
+- **Index:** `ix_print_layouts_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_print_layouts_created_by` (`created_by`) — supports FK
+- **Index:** `ix_print_layouts_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_print_layouts_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_print_layouts_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_print_layouts_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_print_layouts_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Check:** `ck_print_layouts_paper`: `paper IN ('a4', 'a3', 'letter', 'legal')` (both engines)
+- **Check:** `ck_print_layouts_orientation`: `orientation IN ('portrait', 'landscape')` (both engines)
+- **Check (SQL Server):** `ck_print_layouts_layout_json`: `ISJSON(layout) = 1`
+- Translatable: `name`, `header_html`, `footer_html`.
 
 **`actions`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `key` | code(48) | |
-| `kind` | enum<builtin,custom> | |
-| `builtin` | enum<export,import,print,duplicate,bulk_delete,bulk_status,bulk_update,download>? | |
-| `placements` | json | subset of `row`,`bulk`,`toolbar`,`view_page` |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION (availability) |
-| `requires_confirmation` | bool | |
-| `run_mode` | enum<sync,queued,auto> | auto = queued above threshold |
-| `queue_threshold` | int? | |
-| `max_records` | int? | |
-| `justification_level` | enum<not_required,optional,mandatory> | |
-| `icon` | string(64)? | |
-| `color` | string(16)? | |
-| `sort_order` | int | |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `builtin`, `custom` |
+| `builtin` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `export`, `import`, `print`, `duplicate`, `bulk_delete`, `bulk_status`, `bulk_update`, `download` |
+| `placements` | JSON | NVARCHAR(MAX) | NOT NULL | — | subset of `row`,`bulk`,`toolbar`,`view_page` |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION (availability) |
+| `requires_confirmation` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `run_mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | auto = queued above threshold; values: `sync`, `queued`, `auto` |
+| `queue_threshold` | INT | INT | NULL | — |  |
+| `max_records` | INT | INT | NULL | — |  |
+| `justification_level` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `not_required`, `optional`, `mandatory` |
+| `icon` | VARCHAR(64) | NVARCHAR(64) | NULL | — |  |
+| `color` | VARCHAR(16) | NVARCHAR(16) | NULL | — |  |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `label`, `confirmation_text`, `success_message`. Indexes: (`form_id`, `key`) unique. Permission: `action.{uuid}.run`.
+- **Primary key:** `pk_actions` (`id`); SQL Server clustered.
+- **Unique:** `uq_actions_form_id_key` (`form_id`, `key`)
+- **Index:** `ix_actions_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_actions_created_by` (`created_by`) — supports FK
+- **Index:** `ix_actions_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_actions_condition_id` (`condition_id`) — supports FK
+- **Foreign key:** `fk_actions_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_actions_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_actions_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_actions_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_actions_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_actions_kind`: `kind IN ('builtin', 'custom')` (both engines)
+- **Check:** `ck_actions_builtin`: `builtin IN ('export', 'import', 'print', 'duplicate', 'bulk_delete', 'bulk_status', 'bulk_update', 'download')` (both engines)
+- **Check:** `ck_actions_run_mode`: `run_mode IN ('sync', 'queued', 'auto')` (both engines)
+- **Check:** `ck_actions_justification_level`: `justification_level IN ('not_required', 'optional', 'mandatory')` (both engines)
+- **Check (SQL Server):** `ck_actions_placements_json`: `ISJSON(placements) = 1`
+- Translatable: `label`, `confirmation_text`, `success_message`. Permission: `action.{uuid}.run`.
 
 **`action_steps`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts` | | |
-| `action_id` | bigint | → `actions.id` CASCADE |
-| `sort_order` | int | |
-| `type` | enum<update_fields,change_status,send_email,send_notification,call_webhook,generate_document,create_linked_record,assign,run_download> | |
-| `config` | json | step-specific (§14.9) |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION (run only if) |
-| `on_failure` | enum<stop,continue> | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `action_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `actions.id` CASCADE |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `update_fields`, `change_status`, `send_email`, `send_notification`, `call_webhook`, `generate_document`, `create_linked_record`, `assign`, `run_download` |
+| `config` | JSON | NVARCHAR(MAX) | NOT NULL | — | step-specific (§14.9) |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION (run only if) |
+| `on_failure` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `stop`, `continue` |
 
-Indexes: (`action_id`, `sort_order`).
+- **Primary key:** `pk_action_steps` (`id`); SQL Server clustered.
+- **Unique:** `uq_action_steps_uuid` (`uuid`)
+- **Index:** `ix_action_steps_action_id_sort_order` (`action_id`, `sort_order`)
+- **Index:** `ix_action_steps_condition_id` (`condition_id`) — supports FK
+- **Foreign key:** `fk_action_steps_action_id`: `action_id` → `actions`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_action_steps_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_action_steps_type`: `type IN ('update_fields', 'change_status', 'send_email', 'send_notification', 'call_webhook', 'generate_document', 'create_linked_record', 'assign', 'run_download')` (both engines)
+- **Check:** `ck_action_steps_on_failure`: `on_failure IN ('stop', 'continue')` (both engines)
+- **Check (SQL Server):** `ck_action_steps_config_json`: `ISJSON(config) = 1`
 
 **`import_mappings`** (supporting — saved import mappings)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `name` | string(255) | |
-| `mapping` | json | `[{column_header, field_uuid, transform}]` |
-| `mode` | enum<insert,update,upsert> | |
-| `key_field_id` | bigint? | → `fields.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `name` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — |  |
+| `mapping` | JSON | NVARCHAR(MAX) | NOT NULL | — | `[{column_header, field_uuid, transform}]` |
+| `mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `insert`, `update`, `upsert` |
+| `key_field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
 
-Indexes: (`form_id`).
+- **Primary key:** `pk_import_mappings` (`id`); SQL Server clustered.
+- **Index:** `ix_import_mappings_form_id` (`form_id`)
+- **Index:** `ix_import_mappings_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_import_mappings_created_by` (`created_by`) — supports FK
+- **Index:** `ix_import_mappings_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_import_mappings_key_field_id` (`key_field_id`) — supports FK
+- **Foreign key:** `fk_import_mappings_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_import_mappings_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_import_mappings_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_import_mappings_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_import_mappings_key_field_id`: `key_field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_import_mappings_mode`: `mode IN ('insert', 'update', 'upsert')` (both engines)
+- **Check (SQL Server):** `ck_import_mappings_mapping_json`: `ISJSON(mapping) = 1`
 
 **`import_jobs`** (supporting)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `user_id` | bigint | → `users.id` NO ACTION |
-| `file_id` | bigint | → `files.id` NO ACTION |
-| `import_mapping_id` | bigint? | → `import_mappings.id` NO ACTION |
-| `mapping` | json | effective mapping |
-| `mode` | enum<insert,update,upsert> | |
-| `key_field_id` | bigint? | → `fields.id` NO ACTION |
-| `dry_run` | bool | |
-| `status` | enum<queued,validating,running,completed,completed_with_errors,failed,cancelled> | |
-| `total_rows` | int | |
-| `processed_rows` | int | |
-| `created_count` | int | |
-| `updated_count` | int | |
-| `error_count` | int | |
-| `last_committed_batch` | int | resume point for idempotent retry |
-| `error_report_file_id` | bigint? | → `files.id` NO ACTION |
-| `justification_id` | bigint? | → `justifications.id` NO ACTION |
-| `started_at` | datetime? | |
-| `finished_at` | datetime? | |
-| `error` | text? | |
-| `correlation_id` | code(36) | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `file_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `files.id` NO ACTION |
+| `import_mapping_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `import_mappings.id` NO ACTION |
+| `mapping` | JSON | NVARCHAR(MAX) | NOT NULL | — | effective mapping |
+| `mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `insert`, `update`, `upsert` |
+| `key_field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
+| `dry_run` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `queued`, `validating`, `running`, `completed`, `completed_with_errors`, `failed`, `cancelled` |
+| `total_rows` | INT | INT | NOT NULL | 0 |  |
+| `processed_rows` | INT | INT | NOT NULL | 0 |  |
+| `created_count` | INT | INT | NOT NULL | 0 |  |
+| `updated_count` | INT | INT | NOT NULL | 0 |  |
+| `error_count` | INT | INT | NOT NULL | 0 |  |
+| `last_committed_batch` | INT | INT | NOT NULL | 0 | resume point for idempotent retry |
+| `error_report_file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` NO ACTION |
+| `justification_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `justifications.id` NO ACTION |
+| `started_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `finished_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 
-Indexes: (`form_id`, `created_at`); (`organization_id`, `status`).
+- **Primary key:** `pk_import_jobs` (`id`); SQL Server clustered.
+- **Unique:** `uq_import_jobs_uuid` (`uuid`)
+- **Index:** `ix_import_jobs_form_id_created_at` (`form_id`, `created_at`)
+- **Index:** `ix_import_jobs_organization_id_status` (`organization_id`, `status`)
+- **Index:** `ix_import_jobs_user_id` (`user_id`) — supports FK
+- **Index:** `ix_import_jobs_file_id` (`file_id`) — supports FK
+- **Index:** `ix_import_jobs_import_mapping_id` (`import_mapping_id`) — supports FK
+- **Index:** `ix_import_jobs_key_field_id` (`key_field_id`) — supports FK
+- **Index:** `ix_import_jobs_error_report_file_id` (`error_report_file_id`) — supports FK
+- **Index:** `ix_import_jobs_justification_id` (`justification_id`) — supports FK
+- **Foreign key:** `fk_import_jobs_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_import_jobs_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_import_jobs_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_import_jobs_file_id`: `file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_import_jobs_import_mapping_id`: `import_mapping_id` → `import_mappings`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_import_jobs_key_field_id`: `key_field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_import_jobs_error_report_file_id`: `error_report_file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_import_jobs_justification_id`: `justification_id` → `justifications`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_import_jobs_mode`: `mode IN ('insert', 'update', 'upsert')` (both engines)
+- **Check:** `ck_import_jobs_status`: `status IN ('queued', 'validating', 'running', 'completed', 'completed_with_errors', 'failed', 'cancelled')` (both engines)
+- **Check (SQL Server):** `ck_import_jobs_mapping_json`: `ISJSON(mapping) = 1`
 
 **`export_jobs`** (supporting — built-in exports)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `view_id` | bigint? | → `views.id` NO ACTION |
-| `user_id` | bigint | → `users.id` NO ACTION |
-| `format` | enum<xlsx,csv,pdf> | |
-| `columns` | json | effective (permission-filtered) columns |
-| `filters` | json | |
-| `selected_ids` | json? | |
-| `status` | enum<queued,running,completed,failed,expired,cancelled> | |
-| `row_count` | int? | |
-| `progress` | smallint | 0–100 |
-| `file_id` | bigint? | → `files.id` NO ACTION |
-| `expires_at` | datetime? | |
-| `error` | text? | |
-| `correlation_id` | code(36) | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `view_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `views.id` NO ACTION |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `format` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `xlsx`, `csv`, `pdf` |
+| `columns` | JSON | NVARCHAR(MAX) | NOT NULL | — | effective (permission-filtered) columns |
+| `filters` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `selected_ids` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `queued`, `running`, `completed`, `failed`, `expired`, `cancelled` |
+| `row_count` | INT | INT | NULL | — |  |
+| `progress` | SMALLINT | SMALLINT | NOT NULL | 0 | 0–100 |
+| `file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` NO ACTION |
+| `expires_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 
-Indexes: (`user_id`, `created_at`); (`organization_id`, `status`).
+- **Primary key:** `pk_export_jobs` (`id`); SQL Server clustered.
+- **Unique:** `uq_export_jobs_uuid` (`uuid`)
+- **Index:** `ix_export_jobs_user_id_created_at` (`user_id`, `created_at`)
+- **Index:** `ix_export_jobs_organization_id_status` (`organization_id`, `status`)
+- **Index:** `ix_export_jobs_form_id` (`form_id`) — supports FK
+- **Index:** `ix_export_jobs_view_id` (`view_id`) — supports FK
+- **Index:** `ix_export_jobs_file_id` (`file_id`) — supports FK
+- **Foreign key:** `fk_export_jobs_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_export_jobs_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_export_jobs_view_id`: `view_id` → `views`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_export_jobs_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_export_jobs_file_id`: `file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_export_jobs_format`: `format IN ('xlsx', 'csv', 'pdf')` (both engines)
+- **Check:** `ck_export_jobs_status`: `status IN ('queued', 'running', 'completed', 'failed', 'expired', 'cancelled')` (both engines)
+- **Check (SQL Server):** `ck_export_jobs_columns_json`: `ISJSON(columns) = 1`
+- **Check (SQL Server):** `ck_export_jobs_filters_json`: `ISJSON(filters) = 1`
+- **Check (SQL Server):** `ck_export_jobs_selected_ids_json`: `ISJSON(selected_ids) = 1`
 
 ### 10.10 Custom downloads
 
@@ -1973,192 +3013,364 @@ erDiagram
 
 **`download_profiles`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta @soft` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION (base form) |
-| `key` | code(48) | |
-| `is_personal` | bool | |
-| `owner_user_id` | bigint? | → `users.id` NO ACTION (personal profiles) |
-| `formats` | json | subset of `xlsx`,`csv`,`pdf` |
-| `sheet_mode` | enum<single,per_related_form> | |
-| `file_name_pattern` | string(255) | placeholders `{form}`, `{date:yyyyMMdd}`, `{user}`, `{param.x}` |
-| `xlsx_options` | json | styled headers, frozen header, logo, title row, RTL for Arabic |
-| `csv_options` | json | delimiter, UTF-8 BOM (always on for Arabic locales) |
-| `pdf_options` | json | orientation, header/footer, page numbers |
-| `apply_user_filters` | bool | |
-| `allow_selected_records` | bool | |
-| `available_in` | json | `table_toolbar`, `record_view` |
-| `parameters` | json | runtime parameter definitions `[{key, type, required, default}]` |
-| `max_rows` | int | |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `deleted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | soft delete |
+| `deleted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION (base form) |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `is_personal` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `owner_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION (personal profiles) |
+| `formats` | JSON | NVARCHAR(MAX) | NOT NULL | — | subset of `xlsx`,`csv`,`pdf` |
+| `sheet_mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `single`, `per_related_form` |
+| `file_name_pattern` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — | placeholders `{form}`, `{date:yyyyMMdd}`, `{user}`, `{param.x}` |
+| `xlsx_options` | JSON | NVARCHAR(MAX) | NOT NULL | — | styled headers, frozen header, logo, title row, RTL for Arabic |
+| `csv_options` | JSON | NVARCHAR(MAX) | NOT NULL | — | delimiter, UTF-8 BOM (always on for Arabic locales) |
+| `pdf_options` | JSON | NVARCHAR(MAX) | NOT NULL | — | orientation, header/footer, page numbers |
+| `apply_user_filters` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `allow_selected_records` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `available_in` | JSON | NVARCHAR(MAX) | NOT NULL | — | `table_toolbar`, `record_view` |
+| `parameters` | JSON | NVARCHAR(MAX) | NOT NULL | — | runtime parameter definitions `[{key, type, required, default}]` |
+| `max_rows` | INT | INT | NOT NULL | 0 |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `name`, `description`, `parameters.<key>.label`. Indexes: (`form_id`, `key`) unique; (`owner_user_id`). Permission: `download.{uuid}.use`.
+- **Primary key:** `pk_download_profiles` (`id`); SQL Server clustered.
+- **Unique:** `uq_download_profiles_form_id_key` (`form_id`, `key`)
+- **Index:** `ix_download_profiles_owner_user_id` (`owner_user_id`)
+- **Index:** `ix_download_profiles_organization_id_deleted_at` (`organization_id`, `deleted_at`)
+- **Index:** `ix_download_profiles_created_by` (`created_by`) — supports FK
+- **Index:** `ix_download_profiles_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_download_profiles_deleted_by` (`deleted_by`) — supports FK
+- **Foreign key:** `fk_download_profiles_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_profiles_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_profiles_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_profiles_deleted_by`: `deleted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_profiles_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_profiles_owner_user_id`: `owner_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_download_profiles_sheet_mode`: `sheet_mode IN ('single', 'per_related_form')` (both engines)
+- **Check (SQL Server):** `ck_download_profiles_formats_json`: `ISJSON(formats) = 1`
+- **Check (SQL Server):** `ck_download_profiles_xlsx_options_json`: `ISJSON(xlsx_options) = 1`
+- **Check (SQL Server):** `ck_download_profiles_csv_options_json`: `ISJSON(csv_options) = 1`
+- **Check (SQL Server):** `ck_download_profiles_pdf_options_json`: `ISJSON(pdf_options) = 1`
+- **Check (SQL Server):** `ck_download_profiles_available_in_json`: `ISJSON(available_in) = 1`
+- **Check (SQL Server):** `ck_download_profiles_parameters_json`: `ISJSON(parameters) = 1`
+- Translatable: `name`, `description`, `parameters.<key>.label`. Permission: `download.{uuid}.use`.
 
 **`download_profile_columns`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts` | | |
-| `download_profile_id` | bigint | → `download_profiles.id` CASCADE |
-| `sort_order` | int | |
-| `kind` | enum<field,calculated,static,system,justification> | |
-| `path` | json? | full relation path, both directions |
-| `path_hash` | hash? | |
-| `system_column` | enum<record_id,status,created_by,created_at,updated_by,updated_at,last_transition_at>? | |
-| `expression` | json? | AST for calculated columns |
-| `static_value` | string(1024)? | |
-| `to_many_mode` | enum<flatten,aggregate,separate_sheet>? | when the path crosses a one-to-many hop |
-| `aggregate_fn` | enum<count,sum,avg,min,max,first,last,join>? | |
-| `join_separator` | string(16)? | |
-| `sheet_key` | code(48)? | |
-| `width` | smallint? | |
-| `format` | json? | date/number/currency/digits |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `download_profile_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `download_profiles.id` CASCADE |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `field`, `calculated`, `static`, `system`, `justification` |
+| `path` | JSON | NVARCHAR(MAX) | NULL | — | full relation path, both directions |
+| `path_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `system_column` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `record_id`, `status`, `created_by`, `created_at`, `updated_by`, `updated_at`, `last_transition_at` |
+| `expression` | JSON | NVARCHAR(MAX) | NULL | — | AST for calculated columns |
+| `static_value` | VARCHAR(1024) | NVARCHAR(1024) | NULL | — |  |
+| `to_many_mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | when the path crosses a one-to-many hop; values: `flatten`, `aggregate`, `separate_sheet` |
+| `aggregate_fn` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `count`, `sum`, `avg`, `min`, `max`, `first`, `last`, `join` |
+| `join_separator` | VARCHAR(16) | NVARCHAR(16) | NULL | — |  |
+| `sheet_key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `width` | SMALLINT | SMALLINT | NULL | — |  |
+| `format` | JSON | NVARCHAR(MAX) | NULL | — | date/number/currency/digits |
 
-Translatable: `header`. Indexes: (`download_profile_id`, `sort_order`).
+- **Primary key:** `pk_download_profile_columns` (`id`); SQL Server clustered.
+- **Unique:** `uq_download_profile_columns_uuid` (`uuid`)
+- **Index:** `ix_download_profile_columns_download_profile_id_sort_order` (`download_profile_id`, `sort_order`)
+- **Foreign key:** `fk_download_profile_columns_download_profile_id`: `download_profile_id` → `download_profiles`(`id`) ON DELETE CASCADE
+- **Check:** `ck_download_profile_columns_kind`: `kind IN ('field', 'calculated', 'static', 'system', 'justification')` (both engines)
+- **Check:** `ck_download_profile_columns_system_column`: `system_column IN ('record_id', 'status', 'created_by', 'created_at', 'updated_by', 'updated_at', 'last_transition_at')` (both engines)
+- **Check:** `ck_download_profile_columns_to_many_mode`: `to_many_mode IN ('flatten', 'aggregate', 'separate_sheet')` (both engines)
+- **Check:** `ck_download_profile_columns_aggregate_fn`: `aggregate_fn IN ('count', 'sum', 'avg', 'min', 'max', 'first', 'last', 'join')` (both engines)
+- **Check (SQL Server):** `ck_download_profile_columns_path_json`: `ISJSON(path) = 1`
+- **Check (SQL Server):** `ck_download_profile_columns_expression_json`: `ISJSON(expression) = 1`
+- **Check (SQL Server):** `ck_download_profile_columns_format_json`: `ISJSON(format) = 1`
+- Translatable: `header`.
 
 **`download_profile_filters`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts` | | |
-| `download_profile_id` | bigint | → `download_profiles.id` CASCADE |
-| `path` | json | |
-| `operator` | code(32) | |
-| `value` | json? | fixed value |
-| `value_expression` | json? | AST (e.g. `today() - 30`) |
-| `parameter_key` | code(48)? | bound to a runtime parameter |
-| `sort_order` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `download_profile_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `download_profiles.id` CASCADE |
+| `path` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `operator` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `value` | JSON | NVARCHAR(MAX) | NULL | — | fixed value |
+| `value_expression` | JSON | NVARCHAR(MAX) | NULL | — | AST (e.g. `today() - 30`) |
+| `parameter_key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NULL | — | bound to a runtime parameter |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
 
-Indexes: (`download_profile_id`).
+- **Primary key:** `pk_download_profile_filters` (`id`); SQL Server clustered.
+- **Unique:** `uq_download_profile_filters_uuid` (`uuid`)
+- **Index:** `ix_download_profile_filters_download_profile_id` (`download_profile_id`)
+- **Foreign key:** `fk_download_profile_filters_download_profile_id`: `download_profile_id` → `download_profiles`(`id`) ON DELETE CASCADE
+- **Check (SQL Server):** `ck_download_profile_filters_path_json`: `ISJSON(path) = 1`
+- **Check (SQL Server):** `ck_download_profile_filters_value_json`: `ISJSON(value) = 1`
+- **Check (SQL Server):** `ck_download_profile_filters_value_expression_json`: `ISJSON(value_expression) = 1`
 
 **`download_schedules`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `download_profile_id` | bigint | → `download_profiles.id` CASCADE |
-| `frequency` | enum<daily,weekly,monthly,cron> | |
-| `cron_expression` | code(64)? | |
-| `timezone` | string(64) | |
-| `format` | enum<xlsx,csv,pdf> | |
-| `parameters` | json? | |
-| `recipients` | json | `{users:[uuid], roles:[uuid]}` — each recipient receives only data they can access (run per recipient) |
-| `run_as_policy` | enum<per_recipient> | fixed: never a shared identity |
-| `scheduled_task_id` | bigint? | → `scheduled_tasks.id` NO ACTION |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `download_profile_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `download_profiles.id` CASCADE |
+| `frequency` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `daily`, `weekly`, `monthly`, `cron` |
+| `cron_expression` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `timezone` | VARCHAR(64) | NVARCHAR(64) | NOT NULL | — |  |
+| `format` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `xlsx`, `csv`, `pdf` |
+| `parameters` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `recipients` | JSON | NVARCHAR(MAX) | NOT NULL | — | `{users:[uuid], roles:[uuid]}` — each recipient receives only data they can access (run per recipient) |
+| `run_as_policy` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | fixed: never a shared identity; values: `per_recipient` |
+| `scheduled_task_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `scheduled_tasks.id` NO ACTION |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Indexes: (`download_profile_id`).
+- **Primary key:** `pk_download_schedules` (`id`); SQL Server clustered.
+- **Index:** `ix_download_schedules_download_profile_id` (`download_profile_id`)
+- **Index:** `ix_download_schedules_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_download_schedules_created_by` (`created_by`) — supports FK
+- **Index:** `ix_download_schedules_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_download_schedules_scheduled_task_id` (`scheduled_task_id`) — supports FK
+- **Foreign key:** `fk_download_schedules_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_schedules_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_schedules_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_schedules_download_profile_id`: `download_profile_id` → `download_profiles`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_download_schedules_scheduled_task_id`: `scheduled_task_id` → `scheduled_tasks`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_download_schedules_frequency`: `frequency IN ('daily', 'weekly', 'monthly', 'cron')` (both engines)
+- **Check:** `ck_download_schedules_format`: `format IN ('xlsx', 'csv', 'pdf')` (both engines)
+- **Check:** `ck_download_schedules_run_as_policy`: `run_as_policy IN ('per_recipient')` (both engines)
+- **Check (SQL Server):** `ck_download_schedules_parameters_json`: `ISJSON(parameters) = 1`
+- **Check (SQL Server):** `ck_download_schedules_recipients_json`: `ISJSON(recipients) = 1`
 
 **`download_jobs`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `download_profile_id` | bigint | → `download_profiles.id` NO ACTION |
-| `download_schedule_id` | bigint? | → `download_schedules.id` NO ACTION |
-| `user_id` | bigint | → `users.id` NO ACTION |
-| `format` | enum<xlsx,csv,pdf> | |
-| `parameters` | json? | |
-| `filters_snapshot` | json? | |
-| `selected_ids` | json? | |
-| `effective_columns` | json | after field-level permission filtering |
-| `status` | enum<queued,running,completed,failed,expired,cancelled> | |
-| `progress` | smallint | |
-| `row_count` | int? | |
-| `file_id` | bigint? | → `files.id` NO ACTION |
-| `expires_at` | datetime? | signed link expiry |
-| `attempts` | smallint | |
-| `error` | text? | |
-| `started_at` | datetime? | |
-| `finished_at` | datetime? | |
-| `correlation_id` | code(36) | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `download_profile_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `download_profiles.id` NO ACTION |
+| `download_schedule_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `download_schedules.id` NO ACTION |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `format` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `xlsx`, `csv`, `pdf` |
+| `parameters` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `filters_snapshot` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `selected_ids` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `effective_columns` | JSON | NVARCHAR(MAX) | NOT NULL | — | after field-level permission filtering |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `queued`, `running`, `completed`, `failed`, `expired`, `cancelled` |
+| `progress` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `row_count` | INT | INT | NULL | — |  |
+| `file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` NO ACTION |
+| `expires_at` | DATETIME(6) | DATETIME2(6) | NULL | — | signed link expiry |
+| `attempts` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `started_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `finished_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 
-Indexes: (`user_id`, `created_at`); (`organization_id`, `status`); (`download_profile_id`, `created_at`).
+- **Primary key:** `pk_download_jobs` (`id`); SQL Server clustered.
+- **Unique:** `uq_download_jobs_uuid` (`uuid`)
+- **Index:** `ix_download_jobs_user_id_created_at` (`user_id`, `created_at`)
+- **Index:** `ix_download_jobs_organization_id_status` (`organization_id`, `status`)
+- **Index:** `ix_download_jobs_download_profile_id_created_at` (`download_profile_id`, `created_at`)
+- **Index:** `ix_download_jobs_download_schedule_id` (`download_schedule_id`) — supports FK
+- **Index:** `ix_download_jobs_file_id` (`file_id`) — supports FK
+- **Foreign key:** `fk_download_jobs_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_jobs_download_profile_id`: `download_profile_id` → `download_profiles`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_jobs_download_schedule_id`: `download_schedule_id` → `download_schedules`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_jobs_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_jobs_file_id`: `file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_download_jobs_format`: `format IN ('xlsx', 'csv', 'pdf')` (both engines)
+- **Check:** `ck_download_jobs_status`: `status IN ('queued', 'running', 'completed', 'failed', 'expired', 'cancelled')` (both engines)
+- **Check (SQL Server):** `ck_download_jobs_parameters_json`: `ISJSON(parameters) = 1`
+- **Check (SQL Server):** `ck_download_jobs_filters_snapshot_json`: `ISJSON(filters_snapshot) = 1`
+- **Check (SQL Server):** `ck_download_jobs_selected_ids_json`: `ISJSON(selected_ids) = 1`
+- **Check (SQL Server):** `ck_download_jobs_effective_columns_json`: `ISJSON(effective_columns) = 1`
 
 ### 10.11 Justification & change control
 
 **`justification_rules`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `scope` | enum<form,group,field,status,action,transition,delete,restore,import,bulk,reassign,merge> | |
-| `group_id` | bigint? | → `field_groups.id` NO ACTION |
-| `field_id` | bigint? | → `fields.id` NO ACTION |
-| `status_id` | bigint? | → `statuses.id` NO ACTION ("once reached") |
-| `action_id` | bigint? | → `actions.id` NO ACTION |
-| `transition_id` | bigint? | → `transitions.id` NO ACTION |
-| `subject_type` | enum<everyone,role,department,user> | |
-| `subject_id` | bigint? | |
-| `level` | enum<not_required,optional,mandatory> | |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION |
-| `level_when_condition` | enum<not_required,optional,mandatory>? | level applied when the condition is true |
-| `min_length` | smallint? | |
-| `max_length` | smallint? | |
-| `reason_code_mode` | enum<none,optional,required> | |
-| `reason_code_source` | enum<codes,collection> | |
-| `reason_code_set` | code(48)? | set key in `justification_reason_codes` |
-| `reason_code_collection_id` | bigint? | → `forms.id` NO ACTION (kind=collection) |
-| `attachments_mode` | enum<none,optional,required> | |
-| `max_attachments` | smallint? | |
-| `attachment_rules` | json? | file rules (§4.6) |
-| `show_change_summary` | bool | |
-| `is_active` | bool | default rules none → off by default |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `scope` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `form`, `group`, `field`, `status`, `action`, `transition`, `delete`, `restore`, `import`, `bulk`, `reassign`, `merge` |
+| `group_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `field_groups.id` NO ACTION |
+| `field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
+| `status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION ("once reached") |
+| `action_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `actions.id` NO ACTION |
+| `transition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `transitions.id` NO ACTION |
+| `subject_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `everyone`, `role`, `department`, `user` |
+| `subject_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `level` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `not_required`, `optional`, `mandatory` |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION |
+| `level_when_condition` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | level applied when the condition is true; values: `not_required`, `optional`, `mandatory` |
+| `min_length` | SMALLINT | SMALLINT | NULL | — |  |
+| `max_length` | SMALLINT | SMALLINT | NULL | — |  |
+| `reason_code_mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `none`, `optional`, `required` |
+| `reason_code_source` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `codes`, `collection` |
+| `reason_code_set` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NULL | — | set key in `justification_reason_codes` |
+| `reason_code_collection_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION (kind=collection) |
+| `attachments_mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `none`, `optional`, `required` |
+| `max_attachments` | SMALLINT | SMALLINT | NULL | — |  |
+| `attachment_rules` | JSON | NVARCHAR(MAX) | NULL | — | file rules (§4.6) |
+| `show_change_summary` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 | default rules none → off by default |
 
-Translatable: `prompt_title`, `help_text`. Indexes: (`form_id`, `scope`); (`form_id`, `field_id`); (`form_id`, `transition_id`).
+- **Primary key:** `pk_justification_rules` (`id`); SQL Server clustered.
+- **Index:** `ix_justification_rules_form_id_scope` (`form_id`, `scope`)
+- **Index:** `ix_justification_rules_form_id_field_id` (`form_id`, `field_id`)
+- **Index:** `ix_justification_rules_form_id_transition_id` (`form_id`, `transition_id`)
+- **Index:** `ix_justification_rules_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_justification_rules_created_by` (`created_by`) — supports FK
+- **Index:** `ix_justification_rules_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_justification_rules_group_id` (`group_id`) — supports FK
+- **Index:** `ix_justification_rules_field_id` (`field_id`) — supports FK
+- **Index:** `ix_justification_rules_status_id` (`status_id`) — supports FK
+- **Index:** `ix_justification_rules_action_id` (`action_id`) — supports FK
+- **Index:** `ix_justification_rules_transition_id` (`transition_id`) — supports FK
+- **Index:** `ix_justification_rules_condition_id` (`condition_id`) — supports FK
+- **Index:** `ix_justification_rules_reason_code_collection_id` (`reason_code_collection_id`) — supports FK
+- **Foreign key:** `fk_justification_rules_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justification_rules_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justification_rules_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justification_rules_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_justification_rules_group_id`: `group_id` → `field_groups`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justification_rules_field_id`: `field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justification_rules_status_id`: `status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justification_rules_action_id`: `action_id` → `actions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justification_rules_transition_id`: `transition_id` → `transitions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justification_rules_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justification_rules_reason_code_collection_id`: `reason_code_collection_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_justification_rules_scope`: `scope IN ('form', 'group', 'field', 'status', 'action', 'transition', 'delete', 'restore', 'import', 'bulk', 'reassign', 'merge')` (both engines)
+- **Check:** `ck_justification_rules_subject_type`: `subject_type IN ('everyone', 'role', 'department', 'user')` (both engines)
+- **Check:** `ck_justification_rules_level`: `level IN ('not_required', 'optional', 'mandatory')` (both engines)
+- **Check:** `ck_justification_rules_level_when_condition`: `level_when_condition IN ('not_required', 'optional', 'mandatory')` (both engines)
+- **Check:** `ck_justification_rules_reason_code_mode`: `reason_code_mode IN ('none', 'optional', 'required')` (both engines)
+- **Check:** `ck_justification_rules_reason_code_source`: `reason_code_source IN ('codes', 'collection')` (both engines)
+- **Check:** `ck_justification_rules_attachments_mode`: `attachments_mode IN ('none', 'optional', 'required')` (both engines)
+- **Check (SQL Server):** `ck_justification_rules_attachment_rules_json`: `ISJSON(attachment_rules) = 1`
+- Translatable: `prompt_title`, `help_text`.
 
 **`justification_reason_codes`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `set_key` | code(48) | |
-| `code` | code(48) | |
-| `requires_note` | bool | e.g. "Other" |
-| `sort_order` | int | |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `set_key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `code` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `requires_note` | TINYINT(1) | BIT | NOT NULL | 0 | e.g. "Other" |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `label`. Indexes: (`organization_id`, `set_key`, `code`) unique.
+- **Primary key:** `pk_justification_reason_codes` (`id`); SQL Server clustered.
+- **Unique:** `uq_justification_reason_codes_organization_id_set_key_code` (`organization_id`, `set_key`, `code`)
+- **Index:** `ix_justification_reason_codes_created_by` (`created_by`) — supports FK
+- **Index:** `ix_justification_reason_codes_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_justification_reason_codes_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justification_reason_codes_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justification_reason_codes_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- Translatable: `label`.
 
 **`justifications`** — immutable
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org` | | no `updated_at`; no update/delete path exists |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `record_id` | bigint? | |
-| `context` | enum<edit,delete,restore,transition,action,bulk,import,reassign,merge,personal_data,manual_sequence_adjust> | |
-| `rule_ids` | json | rules that demanded it |
-| `reason_text` | text? | |
-| `reason_code_id` | bigint? | → `justification_reason_codes.id` NO ACTION |
-| `reason_code_record_id` | bigint? | when sourced from a collection |
-| `reason_code_label_snapshot` | string(255)? | label at time of entry |
-| `note` | text? | |
-| `changed_fields` | json | field uuids + labels snapshot |
-| `affected_count` | int | 1, or N for bulk/import |
-| `bulk_operation_id` | bigint? | → `bulk_operations.id` NO ACTION |
-| `import_job_id` | bigint? | → `import_jobs.id` NO ACTION |
-| `user_id` | bigint? | → `users.id` NO ACTION |
-| `on_behalf_of_user_id` | bigint? | → `users.id` NO ACTION |
-| `external_user_id` | bigint? | → `external_users.id` NO ACTION |
-| `locale` | code(10) | |
-| `content_hash` | hash | integrity hash; also included in the audit entry hash |
-| `created_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `context` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `edit`, `delete`, `restore`, `transition`, `action`, `bulk`, `import`, `reassign`, `merge`, `personal_data`, `manual_sequence_adjust` |
+| `rule_ids` | JSON | NVARCHAR(MAX) | NOT NULL | — | rules that demanded it |
+| `reason_text` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `reason_code_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `justification_reason_codes.id` NO ACTION |
+| `reason_code_record_id` | BIGINT UNSIGNED | BIGINT | NULL | — | when sourced from a collection |
+| `reason_code_label_snapshot` | VARCHAR(255) | NVARCHAR(255) | NULL | — | label at time of entry |
+| `note` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `changed_fields` | JSON | NVARCHAR(MAX) | NOT NULL | — | field uuids + labels snapshot |
+| `affected_count` | INT | INT | NOT NULL | 0 | 1, or N for bulk/import |
+| `bulk_operation_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `bulk_operations.id` NO ACTION |
+| `import_job_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `import_jobs.id` NO ACTION |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `on_behalf_of_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `external_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `external_users.id` NO ACTION |
+| `locale` | VARCHAR(10) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(10) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `content_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | integrity hash; also included in the audit entry hash |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-Indexes: (`form_id`, `record_id`, `created_at`); (`user_id`, `created_at`).
+- **Primary key:** `pk_justifications` (`id`); SQL Server clustered.
+- **Unique:** `uq_justifications_uuid` (`uuid`)
+- **Index:** `ix_justifications_form_id_record_id_created_at` (`form_id`, `record_id`, `created_at`)
+- **Index:** `ix_justifications_user_id_created_at` (`user_id`, `created_at`)
+- **Index:** `ix_justifications_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_justifications_reason_code_id` (`reason_code_id`) — supports FK
+- **Index:** `ix_justifications_bulk_operation_id` (`bulk_operation_id`) — supports FK
+- **Index:** `ix_justifications_import_job_id` (`import_job_id`) — supports FK
+- **Index:** `ix_justifications_on_behalf_of_user_id` (`on_behalf_of_user_id`) — supports FK
+- **Index:** `ix_justifications_external_user_id` (`external_user_id`) — supports FK
+- **Foreign key:** `fk_justifications_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justifications_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justifications_reason_code_id`: `reason_code_id` → `justification_reason_codes`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justifications_bulk_operation_id`: `bulk_operation_id` → `bulk_operations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justifications_import_job_id`: `import_job_id` → `import_jobs`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justifications_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justifications_on_behalf_of_user_id`: `on_behalf_of_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justifications_external_user_id`: `external_user_id` → `external_users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_justifications_context`: `context IN ('edit', 'delete', 'restore', 'transition', 'action', 'bulk', 'import', 'reassign', 'merge', 'personal_data', 'manual_sequence_adjust')` (both engines)
+- **Check (SQL Server):** `ck_justifications_rule_ids_json`: `ISJSON(rule_ids) = 1`
+- **Check (SQL Server):** `ck_justifications_changed_fields_json`: `ISJSON(changed_fields) = 1`
+- **Note:** no `updated_at`; no update/delete path exists
 
 **`justification_attachments`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk` | | |
-| `justification_id` | bigint | → `justifications.id` NO ACTION |
-| `file_id` | bigint | → `files.id` NO ACTION |
-| `created_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `justification_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `justifications.id` NO ACTION |
+| `file_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `files.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-Indexes: (`justification_id`, `file_id`) unique.
+- **Primary key:** `pk_justification_attachments` (`id`); SQL Server clustered.
+- **Unique:** `uq_justification_attachments_justification_id_file_id` (`justification_id`, `file_id`)
+- **Index:** `ix_justification_attachments_file_id` (`file_id`) — supports FK
+- **Foreign key:** `fk_justification_attachments_justification_id`: `justification_id` → `justifications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_justification_attachments_file_id`: `file_id` → `files`(`id`) ON DELETE NO ACTION
 
 ### 10.12 Assignment, queues & delegation
 
@@ -2176,408 +3388,805 @@ erDiagram
 
 **`assignments`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `record_id` | bigint | |
-| `assignee_type` | enum<user,role,department> | |
-| `assignee_id` | bigint | |
-| `assignment_rule_id` | bigint? | → `assignment_rules.id` NO ACTION |
-| `transition_id` | bigint? | → `transitions.id` NO ACTION |
-| `approval_request_id` | bigint? | → `approval_requests.id` NO ACTION |
-| `status` | enum<active,completed,reassigned,cancelled> | |
-| `priority` | smallint | |
-| `due_at` | datetime? | |
-| `assigned_by` | bigint? | → `users.id` NO ACTION |
-| `on_behalf_of_user_id` | bigint? | → `users.id` NO ACTION |
-| `justification_id` | bigint? | → `justifications.id` NO ACTION |
-| `completed_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `assignee_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `user`, `role`, `department` |
+| `assignee_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `assignment_rule_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `assignment_rules.id` NO ACTION |
+| `transition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `transitions.id` NO ACTION |
+| `approval_request_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `approval_requests.id` NO ACTION |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `active`, `completed`, `reassigned`, `cancelled` |
+| `priority` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `due_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `assigned_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `on_behalf_of_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `justification_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `justifications.id` NO ACTION |
+| `completed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`assignee_type`, `assignee_id`, `status`, `due_at`); (`form_id`, `record_id`, `status`).
+- **Primary key:** `pk_assignments` (`id`); SQL Server clustered.
+- **Unique:** `uq_assignments_uuid` (`uuid`)
+- **Index:** `ix_assignments_assignee_type_assignee_id_status_due_at` (`assignee_type`, `assignee_id`, `status`, `due_at`)
+- **Index:** `ix_assignments_form_id_record_id_status` (`form_id`, `record_id`, `status`)
+- **Index:** `ix_assignments_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_assignments_assignment_rule_id` (`assignment_rule_id`) — supports FK
+- **Index:** `ix_assignments_transition_id` (`transition_id`) — supports FK
+- **Index:** `ix_assignments_approval_request_id` (`approval_request_id`) — supports FK
+- **Index:** `ix_assignments_assigned_by` (`assigned_by`) — supports FK
+- **Index:** `ix_assignments_on_behalf_of_user_id` (`on_behalf_of_user_id`) — supports FK
+- **Index:** `ix_assignments_justification_id` (`justification_id`) — supports FK
+- **Foreign key:** `fk_assignments_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignments_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignments_assignment_rule_id`: `assignment_rule_id` → `assignment_rules`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignments_transition_id`: `transition_id` → `transitions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignments_approval_request_id`: `approval_request_id` → `approval_requests`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignments_assigned_by`: `assigned_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignments_on_behalf_of_user_id`: `on_behalf_of_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignments_justification_id`: `justification_id` → `justifications`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_assignments_assignee_type`: `assignee_type IN ('user', 'role', 'department')` (both engines)
+- **Check:** `ck_assignments_status`: `status IN ('active', 'completed', 'reassigned', 'cancelled')` (both engines)
 
 **`assignment_rules`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `transition_id` | bigint? | → `transitions.id` NO ACTION; NULL = on create |
-| `strategy` | enum<user,role,department,field_user,creator_manager,round_robin,least_loaded> | |
-| `target_type` | enum<user,role,department>? | |
-| `target_id` | bigint? | |
-| `field_id` | bigint? | → `fields.id` NO ACTION (`field_user`) |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION |
-| `due_in_minutes` | int? | |
-| `use_working_time` | bool | |
-| `priority` | smallint | |
-| `round_robin_cursor_user_id` | bigint? | → `users.id` NO ACTION (updated under row lock) |
-| `sort_order` | int | first matching rule applies |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `transition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `transitions.id` NO ACTION; NULL = on create |
+| `strategy` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `user`, `role`, `department`, `field_user`, `creator_manager`, `round_robin`, `least_loaded` |
+| `target_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `user`, `role`, `department` |
+| `target_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION (`field_user`) |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION |
+| `due_in_minutes` | INT | INT | NULL | — |  |
+| `use_working_time` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `priority` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `round_robin_cursor_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION (updated under row lock) |
+| `sort_order` | INT | INT | NOT NULL | 0 | first matching rule applies |
 
-Indexes: (`form_id`, `transition_id`, `sort_order`).
+- **Primary key:** `pk_assignment_rules` (`id`); SQL Server clustered.
+- **Index:** `ix_assignment_rules_form_id_transition_id_sort_order` (`form_id`, `transition_id`, `sort_order`)
+- **Index:** `ix_assignment_rules_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_assignment_rules_created_by` (`created_by`) — supports FK
+- **Index:** `ix_assignment_rules_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_assignment_rules_transition_id` (`transition_id`) — supports FK
+- **Index:** `ix_assignment_rules_field_id` (`field_id`) — supports FK
+- **Index:** `ix_assignment_rules_condition_id` (`condition_id`) — supports FK
+- **Index:** `ix_assignment_rules_round_robin_cursor_user_id` (`round_robin_cursor_user_id`) — supports FK
+- **Foreign key:** `fk_assignment_rules_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignment_rules_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignment_rules_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignment_rules_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_assignment_rules_transition_id`: `transition_id` → `transitions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignment_rules_field_id`: `field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignment_rules_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_assignment_rules_round_robin_cursor_user_id`: `round_robin_cursor_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_assignment_rules_strategy`: `strategy IN ('user', 'role', 'department', 'field_user', 'creator_manager', 'round_robin', 'least_loaded')` (both engines)
+- **Check:** `ck_assignment_rules_target_type`: `target_type IN ('user', 'role', 'department')` (both engines)
 
 **`queues`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `key` | code(48) | |
-| `type` | enum<role,department> | |
-| `role_id` | bigint? | → `roles.id` NO ACTION |
-| `department_id` | bigint? | → `departments.id` NO ACTION |
-| `claim_timeout_minutes` | int? | auto-release |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `role`, `department` |
+| `role_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `roles.id` NO ACTION |
+| `department_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `departments.id` NO ACTION |
+| `claim_timeout_minutes` | INT | INT | NULL | — | auto-release |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `name`. Indexes: (`organization_id`, `key`) unique.
+- **Primary key:** `pk_queues` (`id`); SQL Server clustered.
+- **Unique:** `uq_queues_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_queues_created_by` (`created_by`) — supports FK
+- **Index:** `ix_queues_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_queues_role_id` (`role_id`) — supports FK
+- **Index:** `ix_queues_department_id` (`department_id`) — supports FK
+- **Foreign key:** `fk_queues_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_queues_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_queues_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_queues_role_id`: `role_id` → `roles`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_queues_department_id`: `department_id` → `departments`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_queues_type`: `type IN ('role', 'department')` (both engines)
+- Translatable: `name`.
 
 **`queue_forms`** (supporting — forms and columns shown in queues)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk` | | |
-| `queue_id` | bigint | → `queues.id` CASCADE |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `columns` | json | relation paths shown |
-| `sort_order` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `queue_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `queues.id` CASCADE |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `columns` | JSON | NVARCHAR(MAX) | NOT NULL | — | relation paths shown |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
 
-Indexes: (`queue_id`, `form_id`) unique.
+- **Primary key:** `pk_queue_forms` (`id`); SQL Server clustered.
+- **Unique:** `uq_queue_forms_queue_id_form_id` (`queue_id`, `form_id`)
+- **Index:** `ix_queue_forms_form_id` (`form_id`) — supports FK
+- **Foreign key:** `fk_queue_forms_queue_id`: `queue_id` → `queues`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_queue_forms_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_queue_forms_columns_json`: `ISJSON(columns) = 1`
 
 **`queue_claims`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts` | | |
-| `queue_id` | bigint? | → `queues.id` NO ACTION |
-| `assignment_id` | bigint | → `assignments.id` NO ACTION |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `record_id` | bigint | |
-| `claimed_by` | bigint | → `users.id` NO ACTION |
-| `claimed_at` | datetime | |
-| `released_at` | datetime? | |
-| `release_reason` | enum<released,completed,timeout,reassigned,admin>? | |
-| `active_key` | code(48)? | `{form_id}:{record_id}` while active, NULL after release; **unique** → one active claim per record |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `queue_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `queues.id` NO ACTION |
+| `assignment_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `assignments.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `claimed_by` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `claimed_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `released_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `release_reason` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `released`, `completed`, `timeout`, `reassigned`, `admin` |
+| `active_key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NULL | — | `{form_id}:{record_id}` while active, NULL after release; **unique** → one active claim per record |
 
-Indexes: `active_key` unique (partial); (`claimed_by`, `released_at`).
+- **Primary key:** `pk_queue_claims` (`id`); SQL Server clustered.
+- **Unique:** `uq_queue_claims_active_key` (`active_key`) — SQL Server: filtered `WHERE active_key IS NOT NULL`; MySQL: unique (NULLs never collide)
+- **Index:** `ix_queue_claims_claimed_by_released_at` (`claimed_by`, `released_at`)
+- **Index:** `ix_queue_claims_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_queue_claims_queue_id` (`queue_id`) — supports FK
+- **Index:** `ix_queue_claims_assignment_id` (`assignment_id`) — supports FK
+- **Index:** `ix_queue_claims_form_id` (`form_id`) — supports FK
+- **Foreign key:** `fk_queue_claims_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_queue_claims_queue_id`: `queue_id` → `queues`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_queue_claims_assignment_id`: `assignment_id` → `assignments`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_queue_claims_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_queue_claims_claimed_by`: `claimed_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_queue_claims_release_reason`: `release_reason IN ('released', 'completed', 'timeout', 'reassigned', 'admin')` (both engines)
 
 **`delegations`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `delegator_user_id` | bigint | → `users.id` NO ACTION |
-| `delegate_user_id` | bigint | → `users.id` NO ACTION |
-| `type` | enum<delegation,out_of_office> | out_of_office set by admin |
-| `starts_at` | datetime | |
-| `ends_at` | datetime | |
-| `reason` | text | |
-| `form_ids` | json? | NULL = all forms permitted |
-| `status` | enum<scheduled,active,expired,revoked> | |
-| `revoked_at` | datetime? | |
-| `revoked_by` | bigint? | → `users.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `delegator_user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `delegate_user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | out_of_office set by admin; values: `delegation`, `out_of_office` |
+| `starts_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `ends_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `reason` | TEXT | NVARCHAR(MAX) | NOT NULL | — |  |
+| `form_ids` | JSON | NVARCHAR(MAX) | NULL | — | NULL = all forms permitted |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `scheduled`, `active`, `expired`, `revoked` |
+| `revoked_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `revoked_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 
-Indexes: (`delegator_user_id`, `status`, `starts_at`); (`delegate_user_id`, `status`).
+- **Primary key:** `pk_delegations` (`id`); SQL Server clustered.
+- **Index:** `ix_delegations_delegator_user_id_status_starts_at` (`delegator_user_id`, `status`, `starts_at`)
+- **Index:** `ix_delegations_delegate_user_id_status` (`delegate_user_id`, `status`)
+- **Index:** `ix_delegations_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_delegations_created_by` (`created_by`) — supports FK
+- **Index:** `ix_delegations_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_delegations_revoked_by` (`revoked_by`) — supports FK
+- **Foreign key:** `fk_delegations_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_delegations_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_delegations_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_delegations_delegator_user_id`: `delegator_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_delegations_delegate_user_id`: `delegate_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_delegations_revoked_by`: `revoked_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_delegations_type`: `type IN ('delegation', 'out_of_office')` (both engines)
+- **Check:** `ck_delegations_status`: `status IN ('scheduled', 'active', 'expired', 'revoked')` (both engines)
+- **Check (SQL Server):** `ck_delegations_form_ids_json`: `ISJSON(form_ids) = 1`
 
 **`approval_requests`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `record_id` | bigint | |
-| `transition_id` | bigint | → `transitions.id` NO ACTION |
-| `mode` | enum<all,any_n,quorum> | |
-| `required_count` | smallint? | |
-| `quorum_weight` | decimal(9,2)? | |
-| `rejection_behavior` | enum<immediate,wait_all> | |
-| `rejection_status_id` | bigint? | → `statuses.id` NO ACTION |
-| `status` | enum<pending,approved,rejected,cancelled,expired> | |
-| `requested_by` | bigint | → `users.id` NO ACTION |
-| `record_row_version` | bigint | version at request time |
-| `due_at` | datetime? | |
-| `completed_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `transition_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `transitions.id` NO ACTION |
+| `mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `all`, `any_n`, `quorum` |
+| `required_count` | SMALLINT | SMALLINT | NULL | — |  |
+| `quorum_weight` | DECIMAL(9,2) | DECIMAL(9,2) | NULL | — |  |
+| `rejection_behavior` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `immediate`, `wait_all` |
+| `rejection_status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `pending`, `approved`, `rejected`, `cancelled`, `expired` |
+| `requested_by` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `record_row_version` | BIGINT | BIGINT | NOT NULL | — | version at request time |
+| `due_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `completed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`form_id`, `record_id`, `status`).
+- **Primary key:** `pk_approval_requests` (`id`); SQL Server clustered.
+- **Unique:** `uq_approval_requests_uuid` (`uuid`)
+- **Index:** `ix_approval_requests_form_id_record_id_status` (`form_id`, `record_id`, `status`)
+- **Index:** `ix_approval_requests_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_approval_requests_transition_id` (`transition_id`) — supports FK
+- **Index:** `ix_approval_requests_rejection_status_id` (`rejection_status_id`) — supports FK
+- **Index:** `ix_approval_requests_requested_by` (`requested_by`) — supports FK
+- **Foreign key:** `fk_approval_requests_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_approval_requests_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_approval_requests_transition_id`: `transition_id` → `transitions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_approval_requests_rejection_status_id`: `rejection_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_approval_requests_requested_by`: `requested_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_approval_requests_mode`: `mode IN ('all', 'any_n', 'quorum')` (both engines)
+- **Check:** `ck_approval_requests_rejection_behavior`: `rejection_behavior IN ('immediate', 'wait_all')` (both engines)
+- **Check:** `ck_approval_requests_status`: `status IN ('pending', 'approved', 'rejected', 'cancelled', 'expired')` (both engines)
 
 **`approval_decisions`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @ts` | | |
-| `approval_request_id` | bigint | → `approval_requests.id` CASCADE |
-| `approver_type` | enum<user,role,department> | |
-| `approver_id` | bigint | |
-| `weight` | decimal(9,2) | |
-| `decision` | enum<pending,approved,rejected> | |
-| `decided_by_user_id` | bigint? | → `users.id` NO ACTION |
-| `on_behalf_of_user_id` | bigint? | → `users.id` NO ACTION |
-| `comment` | text? | |
-| `decided_at` | datetime? | |
-| `reminded_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `approval_request_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `approval_requests.id` CASCADE |
+| `approver_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `user`, `role`, `department` |
+| `approver_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `weight` | DECIMAL(9,2) | DECIMAL(9,2) | NOT NULL | — |  |
+| `decision` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `pending`, `approved`, `rejected` |
+| `decided_by_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `on_behalf_of_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `comment` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `decided_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `reminded_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`approval_request_id`, `approver_type`, `approver_id`) unique; (`approver_type`, `approver_id`, `decision`).
+- **Primary key:** `pk_approval_decisions` (`id`); SQL Server clustered.
+- **Unique:** `uq_approval_decisions_approval_request_id_approver__8af1a9f1` (`approval_request_id`, `approver_type`, `approver_id`)
+- **Index:** `ix_approval_decisions_approver_type_approver_id_decision` (`approver_type`, `approver_id`, `decision`)
+- **Index:** `ix_approval_decisions_decided_by_user_id` (`decided_by_user_id`) — supports FK
+- **Index:** `ix_approval_decisions_on_behalf_of_user_id` (`on_behalf_of_user_id`) — supports FK
+- **Foreign key:** `fk_approval_decisions_approval_request_id`: `approval_request_id` → `approval_requests`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_approval_decisions_decided_by_user_id`: `decided_by_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_approval_decisions_on_behalf_of_user_id`: `on_behalf_of_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_approval_decisions_approver_type`: `approver_type IN ('user', 'role', 'department')` (both engines)
+- **Check:** `ck_approval_decisions_decision`: `decision IN ('pending', 'approved', 'rejected')` (both engines)
 
 ### 10.13 Notifications
 
 **`notification_rules`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `key` | code(48) | |
-| `trigger` | enum<record_created,record_updated,status_changed,field_changed,condition_met,scheduled_reminder,sla_warning,sla_escalation,approval_requested,assigned> | |
-| `from_status_id` | bigint? | → `statuses.id` NO ACTION |
-| `to_status_id` | bigint? | → `statuses.id` NO ACTION |
-| `field_id` | bigint? | → `fields.id` NO ACTION |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION |
-| `schedule` | json? | reminder: `{date_field_uuid, offset_minutes}` or cron |
-| `email_template_id` | bigint? | → `email_templates.id` NO ACTION |
-| `channels` | json | `["email","in_app","sms",…]` channel keys |
-| `recipients` | json | `{to:[…], cc:[…], bcc:[…]}`, items `{type: user|role|department|field_user|creator|linked_record_users|static, ref}` |
-| `attachments` | json? | document template uuids, record file fields |
-| `delay_minutes` | int? | |
-| `respect_user_preferences` | bool | |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `trigger` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `record_created`, `record_updated`, `status_changed`, `field_changed`, `condition_met`, `scheduled_reminder`, `sla_warning`, `sla_escalation`, `approval_requested`, `assigned` |
+| `from_status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION |
+| `to_status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION |
+| `field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION |
+| `schedule` | JSON | NVARCHAR(MAX) | NULL | — | reminder: `{date_field_uuid, offset_minutes}` or cron |
+| `email_template_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `email_templates.id` NO ACTION |
+| `channels` | JSON | NVARCHAR(MAX) | NOT NULL | — | `["email","in_app","sms",…]` channel keys |
+| `recipients` | JSON | NVARCHAR(MAX) | NOT NULL | — | `{to:[…], cc:[…], bcc:[…]}`, items `{type: user\|role\|department\|field_user\|creator\|linked_record_users\|static, ref}` |
+| `attachments` | JSON | NVARCHAR(MAX) | NULL | — | document template uuids, record file fields |
+| `delay_minutes` | INT | INT | NULL | — |  |
+| `respect_user_preferences` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `name`. Indexes: (`form_id`, `trigger`, `is_active`).
+- **Primary key:** `pk_notification_rules` (`id`); SQL Server clustered.
+- **Index:** `ix_notification_rules_form_id_trigger_is_active` (`form_id`, `trigger`, `is_active`)
+- **Index:** `ix_notification_rules_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_notification_rules_created_by` (`created_by`) — supports FK
+- **Index:** `ix_notification_rules_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_notification_rules_from_status_id` (`from_status_id`) — supports FK
+- **Index:** `ix_notification_rules_to_status_id` (`to_status_id`) — supports FK
+- **Index:** `ix_notification_rules_field_id` (`field_id`) — supports FK
+- **Index:** `ix_notification_rules_condition_id` (`condition_id`) — supports FK
+- **Index:** `ix_notification_rules_email_template_id` (`email_template_id`) — supports FK
+- **Foreign key:** `fk_notification_rules_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_notification_rules_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_notification_rules_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_notification_rules_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_notification_rules_from_status_id`: `from_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_notification_rules_to_status_id`: `to_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_notification_rules_field_id`: `field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_notification_rules_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_notification_rules_email_template_id`: `email_template_id` → `email_templates`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_notification_rules_trigger`: `trigger IN ('record_created', 'record_updated', 'status_changed', 'field_changed', 'condition_met', 'scheduled_reminder', 'sla_warning', 'sla_escalation', 'approval_requested', 'assigned')` (both engines)
+- **Check (SQL Server):** `ck_notification_rules_schedule_json`: `ISJSON(schedule) = 1`
+- **Check (SQL Server):** `ck_notification_rules_channels_json`: `ISJSON(channels) = 1`
+- **Check (SQL Server):** `ck_notification_rules_recipients_json`: `ISJSON(recipients) = 1`
+- **Check (SQL Server):** `ck_notification_rules_attachments_json`: `ISJSON(attachments) = 1`
+- Translatable: `name`.
 
 **`email_templates`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `application_id` | bigint? | → `applications.id` NO ACTION |
-| `form_id` | bigint? | → `forms.id` NO ACTION (placeholder context) |
-| `key` | code(48) | |
-| `design` | json | visual editor document (blocks, styles, conditional blocks, repeater tables) |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `applications.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION (placeholder context) |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `design` | JSON | NVARCHAR(MAX) | NOT NULL | — | visual editor document (blocks, styles, conditional blocks, repeater tables) |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `subject`, `body_html` (compiled from `design` per locale), `preheader`. Indexes: (`organization_id`, `key`) unique.
+- **Primary key:** `pk_email_templates` (`id`); SQL Server clustered.
+- **Unique:** `uq_email_templates_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_email_templates_created_by` (`created_by`) — supports FK
+- **Index:** `ix_email_templates_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_email_templates_application_id` (`application_id`) — supports FK
+- **Index:** `ix_email_templates_form_id` (`form_id`) — supports FK
+- **Foreign key:** `fk_email_templates_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_email_templates_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_email_templates_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_email_templates_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_email_templates_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_email_templates_design_json`: `ISJSON(design) = 1`
+- Translatable: `subject`, `body_html` (compiled from `design` per locale), `preheader`.
 
 **`email_queue`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `notification_rule_id` | bigint? | → `notification_rules.id` NO ACTION |
-| `email_template_id` | bigint? | → `email_templates.id` NO ACTION |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `record_id` | bigint? | |
-| `source` | enum<rule,action,automation,system,test,download,alert> | |
-| `locale` | code(10) | |
-| `to` | json | |
-| `cc` | json? | |
-| `bcc` | json? | |
-| `subject` | string(998) | |
-| `body_html` | longtext | rendered, sanitized |
-| `attachment_file_ids` | json? | |
-| `status` | enum<pending,sending,sent,failed,cancelled> | Stuck = `pending` older than `settings.operations.stuck_email_minutes` (computed) |
-| `attempts` | smallint | |
-| `max_attempts` | smallint | |
-| `next_attempt_at` | datetime? | |
-| `last_error` | text? | exact SMTP failure reason |
-| `message_id` | string(255)? | |
-| `sent_at` | datetime? | |
-| `cancelled_by` | bigint? | → `users.id` NO ACTION |
-| `resent_from_id` | bigint? | → `email_queue.id` NO ACTION |
-| `on_behalf_of_user_id` | bigint? | → `users.id` NO ACTION |
-| `correlation_id` | code(36) | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `notification_rule_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `notification_rules.id` NO ACTION |
+| `email_template_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `email_templates.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `source` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `rule`, `action`, `automation`, `system`, `test`, `download`, `alert` |
+| `locale` | VARCHAR(10) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(10) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `to` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `cc` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `bcc` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `subject` | VARCHAR(998) | NVARCHAR(998) | NOT NULL | — |  |
+| `body_html` | LONGTEXT | NVARCHAR(MAX) | NOT NULL | — | rendered, sanitized |
+| `attachment_file_ids` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | Stuck = `pending` older than `settings.operations.stuck_email_minutes` (computed); values: `pending`, `sending`, `sent`, `failed`, `cancelled` |
+| `attempts` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `max_attempts` | SMALLINT | SMALLINT | NOT NULL | — |  |
+| `next_attempt_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `last_error` | TEXT | NVARCHAR(MAX) | NULL | — | exact SMTP failure reason |
+| `message_id` | VARCHAR(255) | NVARCHAR(255) | NULL | — |  |
+| `sent_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `cancelled_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `resent_from_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `email_queue.id` NO ACTION |
+| `on_behalf_of_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 
-Indexes: (`organization_id`, `status`, `created_at`); (`form_id`, `record_id`); (`status`, `next_attempt_at`).
+- **Primary key:** `pk_email_queue` (`id`); SQL Server clustered.
+- **Unique:** `uq_email_queue_uuid` (`uuid`)
+- **Index:** `ix_email_queue_organization_id_status_created_at` (`organization_id`, `status`, `created_at`)
+- **Index:** `ix_email_queue_form_id_record_id` (`form_id`, `record_id`)
+- **Index:** `ix_email_queue_status_next_attempt_at` (`status`, `next_attempt_at`)
+- **Index:** `ix_email_queue_notification_rule_id` (`notification_rule_id`) — supports FK
+- **Index:** `ix_email_queue_email_template_id` (`email_template_id`) — supports FK
+- **Index:** `ix_email_queue_cancelled_by` (`cancelled_by`) — supports FK
+- **Index:** `ix_email_queue_resent_from_id` (`resent_from_id`) — supports FK
+- **Index:** `ix_email_queue_on_behalf_of_user_id` (`on_behalf_of_user_id`) — supports FK
+- **Foreign key:** `fk_email_queue_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_email_queue_notification_rule_id`: `notification_rule_id` → `notification_rules`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_email_queue_email_template_id`: `email_template_id` → `email_templates`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_email_queue_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_email_queue_cancelled_by`: `cancelled_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_email_queue_resent_from_id`: `resent_from_id` → `email_queue`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_email_queue_on_behalf_of_user_id`: `on_behalf_of_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_email_queue_source`: `source IN ('rule', 'action', 'automation', 'system', 'test', 'download', 'alert')` (both engines)
+- **Check:** `ck_email_queue_status`: `status IN ('pending', 'sending', 'sent', 'failed', 'cancelled')` (both engines)
+- **Check (SQL Server):** `ck_email_queue_to_json`: `ISJSON(to) = 1`
+- **Check (SQL Server):** `ck_email_queue_cc_json`: `ISJSON(cc) = 1`
+- **Check (SQL Server):** `ck_email_queue_bcc_json`: `ISJSON(bcc) = 1`
+- **Check (SQL Server):** `ck_email_queue_attachment_file_ids_json`: `ISJSON(attachment_file_ids) = 1`
 
 **`in_app_notifications`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org` | | |
-| `user_id` | bigint | → `users.id` CASCADE |
-| `type` | code(48) | |
-| `title` | string(255) | rendered in recipient's locale |
-| `body` | text? | |
-| `link` | string(2048)? | app-relative |
-| `data` | json? | |
-| `notification_rule_id` | bigint? | → `notification_rules.id` NO ACTION |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `record_id` | bigint? | |
-| `on_behalf_of_user_id` | bigint? | → `users.id` NO ACTION |
-| `read_at` | datetime? | |
-| `created_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` CASCADE |
+| `type` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `title` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — | rendered in recipient's locale |
+| `body` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `link` | VARCHAR(2048) | NVARCHAR(2048) | NULL | — | app-relative |
+| `data` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `notification_rule_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `notification_rules.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `on_behalf_of_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `read_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-Indexes: (`user_id`, `read_at`, `created_at`).
+- **Primary key:** `pk_in_app_notifications` (`id`); SQL Server clustered.
+- **Unique:** `uq_in_app_notifications_uuid` (`uuid`)
+- **Index:** `ix_in_app_notifications_user_id_read_at_created_at` (`user_id`, `read_at`, `created_at`)
+- **Index:** `ix_in_app_notifications_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_in_app_notifications_notification_rule_id` (`notification_rule_id`) — supports FK
+- **Index:** `ix_in_app_notifications_form_id` (`form_id`) — supports FK
+- **Index:** `ix_in_app_notifications_on_behalf_of_user_id` (`on_behalf_of_user_id`) — supports FK
+- **Foreign key:** `fk_in_app_notifications_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_in_app_notifications_user_id`: `user_id` → `users`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_in_app_notifications_notification_rule_id`: `notification_rule_id` → `notification_rules`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_in_app_notifications_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_in_app_notifications_on_behalf_of_user_id`: `on_behalf_of_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_in_app_notifications_data_json`: `ISJSON(data) = 1`
 
 **`notification_deliveries`** (supporting — non-email channel log)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts` | | |
-| `notification_channel_id` | bigint | → `notification_channels.id` NO ACTION |
-| `notification_rule_id` | bigint? | → `notification_rules.id` NO ACTION |
-| `user_id` | bigint? | → `users.id` NO ACTION |
-| `recipient` | string(255) | masked phone/handle |
-| `payload` | json | rendered message |
-| `status` | enum<pending,sent,failed,cancelled> | |
-| `attempts` | smallint | |
-| `error` | text? | |
-| `sent_at` | datetime? | |
-| `correlation_id` | code(36) | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `notification_channel_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `notification_channels.id` NO ACTION |
+| `notification_rule_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `notification_rules.id` NO ACTION |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `recipient` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — | masked phone/handle |
+| `payload` | JSON | NVARCHAR(MAX) | NOT NULL | — | rendered message |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `pending`, `sent`, `failed`, `cancelled` |
+| `attempts` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `sent_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 
-Indexes: (`organization_id`, `status`, `created_at`).
+- **Primary key:** `pk_notification_deliveries` (`id`); SQL Server clustered.
+- **Index:** `ix_notification_deliveries_organization_id_status_created_at` (`organization_id`, `status`, `created_at`)
+- **Index:** `ix_notification_deliveries_notification_channel_id` (`notification_channel_id`) — supports FK
+- **Index:** `ix_notification_deliveries_notification_rule_id` (`notification_rule_id`) — supports FK
+- **Index:** `ix_notification_deliveries_user_id` (`user_id`) — supports FK
+- **Foreign key:** `fk_notification_deliveries_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_notification_deliveries_notification_channel_id`: `notification_channel_id` → `notification_channels`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_notification_deliveries_notification_rule_id`: `notification_rule_id` → `notification_rules`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_notification_deliveries_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_notification_deliveries_status`: `status IN ('pending', 'sent', 'failed', 'cancelled')` (both engines)
+- **Check (SQL Server):** `ck_notification_deliveries_payload_json`: `ISJSON(payload) = 1`
 
 ### 10.14 Documents & reports
 
 **`document_templates`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint? | → `forms.id` NO ACTION (placeholder context) |
-| `key` | code(48) | |
-| `type` | enum<docx,html> | |
-| `file_id` | bigint? | → `files.id` NO ACTION (DOCX source, per locale via `locale_files`) |
-| `locale_files` | json? | `{locale: file_uuid}` |
-| `output_formats` | json | `docx`, `pdf` |
-| `paper` | json | size, orientation, margins |
-| `placeholders_detected` | json | validated against the form definition |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION (placeholder context) |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `docx`, `html` |
+| `file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` NO ACTION (DOCX source, per locale via `locale_files`) |
+| `locale_files` | JSON | NVARCHAR(MAX) | NULL | — | `{locale: file_uuid}` |
+| `output_formats` | JSON | NVARCHAR(MAX) | NOT NULL | — | `docx`, `pdf` |
+| `paper` | JSON | NVARCHAR(MAX) | NOT NULL | — | size, orientation, margins |
+| `placeholders_detected` | JSON | NVARCHAR(MAX) | NOT NULL | — | validated against the form definition |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `name`, `html` (for `type=html`). Indexes: (`organization_id`, `key`) unique.
+- **Primary key:** `pk_document_templates` (`id`); SQL Server clustered.
+- **Unique:** `uq_document_templates_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_document_templates_created_by` (`created_by`) — supports FK
+- **Index:** `ix_document_templates_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_document_templates_form_id` (`form_id`) — supports FK
+- **Index:** `ix_document_templates_file_id` (`file_id`) — supports FK
+- **Foreign key:** `fk_document_templates_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_document_templates_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_document_templates_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_document_templates_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_document_templates_file_id`: `file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_document_templates_type`: `type IN ('docx', 'html')` (both engines)
+- **Check (SQL Server):** `ck_document_templates_locale_files_json`: `ISJSON(locale_files) = 1`
+- **Check (SQL Server):** `ck_document_templates_output_formats_json`: `ISJSON(output_formats) = 1`
+- **Check (SQL Server):** `ck_document_templates_paper_json`: `ISJSON(paper) = 1`
+- **Check (SQL Server):** `ck_document_templates_placeholders_detected_json`: `ISJSON(placeholders_detected) = 1`
+- Translatable: `name`, `html` (for `type=html`).
 
 **`reports`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `application_id` | bigint? | → `applications.id` NO ACTION |
-| `base_form_id` | bigint | → `forms.id` NO ACTION |
-| `key` | code(48) | |
-| `definition` | json | columns (paths), joins via relations, grouping, aggregates, filters, sort, pivot, chart config |
-| `visualization` | enum<table,pivot,bar,line,pie,area,kpi> | |
-| `is_personal` | bool | |
-| `owner_user_id` | bigint? | → `users.id` NO ACTION |
-| `cache_ttl_seconds` | int? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `applications.id` NO ACTION |
+| `base_form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `definition` | JSON | NVARCHAR(MAX) | NOT NULL | — | columns (paths), joins via relations, grouping, aggregates, filters, sort, pivot, chart config |
+| `visualization` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `table`, `pivot`, `bar`, `line`, `pie`, `area`, `kpi` |
+| `is_personal` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `owner_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `cache_ttl_seconds` | INT | INT | NULL | — |  |
 
-Translatable: `name`, `description`. Indexes: (`organization_id`, `key`) unique; `base_form_id`. Permission `report.{uuid}.view`.
+- **Primary key:** `pk_reports` (`id`); SQL Server clustered.
+- **Unique:** `uq_reports_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_reports_base_form_id` (`base_form_id`)
+- **Index:** `ix_reports_created_by` (`created_by`) — supports FK
+- **Index:** `ix_reports_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_reports_application_id` (`application_id`) — supports FK
+- **Index:** `ix_reports_owner_user_id` (`owner_user_id`) — supports FK
+- **Foreign key:** `fk_reports_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_reports_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_reports_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_reports_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_reports_base_form_id`: `base_form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_reports_owner_user_id`: `owner_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_reports_visualization`: `visualization IN ('table', 'pivot', 'bar', 'line', 'pie', 'area', 'kpi')` (both engines)
+- **Check (SQL Server):** `ck_reports_definition_json`: `ISJSON(definition) = 1`
+- Translatable: `name`, `description`. Permission `report.{uuid}.view`.
 
 **`dashboards`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `application_id` | bigint? | → `applications.id` NO ACTION |
-| `key` | code(48) | |
-| `layout` | json | grid settings per breakpoint |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `applications.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `layout` | JSON | NVARCHAR(MAX) | NOT NULL | — | grid settings per breakpoint |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `name`. Indexes: (`organization_id`, `key`) unique. Permission `dashboard.{uuid}.view`.
+- **Primary key:** `pk_dashboards` (`id`); SQL Server clustered.
+- **Unique:** `uq_dashboards_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_dashboards_created_by` (`created_by`) — supports FK
+- **Index:** `ix_dashboards_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_dashboards_application_id` (`application_id`) — supports FK
+- **Foreign key:** `fk_dashboards_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_dashboards_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_dashboards_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_dashboards_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_dashboards_layout_json`: `ISJSON(layout) = 1`
+- Translatable: `name`. Permission `dashboard.{uuid}.view`.
 
 **`dashboard_widgets`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts` | | |
-| `dashboard_id` | bigint | → `dashboards.id` CASCADE |
-| `type` | code(48) | registered widget type (§18) |
-| `report_id` | bigint? | → `reports.id` NO ACTION |
-| `config` | json | |
-| `layout` | json | `{x,y,w,h}` per breakpoint |
-| `visibility_condition_id` | bigint? | → `conditions.id` NO ACTION |
-| `sort_order` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `dashboard_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `dashboards.id` CASCADE |
+| `type` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | registered widget type (§18) |
+| `report_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `reports.id` NO ACTION |
+| `config` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `layout` | JSON | NVARCHAR(MAX) | NOT NULL | — | `{x,y,w,h}` per breakpoint |
+| `visibility_condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
 
-Translatable: `title`. Indexes: (`dashboard_id`, `sort_order`).
+- **Primary key:** `pk_dashboard_widgets` (`id`); SQL Server clustered.
+- **Unique:** `uq_dashboard_widgets_uuid` (`uuid`)
+- **Index:** `ix_dashboard_widgets_dashboard_id_sort_order` (`dashboard_id`, `sort_order`)
+- **Index:** `ix_dashboard_widgets_report_id` (`report_id`) — supports FK
+- **Index:** `ix_dashboard_widgets_visibility_condition_id` (`visibility_condition_id`) — supports FK
+- **Foreign key:** `fk_dashboard_widgets_dashboard_id`: `dashboard_id` → `dashboards`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_dashboard_widgets_report_id`: `report_id` → `reports`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_dashboard_widgets_visibility_condition_id`: `visibility_condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_dashboard_widgets_config_json`: `ISJSON(config) = 1`
+- **Check (SQL Server):** `ck_dashboard_widgets_layout_json`: `ISJSON(layout) = 1`
+- Translatable: `title`.
 
 ### 10.15 Reference data, calendars & numbering
 
 **`business_calendars`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `key` | code(48) | |
-| `timezone` | string(64) | |
-| `working_days` | json | `[0..6]` |
-| `working_hours` | json | `[{day, start:"08:00", end:"16:00"}]` (multiple spans per day allowed) |
-| `country_code` | code(2)? | |
-| `is_default` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `timezone` | VARCHAR(64) | NVARCHAR(64) | NOT NULL | — |  |
+| `working_days` | JSON | NVARCHAR(MAX) | NOT NULL | — | `[0..6]` |
+| `working_hours` | JSON | NVARCHAR(MAX) | NOT NULL | — | `[{day, start:"08:00", end:"16:00"}]` (multiple spans per day allowed) |
+| `country_code` | VARCHAR(2) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(2) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `is_default` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 
-Translatable: `name`. Indexes: (`organization_id`, `key`) unique.
+- **Primary key:** `pk_business_calendars` (`id`); SQL Server clustered.
+- **Unique:** `uq_business_calendars_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_business_calendars_created_by` (`created_by`) — supports FK
+- **Index:** `ix_business_calendars_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_business_calendars_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_business_calendars_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_business_calendars_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_business_calendars_working_days_json`: `ISJSON(working_days) = 1`
+- **Check (SQL Server):** `ck_business_calendars_working_hours_json`: `ISJSON(working_hours) = 1`
+- Translatable: `name`.
 
 **`holidays`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts` | | |
-| `business_calendar_id` | bigint | → `business_calendars.id` CASCADE |
-| `starts_on` | date | Gregorian date of the occurrence |
-| `ends_on` | date | |
-| `recurrence` | enum<none,yearly_gregorian,yearly_hijri> | |
-| `hijri_month` | smallint? | |
-| `hijri_day` | smallint? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `business_calendar_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `business_calendars.id` CASCADE |
+| `starts_on` | DATE | DATE | NOT NULL | — | Gregorian date of the occurrence |
+| `ends_on` | DATE | DATE | NOT NULL | — |  |
+| `recurrence` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `none`, `yearly_gregorian`, `yearly_hijri` |
+| `hijri_month` | SMALLINT | SMALLINT | NULL | — |  |
+| `hijri_day` | SMALLINT | SMALLINT | NULL | — |  |
 
-Translatable: `name`. Indexes: (`business_calendar_id`, `starts_on`).
+- **Primary key:** `pk_holidays` (`id`); SQL Server clustered.
+- **Unique:** `uq_holidays_uuid` (`uuid`)
+- **Index:** `ix_holidays_business_calendar_id_starts_on` (`business_calendar_id`, `starts_on`)
+- **Foreign key:** `fk_holidays_business_calendar_id`: `business_calendar_id` → `business_calendars`(`id`) ON DELETE CASCADE
+- **Check:** `ck_holidays_recurrence`: `recurrence IN ('none', 'yearly_gregorian', 'yearly_hijri')` (both engines)
+- Translatable: `name`.
 
 **`number_sequences`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `key` | code(48) | |
-| `scope` | enum<form,shared> | |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `field_id` | bigint? | → `fields.id` NO ACTION |
-| `pattern` | string(255) | e.g. `{prefix}-{yyyy}-{seq:5}` |
-| `prefix` | string(32)? | |
-| `padding` | smallint | |
-| `step` | int | |
-| `reset_period` | enum<never,daily,monthly,yearly> | |
-| `calendar` | enum<gregorian,hijri> | for date parts and reset boundaries |
-| `period_key` | code(16) | current period bucket (`2026`, `202610`, …) |
-| `current_value` | bigint | incremented under `lockForUpdate` |
-| `last_adjusted_at` | datetime? | manual adjustment (audited + justification) |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `scope` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `form`, `shared` |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
+| `pattern` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — | e.g. `{prefix}-{yyyy}-{seq:5}` |
+| `prefix` | VARCHAR(32) | NVARCHAR(32) | NULL | — |  |
+| `padding` | SMALLINT | SMALLINT | NOT NULL | — |  |
+| `step` | INT | INT | NOT NULL | — |  |
+| `reset_period` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `never`, `daily`, `monthly`, `yearly` |
+| `calendar` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | for date parts and reset boundaries; values: `gregorian`, `hijri` |
+| `period_key` | VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(16) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | current period bucket (`2026`, `202610`, …) |
+| `current_value` | BIGINT | BIGINT | NOT NULL | — | incremented under `lockForUpdate` |
+| `last_adjusted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | manual adjustment (audited + justification) |
 
-Indexes: (`organization_id`, `key`) unique; (`form_id`, `field_id`).
+- **Primary key:** `pk_number_sequences` (`id`); SQL Server clustered.
+- **Unique:** `uq_number_sequences_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_number_sequences_form_id_field_id` (`form_id`, `field_id`)
+- **Index:** `ix_number_sequences_created_by` (`created_by`) — supports FK
+- **Index:** `ix_number_sequences_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_number_sequences_field_id` (`field_id`) — supports FK
+- **Foreign key:** `fk_number_sequences_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_number_sequences_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_number_sequences_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_number_sequences_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_number_sequences_field_id`: `field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_number_sequences_scope`: `scope IN ('form', 'shared')` (both engines)
+- **Check:** `ck_number_sequences_reset_period`: `reset_period IN ('never', 'daily', 'monthly', 'yearly')` (both engines)
+- **Check:** `ck_number_sequences_calendar`: `calendar IN ('gregorian', 'hijri')` (both engines)
 
 **`currencies`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `code` | code(3) | ISO 4217 |
-| `symbol` | string(8) | |
-| `decimals` | smallint | |
-| `rounding` | enum<half_up,half_even,down,up> | |
-| `symbol_position` | enum<before,after> | |
-| `is_base` | bool | one per org |
-| `is_enabled` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `code` | VARCHAR(3) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(3) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | ISO 4217 |
+| `symbol` | VARCHAR(8) | NVARCHAR(8) | NOT NULL | — |  |
+| `decimals` | SMALLINT | SMALLINT | NOT NULL | — |  |
+| `rounding` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `half_up`, `half_even`, `down`, `up` |
+| `symbol_position` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `before`, `after` |
+| `is_base` | TINYINT(1) | BIT | NOT NULL | 0 | one per org |
+| `is_enabled` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `name`. Indexes: (`organization_id`, `code`) unique.
+- **Primary key:** `pk_currencies` (`id`); SQL Server clustered.
+- **Unique:** `uq_currencies_organization_id_code` (`organization_id`, `code`)
+- **Index:** `ix_currencies_created_by` (`created_by`) — supports FK
+- **Index:** `ix_currencies_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_currencies_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_currencies_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_currencies_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_currencies_rounding`: `rounding IN ('half_up', 'half_even', 'down', 'up')` (both engines)
+- **Check:** `ck_currencies_symbol_position`: `symbol_position IN ('before', 'after')` (both engines)
+- Translatable: `name`.
 
 **`exchange_rates`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts @by` | | |
-| `base_currency_id` | bigint | → `currencies.id` NO ACTION |
-| `quote_currency_id` | bigint | → `currencies.id` NO ACTION |
-| `rate` | decimal(20,10) | |
-| `effective_at` | datetime | |
-| `source` | enum<manual,scheduled> | scheduled refresh goes through the egress gateway |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `base_currency_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `currencies.id` NO ACTION |
+| `quote_currency_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `currencies.id` NO ACTION |
+| `rate` | DECIMAL(20,10) | DECIMAL(20,10) | NOT NULL | — |  |
+| `effective_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `source` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | scheduled refresh goes through the egress gateway; values: `manual`, `scheduled` |
 
-Indexes: (`base_currency_id`, `quote_currency_id`, `effective_at`) unique.
+- **Primary key:** `pk_exchange_rates` (`id`); SQL Server clustered.
+- **Unique:** `uq_exchange_rates_base_currency_id_quote_currency_i_12272837` (`base_currency_id`, `quote_currency_id`, `effective_at`)
+- **Index:** `ix_exchange_rates_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_exchange_rates_created_by` (`created_by`) — supports FK
+- **Index:** `ix_exchange_rates_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_exchange_rates_quote_currency_id` (`quote_currency_id`) — supports FK
+- **Foreign key:** `fk_exchange_rates_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_exchange_rates_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_exchange_rates_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_exchange_rates_base_currency_id`: `base_currency_id` → `currencies`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_exchange_rates_quote_currency_id`: `quote_currency_id` → `currencies`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_exchange_rates_source`: `source IN ('manual', 'scheduled')` (both engines)
 
 **`units_of_measure`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `code` | code(16) | |
-| `dimension` | code(32) | length, mass, volume, time, area, … |
-| `symbol` | string(16) | |
-| `base_unit_id` | bigint? | → `units_of_measure.id` NO ACTION |
-| `factor` | decimal(30,15) | value_in_base = value × factor + offset |
-| `offset` | decimal(30,15) | |
-| `precision` | smallint | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `code` | VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(16) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `dimension` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | length, mass, volume, time, area, … |
+| `symbol` | VARCHAR(16) | NVARCHAR(16) | NOT NULL | — |  |
+| `base_unit_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `units_of_measure.id` NO ACTION |
+| `factor` | DECIMAL(30,15) | DECIMAL(30,15) | NOT NULL | — | value_in_base = value × factor + offset |
+| `offset` | DECIMAL(30,15) | DECIMAL(30,15) | NOT NULL | — |  |
+| `precision` | SMALLINT | SMALLINT | NOT NULL | — |  |
 
-Translatable: `name`. Indexes: (`organization_id`, `code`) unique.
+- **Primary key:** `pk_units_of_measure` (`id`); SQL Server clustered.
+- **Unique:** `uq_units_of_measure_organization_id_code` (`organization_id`, `code`)
+- **Index:** `ix_units_of_measure_created_by` (`created_by`) — supports FK
+- **Index:** `ix_units_of_measure_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_units_of_measure_base_unit_id` (`base_unit_id`) — supports FK
+- **Foreign key:** `fk_units_of_measure_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_units_of_measure_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_units_of_measure_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_units_of_measure_base_unit_id`: `base_unit_id` → `units_of_measure`(`id`) ON DELETE NO ACTION
+- Translatable: `name`.
 
 Shared reference collections (countries, cities, departments-as-data, job titles,
 document types) are **collections** (`collections.is_shared_reference = 1`) —
@@ -2587,572 +4196,1024 @@ admin-created, never seeded.
 
 **`duplicate_rules`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `match_fields` | json | `[{field_uuid, method: exact|normalized|fuzzy, threshold?}]` |
-| `match_mode` | enum<all,any> | |
-| `action` | enum<warn,block> | |
-| `applies_on` | enum<create,update,both> | |
-| `is_active` | bool | |
-| `last_sweep_at` | datetime? | |
-| `last_sweep_operation_id` | bigint? | → `bulk_operations.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `match_fields` | JSON | NVARCHAR(MAX) | NOT NULL | — | `[{field_uuid, method: exact\|normalized\|fuzzy, threshold?}]` |
+| `match_mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `all`, `any` |
+| `action` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `warn`, `block` |
+| `applies_on` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `create`, `update`, `both` |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `last_sweep_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `last_sweep_operation_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `bulk_operations.id` NO ACTION |
 
-Translatable: `name`, `message`. Indexes: (`form_id`, `is_active`).
+- **Primary key:** `pk_duplicate_rules` (`id`); SQL Server clustered.
+- **Index:** `ix_duplicate_rules_form_id_is_active` (`form_id`, `is_active`)
+- **Index:** `ix_duplicate_rules_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_duplicate_rules_created_by` (`created_by`) — supports FK
+- **Index:** `ix_duplicate_rules_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_duplicate_rules_last_sweep_operation_id` (`last_sweep_operation_id`) — supports FK
+- **Foreign key:** `fk_duplicate_rules_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_duplicate_rules_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_duplicate_rules_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_duplicate_rules_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_duplicate_rules_last_sweep_operation_id`: `last_sweep_operation_id` → `bulk_operations`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_duplicate_rules_match_mode`: `match_mode IN ('all', 'any')` (both engines)
+- **Check:** `ck_duplicate_rules_action`: `action IN ('warn', 'block')` (both engines)
+- **Check:** `ck_duplicate_rules_applies_on`: `applies_on IN ('create', 'update', 'both')` (both engines)
+- **Check (SQL Server):** `ck_duplicate_rules_match_fields_json`: `ISJSON(match_fields) = 1`
+- Translatable: `name`, `message`.
 
 **`merge_history`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org` | | immutable |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `survivor_record_id` | bigint | |
-| `merged_record_ids` | json | |
-| `field_choices` | json | `{field_uuid: source_record_id}` |
-| `merged_snapshots` | json | full pre-merge values (sensitive values encrypted) |
-| `relations_repointed` | json | `{relation_key: count}` |
-| `justification_id` | bigint? | → `justifications.id` NO ACTION |
-| `merged_by` | bigint | → `users.id` NO ACTION |
-| `merged_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `survivor_record_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `merged_record_ids` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `field_choices` | JSON | NVARCHAR(MAX) | NOT NULL | — | `{field_uuid: source_record_id}` |
+| `merged_snapshots` | JSON | NVARCHAR(MAX) | NOT NULL | — | full pre-merge values (sensitive values encrypted) |
+| `relations_repointed` | JSON | NVARCHAR(MAX) | NOT NULL | — | `{relation_key: count}` |
+| `justification_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `justifications.id` NO ACTION |
+| `merged_by` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `merged_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-Indexes: (`form_id`, `survivor_record_id`).
+- **Primary key:** `pk_merge_history` (`id`); SQL Server clustered.
+- **Unique:** `uq_merge_history_uuid` (`uuid`)
+- **Index:** `ix_merge_history_form_id_survivor_record_id` (`form_id`, `survivor_record_id`)
+- **Index:** `ix_merge_history_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_merge_history_justification_id` (`justification_id`) — supports FK
+- **Index:** `ix_merge_history_merged_by` (`merged_by`) — supports FK
+- **Foreign key:** `fk_merge_history_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_merge_history_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_merge_history_justification_id`: `justification_id` → `justifications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_merge_history_merged_by`: `merged_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_merge_history_merged_record_ids_json`: `ISJSON(merged_record_ids) = 1`
+- **Check (SQL Server):** `ck_merge_history_field_choices_json`: `ISJSON(field_choices) = 1`
+- **Check (SQL Server):** `ck_merge_history_merged_snapshots_json`: `ISJSON(merged_snapshots) = 1`
+- **Check (SQL Server):** `ck_merge_history_relations_repointed_json`: `ISJSON(relations_repointed) = 1`
+- **Note:** immutable
 
 **`bulk_operations`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `type` | enum<update,reassign,status_change,delete,restore,duplicate_sweep,validation_sweep,orphan_scan,repair> | |
-| `criteria` | json | filter AST or explicit ids |
-| `payload` | json? | values / target status / assignee |
-| `dry_run` | bool | |
-| `preview_count` | int? | |
-| `max_count` | int | guard |
-| `confirmed_above_max` | bool | |
-| `status` | enum<previewing,awaiting_confirmation,queued,running,completed,completed_with_errors,failed,cancelled> | |
-| `progress` | smallint | |
-| `affected_count` | int | |
-| `failed_count` | int | |
-| `result` | json? | per-record failures / findings |
-| `justification_id` | bigint? | → `justifications.id` NO ACTION |
-| `created_by` | bigint | → `users.id` NO ACTION |
-| `started_at` | datetime? | |
-| `finished_at` | datetime? | |
-| `error` | text? | |
-| `correlation_id` | code(36) | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `update`, `reassign`, `status_change`, `delete`, `restore`, `duplicate_sweep`, `validation_sweep`, `orphan_scan`, `repair` |
+| `criteria` | JSON | NVARCHAR(MAX) | NOT NULL | — | filter AST or explicit ids |
+| `payload` | JSON | NVARCHAR(MAX) | NULL | — | values / target status / assignee |
+| `dry_run` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `preview_count` | INT | INT | NULL | — |  |
+| `max_count` | INT | INT | NOT NULL | 0 | guard |
+| `confirmed_above_max` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `previewing`, `awaiting_confirmation`, `queued`, `running`, `completed`, `completed_with_errors`, `failed`, `cancelled` |
+| `progress` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `affected_count` | INT | INT | NOT NULL | 0 |  |
+| `failed_count` | INT | INT | NOT NULL | 0 |  |
+| `result` | JSON | NVARCHAR(MAX) | NULL | — | per-record failures / findings |
+| `justification_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `justifications.id` NO ACTION |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `started_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `finished_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 
-Indexes: (`form_id`, `created_at`); (`organization_id`, `status`).
+- **Primary key:** `pk_bulk_operations` (`id`); SQL Server clustered.
+- **Unique:** `uq_bulk_operations_uuid` (`uuid`)
+- **Index:** `ix_bulk_operations_form_id_created_at` (`form_id`, `created_at`)
+- **Index:** `ix_bulk_operations_organization_id_status` (`organization_id`, `status`)
+- **Index:** `ix_bulk_operations_justification_id` (`justification_id`) — supports FK
+- **Index:** `ix_bulk_operations_created_by` (`created_by`) — supports FK
+- **Foreign key:** `fk_bulk_operations_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_bulk_operations_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_bulk_operations_justification_id`: `justification_id` → `justifications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_bulk_operations_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_bulk_operations_type`: `type IN ('update', 'reassign', 'status_change', 'delete', 'restore', 'duplicate_sweep', 'validation_sweep', 'orphan_scan', 'repair')` (both engines)
+- **Check:** `ck_bulk_operations_status`: `status IN ('previewing', 'awaiting_confirmation', 'queued', 'running', 'completed', 'completed_with_errors', 'failed', 'cancelled')` (both engines)
+- **Check (SQL Server):** `ck_bulk_operations_criteria_json`: `ISJSON(criteria) = 1`
+- **Check (SQL Server):** `ck_bulk_operations_payload_json`: `ISJSON(payload) = 1`
+- **Check (SQL Server):** `ck_bulk_operations_result_json`: `ISJSON(result) = 1`
 
 **`recycle_bin`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `record_id` | bigint | |
-| `title_snapshot` | string(255) | |
-| `deleted_by` | bigint? | → `users.id` NO ACTION |
-| `deleted_at` | datetime | |
-| `justification_id` | bigint? | → `justifications.id` NO ACTION |
-| `purge_after` | datetime | from retention policy |
-| `restored_at` | datetime? | |
-| `restored_by` | bigint? | → `users.id` NO ACTION |
-| `purged_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `title_snapshot` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — |  |
+| `deleted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `deleted_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `justification_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `justifications.id` NO ACTION |
+| `purge_after` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | from retention policy |
+| `restored_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `restored_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `purged_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`form_id`, `record_id`) ; (`organization_id`, `purge_after`, `purged_at`).
+- **Primary key:** `pk_recycle_bin` (`id`); SQL Server clustered.
+- **Index:** `ix_recycle_bin_form_id_record_id` (`form_id`, `record_id`)
+- **Index:** `ix_recycle_bin_organization_id_purge_after_purged_at` (`organization_id`, `purge_after`, `purged_at`)
+- **Index:** `ix_recycle_bin_deleted_by` (`deleted_by`) — supports FK
+- **Index:** `ix_recycle_bin_justification_id` (`justification_id`) — supports FK
+- **Index:** `ix_recycle_bin_restored_by` (`restored_by`) — supports FK
+- **Foreign key:** `fk_recycle_bin_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_recycle_bin_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_recycle_bin_deleted_by`: `deleted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_recycle_bin_justification_id`: `justification_id` → `justifications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_recycle_bin_restored_by`: `restored_by` → `users`(`id`) ON DELETE NO ACTION
 
 ### 10.17 Blueprints
 
 **`blueprints`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta @soft` | | |
-| `kind` | enum<form,collection,workflow,view,action,notification,dashboard,application> | |
-| `category` | code(64)? | |
-| `tags` | json? | |
-| `is_library` | bool | appears in template library |
-| `preview_file_id` | bigint? | → `files.id` NO ACTION |
-| `current_version_id` | bigint? | → `blueprint_versions.id` NO ACTION |
-| `source_type` | code(32)? | object it was saved from |
-| `source_id` | bigint? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `deleted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | soft delete |
+| `deleted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `form`, `collection`, `workflow`, `view`, `action`, `notification`, `dashboard`, `application` |
+| `category` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `tags` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `is_library` | TINYINT(1) | BIT | NOT NULL | 0 | appears in template library |
+| `preview_file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` NO ACTION |
+| `current_version_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `blueprint_versions.id` NO ACTION |
+| `source_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | object it was saved from |
+| `source_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
 
-Translatable: `name`, `description`. Indexes: (`organization_id`, `kind`, `category`).
+- **Primary key:** `pk_blueprints` (`id`); SQL Server clustered.
+- **Index:** `ix_blueprints_organization_id_kind_category` (`organization_id`, `kind`, `category`)
+- **Index:** `ix_blueprints_organization_id_deleted_at` (`organization_id`, `deleted_at`)
+- **Index:** `ix_blueprints_created_by` (`created_by`) — supports FK
+- **Index:** `ix_blueprints_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_blueprints_deleted_by` (`deleted_by`) — supports FK
+- **Index:** `ix_blueprints_preview_file_id` (`preview_file_id`) — supports FK
+- **Index:** `ix_blueprints_current_version_id` (`current_version_id`) — supports FK
+- **Foreign key:** `fk_blueprints_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_blueprints_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_blueprints_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_blueprints_deleted_by`: `deleted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_blueprints_preview_file_id`: `preview_file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_blueprints_current_version_id`: `current_version_id` → `blueprint_versions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_blueprints_kind`: `kind IN ('form', 'collection', 'workflow', 'view', 'action', 'notification', 'dashboard', 'application')` (both engines)
+- **Check (SQL Server):** `ck_blueprints_tags_json`: `ISJSON(tags) = 1`
+- Translatable: `name`, `description`.
 
 **`blueprint_versions`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts @by` | | |
-| `blueprint_id` | bigint | → `blueprints.id` CASCADE |
-| `version` | int | |
-| `content` | json | package format (§14.12) with dependency list |
-| `content_hash` | hash | |
-| `include_mode` | enum<structure,structure_permissions,everything> | |
-| `changelog` | text? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `blueprint_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `blueprints.id` CASCADE |
+| `version` | INT | INT | NOT NULL | — |  |
+| `content` | JSON | NVARCHAR(MAX) | NOT NULL | — | package format (§14.12) with dependency list |
+| `content_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `include_mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `structure`, `structure_permissions`, `everything` |
+| `changelog` | TEXT | NVARCHAR(MAX) | NULL | — |  |
 
-Indexes: (`blueprint_id`, `version`) unique.
+- **Primary key:** `pk_blueprint_versions` (`id`); SQL Server clustered.
+- **Unique:** `uq_blueprint_versions_blueprint_id_version` (`blueprint_id`, `version`)
+- **Unique:** `uq_blueprint_versions_uuid` (`uuid`)
+- **Index:** `ix_blueprint_versions_created_by` (`created_by`) — supports FK
+- **Index:** `ix_blueprint_versions_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_blueprint_versions_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_blueprint_versions_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_blueprint_versions_blueprint_id`: `blueprint_id` → `blueprints`(`id`) ON DELETE CASCADE
+- **Check:** `ck_blueprint_versions_include_mode`: `include_mode IN ('structure', 'structure_permissions', 'everything')` (both engines)
+- **Check (SQL Server):** `ck_blueprint_versions_content_json`: `ISJSON(content) = 1`
 
 **`blueprint_instances`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts @by` | | |
-| `blueprint_id` | bigint | → `blueprints.id` NO ACTION |
-| `blueprint_version_id` | bigint | → `blueprint_versions.id` NO ACTION |
-| `object_type` | code(32) | |
-| `object_id` | bigint | |
-| `include_mode` | enum<structure,structure_permissions,everything> | |
-| `last_propagated_version_id` | bigint? | → `blueprint_versions.id` NO ACTION |
-| `is_detached` | bool | stops propagation offers |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `blueprint_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `blueprints.id` NO ACTION |
+| `blueprint_version_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `blueprint_versions.id` NO ACTION |
+| `object_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `object_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `include_mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `structure`, `structure_permissions`, `everything` |
+| `last_propagated_version_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `blueprint_versions.id` NO ACTION |
+| `is_detached` | TINYINT(1) | BIT | NOT NULL | 0 | stops propagation offers |
 
-Indexes: (`blueprint_id`); (`object_type`, `object_id`) unique.
+- **Primary key:** `pk_blueprint_instances` (`id`); SQL Server clustered.
+- **Unique:** `uq_blueprint_instances_object_type_object_id` (`object_type`, `object_id`)
+- **Unique:** `uq_blueprint_instances_uuid` (`uuid`)
+- **Index:** `ix_blueprint_instances_blueprint_id` (`blueprint_id`)
+- **Index:** `ix_blueprint_instances_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_blueprint_instances_created_by` (`created_by`) — supports FK
+- **Index:** `ix_blueprint_instances_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_blueprint_instances_blueprint_version_id` (`blueprint_version_id`) — supports FK
+- **Index:** `ix_blueprint_instances_last_propagated_version_id` (`last_propagated_version_id`) — supports FK
+- **Foreign key:** `fk_blueprint_instances_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_blueprint_instances_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_blueprint_instances_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_blueprint_instances_blueprint_id`: `blueprint_id` → `blueprints`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_blueprint_instances_blueprint_version_id`: `blueprint_version_id` → `blueprint_versions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_blueprint_instances_last_propagated_version_id`: `last_propagated_version_id` → `blueprint_versions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_blueprint_instances_include_mode`: `include_mode IN ('structure', 'structure_permissions', 'everything')` (both engines)
 
 ### 10.18 Automation & scheduler
 
 **`automations`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `application_id` | bigint? | → `applications.id` NO ACTION |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `key` | code(48) | |
-| `is_enabled` | bool | |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION |
-| `run_as` | enum<system,triggering_user,specific_user> | system runs still obey record rules with a dedicated service principal |
-| `run_as_user_id` | bigint? | → `users.id` NO ACTION |
-| `concurrency_limit` | smallint | |
-| `retry_policy` | json | `{max_attempts, backoff_seconds[]}` |
-| `max_records_per_run` | int | |
-| `confirm_above` | int? | runs above it wait for confirmation |
-| `max_chain_depth` | smallint | loop protection (default 3) |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `applications.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `is_enabled` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION |
+| `run_as` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | system runs still obey record rules with a dedicated service principal; values: `system`, `triggering_user`, `specific_user` |
+| `run_as_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `concurrency_limit` | SMALLINT | SMALLINT | NOT NULL | — |  |
+| `retry_policy` | JSON | NVARCHAR(MAX) | NOT NULL | — | `{max_attempts, backoff_seconds[]}` |
+| `max_records_per_run` | INT | INT | NOT NULL | — |  |
+| `confirm_above` | INT | INT | NULL | — | runs above it wait for confirmation |
+| `max_chain_depth` | SMALLINT | SMALLINT | NOT NULL | 3 | loop protection (default 3) |
 
-Translatable: `name`, `description`. Indexes: (`organization_id`, `key`) unique; (`form_id`, `is_enabled`).
+- **Primary key:** `pk_automations` (`id`); SQL Server clustered.
+- **Unique:** `uq_automations_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_automations_form_id_is_enabled` (`form_id`, `is_enabled`)
+- **Index:** `ix_automations_created_by` (`created_by`) — supports FK
+- **Index:** `ix_automations_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_automations_application_id` (`application_id`) — supports FK
+- **Index:** `ix_automations_condition_id` (`condition_id`) — supports FK
+- **Index:** `ix_automations_run_as_user_id` (`run_as_user_id`) — supports FK
+- **Foreign key:** `fk_automations_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automations_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automations_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automations_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automations_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automations_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automations_run_as_user_id`: `run_as_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_automations_run_as`: `run_as IN ('system', 'triggering_user', 'specific_user')` (both engines)
+- **Check (SQL Server):** `ck_automations_retry_policy_json`: `ISJSON(retry_policy) = 1`
+- Translatable: `name`, `description`.
 
 **`automation_triggers`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts` | | |
-| `automation_id` | bigint | → `automations.id` CASCADE |
-| `type` | enum<record_created,record_updated,record_deleted,field_changed,status_changed,condition_true,schedule,date_reached,inbound_webhook,watched_folder,manual> | |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `field_id` | bigint? | → `fields.id` NO ACTION |
-| `from_status_id` | bigint? | → `statuses.id` NO ACTION |
-| `to_status_id` | bigint? | → `statuses.id` NO ACTION |
-| `cron_expression` | code(64)? | hourly/daily/weekly/monthly normalized to cron |
-| `timezone` | string(64)? | |
-| `date_field_id` | bigint? | → `fields.id` NO ACTION |
-| `offset_minutes` | int? | negative = before |
-| `inbound_endpoint_id` | bigint? | → `inbound_endpoints.id` NO ACTION |
-| `watched_disk` | code(32)? | |
-| `watched_path` | string(1024)? | |
-| `config` | json? | |
-| `scheduled_task_id` | bigint? | → `scheduled_tasks.id` NO ACTION |
-| `last_fired_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `automation_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `automations.id` CASCADE |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `record_created`, `record_updated`, `record_deleted`, `field_changed`, `status_changed`, `condition_true`, `schedule`, `date_reached`, `inbound_webhook`, `watched_folder`, `manual` |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
+| `from_status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION |
+| `to_status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION |
+| `cron_expression` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NULL | — | hourly/daily/weekly/monthly normalized to cron |
+| `timezone` | VARCHAR(64) | NVARCHAR(64) | NULL | — |  |
+| `date_field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
+| `offset_minutes` | INT | INT | NULL | — | negative = before |
+| `inbound_endpoint_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `inbound_endpoints.id` NO ACTION |
+| `watched_disk` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `watched_path` | VARCHAR(1024) | NVARCHAR(1024) | NULL | — |  |
+| `config` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `scheduled_task_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `scheduled_tasks.id` NO ACTION |
+| `last_fired_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`type`, `form_id`); (`automation_id`).
+- **Primary key:** `pk_automation_triggers` (`id`); SQL Server clustered.
+- **Unique:** `uq_automation_triggers_uuid` (`uuid`)
+- **Index:** `ix_automation_triggers_type_form_id` (`type`, `form_id`)
+- **Index:** `ix_automation_triggers_automation_id` (`automation_id`)
+- **Index:** `ix_automation_triggers_form_id` (`form_id`) — supports FK
+- **Index:** `ix_automation_triggers_field_id` (`field_id`) — supports FK
+- **Index:** `ix_automation_triggers_from_status_id` (`from_status_id`) — supports FK
+- **Index:** `ix_automation_triggers_to_status_id` (`to_status_id`) — supports FK
+- **Index:** `ix_automation_triggers_date_field_id` (`date_field_id`) — supports FK
+- **Index:** `ix_automation_triggers_inbound_endpoint_id` (`inbound_endpoint_id`) — supports FK
+- **Index:** `ix_automation_triggers_scheduled_task_id` (`scheduled_task_id`) — supports FK
+- **Foreign key:** `fk_automation_triggers_automation_id`: `automation_id` → `automations`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_automation_triggers_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automation_triggers_field_id`: `field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automation_triggers_from_status_id`: `from_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automation_triggers_to_status_id`: `to_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automation_triggers_date_field_id`: `date_field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automation_triggers_inbound_endpoint_id`: `inbound_endpoint_id` → `inbound_endpoints`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automation_triggers_scheduled_task_id`: `scheduled_task_id` → `scheduled_tasks`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_automation_triggers_type`: `type IN ('record_created', 'record_updated', 'record_deleted', 'field_changed', 'status_changed', 'condition_true', 'schedule', 'date_reached', 'inbound_webhook', 'watched_folder', 'manual')` (both engines)
+- **Check (SQL Server):** `ck_automation_triggers_config_json`: `ISJSON(config) = 1`
 
 **`automation_steps`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts` | | |
-| `automation_id` | bigint | → `automations.id` CASCADE |
-| `sort_order` | int | |
-| `type` | enum<update_fields,change_status,assign,create_linked_record,send_email,send_notification,generate_document,run_download,call_webhook,wait_delay,wait_condition> | |
-| `config` | json | |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION |
-| `on_failure` | enum<stop,continue,retry> | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `automation_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `automations.id` CASCADE |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `update_fields`, `change_status`, `assign`, `create_linked_record`, `send_email`, `send_notification`, `generate_document`, `run_download`, `call_webhook`, `wait_delay`, `wait_condition` |
+| `config` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION |
+| `on_failure` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `stop`, `continue`, `retry` |
 
-Indexes: (`automation_id`, `sort_order`).
+- **Primary key:** `pk_automation_steps` (`id`); SQL Server clustered.
+- **Unique:** `uq_automation_steps_uuid` (`uuid`)
+- **Index:** `ix_automation_steps_automation_id_sort_order` (`automation_id`, `sort_order`)
+- **Index:** `ix_automation_steps_condition_id` (`condition_id`) — supports FK
+- **Foreign key:** `fk_automation_steps_automation_id`: `automation_id` → `automations`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_automation_steps_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_automation_steps_type`: `type IN ('update_fields', 'change_status', 'assign', 'create_linked_record', 'send_email', 'send_notification', 'generate_document', 'run_download', 'call_webhook', 'wait_delay', 'wait_condition')` (both engines)
+- **Check:** `ck_automation_steps_on_failure`: `on_failure IN ('stop', 'continue', 'retry')` (both engines)
+- **Check (SQL Server):** `ck_automation_steps_config_json`: `ISJSON(config) = 1`
 
 **`automation_runs`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `automation_id` | bigint | → `automations.id` NO ACTION |
-| `trigger_type` | code(32) | |
-| `trigger_ref` | json | record ids / schedule time / webhook delivery id |
-| `parent_run_id` | bigint? | → `automation_runs.id` NO ACTION (chain) |
-| `chain_depth` | smallint | |
-| `is_test` | bool | test against a sample record (no side effects committed) |
-| `status` | enum<queued,awaiting_confirmation,running,waiting,succeeded,failed,partially_failed,cancelled,skipped_loop> | |
-| `records_affected` | int | |
-| `steps_log` | json | per step: status, duration, output summary, error |
-| `current_step` | int? | for waits |
-| `resume_at` | datetime? | |
-| `attempts` | smallint | |
-| `started_at` | datetime? | |
-| `finished_at` | datetime? | |
-| `duration_ms` | bigint? | |
-| `error` | text? | |
-| `triggered_by` | bigint? | → `users.id` NO ACTION |
-| `correlation_id` | code(36) | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `automation_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `automations.id` NO ACTION |
+| `trigger_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `trigger_ref` | JSON | NVARCHAR(MAX) | NOT NULL | — | record ids / schedule time / webhook delivery id |
+| `parent_run_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `automation_runs.id` NO ACTION (chain) |
+| `chain_depth` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `is_test` | TINYINT(1) | BIT | NOT NULL | 0 | test against a sample record (no side effects committed) |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `queued`, `awaiting_confirmation`, `running`, `waiting`, `succeeded`, `failed`, `partially_failed`, `cancelled`, `skipped_loop` |
+| `records_affected` | INT | INT | NOT NULL | 0 |  |
+| `steps_log` | JSON | NVARCHAR(MAX) | NOT NULL | — | per step: status, duration, output summary, error |
+| `current_step` | INT | INT | NULL | — | for waits |
+| `resume_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `attempts` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `started_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `finished_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `duration_ms` | BIGINT | BIGINT | NULL | — |  |
+| `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `triggered_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 
-Indexes: (`automation_id`, `created_at`); (`status`, `resume_at`).
+- **Primary key:** `pk_automation_runs` (`id`); SQL Server clustered.
+- **Unique:** `uq_automation_runs_uuid` (`uuid`)
+- **Index:** `ix_automation_runs_automation_id_created_at` (`automation_id`, `created_at`)
+- **Index:** `ix_automation_runs_status_resume_at` (`status`, `resume_at`)
+- **Index:** `ix_automation_runs_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_automation_runs_parent_run_id` (`parent_run_id`) — supports FK
+- **Index:** `ix_automation_runs_triggered_by` (`triggered_by`) — supports FK
+- **Foreign key:** `fk_automation_runs_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automation_runs_automation_id`: `automation_id` → `automations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automation_runs_parent_run_id`: `parent_run_id` → `automation_runs`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_automation_runs_triggered_by`: `triggered_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_automation_runs_status`: `status IN ('queued', 'awaiting_confirmation', 'running', 'waiting', 'succeeded', 'failed', 'partially_failed', 'cancelled', 'skipped_loop')` (both engines)
+- **Check (SQL Server):** `ck_automation_runs_trigger_ref_json`: `ISJSON(trigger_ref) = 1`
+- **Check (SQL Server):** `ck_automation_runs_steps_log_json`: `ISJSON(steps_log) = 1`
 
 **`scheduled_tasks`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `kind` | enum<system,automation,download,sync,retention,report,reconciliation> | |
-| `owner_type` | code(32)? | |
-| `owner_id` | bigint? | |
-| `name` | string(255) | |
-| `cron_expression` | code(64) | |
-| `timezone` | string(64) | |
-| `is_enabled` | bool | |
-| `next_run_at` | datetime | |
-| `last_run_at` | datetime? | |
-| `last_status` | enum<succeeded,failed,running,skipped>? | |
-| `last_duration_ms` | bigint? | |
-| `last_error` | text? | |
-| `claimed_until` | datetime? | atomic claim |
-| `claimed_by` | string(128)? | worker host |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `system`, `automation`, `download`, `sync`, `retention`, `report`, `reconciliation` |
+| `owner_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `owner_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `name` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — |  |
+| `cron_expression` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `timezone` | VARCHAR(64) | NVARCHAR(64) | NOT NULL | — |  |
+| `is_enabled` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `next_run_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `last_run_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `last_status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `succeeded`, `failed`, `running`, `skipped` |
+| `last_duration_ms` | BIGINT | BIGINT | NULL | — |  |
+| `last_error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `claimed_until` | DATETIME(6) | DATETIME2(6) | NULL | — | atomic claim |
+| `claimed_by` | VARCHAR(128) | NVARCHAR(128) | NULL | — | worker host |
 
-Indexes: (`is_enabled`, `next_run_at`); (`owner_type`, `owner_id`).
+- **Primary key:** `pk_scheduled_tasks` (`id`); SQL Server clustered.
+- **Unique:** `uq_scheduled_tasks_uuid` (`uuid`)
+- **Index:** `ix_scheduled_tasks_is_enabled_next_run_at` (`is_enabled`, `next_run_at`)
+- **Index:** `ix_scheduled_tasks_owner_type_owner_id` (`owner_type`, `owner_id`)
+- **Index:** `ix_scheduled_tasks_organization_id` (`organization_id`) — supports FK
+- **Foreign key:** `fk_scheduled_tasks_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_scheduled_tasks_kind`: `kind IN ('system', 'automation', 'download', 'sync', 'retention', 'report', 'reconciliation')` (both engines)
+- **Check:** `ck_scheduled_tasks_last_status`: `last_status IN ('succeeded', 'failed', 'running', 'skipped')` (both engines)
 
 ### 10.19 External access
 
 **`external_forms`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `slug` | code(64) | unique; URL `/x/f/{slug}` |
-| `theme_id` | bigint? | → `themes.id` NO ACTION |
-| `initial_status_id` | bigint? | → `statuses.id` NO ACTION |
-| `exposed_fields` | json | field uuids published externally (allow-list) |
-| `captcha` | bool | |
-| `rate_limit_per_ip` | int | per hour |
-| `opens_at` | datetime? | |
-| `closes_at` | datetime? | |
-| `daily_window` | json? | allowed time of day |
-| `submission_cap` | int? | |
-| `submissions_count` | int | |
-| `verification` | enum<none,email,sms> | |
-| `password_hash` | string(255)? | |
-| `run_as_user_id` | bigint | → `users.id` NO ACTION (service principal recorded as creator) |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `slug` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | unique; URL `/x/f/{slug}` |
+| `theme_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `themes.id` NO ACTION |
+| `initial_status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION |
+| `exposed_fields` | JSON | NVARCHAR(MAX) | NOT NULL | — | field uuids published externally (allow-list) |
+| `captcha` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `rate_limit_per_ip` | INT | INT | NOT NULL | — | per hour |
+| `opens_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `closes_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `daily_window` | JSON | NVARCHAR(MAX) | NULL | — | allowed time of day |
+| `submission_cap` | INT | INT | NULL | — |  |
+| `submissions_count` | INT | INT | NOT NULL | 0 |  |
+| `verification` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `none`, `email`, `sms` |
+| `password_hash` | VARCHAR(255) | NVARCHAR(255) | NULL | — |  |
+| `run_as_user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION (service principal recorded as creator) |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `title`, `intro`, `success_message`. Indexes: `slug` unique; `form_id`.
+- **Primary key:** `pk_external_forms` (`id`); SQL Server clustered.
+- **Unique:** `uq_external_forms_slug` (`slug`)
+- **Index:** `ix_external_forms_form_id` (`form_id`)
+- **Index:** `ix_external_forms_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_external_forms_created_by` (`created_by`) — supports FK
+- **Index:** `ix_external_forms_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_external_forms_theme_id` (`theme_id`) — supports FK
+- **Index:** `ix_external_forms_initial_status_id` (`initial_status_id`) — supports FK
+- **Index:** `ix_external_forms_run_as_user_id` (`run_as_user_id`) — supports FK
+- **Foreign key:** `fk_external_forms_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_forms_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_forms_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_forms_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_forms_theme_id`: `theme_id` → `themes`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_forms_initial_status_id`: `initial_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_forms_run_as_user_id`: `run_as_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_external_forms_verification`: `verification IN ('none', 'email', 'sms')` (both engines)
+- **Check (SQL Server):** `ck_external_forms_exposed_fields_json`: `ISJSON(exposed_fields) = 1`
+- **Check (SQL Server):** `ck_external_forms_daily_window_json`: `ISJSON(daily_window) = 1`
+- Translatable: `title`, `intro`, `success_message`.
 
 **`external_users`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta @soft` | | |
-| `email` | string(255) | |
-| `name` | string(255) | |
-| `password` | string(255) | |
-| `role_id` | bigint | → `roles.id` NO ACTION (audience=external) |
-| `status` | enum<pending_verification,pending_approval,approved,rejected,suspended> | |
-| `email_verified_at` | datetime? | |
-| `two_factor_secret` | text? | encrypted |
-| `two_factor_confirmed_at` | datetime? | |
-| `approved_by` | bigint? | → `users.id` NO ACTION |
-| `approved_at` | datetime? | |
-| `last_login_at` | datetime? | |
-| `failed_login_count` | smallint | |
-| `locked_until` | datetime? | |
-| `anonymized_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `deleted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | soft delete |
+| `deleted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `email` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — |  |
+| `name` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — |  |
+| `password` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — |  |
+| `role_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `roles.id` NO ACTION (audience=external) |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `pending_verification`, `pending_approval`, `approved`, `rejected`, `suspended` |
+| `email_verified_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `two_factor_secret` | TEXT | NVARCHAR(MAX) | NULL | — | encrypted |
+| `two_factor_confirmed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `approved_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `approved_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `last_login_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `failed_login_count` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `locked_until` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `anonymized_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`organization_id`, `email`) unique; (`organization_id`, `status`).
+- **Primary key:** `pk_external_users` (`id`); SQL Server clustered.
+- **Unique:** `uq_external_users_organization_id_email` (`organization_id`, `email`)
+- **Index:** `ix_external_users_organization_id_status` (`organization_id`, `status`)
+- **Index:** `ix_external_users_organization_id_deleted_at` (`organization_id`, `deleted_at`)
+- **Index:** `ix_external_users_created_by` (`created_by`) — supports FK
+- **Index:** `ix_external_users_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_external_users_deleted_by` (`deleted_by`) — supports FK
+- **Index:** `ix_external_users_role_id` (`role_id`) — supports FK
+- **Index:** `ix_external_users_approved_by` (`approved_by`) — supports FK
+- **Foreign key:** `fk_external_users_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_users_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_users_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_users_deleted_by`: `deleted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_users_role_id`: `role_id` → `roles`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_users_approved_by`: `approved_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_external_users_status`: `status IN ('pending_verification', 'pending_approval', 'approved', 'rejected', 'suspended')` (both engines)
 
 **`access_tokens`** (tokenized single-record links)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts @by` | | |
-| `token_hash` | hash | SHA-256 of a 256-bit random token; plaintext only in the sent link |
-| `purpose` | enum<record_action,signature,external_resume,email_verification> | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `record_id` | bigint | |
-| `action` | enum<view,approve,reject,complete_section,sign> | |
-| `section_key` | code(48)? | |
-| `recipient_email` | string(255)? | |
-| `max_uses` | smallint | |
-| `uses` | smallint | |
-| `expires_at` | datetime | |
-| `revoked_at` | datetime? | |
-| `revoked_by` | bigint? | → `users.id` NO ACTION |
-| `last_used_at` | datetime? | |
-| `last_used_ip` | string(45)? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `token_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | SHA-256 of a 256-bit random token; plaintext only in the sent link |
+| `purpose` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `record_action`, `signature`, `external_resume`, `email_verification` |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `action` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `view`, `approve`, `reject`, `complete_section`, `sign` |
+| `section_key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `recipient_email` | VARCHAR(255) | NVARCHAR(255) | NULL | — |  |
+| `max_uses` | SMALLINT | SMALLINT | NOT NULL | — |  |
+| `uses` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `expires_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `revoked_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `revoked_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `last_used_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `last_used_ip` | VARCHAR(45) | NVARCHAR(45) | NULL | — |  |
 
-Indexes: `token_hash` unique; (`form_id`, `record_id`).
+- **Primary key:** `pk_access_tokens` (`id`); SQL Server clustered.
+- **Unique:** `uq_access_tokens_token_hash` (`token_hash`)
+- **Unique:** `uq_access_tokens_uuid` (`uuid`)
+- **Index:** `ix_access_tokens_form_id_record_id` (`form_id`, `record_id`)
+- **Index:** `ix_access_tokens_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_access_tokens_created_by` (`created_by`) — supports FK
+- **Index:** `ix_access_tokens_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_access_tokens_revoked_by` (`revoked_by`) — supports FK
+- **Foreign key:** `fk_access_tokens_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_access_tokens_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_access_tokens_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_access_tokens_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_access_tokens_revoked_by`: `revoked_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_access_tokens_purpose`: `purpose IN ('record_action', 'signature', 'external_resume', 'email_verification')` (both engines)
+- **Check:** `ck_access_tokens_action`: `action IN ('view', 'approve', 'reject', 'complete_section', 'sign')` (both engines)
 
 **`signature_requests`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `record_id` | bigint | |
-| `signer_type` | enum<user,external_user,email> | |
-| `signer_user_id` | bigint? | → `users.id` NO ACTION |
-| `signer_external_user_id` | bigint? | → `external_users.id` NO ACTION |
-| `signer_email` | string(255)? | |
-| `access_token_id` | bigint? | → `access_tokens.id` NO ACTION |
-| `document_template_id` | bigint? | → `document_templates.id` NO ACTION |
-| `status` | enum<pending,viewed,signed,declined,expired,cancelled> | |
-| `signature_file_id` | bigint? | → `files.id` NO ACTION (signature image) |
-| `signed_file_id` | bigint? | → `files.id` NO ACTION (signed output) |
-| `signed_document_hash` | hash? | |
-| `signed_at` | datetime? | |
-| `signer_ip` | string(45)? | |
-| `signer_user_agent` | text? | |
-| `decline_reason` | text? | |
-| `expires_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `signer_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `user`, `external_user`, `email` |
+| `signer_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `signer_external_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `external_users.id` NO ACTION |
+| `signer_email` | VARCHAR(255) | NVARCHAR(255) | NULL | — |  |
+| `access_token_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `access_tokens.id` NO ACTION |
+| `document_template_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `document_templates.id` NO ACTION |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `pending`, `viewed`, `signed`, `declined`, `expired`, `cancelled` |
+| `signature_file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` NO ACTION (signature image) |
+| `signed_file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` NO ACTION (signed output) |
+| `signed_document_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `signed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `signer_ip` | VARCHAR(45) | NVARCHAR(45) | NULL | — |  |
+| `signer_user_agent` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `decline_reason` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `expires_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-Indexes: (`form_id`, `record_id`); (`organization_id`, `status`).
+- **Primary key:** `pk_signature_requests` (`id`); SQL Server clustered.
+- **Index:** `ix_signature_requests_form_id_record_id` (`form_id`, `record_id`)
+- **Index:** `ix_signature_requests_organization_id_status` (`organization_id`, `status`)
+- **Index:** `ix_signature_requests_created_by` (`created_by`) — supports FK
+- **Index:** `ix_signature_requests_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_signature_requests_signer_user_id` (`signer_user_id`) — supports FK
+- **Index:** `ix_signature_requests_signer_external_user_id` (`signer_external_user_id`) — supports FK
+- **Index:** `ix_signature_requests_access_token_id` (`access_token_id`) — supports FK
+- **Index:** `ix_signature_requests_document_template_id` (`document_template_id`) — supports FK
+- **Index:** `ix_signature_requests_signature_file_id` (`signature_file_id`) — supports FK
+- **Index:** `ix_signature_requests_signed_file_id` (`signed_file_id`) — supports FK
+- **Foreign key:** `fk_signature_requests_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_signature_requests_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_signature_requests_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_signature_requests_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_signature_requests_signer_user_id`: `signer_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_signature_requests_signer_external_user_id`: `signer_external_user_id` → `external_users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_signature_requests_access_token_id`: `access_token_id` → `access_tokens`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_signature_requests_document_template_id`: `document_template_id` → `document_templates`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_signature_requests_signature_file_id`: `signature_file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_signature_requests_signed_file_id`: `signed_file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_signature_requests_signer_type`: `signer_type IN ('user', 'external_user', 'email')` (both engines)
+- **Check:** `ck_signature_requests_status`: `status IN ('pending', 'viewed', 'signed', 'declined', 'expired', 'cancelled')` (both engines)
 
 **`submission_throttles`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk` | | |
-| `external_form_id` | bigint | → `external_forms.id` CASCADE |
-| `key_type` | enum<ip,email,global> | |
-| `key_hash` | hash | HMAC of the IP/email |
-| `window_start` | datetime | |
-| `count` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `external_form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `external_forms.id` CASCADE |
+| `key_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `ip`, `email`, `global` |
+| `key_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | HMAC of the IP/email |
+| `window_start` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `count` | INT | INT | NOT NULL | — |  |
 
-Indexes: (`external_form_id`, `key_type`, `key_hash`, `window_start`) unique.
+- **Primary key:** `pk_submission_throttles` (`id`); SQL Server clustered.
+- **Unique:** `uq_submission_throttles_external_form_id_key_type_k_7ad12ded` (`external_form_id`, `key_type`, `key_hash`, `window_start`)
+- **Foreign key:** `fk_submission_throttles_external_form_id`: `external_form_id` → `external_forms`(`id`) ON DELETE CASCADE
+- **Check:** `ck_submission_throttles_key_type`: `key_type IN ('ip', 'email', 'global')` (both engines)
 
 ### 10.20 Integrations
 
 **`external_data_sources`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `key` | code(48) | |
-| `type` | enum<rest,db_view> | |
-| `rest_config` | json? | base URL, method, path, query template, pagination (calls via egress gateway) |
-| `db_connection` | code(64)? | name of a connection defined in environment config (no credentials in DB) |
-| `db_view` | code(128)? | view name, validated by introspection |
-| `auth_type` | enum<none,api_key,bearer,basic,oauth2_client_credentials> | |
-| `credentials` | text? | encrypted |
-| `headers` | text? | encrypted JSON |
-| `response_mapping` | json | JSON-path → field keys, value/label columns |
-| `cache_policy` | enum<none,ttl,stale_while_revalidate> | |
-| `cache_ttl_seconds` | int? | |
-| `is_active` | bool | |
-| `last_tested_at` | datetime? | |
-| `last_test_status` | code(32)? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `rest`, `db_view` |
+| `rest_config` | JSON | NVARCHAR(MAX) | NULL | — | base URL, method, path, query template, pagination (calls via egress gateway) |
+| `db_connection` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NULL | — | name of a connection defined in environment config (no credentials in DB) |
+| `db_view` | VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(128) COLLATE Latin1_General_100_BIN2 | NULL | — | view name, validated by introspection |
+| `auth_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `none`, `api_key`, `bearer`, `basic`, `oauth2_client_credentials` |
+| `credentials` | TEXT | NVARCHAR(MAX) | NULL | — | encrypted |
+| `headers` | TEXT | NVARCHAR(MAX) | NULL | — | encrypted JSON |
+| `response_mapping` | JSON | NVARCHAR(MAX) | NOT NULL | — | JSON-path → field keys, value/label columns |
+| `cache_policy` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `none`, `ttl`, `stale_while_revalidate` |
+| `cache_ttl_seconds` | INT | INT | NULL | — |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `last_tested_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `last_test_status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
 
-Translatable: `name`. Indexes: (`organization_id`, `key`) unique.
+- **Primary key:** `pk_external_data_sources` (`id`); SQL Server clustered.
+- **Unique:** `uq_external_data_sources_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_external_data_sources_created_by` (`created_by`) — supports FK
+- **Index:** `ix_external_data_sources_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_external_data_sources_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_data_sources_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_external_data_sources_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_external_data_sources_type`: `type IN ('rest', 'db_view')` (both engines)
+- **Check:** `ck_external_data_sources_auth_type`: `auth_type IN ('none', 'api_key', 'bearer', 'basic', 'oauth2_client_credentials')` (both engines)
+- **Check:** `ck_external_data_sources_cache_policy`: `cache_policy IN ('none', 'ttl', 'stale_while_revalidate')` (both engines)
+- **Check (SQL Server):** `ck_external_data_sources_rest_config_json`: `ISJSON(rest_config) = 1`
+- **Check (SQL Server):** `ck_external_data_sources_response_mapping_json`: `ISJSON(response_mapping) = 1`
+- Translatable: `name`.
 
 **`sync_jobs`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `external_data_source_id` | bigint | → `external_data_sources.id` NO ACTION |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `direction` | enum<import,export> | |
-| `field_mapping` | json | |
-| `match_keys` | json | |
-| `conflict_rule` | enum<source_wins,target_wins,newest_wins,skip> | |
-| `run_as_user_id` | bigint | → `users.id` NO ACTION |
-| `scheduled_task_id` | bigint? | → `scheduled_tasks.id` NO ACTION |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `external_data_source_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `external_data_sources.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `direction` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `import`, `export` |
+| `field_mapping` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `match_keys` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `conflict_rule` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `source_wins`, `target_wins`, `newest_wins`, `skip` |
+| `run_as_user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `scheduled_task_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `scheduled_tasks.id` NO ACTION |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `name`. Indexes: (`form_id`).
+- **Primary key:** `pk_sync_jobs` (`id`); SQL Server clustered.
+- **Index:** `ix_sync_jobs_form_id` (`form_id`)
+- **Index:** `ix_sync_jobs_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_sync_jobs_created_by` (`created_by`) — supports FK
+- **Index:** `ix_sync_jobs_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_sync_jobs_external_data_source_id` (`external_data_source_id`) — supports FK
+- **Index:** `ix_sync_jobs_run_as_user_id` (`run_as_user_id`) — supports FK
+- **Index:** `ix_sync_jobs_scheduled_task_id` (`scheduled_task_id`) — supports FK
+- **Foreign key:** `fk_sync_jobs_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sync_jobs_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sync_jobs_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sync_jobs_external_data_source_id`: `external_data_source_id` → `external_data_sources`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sync_jobs_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sync_jobs_run_as_user_id`: `run_as_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sync_jobs_scheduled_task_id`: `scheduled_task_id` → `scheduled_tasks`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_sync_jobs_direction`: `direction IN ('import', 'export')` (both engines)
+- **Check:** `ck_sync_jobs_conflict_rule`: `conflict_rule IN ('source_wins', 'target_wins', 'newest_wins', 'skip')` (both engines)
+- **Check (SQL Server):** `ck_sync_jobs_field_mapping_json`: `ISJSON(field_mapping) = 1`
+- **Check (SQL Server):** `ck_sync_jobs_match_keys_json`: `ISJSON(match_keys) = 1`
+- Translatable: `name`.
 
 **`sync_runs`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `sync_job_id` | bigint | → `sync_jobs.id` NO ACTION |
-| `dry_run` | bool | |
-| `status` | enum<queued,running,succeeded,failed,partially_failed> | |
-| `created_count` | int | |
-| `updated_count` | int | |
-| `skipped_count` | int | |
-| `error_count` | int | |
-| `log_file_id` | bigint? | → `files.id` NO ACTION |
-| `started_at` | datetime? | |
-| `finished_at` | datetime? | |
-| `error` | text? | |
-| `triggered_by` | bigint? | → `users.id` NO ACTION |
-| `correlation_id` | code(36) | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `sync_job_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `sync_jobs.id` NO ACTION |
+| `dry_run` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `queued`, `running`, `succeeded`, `failed`, `partially_failed` |
+| `created_count` | INT | INT | NOT NULL | 0 |  |
+| `updated_count` | INT | INT | NOT NULL | 0 |  |
+| `skipped_count` | INT | INT | NOT NULL | 0 |  |
+| `error_count` | INT | INT | NOT NULL | 0 |  |
+| `log_file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` NO ACTION |
+| `started_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `finished_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `triggered_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 
-Indexes: (`sync_job_id`, `created_at`).
+- **Primary key:** `pk_sync_runs` (`id`); SQL Server clustered.
+- **Unique:** `uq_sync_runs_uuid` (`uuid`)
+- **Index:** `ix_sync_runs_sync_job_id_created_at` (`sync_job_id`, `created_at`)
+- **Index:** `ix_sync_runs_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_sync_runs_log_file_id` (`log_file_id`) — supports FK
+- **Index:** `ix_sync_runs_triggered_by` (`triggered_by`) — supports FK
+- **Foreign key:** `fk_sync_runs_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sync_runs_sync_job_id`: `sync_job_id` → `sync_jobs`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sync_runs_log_file_id`: `log_file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_sync_runs_triggered_by`: `triggered_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_sync_runs_status`: `status IN ('queued', 'running', 'succeeded', 'failed', 'partially_failed')` (both engines)
 
 **`notification_channels`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `key` | code(48) | |
-| `type` | enum<email,in_app,sms,messaging> | |
-| `provider` | code(48) | registered provider driver |
-| `config` | text? | encrypted JSON (API keys, sender ids) |
-| `rate_limit_per_minute` | int? | |
-| `is_active` | bool | |
-| `is_default` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `email`, `in_app`, `sms`, `messaging` |
+| `provider` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | registered provider driver |
+| `config` | TEXT | NVARCHAR(MAX) | NULL | — | encrypted JSON (API keys, sender ids) |
+| `rate_limit_per_minute` | INT | INT | NULL | — |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `is_default` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 
-Translatable: `name`. Indexes: (`organization_id`, `key`) unique.
+- **Primary key:** `pk_notification_channels` (`id`); SQL Server clustered.
+- **Unique:** `uq_notification_channels_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_notification_channels_created_by` (`created_by`) — supports FK
+- **Index:** `ix_notification_channels_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_notification_channels_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_notification_channels_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_notification_channels_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_notification_channels_type`: `type IN ('email', 'in_app', 'sms', 'messaging')` (both engines)
+- Translatable: `name`.
 
 **`inbound_endpoints`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `kind` | enum<api,webhook> | |
-| `slug` | code(64) | URL `/api/inbound/{slug}` |
-| `operation` | enum<create,update,upsert> | |
-| `match_field_id` | bigint? | → `fields.id` NO ACTION |
-| `payload_mapping` | json | |
-| `signature_secret` | text? | encrypted (webhooks) |
-| `signature_header` | string(64)? | |
-| `signature_algorithm` | enum<hmac_sha256,hmac_sha512>? | |
-| `run_as_user_id` | bigint | → `users.id` NO ACTION |
-| `initial_status_id` | bigint? | → `statuses.id` NO ACTION |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `api`, `webhook` |
+| `slug` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | URL `/api/inbound/{slug}` |
+| `operation` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `create`, `update`, `upsert` |
+| `match_field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
+| `payload_mapping` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `signature_secret` | TEXT | NVARCHAR(MAX) | NULL | — | encrypted (webhooks) |
+| `signature_header` | VARCHAR(64) | NVARCHAR(64) | NULL | — |  |
+| `signature_algorithm` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `hmac_sha256`, `hmac_sha512` |
+| `run_as_user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `initial_status_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `statuses.id` NO ACTION |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Indexes: (`organization_id`, `slug`) unique.
+- **Primary key:** `pk_inbound_endpoints` (`id`); SQL Server clustered.
+- **Unique:** `uq_inbound_endpoints_organization_id_slug` (`organization_id`, `slug`)
+- **Index:** `ix_inbound_endpoints_created_by` (`created_by`) — supports FK
+- **Index:** `ix_inbound_endpoints_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_inbound_endpoints_form_id` (`form_id`) — supports FK
+- **Index:** `ix_inbound_endpoints_match_field_id` (`match_field_id`) — supports FK
+- **Index:** `ix_inbound_endpoints_run_as_user_id` (`run_as_user_id`) — supports FK
+- **Index:** `ix_inbound_endpoints_initial_status_id` (`initial_status_id`) — supports FK
+- **Foreign key:** `fk_inbound_endpoints_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_inbound_endpoints_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_inbound_endpoints_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_inbound_endpoints_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_inbound_endpoints_match_field_id`: `match_field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_inbound_endpoints_run_as_user_id`: `run_as_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_inbound_endpoints_initial_status_id`: `initial_status_id` → `statuses`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_inbound_endpoints_kind`: `kind IN ('api', 'webhook')` (both engines)
+- **Check:** `ck_inbound_endpoints_operation`: `operation IN ('create', 'update', 'upsert')` (both engines)
+- **Check:** `ck_inbound_endpoints_signature_algorithm`: `signature_algorithm IN ('hmac_sha256', 'hmac_sha512')` (both engines)
+- **Check (SQL Server):** `ck_inbound_endpoints_payload_mapping_json`: `ISJSON(payload_mapping) = 1`
 
 ### 10.21 Operations & monitoring
 
 **`audit_logs`** — append-only, hash-chained, time-partitioned
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | bigint | auto-increment; PK is (`id`, `occurred_at`) for partitioning |
-| `occurred_at` | datetime | partition key (monthly) |
-| `organization_id` | bigint | → `organizations.id` NO ACTION |
-| `chain_id` | smallint | shard of the hash chain (0–15) |
-| `chain_seq` | bigint | |
-| `event` | code(48) | `record.created`, `record.updated`, `record.deleted`, `record.restored`, `status.changed`, `import`, `export`, `download`, `print`, `auth.login`, `auth.login_failed`, `auth.logout`, `ops.retry`, `ops.resend`, `access.changed`, `config.changed`, `impersonation.started`, … |
-| `category` | enum<data,workflow,auth,access,config,operations,export,schema,security> | |
-| `object_type` | code(48)? | |
-| `object_id` | bigint? | |
-| `form_id` | bigint? | |
-| `record_id` | bigint? | |
-| `changes` | json? | `[{field_uuid, field_key, old, new}]` — sensitive values masked, encrypted fields as `«encrypted»` |
-| `actor_user_id` | bigint? | acting user (impersonating admin when impersonating) |
-| `subject_user_id` | bigint? | impersonated user |
-| `on_behalf_of_user_id` | bigint? | delegation |
-| `external_user_id` | bigint? | |
-| `impersonation_session_id` | bigint? | |
-| `justification_id` | bigint? | |
-| `ip_address` | string(45)? | |
-| `user_agent` | string(512)? | |
-| `correlation_id` | code(36)? | |
-| `meta` | json? | |
-| `prev_hash` | hash | |
-| `hash` | hash | SHA-256(prev_hash ‖ canonical JSON of the row incl. justification content_hash) |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — | auto-increment; PK is (`id`, `occurred_at`) for partitioning |
+| `occurred_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | partition key (monthly) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `chain_id` | SMALLINT | SMALLINT | NOT NULL | — | shard of the hash chain (0–15) |
+| `chain_seq` | BIGINT | BIGINT | NOT NULL | — |  |
+| `event` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | `record.created`, `record.updated`, `record.deleted`, `record.restored`, `status.changed`, `import`, `export`, `download`, `print`, `auth.login`, `auth.login_failed`, `auth.logout`, `ops.retry`, `ops.resend`, `access.changed`, `config.changed`, `impersonation.started`, … |
+| `category` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `data`, `workflow`, `auth`, `access`, `config`, `operations`, `export`, `schema`, `security` |
+| `object_type` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `object_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `changes` | JSON | NVARCHAR(MAX) | NULL | — | `[{field_uuid, field_key, old, new}]` — sensitive values masked, encrypted fields as `«encrypted»` |
+| `actor_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | acting user (impersonating admin when impersonating) |
+| `subject_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | impersonated user |
+| `on_behalf_of_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | delegation |
+| `external_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `impersonation_session_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `justification_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `ip_address` | VARCHAR(45) | NVARCHAR(45) | NULL | — |  |
+| `user_agent` | VARCHAR(512) | NVARCHAR(512) | NULL | — |  |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `meta` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `prev_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | SHA-256(prev_hash ‖ canonical JSON of the row incl. justification content_hash) |
 
-Indexes: PK (`id`, `occurred_at`); (`chain_id`, `chain_seq`, `occurred_at`) unique; (`form_id`, `record_id`, `occurred_at`); (`actor_user_id`, `occurred_at`); (`object_type`, `object_id`); (`organization_id`, `event`, `occurred_at`); `correlation_id`.
-No FKs (partitioned tables cannot carry FKs on MySQL; integrity via the chain).
+- **Primary key:** `pk_audit_logs` (`id`, `occurred_at`). MySQL: `PARTITION BY RANGE COLUMNS(occurred_at)` monthly. SQL Server: clustered on (`occurred_at`, `id`) on monthly partition scheme `ps_audit_logs_monthly`.
+- **Unique:** `uq_audit_logs_chain_id_chain_seq_occurred_at` (`chain_id`, `chain_seq`, `occurred_at`)
+- **Index:** `ix_audit_logs_form_id_record_id_occurred_at` (`form_id`, `record_id`, `occurred_at`)
+- **Index:** `ix_audit_logs_actor_user_id_occurred_at` (`actor_user_id`, `occurred_at`)
+- **Index:** `ix_audit_logs_object_type_object_id` (`object_type`, `object_id`)
+- **Index:** `ix_audit_logs_organization_id_event_occurred_at` (`organization_id`, `event`, `occurred_at`)
+- **Index:** `ix_audit_logs_correlation_id` (`correlation_id`)
+- **Foreign keys:** none — partitioned table; `*_id` columns are logical references verified by the chain verifier and the data-repair scan (ADR-0011).
+- **Check:** `ck_audit_logs_category`: `category IN ('data', 'workflow', 'auth', 'access', 'config', 'operations', 'export', 'schema', 'security')` (both engines)
+- **Check (SQL Server):** `ck_audit_logs_changes_json`: `ISJSON(changes) = 1`
+- **Check (SQL Server):** `ck_audit_logs_meta_json`: `ISJSON(meta) = 1`
+- No FKs (partitioned tables cannot carry FKs on MySQL; integrity via the chain).
 
 **`audit_chain_heads`** (supporting)
 
-| Column | Type | Notes |
-|---|---|---|
-| `chain_id` | smallint | PK |
-| `last_seq` | bigint | |
-| `last_hash` | hash | |
-| `last_verified_seq` | bigint | |
-| `last_verified_at` | datetime? | |
-| `updated_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `chain_id` | SMALLINT | SMALLINT | NOT NULL | — | PK |
+| `last_seq` | BIGINT | BIGINT | NOT NULL | 0 |  |
+| `last_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `last_verified_seq` | BIGINT | BIGINT | NOT NULL | 0 |  |
+| `last_verified_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-Appenders lock the head row (`lockForUpdate`) inside the writing transaction;
-16 chains keep contention low; the verification job walks each chain.
+- **Primary key:** `pk_audit_chain_heads` (`chain_id`); SQL Server clustered.
+- Appenders lock the head row (`lockForUpdate`) inside the writing transaction; 16 chains keep contention low; the verification job walks each chain.
 
 **`error_logs`** — time-partitioned
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | bigint | PK (`id`, `occurred_at`) |
-| `occurred_at` | datetime | |
-| `organization_id` | bigint? | |
-| `error_group_id` | bigint | logical ref → `error_groups.id` |
-| `reference_code` | code(16) | shown to the user |
-| `severity` | enum<debug,info,notice,warning,error,critical,alert,emergency> | |
-| `module` | code(48)? | |
-| `exception_class` | string(255) | |
-| `message` | text | masked |
-| `file` | string(1024)? | |
-| `line` | int? | |
-| `trace` | longtext? | masked |
-| `request` | json? | method, route, url (query masked), masked payload, masked headers |
-| `user_id` | bigint? | |
-| `role_keys` | json? | |
-| `form_id` | bigint? | |
-| `record_id` | bigint? | |
-| `hook` | string(255)? | |
-| `job` | string(255)? | |
-| `environment` | code(32) | |
-| `release` | code(64)? | |
-| `correlation_id` | code(36)? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — | PK (`id`, `occurred_at`) |
+| `occurred_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `error_group_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | logical ref → `error_groups.id` |
+| `reference_code` | VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(16) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | shown to the user |
+| `severity` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency` |
+| `module` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `exception_class` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — |  |
+| `message` | TEXT | NVARCHAR(MAX) | NOT NULL | — | masked |
+| `file` | VARCHAR(1024) | NVARCHAR(1024) | NULL | — |  |
+| `line` | INT | INT | NULL | — |  |
+| `trace` | LONGTEXT | NVARCHAR(MAX) | NULL | — | masked |
+| `request` | JSON | NVARCHAR(MAX) | NULL | — | method, route, url (query masked), masked payload, masked headers |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `role_keys` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `hook` | VARCHAR(255) | NVARCHAR(255) | NULL | — |  |
+| `job` | VARCHAR(255) | NVARCHAR(255) | NULL | — |  |
+| `environment` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `release` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
 
-Indexes: (`error_group_id`, `occurred_at`); (`organization_id`, `occurred_at`); `reference_code`; `correlation_id`; (`form_id`, `occurred_at`); (`user_id`, `occurred_at`).
+- **Primary key:** `pk_error_logs` (`id`, `occurred_at`). MySQL: `PARTITION BY RANGE COLUMNS(occurred_at)` monthly. SQL Server: clustered on (`occurred_at`, `id`) on monthly partition scheme `ps_error_logs_monthly`.
+- **Index:** `ix_error_logs_error_group_id_occurred_at` (`error_group_id`, `occurred_at`)
+- **Index:** `ix_error_logs_organization_id_occurred_at` (`organization_id`, `occurred_at`)
+- **Index:** `ix_error_logs_reference_code` (`reference_code`)
+- **Index:** `ix_error_logs_correlation_id` (`correlation_id`)
+- **Index:** `ix_error_logs_form_id_occurred_at` (`form_id`, `occurred_at`)
+- **Index:** `ix_error_logs_user_id_occurred_at` (`user_id`, `occurred_at`)
+- **Foreign keys:** none — partitioned table; `*_id` columns are logical references verified by the chain verifier and the data-repair scan (ADR-0011).
+- **Check:** `ck_error_logs_severity`: `severity IN ('debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency')` (both engines)
+- **Check (SQL Server):** `ck_error_logs_request_json`: `ISJSON(request) = 1`
+- **Check (SQL Server):** `ck_error_logs_role_keys_json`: `ISJSON(role_keys) = 1`
 
 **`error_groups`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts` | | |
-| `fingerprint` | hash | class + normalized message + top frames |
-| `exception_class` | string(255) | |
-| `message_sample` | text | |
-| `module` | code(48)? | |
-| `severity` | enum<…same as error_logs…> | |
-| `first_seen_at` | datetime | |
-| `last_seen_at` | datetime | |
-| `occurrences` | bigint | |
-| `status` | enum<new,in_progress,resolved,ignored> | |
-| `assignee_user_id` | bigint? | → `users.id` NO ACTION |
-| `notes` | text? | |
-| `resolved_at` | datetime? | |
-| `resolved_by` | bigint? | → `users.id` NO ACTION |
-| `last_alerted_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `fingerprint` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | class + normalized message + top frames |
+| `exception_class` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — |  |
+| `message_sample` | TEXT | NVARCHAR(MAX) | NOT NULL | — |  |
+| `module` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `severity` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency` |
+| `first_seen_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `last_seen_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `occurrences` | BIGINT | BIGINT | NOT NULL | 0 |  |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `new`, `in_progress`, `resolved`, `ignored` |
+| `assignee_user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `notes` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `resolved_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `resolved_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `last_alerted_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`organization_id`, `fingerprint`) unique; (`status`, `last_seen_at`).
+- **Primary key:** `pk_error_groups` (`id`); SQL Server clustered.
+- **Unique:** `uq_error_groups_organization_id_fingerprint` (`organization_id`, `fingerprint`)
+- **Index:** `ix_error_groups_status_last_seen_at` (`status`, `last_seen_at`)
+- **Index:** `ix_error_groups_assignee_user_id` (`assignee_user_id`) — supports FK
+- **Index:** `ix_error_groups_resolved_by` (`resolved_by`) — supports FK
+- **Foreign key:** `fk_error_groups_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_error_groups_assignee_user_id`: `assignee_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_error_groups_resolved_by`: `resolved_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_error_groups_severity`: `severity IN ('debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency')` (both engines)
+- **Check:** `ck_error_groups_status`: `status IN ('new', 'in_progress', 'resolved', 'ignored')` (both engines)
 
 **`outbox_events`** (supporting — transactional outbox, §8.3)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk` | | |
-| `organization_id` | bigint | |
-| `event_type` | code(128) | |
-| `payload` | json | |
-| `correlation_id` | code(36) | |
-| `created_at` | datetime | |
-| `available_at` | datetime | |
-| `dispatched_at` | datetime? | |
-| `attempts` | smallint | |
-| `last_error` | text? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `event_type` | VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(128) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `payload` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `available_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `dispatched_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `attempts` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `last_error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
 
-Indexes: (`dispatched_at`, `available_at`).
+- **Primary key:** `pk_outbox_events` (`id`); SQL Server clustered.
+- **Index:** `ix_outbox_events_dispatched_at_available_at` (`dispatched_at`, `available_at`)
+- **Check (SQL Server):** `ck_outbox_events_payload_json`: `ISJSON(payload) = 1`
 
 **`operations_alert_rules`** (supporting — §4.2 threshold alerts)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `metric` | enum<failed_submissions,failed_jobs,failed_emails,stuck_emails,failed_webhooks,failed_integrations,queue_size,error_rate,storage_usage,scheduler_lag> | |
-| `threshold` | int | |
-| `window_minutes` | int | |
-| `recipient_role_ids` | json | |
-| `cooldown_minutes` | int | |
-| `is_active` | bool | |
-| `last_triggered_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `metric` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `failed_submissions`, `failed_jobs`, `failed_emails`, `stuck_emails`, `failed_webhooks`, `failed_integrations`, `queue_size`, `error_rate`, `storage_usage`, `scheduler_lag` |
+| `threshold` | INT | INT | NOT NULL | — |  |
+| `window_minutes` | INT | INT | NOT NULL | — |  |
+| `recipient_role_ids` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `cooldown_minutes` | INT | INT | NOT NULL | — |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `last_triggered_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Indexes: (`organization_id`, `is_active`).
+- **Primary key:** `pk_operations_alert_rules` (`id`); SQL Server clustered.
+- **Index:** `ix_operations_alert_rules_organization_id_is_active` (`organization_id`, `is_active`)
+- **Index:** `ix_operations_alert_rules_created_by` (`created_by`) — supports FK
+- **Index:** `ix_operations_alert_rules_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_operations_alert_rules_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_operations_alert_rules_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_operations_alert_rules_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_operations_alert_rules_metric`: `metric IN ('failed_submissions', 'failed_jobs', 'failed_emails', 'stuck_emails', 'failed_webhooks', 'failed_integrations', 'queue_size', 'error_rate', 'storage_usage', 'scheduler_lag')` (both engines)
+- **Check (SQL Server):** `ck_operations_alert_rules_recipient_role_ids_json`: `ISJSON(recipient_role_ids) = 1`
 
 Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tracking rows).
 
@@ -3160,470 +5221,897 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 
 **`extensions`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `key` | code(64) | module directory name under `/extensions` |
-| `type` | enum<server_hook,api_endpoint,client_validator,client_field,form_script> | |
-| `hook_point` | enum<onLoad,beforeValidate,afterValidate,beforeSave,afterSave,beforeDelete,afterDelete,onStatusChange,onAction>? | |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `status` | enum<draft,testing,pending_approval,approved,deployed,disabled,rejected> | |
-| `current_version_id` | bigint? | → `extension_versions.id` NO ACTION |
-| `deployed_version_id` | bigint? | → `extension_versions.id` NO ACTION |
-| `timeout_ms` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `key` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | module directory name under `/extensions` |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `server_hook`, `api_endpoint`, `client_validator`, `client_field`, `form_script` |
+| `hook_point` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `onLoad`, `beforeValidate`, `afterValidate`, `beforeSave`, `afterSave`, `beforeDelete`, `afterDelete`, `onStatusChange`, `onAction` |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `draft`, `testing`, `pending_approval`, `approved`, `deployed`, `disabled`, `rejected` |
+| `current_version_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `extension_versions.id` NO ACTION |
+| `deployed_version_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `extension_versions.id` NO ACTION |
+| `timeout_ms` | INT | INT | NOT NULL | — |  |
 
-Translatable: `name`, `description`. Indexes: (`organization_id`, `key`) unique.
+- **Primary key:** `pk_extensions` (`id`); SQL Server clustered.
+- **Unique:** `uq_extensions_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_extensions_created_by` (`created_by`) — supports FK
+- **Index:** `ix_extensions_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_extensions_form_id` (`form_id`) — supports FK
+- **Index:** `ix_extensions_current_version_id` (`current_version_id`) — supports FK
+- **Index:** `ix_extensions_deployed_version_id` (`deployed_version_id`) — supports FK
+- **Foreign key:** `fk_extensions_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_extensions_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_extensions_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_extensions_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_extensions_current_version_id`: `current_version_id` → `extension_versions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_extensions_deployed_version_id`: `deployed_version_id` → `extension_versions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_extensions_type`: `type IN ('server_hook', 'api_endpoint', 'client_validator', 'client_field', 'form_script')` (both engines)
+- **Check:** `ck_extensions_hook_point`: `hook_point IN ('onLoad', 'beforeValidate', 'afterValidate', 'beforeSave', 'afterSave', 'beforeDelete', 'afterDelete', 'onStatusChange', 'onAction')` (both engines)
+- **Check:** `ck_extensions_status`: `status IN ('draft', 'testing', 'pending_approval', 'approved', 'deployed', 'disabled', 'rejected')` (both engines)
+- Translatable: `name`, `description`.
 
 **`extension_versions`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts` | | |
-| `extension_id` | bigint | → `extensions.id` CASCADE |
-| `version` | int | |
-| `source_path` | string(1024) | file in `/extensions/{key}/v{n}/` |
-| `checksum` | hash | verified before every load |
-| `manifest` | json | entry class, hook point, permissions requested |
-| `test_status` | enum<not_run,passed,failed> | |
-| `test_report` | json? | |
-| `submitted_by` | bigint | → `users.id` NO ACTION |
-| `approved_by` | bigint? | → `users.id` NO ACTION (≠ submitter) |
-| `approved_at` | datetime? | |
-| `deployed_at` | datetime? | |
-| `rejected_reason` | text? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `extension_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `extensions.id` CASCADE |
+| `version` | INT | INT | NOT NULL | — |  |
+| `source_path` | VARCHAR(1024) | NVARCHAR(1024) | NOT NULL | — | file in `/extensions/{key}/v{n}/` |
+| `checksum` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | verified before every load |
+| `manifest` | JSON | NVARCHAR(MAX) | NOT NULL | — | entry class, hook point, permissions requested |
+| `test_status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `not_run`, `passed`, `failed` |
+| `test_report` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `submitted_by` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `approved_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION (≠ submitter) |
+| `approved_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `deployed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `rejected_reason` | TEXT | NVARCHAR(MAX) | NULL | — |  |
 
-Indexes: (`extension_id`, `version`) unique.
+- **Primary key:** `pk_extension_versions` (`id`); SQL Server clustered.
+- **Unique:** `uq_extension_versions_extension_id_version` (`extension_id`, `version`)
+- **Unique:** `uq_extension_versions_uuid` (`uuid`)
+- **Index:** `ix_extension_versions_submitted_by` (`submitted_by`) — supports FK
+- **Index:** `ix_extension_versions_approved_by` (`approved_by`) — supports FK
+- **Foreign key:** `fk_extension_versions_extension_id`: `extension_id` → `extensions`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_extension_versions_submitted_by`: `submitted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_extension_versions_approved_by`: `approved_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_extension_versions_test_status`: `test_status IN ('not_run', 'passed', 'failed')` (both engines)
+- **Check (SQL Server):** `ck_extension_versions_manifest_json`: `ISJSON(manifest) = 1`
+- **Check (SQL Server):** `ck_extension_versions_test_report_json`: `ISJSON(test_report) = 1`
 
 **`api_tokens`** (Sanctum token model `ApiToken`)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `tokenable_type` | code(64) | |
-| `tokenable_id` | bigint | |
-| `name` | string(255) | |
-| `token` | hash | SHA-256 |
-| `abilities` | json | scopes: `form:{uuid}:read`, `form:{uuid}:write`, … ⊆ owner's permissions |
-| `ip_allowlist` | json? | |
-| `rate_limit_per_minute` | int? | |
-| `last_used_at` | datetime? | |
-| `expires_at` | datetime? | |
-| `revoked_at` | datetime? | |
-| `created_by` | bigint? | → `users.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `tokenable_type` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `tokenable_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `name` | VARCHAR(255) | NVARCHAR(255) | NOT NULL | — |  |
+| `token` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | SHA-256 |
+| `abilities` | JSON | NVARCHAR(MAX) | NOT NULL | — | scopes: `form:{uuid}:read`, `form:{uuid}:write`, … ⊆ owner's permissions |
+| `ip_allowlist` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `rate_limit_per_minute` | INT | INT | NULL | — |  |
+| `last_used_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `expires_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `revoked_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 
-Indexes: `token` unique; (`tokenable_type`, `tokenable_id`).
+- **Primary key:** `pk_api_tokens` (`id`); SQL Server clustered.
+- **Unique:** `uq_api_tokens_token` (`token`)
+- **Unique:** `uq_api_tokens_uuid` (`uuid`)
+- **Index:** `ix_api_tokens_tokenable_type_tokenable_id` (`tokenable_type`, `tokenable_id`)
+- **Index:** `ix_api_tokens_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_api_tokens_created_by` (`created_by`) — supports FK
+- **Foreign key:** `fk_api_tokens_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_api_tokens_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_api_tokens_abilities_json`: `ISJSON(abilities) = 1`
+- **Check (SQL Server):** `ck_api_tokens_ip_allowlist_json`: `ISJSON(ip_allowlist) = 1`
 
 **`webhooks`** (outgoing)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `key` | code(48) | |
-| `url` | string(2048) | validated against the egress allowlist on save and at send |
-| `method` | enum<POST,PUT,PATCH,DELETE,GET> | |
-| `headers` | text? | encrypted JSON |
-| `body_template` | json? | placeholders as expression ASTs |
-| `events` | json | subscribed event types |
-| `secret` | text | encrypted signing secret |
-| `timeout_seconds` | smallint | |
-| `max_retries` | smallint | |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `url` | VARCHAR(2048) | NVARCHAR(2048) | NOT NULL | — | validated against the egress allowlist on save and at send |
+| `method` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `POST`, `PUT`, `PATCH`, `DELETE`, `GET` |
+| `headers` | TEXT | NVARCHAR(MAX) | NULL | — | encrypted JSON |
+| `body_template` | JSON | NVARCHAR(MAX) | NULL | — | placeholders as expression ASTs |
+| `events` | JSON | NVARCHAR(MAX) | NOT NULL | — | subscribed event types |
+| `secret` | TEXT | NVARCHAR(MAX) | NOT NULL | — | encrypted signing secret |
+| `timeout_seconds` | SMALLINT | SMALLINT | NOT NULL | — |  |
+| `max_retries` | SMALLINT | SMALLINT | NOT NULL | — |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `name`. Indexes: (`organization_id`, `key`) unique.
+- **Primary key:** `pk_webhooks` (`id`); SQL Server clustered.
+- **Unique:** `uq_webhooks_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_webhooks_created_by` (`created_by`) — supports FK
+- **Index:** `ix_webhooks_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_webhooks_form_id` (`form_id`) — supports FK
+- **Foreign key:** `fk_webhooks_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_webhooks_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_webhooks_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_webhooks_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_webhooks_method`: `method IN ('POST', 'PUT', 'PATCH', 'DELETE', 'GET')` (both engines)
+- **Check (SQL Server):** `ck_webhooks_body_template_json`: `ISJSON(body_template) = 1`
+- **Check (SQL Server):** `ck_webhooks_events_json`: `ISJSON(events) = 1`
+- Translatable: `name`.
 
 **`webhook_deliveries`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `direction` | enum<outgoing,incoming> | |
-| `webhook_id` | bigint? | → `webhooks.id` NO ACTION |
-| `inbound_endpoint_id` | bigint? | → `inbound_endpoints.id` NO ACTION |
-| `action_step_id` | bigint? | → `action_steps.id` NO ACTION |
-| `automation_run_id` | bigint? | → `automation_runs.id` NO ACTION |
-| `url` | string(2048) | |
-| `method` | code(8) | |
-| `resolved_ip` | string(45)? | pinned address |
-| `request_headers` | json? | masked |
-| `request_body` | text? | truncated, masked |
-| `response_status` | smallint? | |
-| `response_headers` | json? | |
-| `response_body` | text? | truncated |
-| `duration_ms` | int? | |
-| `attempt` | smallint | |
-| `status` | enum<pending,succeeded,failed,retrying,blocked,signature_invalid> | |
-| `error` | text? | |
-| `next_attempt_at` | datetime? | |
-| `correlation_id` | code(36) | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `direction` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `outgoing`, `incoming` |
+| `webhook_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `webhooks.id` NO ACTION |
+| `inbound_endpoint_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `inbound_endpoints.id` NO ACTION |
+| `action_step_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `action_steps.id` NO ACTION |
+| `automation_run_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `automation_runs.id` NO ACTION |
+| `url` | VARCHAR(2048) | NVARCHAR(2048) | NOT NULL | — |  |
+| `method` | VARCHAR(8) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(8) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `resolved_ip` | VARCHAR(45) | NVARCHAR(45) | NULL | — | pinned address |
+| `request_headers` | JSON | NVARCHAR(MAX) | NULL | — | masked |
+| `request_body` | TEXT | NVARCHAR(MAX) | NULL | — | truncated, masked |
+| `response_status` | SMALLINT | SMALLINT | NULL | — |  |
+| `response_headers` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `response_body` | TEXT | NVARCHAR(MAX) | NULL | — | truncated |
+| `duration_ms` | INT | INT | NULL | — |  |
+| `attempt` | SMALLINT | SMALLINT | NOT NULL | 0 |  |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `pending`, `succeeded`, `failed`, `retrying`, `blocked`, `signature_invalid` |
+| `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `next_attempt_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 
-Indexes: (`organization_id`, `status`, `created_at`); (`webhook_id`, `created_at`); (`inbound_endpoint_id`, `created_at`).
+- **Primary key:** `pk_webhook_deliveries` (`id`); SQL Server clustered.
+- **Unique:** `uq_webhook_deliveries_uuid` (`uuid`)
+- **Index:** `ix_webhook_deliveries_organization_id_status_created_at` (`organization_id`, `status`, `created_at`)
+- **Index:** `ix_webhook_deliveries_webhook_id_created_at` (`webhook_id`, `created_at`)
+- **Index:** `ix_webhook_deliveries_inbound_endpoint_id_created_at` (`inbound_endpoint_id`, `created_at`)
+- **Index:** `ix_webhook_deliveries_action_step_id` (`action_step_id`) — supports FK
+- **Index:** `ix_webhook_deliveries_automation_run_id` (`automation_run_id`) — supports FK
+- **Foreign key:** `fk_webhook_deliveries_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_webhook_deliveries_webhook_id`: `webhook_id` → `webhooks`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_webhook_deliveries_inbound_endpoint_id`: `inbound_endpoint_id` → `inbound_endpoints`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_webhook_deliveries_action_step_id`: `action_step_id` → `action_steps`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_webhook_deliveries_automation_run_id`: `automation_run_id` → `automation_runs`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_webhook_deliveries_direction`: `direction IN ('outgoing', 'incoming')` (both engines)
+- **Check:** `ck_webhook_deliveries_status`: `status IN ('pending', 'succeeded', 'failed', 'retrying', 'blocked', 'signature_invalid')` (both engines)
+- **Check (SQL Server):** `ck_webhook_deliveries_request_headers_json`: `ISJSON(request_headers) = 1`
+- **Check (SQL Server):** `ck_webhook_deliveries_response_headers_json`: `ISJSON(response_headers) = 1`
 
 ### 10.23 Appearance, pages & help
 
 **`themes`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `application_id` | bigint? | → `applications.id` NO ACTION; NULL = organization/global |
-| `key` | code(48) | |
-| `is_default` | bool | |
-| `is_preset` | bool | built-in presets are system rows (not business content) |
-| `tokens` | json | colors (primary, accent, semantic, surface, border) light & dark, radius, shadow depth, density, font family per script (arabic, latin) |
-| `custom_css` | text? | as authored |
-| `custom_css_compiled` | text? | sanitized + scoped output |
-| `contrast_report` | json? | WCAG checks; warnings shown before save |
-| `version` | int | cache-busting |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `applications.id` NO ACTION; NULL = organization/global |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `is_default` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `is_preset` | TINYINT(1) | BIT | NOT NULL | 0 | built-in presets are system rows (not business content) |
+| `tokens` | JSON | NVARCHAR(MAX) | NOT NULL | — | colors (primary, accent, semantic, surface, border) light & dark, radius, shadow depth, density, font family per script (arabic, latin) |
+| `custom_css` | TEXT | NVARCHAR(MAX) | NULL | — | as authored |
+| `custom_css_compiled` | TEXT | NVARCHAR(MAX) | NULL | — | sanitized + scoped output |
+| `contrast_report` | JSON | NVARCHAR(MAX) | NULL | — | WCAG checks; warnings shown before save |
+| `version` | INT | INT | NOT NULL | — | cache-busting |
 
-Translatable: `name`, `login_welcome`, `legal_links`, `support_contact`, `browser_title`. Indexes: (`organization_id`, `key`) unique.
+- **Primary key:** `pk_themes` (`id`); SQL Server clustered.
+- **Unique:** `uq_themes_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_themes_created_by` (`created_by`) — supports FK
+- **Index:** `ix_themes_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_themes_application_id` (`application_id`) — supports FK
+- **Foreign key:** `fk_themes_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_themes_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_themes_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_themes_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_themes_tokens_json`: `ISJSON(tokens) = 1`
+- **Check (SQL Server):** `ck_themes_contrast_report_json`: `ISJSON(contrast_report) = 1`
+- Translatable: `name`, `login_welcome`, `legal_links`, `support_contact`, `browser_title`.
 
 **`theme_assets`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @ts` | | |
-| `theme_id` | bigint | → `themes.id` CASCADE |
-| `kind` | enum<logo,logo_dark,favicon,login_background,email_header,email_footer,font_arabic,font_latin> | |
-| `locale` | code(10)? | |
-| `file_id` | bigint | → `files.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `theme_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `themes.id` CASCADE |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `logo`, `logo_dark`, `favicon`, `login_background`, `email_header`, `email_footer`, `font_arabic`, `font_latin` |
+| `locale` | VARCHAR(10) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(10) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `file_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `files.id` NO ACTION |
 
-Indexes: (`theme_id`, `kind`, `locale`).
+- **Primary key:** `pk_theme_assets` (`id`); SQL Server clustered.
+- **Index:** `ix_theme_assets_theme_id_kind_locale` (`theme_id`, `kind`, `locale`)
+- **Index:** `ix_theme_assets_file_id` (`file_id`) — supports FK
+- **Foreign key:** `fk_theme_assets_theme_id`: `theme_id` → `themes`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_theme_assets_file_id`: `file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_theme_assets_kind`: `kind IN ('logo', 'logo_dark', 'favicon', 'login_background', 'email_header', 'email_footer', 'font_arabic', 'font_latin')` (both engines)
 
 **`pages`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta @soft` | | |
-| `application_id` | bigint | → `applications.id` NO ACTION |
-| `key` | code(48) | |
-| `type` | enum<content,link,dashboard,report,form_host,knowledge,changelog> | |
-| `url` | string(2048)? | |
-| `dashboard_id` | bigint? | → `dashboards.id` NO ACTION |
-| `report_id` | bigint? | → `reports.id` NO ACTION |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `layout` | json? | |
-| `is_published` | bool | |
-| `published_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `deleted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | soft delete |
+| `deleted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `applications.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `content`, `link`, `dashboard`, `report`, `form_host`, `knowledge`, `changelog` |
+| `url` | VARCHAR(2048) | NVARCHAR(2048) | NULL | — |  |
+| `dashboard_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `dashboards.id` NO ACTION |
+| `report_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `reports.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `layout` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `is_published` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `published_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-Translatable: `title`, `content` (sanitized HTML). Indexes: (`application_id`, `key`) unique. Permission `page.{uuid}.view`.
+- **Primary key:** `pk_pages` (`id`); SQL Server clustered.
+- **Unique:** `uq_pages_application_id_key` (`application_id`, `key`)
+- **Index:** `ix_pages_organization_id_deleted_at` (`organization_id`, `deleted_at`)
+- **Index:** `ix_pages_created_by` (`created_by`) — supports FK
+- **Index:** `ix_pages_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_pages_deleted_by` (`deleted_by`) — supports FK
+- **Index:** `ix_pages_dashboard_id` (`dashboard_id`) — supports FK
+- **Index:** `ix_pages_report_id` (`report_id`) — supports FK
+- **Index:** `ix_pages_form_id` (`form_id`) — supports FK
+- **Foreign key:** `fk_pages_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_pages_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_pages_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_pages_deleted_by`: `deleted_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_pages_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_pages_dashboard_id`: `dashboard_id` → `dashboards`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_pages_report_id`: `report_id` → `reports`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_pages_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_pages_type`: `type IN ('content', 'link', 'dashboard', 'report', 'form_host', 'knowledge', 'changelog')` (both engines)
+- **Check (SQL Server):** `ck_pages_layout_json`: `ISJSON(layout) = 1`
+- Translatable: `title`, `content` (sanitized HTML). Permission `page.{uuid}.view`.
 
 **`page_widgets`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @ts` | | |
-| `page_id` | bigint? | → `pages.id` CASCADE |
-| `home_screen_id` | bigint? | → `home_screens.id` NO ACTION |
-| `type` | enum<my_work,my_records,chart,kpi,shortcuts,announcements,recent_activity,pinned_links,embedded_table,report,html> | registry-extensible |
-| `config` | json | |
-| `layout` | json | |
-| `visibility_condition_id` | bigint? | → `conditions.id` NO ACTION |
-| `sort_order` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `page_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `pages.id` CASCADE |
+| `home_screen_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `home_screens.id` NO ACTION |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | registry-extensible; values: `my_work`, `my_records`, `chart`, `kpi`, `shortcuts`, `announcements`, `recent_activity`, `pinned_links`, `embedded_table`, `report`, `html` |
+| `config` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `layout` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `visibility_condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
 
-Translatable: `title`, `content`. Indexes: (`page_id`, `sort_order`); (`home_screen_id`, `sort_order`).
+- **Primary key:** `pk_page_widgets` (`id`); SQL Server clustered.
+- **Unique:** `uq_page_widgets_uuid` (`uuid`)
+- **Index:** `ix_page_widgets_page_id_sort_order` (`page_id`, `sort_order`)
+- **Index:** `ix_page_widgets_home_screen_id_sort_order` (`home_screen_id`, `sort_order`)
+- **Index:** `ix_page_widgets_visibility_condition_id` (`visibility_condition_id`) — supports FK
+- **Foreign key:** `fk_page_widgets_page_id`: `page_id` → `pages`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_page_widgets_home_screen_id`: `home_screen_id` → `home_screens`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_page_widgets_visibility_condition_id`: `visibility_condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_page_widgets_type`: `type IN ('my_work', 'my_records', 'chart', 'kpi', 'shortcuts', 'announcements', 'recent_activity', 'pinned_links', 'embedded_table', 'report', 'html')` (both engines)
+- **Check (SQL Server):** `ck_page_widgets_config_json`: `ISJSON(config) = 1`
+- **Check (SQL Server):** `ck_page_widgets_layout_json`: `ISJSON(layout) = 1`
+- Translatable: `title`, `content`.
 
 **`home_screens`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `application_id` | bigint? | → `applications.id` NO ACTION |
-| `target_type` | enum<default,role,department,user> | |
-| `target_id` | bigint? | |
-| `priority` | int | user > department > role > default; then priority |
-| `layout` | json | |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `applications.id` NO ACTION |
+| `target_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `default`, `role`, `department`, `user` |
+| `target_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `priority` | INT | INT | NOT NULL | 0 | user > role > department > default; then priority |
+| `layout` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `name`. Indexes: (`organization_id`, `application_id`, `target_type`, `target_id`).
+- **Primary key:** `pk_home_screens` (`id`); SQL Server clustered.
+- **Index:** `ix_home_screens_organization_id_application_id_targ_0e5da274` (`organization_id`, `application_id`, `target_type`, `target_id`)
+- **Index:** `ix_home_screens_created_by` (`created_by`) — supports FK
+- **Index:** `ix_home_screens_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_home_screens_application_id` (`application_id`) — supports FK
+- **Foreign key:** `fk_home_screens_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_home_screens_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_home_screens_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_home_screens_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_home_screens_target_type`: `target_type IN ('default', 'role', 'department', 'user')` (both engines)
+- **Check (SQL Server):** `ck_home_screens_layout_json`: `ISJSON(layout) = 1`
+- Translatable: `name`.
 
 **`announcements`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `application_id` | bigint? | → `applications.id` NO ACTION |
-| `severity` | enum<info,success,warning,danger> | |
-| `placement` | enum<banner,home,bell> | |
-| `audience_role_ids` | json? | NULL = everyone |
-| `starts_at` | datetime | |
-| `ends_at` | datetime? | |
-| `is_dismissible` | bool | |
-| `is_published` | bool | |
-| `published_by` | bigint? | → `users.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `applications.id` NO ACTION |
+| `severity` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `info`, `success`, `warning`, `danger` |
+| `placement` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `banner`, `home`, `bell` |
+| `audience_role_ids` | JSON | NVARCHAR(MAX) | NULL | — | NULL = everyone |
+| `starts_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `ends_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `is_dismissible` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `is_published` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `published_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 
-Translatable: `title`, `body`. Indexes: (`organization_id`, `is_published`, `starts_at`).
+- **Primary key:** `pk_announcements` (`id`); SQL Server clustered.
+- **Index:** `ix_announcements_organization_id_is_published_starts_at` (`organization_id`, `is_published`, `starts_at`)
+- **Index:** `ix_announcements_created_by` (`created_by`) — supports FK
+- **Index:** `ix_announcements_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_announcements_application_id` (`application_id`) — supports FK
+- **Index:** `ix_announcements_published_by` (`published_by`) — supports FK
+- **Foreign key:** `fk_announcements_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_announcements_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_announcements_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_announcements_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_announcements_published_by`: `published_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_announcements_severity`: `severity IN ('info', 'success', 'warning', 'danger')` (both engines)
+- **Check:** `ck_announcements_placement`: `placement IN ('banner', 'home', 'bell')` (both engines)
+- **Check (SQL Server):** `ck_announcements_audience_role_ids_json`: `ISJSON(audience_role_ids) = 1`
+- Translatable: `title`, `body`.
 
 **`announcement_dismissals`** (supporting)
 
-| Column | Type | Notes |
-|---|---|---|
-| `announcement_id` | bigint | → `announcements.id` CASCADE |
-| `user_id` | bigint | → `users.id` NO ACTION |
-| `dismissed_at` | datetime | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `announcement_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `announcements.id` CASCADE |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `dismissed_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
 
-PK (`announcement_id`, `user_id`).
+- **Primary key:** `pk_announcement_dismissals` (`announcement_id`, `user_id`); SQL Server clustered.
+- **Index:** `ix_announcement_dismissals_user_id` (`user_id`) — supports FK
+- **Foreign key:** `fk_announcement_dismissals_announcement_id`: `announcement_id` → `announcements`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_announcement_dismissals_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
 
 **`help_content`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `target_type` | enum<form,field,group,page,application,admin_area> | |
-| `target_id` | bigint? | |
-| `display` | enum<tooltip,side_panel,help_page> | |
-| `is_published` | bool | |
-| `sort_order` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `target_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `form`, `field`, `group`, `page`, `application`, `admin_area` |
+| `target_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `display` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `tooltip`, `side_panel`, `help_page` |
+| `is_published` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `sort_order` | INT | INT | NOT NULL | 0 |  |
 
-Translatable: `title`, `body`. Indexes: (`target_type`, `target_id`).
+- **Primary key:** `pk_help_content` (`id`); SQL Server clustered.
+- **Index:** `ix_help_content_target_type_target_id` (`target_type`, `target_id`)
+- **Index:** `ix_help_content_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_help_content_created_by` (`created_by`) — supports FK
+- **Index:** `ix_help_content_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_help_content_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_help_content_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_help_content_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_help_content_target_type`: `target_type IN ('form', 'field', 'group', 'page', 'application', 'admin_area')` (both engines)
+- **Check:** `ck_help_content_display`: `display IN ('tooltip', 'side_panel', 'help_page')` (both engines)
+- Translatable: `title`, `body`.
 
 **`tours`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `route_key` | code(128)? | page/admin area |
-| `audience_role_ids` | json? | |
-| `trigger` | enum<first_use,manual> | |
-| `steps` | json | `[{target_selector, placement, step_key}]` |
-| `version` | int | bump re-shows to users |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `route_key` | VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(128) COLLATE Latin1_General_100_BIN2 | NULL | — | page/admin area |
+| `audience_role_ids` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `trigger` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `first_use`, `manual` |
+| `steps` | JSON | NVARCHAR(MAX) | NOT NULL | — | `[{target_selector, placement, step_key}]` |
+| `version` | INT | INT | NOT NULL | — | bump re-shows to users |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `name`, `steps.<step_key>.title`, `steps.<step_key>.body`. Indexes: (`form_id`); (`route_key`).
+- **Primary key:** `pk_tours` (`id`); SQL Server clustered.
+- **Index:** `ix_tours_form_id` (`form_id`)
+- **Index:** `ix_tours_route_key` (`route_key`)
+- **Index:** `ix_tours_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_tours_created_by` (`created_by`) — supports FK
+- **Index:** `ix_tours_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_tours_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_tours_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_tours_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_tours_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_tours_trigger`: `trigger IN ('first_use', 'manual')` (both engines)
+- **Check (SQL Server):** `ck_tours_audience_role_ids_json`: `ISJSON(audience_role_ids) = 1`
+- **Check (SQL Server):** `ck_tours_steps_json`: `ISJSON(steps) = 1`
+- Translatable: `name`, `steps.<step_key>.title`, `steps.<step_key>.body`.
 
 **`tour_progress`** (supporting)
 
-| Column | Type | Notes |
-|---|---|---|
-| `tour_id` | bigint | → `tours.id` CASCADE |
-| `user_id` | bigint | → `users.id` NO ACTION |
-| `version` | int | |
-| `completed_at` | datetime? | |
-| `dismissed_at` | datetime? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `tour_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `tours.id` CASCADE |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `version` | INT | INT | NOT NULL | — |  |
+| `completed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `dismissed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 
-PK (`tour_id`, `user_id`). Reset = delete rows for a user/role (not audit data).
+- **Primary key:** `pk_tour_progress` (`tour_id`, `user_id`); SQL Server clustered.
+- **Index:** `ix_tour_progress_user_id` (`user_id`) — supports FK
+- **Foreign key:** `fk_tour_progress_tour_id`: `tour_id` → `tours`(`id`) ON DELETE CASCADE
+- **Foreign key:** `fk_tour_progress_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
+- Reset = delete rows for a user/role (not audit data).
 
 **`search_configs`** (supporting — §4.29 global search)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts @by` | | |
-| `form_id` | bigint | → `forms.id` CASCADE |
-| `is_enabled` | bool | |
-| `fields` | json | `[{field_uuid, weight}]` |
-| `result_template` | json | title/subtitle paths |
-| `role_scope_ids` | json? | roles allowed to search this form (still record-scoped) |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
+| `is_enabled` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `fields` | JSON | NVARCHAR(MAX) | NOT NULL | — | `[{field_uuid, weight}]` |
+| `result_template` | JSON | NVARCHAR(MAX) | NOT NULL | — | title/subtitle paths |
+| `role_scope_ids` | JSON | NVARCHAR(MAX) | NULL | — | roles allowed to search this form (still record-scoped) |
 
-Indexes: `form_id` unique.
+- **Primary key:** `pk_search_configs` (`id`); SQL Server clustered.
+- **Unique:** `uq_search_configs_form_id` (`form_id`)
+- **Index:** `ix_search_configs_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_search_configs_created_by` (`created_by`) — supports FK
+- **Index:** `ix_search_configs_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_search_configs_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_search_configs_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_search_configs_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_search_configs_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
+- **Check (SQL Server):** `ck_search_configs_fields_json`: `ISJSON(fields) = 1`
+- **Check (SQL Server):** `ck_search_configs_result_template_json`: `ISJSON(result_template) = 1`
+- **Check (SQL Server):** `ck_search_configs_role_scope_ids_json`: `ISJSON(role_scope_ids) = 1`
 
 ### 10.24 Access policies, flags, impersonation, preferences, usage
 
 **`access_policies`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `key` | code(48) | |
-| `ip_allowlist` | json? | CIDRs |
-| `time_windows` | json? | `[{days:[…], from, to, timezone}]` |
-| `max_concurrent_sessions` | smallint? | |
-| `session_idle_minutes` | int | |
-| `session_absolute_minutes` | int | |
-| `require_trusted_device` | bool | |
-| `require_2fa` | bool | |
-| `is_admin_policy` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `ip_allowlist` | JSON | NVARCHAR(MAX) | NULL | — | CIDRs |
+| `time_windows` | JSON | NVARCHAR(MAX) | NULL | — | `[{days:[…], from, to, timezone}]` |
+| `max_concurrent_sessions` | SMALLINT | SMALLINT | NULL | — |  |
+| `session_idle_minutes` | INT | INT | NOT NULL | — |  |
+| `session_absolute_minutes` | INT | INT | NOT NULL | — |  |
+| `require_trusted_device` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `require_2fa` | TINYINT(1) | BIT | NOT NULL | 0 |  |
+| `is_admin_policy` | TINYINT(1) | BIT | NOT NULL | 0 |  |
 
-Translatable: `name`. Indexes: (`organization_id`, `key`) unique. A user's effective policy is the strictest combination across roles.
+- **Primary key:** `pk_access_policies` (`id`); SQL Server clustered.
+- **Unique:** `uq_access_policies_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_access_policies_created_by` (`created_by`) — supports FK
+- **Index:** `ix_access_policies_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_access_policies_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_access_policies_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_access_policies_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check (SQL Server):** `ck_access_policies_ip_allowlist_json`: `ISJSON(ip_allowlist) = 1`
+- **Check (SQL Server):** `ck_access_policies_time_windows_json`: `ISJSON(time_windows) = 1`
+- Translatable: `name`. A user's effective policy is the strictest combination across roles.
 
 **`feature_flags`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `key` | code(64) | |
-| `application_id` | bigint? | → `applications.id` NO ACTION |
-| `target_type` | enum<form,action,page,capability> | |
-| `target_id` | bigint? | |
-| `is_enabled` | bool | |
-| `audience` | json | `{roles:[], departments:[], users:[]}`; empty = everyone when enabled |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `key` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `applications.id` NO ACTION |
+| `target_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `form`, `action`, `page`, `capability` |
+| `target_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `is_enabled` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `audience` | JSON | NVARCHAR(MAX) | NOT NULL | — | `{roles:[], departments:[], users:[]}`; empty = everyone when enabled |
 
-Translatable: `description`. Indexes: (`organization_id`, `key`) unique.
+- **Primary key:** `pk_feature_flags` (`id`); SQL Server clustered.
+- **Unique:** `uq_feature_flags_organization_id_key` (`organization_id`, `key`)
+- **Index:** `ix_feature_flags_created_by` (`created_by`) — supports FK
+- **Index:** `ix_feature_flags_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_feature_flags_application_id` (`application_id`) — supports FK
+- **Foreign key:** `fk_feature_flags_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_feature_flags_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_feature_flags_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_feature_flags_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_feature_flags_target_type`: `target_type IN ('form', 'action', 'page', 'capability')` (both engines)
+- **Check (SQL Server):** `ck_feature_flags_audience_json`: `ISJSON(audience) = 1`
+- Translatable: `description`.
 
 **`impersonation_sessions`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `impersonator_user_id` | bigint | → `users.id` NO ACTION |
-| `impersonated_user_id` | bigint | → `users.id` NO ACTION |
-| `reason` | text | |
-| `started_at` | datetime | |
-| `expires_at` | datetime | |
-| `ended_at` | datetime? | |
-| `end_reason` | enum<manual,expired,logout,revoked>? | |
-| `ip_address` | string(45) | |
-| `user_agent` | text? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `impersonator_user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `impersonated_user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
+| `reason` | TEXT | NVARCHAR(MAX) | NOT NULL | — |  |
+| `started_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `expires_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `ended_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `end_reason` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `manual`, `expired`, `logout`, `revoked` |
+| `ip_address` | VARCHAR(45) | NVARCHAR(45) | NOT NULL | — |  |
+| `user_agent` | TEXT | NVARCHAR(MAX) | NULL | — |  |
 
-Indexes: (`impersonator_user_id`, `started_at`); (`impersonated_user_id`).
+- **Primary key:** `pk_impersonation_sessions` (`id`); SQL Server clustered.
+- **Unique:** `uq_impersonation_sessions_uuid` (`uuid`)
+- **Index:** `ix_impersonation_sessions_impersonator_user_id_started_at` (`impersonator_user_id`, `started_at`)
+- **Index:** `ix_impersonation_sessions_impersonated_user_id` (`impersonated_user_id`)
+- **Index:** `ix_impersonation_sessions_organization_id` (`organization_id`) — supports FK
+- **Foreign key:** `fk_impersonation_sessions_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_impersonation_sessions_impersonator_user_id`: `impersonator_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_impersonation_sessions_impersonated_user_id`: `impersonated_user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_impersonation_sessions_end_reason`: `end_reason IN ('manual', 'expired', 'logout', 'revoked')` (both engines)
 
 **`user_preferences`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @ts` | | |
-| `user_id` | bigint | → `users.id` CASCADE; unique |
-| `locale` | code(10)? | |
-| `timezone` | string(64)? | |
-| `calendar` | enum<gregorian,hijri,both>? | |
-| `date_format` | string(32)? | |
-| `number_format` | json? | |
-| `digits` | enum<western,arabic_indic>? | |
-| `theme_mode` | enum<light,dark,system> | |
-| `density` | enum<compact,normal,comfortable>? | |
-| `notification_channels` | json? | per notification type → channel keys |
-| `digest_frequency` | enum<none,daily,weekly> | |
-| `landing_page` | json? | |
-| `pinned_records` | json? | `[{form_uuid, record_id}]` (max 50) |
-| `shortcuts` | json? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` CASCADE; unique |
+| `locale` | VARCHAR(10) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(10) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
+| `timezone` | VARCHAR(64) | NVARCHAR(64) | NULL | — |  |
+| `calendar` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `gregorian`, `hijri`, `both` |
+| `date_format` | VARCHAR(32) | NVARCHAR(32) | NULL | — |  |
+| `number_format` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `digits` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `western`, `arabic_indic` |
+| `theme_mode` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `light`, `dark`, `system` |
+| `density` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `compact`, `normal`, `comfortable` |
+| `notification_channels` | JSON | NVARCHAR(MAX) | NULL | — | per notification type → channel keys |
+| `digest_frequency` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `none`, `daily`, `weekly` |
+| `landing_page` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `pinned_records` | JSON | NVARCHAR(MAX) | NULL | — | `[{form_uuid, record_id}]` (max 50) |
+| `shortcuts` | JSON | NVARCHAR(MAX) | NULL | — |  |
 
-Indexes: `user_id` unique. All values validated against admin-set limits (`settings.self_service`).
+- **Primary key:** `pk_user_preferences` (`id`); SQL Server clustered.
+- **Unique:** `uq_user_preferences_user_id` (`user_id`)
+- **Foreign key:** `fk_user_preferences_user_id`: `user_id` → `users`(`id`) ON DELETE CASCADE
+- **Check:** `ck_user_preferences_calendar`: `calendar IN ('gregorian', 'hijri', 'both')` (both engines)
+- **Check:** `ck_user_preferences_digits`: `digits IN ('western', 'arabic_indic')` (both engines)
+- **Check:** `ck_user_preferences_theme_mode`: `theme_mode IN ('light', 'dark', 'system')` (both engines)
+- **Check:** `ck_user_preferences_density`: `density IN ('compact', 'normal', 'comfortable')` (both engines)
+- **Check:** `ck_user_preferences_digest_frequency`: `digest_frequency IN ('none', 'daily', 'weekly')` (both engines)
+- **Check (SQL Server):** `ck_user_preferences_number_format_json`: `ISJSON(number_format) = 1`
+- **Check (SQL Server):** `ck_user_preferences_notification_channels_json`: `ISJSON(notification_channels) = 1`
+- **Check (SQL Server):** `ck_user_preferences_landing_page_json`: `ISJSON(landing_page) = 1`
+- **Check (SQL Server):** `ck_user_preferences_pinned_records_json`: `ISJSON(pinned_records) = 1`
+- **Check (SQL Server):** `ck_user_preferences_shortcuts_json`: `ISJSON(shortcuts) = 1`
+- All values validated against admin-set limits (`settings.self_service`).
 
 **`usage_metrics`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org` | | |
-| `day` | date | |
-| `metric` | enum<form_view,form_start,form_submit,form_abandon,field_left_empty,page_view,search> | |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `field_id` | bigint? | → `fields.id` NO ACTION |
-| `user_id` | bigint? | → `users.id` NO ACTION |
-| `dims_hash` | hash | of (`metric`, `form_id`, `field_id`, `user_id`) |
-| `count` | int | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `day` | DATE | DATE | NOT NULL | — |  |
+| `metric` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `form_view`, `form_start`, `form_submit`, `form_abandon`, `field_left_empty`, `page_view`, `search` |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `field_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `fields.id` NO ACTION |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `dims_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | of (`metric`, `form_id`, `field_id`, `user_id`) |
+| `count` | INT | INT | NOT NULL | — |  |
 
-Indexes: (`day`, `dims_hash`) unique; (`form_id`, `day`).
+- **Primary key:** `pk_usage_metrics` (`id`); SQL Server clustered.
+- **Unique:** `uq_usage_metrics_day_dims_hash` (`day`, `dims_hash`)
+- **Index:** `ix_usage_metrics_form_id_day` (`form_id`, `day`)
+- **Index:** `ix_usage_metrics_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_usage_metrics_field_id` (`field_id`) — supports FK
+- **Index:** `ix_usage_metrics_user_id` (`user_id`) — supports FK
+- **Foreign key:** `fk_usage_metrics_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_usage_metrics_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_usage_metrics_field_id`: `field_id` → `fields`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_usage_metrics_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_usage_metrics_metric`: `metric IN ('form_view', 'form_start', 'form_submit', 'form_abandon', 'field_left_empty', 'page_view', 'search')` (both engines)
 
 ### 10.25 Retention & personal data
 
 **`retention_policies`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `data_class` | enum<records,audit_logs,error_logs,email_logs,notification_logs,submission_journal,download_files,attachments,recycle_bin> | |
-| `application_id` | bigint? | → `applications.id` NO ACTION |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `retention_days` | int | |
-| `date_basis` | enum<created_at,updated_at,final_status_at> | |
-| `end_action` | enum<archive,export_then_delete,delete> | audit logs: archive only (chain preserved) |
-| `archive_disk` | code(32)? | cold storage disk |
-| `scheduled_task_id` | bigint? | → `scheduled_tasks.id` NO ACTION |
-| `is_active` | bool | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `data_class` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `records`, `audit_logs`, `error_logs`, `email_logs`, `notification_logs`, `submission_journal`, `download_files`, `attachments`, `recycle_bin` |
+| `application_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `applications.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `retention_days` | INT | INT | NOT NULL | — |  |
+| `date_basis` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `created_at`, `updated_at`, `final_status_at` |
+| `end_action` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | audit logs: archive only (chain preserved); values: `archive`, `export_then_delete`, `delete` |
+| `archive_disk` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | cold storage disk |
+| `scheduled_task_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `scheduled_tasks.id` NO ACTION |
+| `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
 
-Translatable: `name`. Indexes: (`organization_id`, `data_class`).
+- **Primary key:** `pk_retention_policies` (`id`); SQL Server clustered.
+- **Index:** `ix_retention_policies_organization_id_data_class` (`organization_id`, `data_class`)
+- **Index:** `ix_retention_policies_created_by` (`created_by`) — supports FK
+- **Index:** `ix_retention_policies_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_retention_policies_application_id` (`application_id`) — supports FK
+- **Index:** `ix_retention_policies_form_id` (`form_id`) — supports FK
+- **Index:** `ix_retention_policies_scheduled_task_id` (`scheduled_task_id`) — supports FK
+- **Foreign key:** `fk_retention_policies_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_retention_policies_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_retention_policies_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_retention_policies_application_id`: `application_id` → `applications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_retention_policies_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_retention_policies_scheduled_task_id`: `scheduled_task_id` → `scheduled_tasks`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_retention_policies_data_class`: `data_class IN ('records', 'audit_logs', 'error_logs', 'email_logs', 'notification_logs', 'submission_journal', 'download_files', 'attachments', 'recycle_bin')` (both engines)
+- **Check:** `ck_retention_policies_date_basis`: `date_basis IN ('created_at', 'updated_at', 'final_status_at')` (both engines)
+- **Check:** `ck_retention_policies_end_action`: `end_action IN ('archive', 'export_then_delete', 'delete')` (both engines)
+- Translatable: `name`.
 
 **`retention_runs`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @uuid @org @ts` | | |
-| `retention_policy_id` | bigint | → `retention_policies.id` NO ACTION |
-| `status` | enum<running,succeeded,failed,partially_failed> | |
-| `scanned_count` | bigint | |
-| `archived_count` | bigint | |
-| `deleted_count` | bigint | |
-| `skipped_legal_hold` | bigint | |
-| `export_file_id` | bigint? | → `files.id` NO ACTION |
-| `started_at` | datetime | |
-| `finished_at` | datetime? | |
-| `error` | text? | |
-| `triggered_by` | bigint? | → `users.id` NO ACTION |
-| `correlation_id` | code(36) | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `retention_policy_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `retention_policies.id` NO ACTION |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `running`, `succeeded`, `failed`, `partially_failed` |
+| `scanned_count` | BIGINT | BIGINT | NOT NULL | 0 |  |
+| `archived_count` | BIGINT | BIGINT | NOT NULL | 0 |  |
+| `deleted_count` | BIGINT | BIGINT | NOT NULL | 0 |  |
+| `skipped_legal_hold` | BIGINT | BIGINT | NOT NULL | — |  |
+| `export_file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` NO ACTION |
+| `started_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `finished_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
+| `triggered_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 
-Indexes: (`retention_policy_id`, `started_at`).
+- **Primary key:** `pk_retention_runs` (`id`); SQL Server clustered.
+- **Unique:** `uq_retention_runs_uuid` (`uuid`)
+- **Index:** `ix_retention_runs_retention_policy_id_started_at` (`retention_policy_id`, `started_at`)
+- **Index:** `ix_retention_runs_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_retention_runs_export_file_id` (`export_file_id`) — supports FK
+- **Index:** `ix_retention_runs_triggered_by` (`triggered_by`) — supports FK
+- **Foreign key:** `fk_retention_runs_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_retention_runs_retention_policy_id`: `retention_policy_id` → `retention_policies`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_retention_runs_export_file_id`: `export_file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_retention_runs_triggered_by`: `triggered_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_retention_runs_status`: `status IN ('running', 'succeeded', 'failed', 'partially_failed')` (both engines)
 
 **`archived_records`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org` | | |
-| `source_table` | code(60) | |
-| `form_id` | bigint? | → `forms.id` NO ACTION |
-| `record_id` | bigint | |
-| `retention_run_id` | bigint | → `retention_runs.id` NO ACTION |
-| `disk` | code(32) | |
-| `path` | string(1024) | |
-| `payload_hash` | hash | |
-| `archived_at` | datetime | |
-| `restorable_until` | datetime? | |
-| `restored_at` | datetime? | |
-| `restored_by` | bigint? | → `users.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `source_table` | VARCHAR(60) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(60) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `retention_run_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `retention_runs.id` NO ACTION |
+| `disk` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `path` | VARCHAR(1024) | NVARCHAR(1024) | NOT NULL | — |  |
+| `payload_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `archived_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `restorable_until` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `restored_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `restored_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 
-Indexes: (`form_id`, `record_id`); (`source_table`, `archived_at`).
+- **Primary key:** `pk_archived_records` (`id`); SQL Server clustered.
+- **Index:** `ix_archived_records_form_id_record_id` (`form_id`, `record_id`)
+- **Index:** `ix_archived_records_source_table_archived_at` (`source_table`, `archived_at`)
+- **Index:** `ix_archived_records_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_archived_records_retention_run_id` (`retention_run_id`) — supports FK
+- **Index:** `ix_archived_records_restored_by` (`restored_by`) — supports FK
+- **Foreign key:** `fk_archived_records_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_archived_records_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_archived_records_retention_run_id`: `retention_run_id` → `retention_runs`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_archived_records_restored_by`: `restored_by` → `users`(`id`) ON DELETE NO ACTION
 
 **`legal_holds`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `form_id` | bigint | → `forms.id` NO ACTION |
-| `record_id` | bigint? | single record |
-| `condition_id` | bigint? | → `conditions.id` NO ACTION — set of records |
-| `reason` | text | |
-| `placed_at` | datetime | |
-| `lifted_at` | datetime? | |
-| `lifted_by` | bigint? | → `users.id` NO ACTION |
-| `lift_reason` | text? | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NULL | — | single record |
+| `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION — set of records |
+| `reason` | TEXT | NVARCHAR(MAX) | NOT NULL | — |  |
+| `placed_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+| `lifted_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `lifted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `lift_reason` | TEXT | NVARCHAR(MAX) | NULL | — |  |
 
-Indexes: (`form_id`, `record_id`, `lifted_at`).
-Records under hold also carry `legal_hold` = 1 in their table for fast exclusion (§11.2).
+- **Primary key:** `pk_legal_holds` (`id`); SQL Server clustered.
+- **Index:** `ix_legal_holds_form_id_record_id_lifted_at` (`form_id`, `record_id`, `lifted_at`)
+- **Index:** `ix_legal_holds_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_legal_holds_created_by` (`created_by`) — supports FK
+- **Index:** `ix_legal_holds_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_legal_holds_condition_id` (`condition_id`) — supports FK
+- **Index:** `ix_legal_holds_lifted_by` (`lifted_by`) — supports FK
+- **Foreign key:** `fk_legal_holds_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_legal_holds_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_legal_holds_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_legal_holds_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_legal_holds_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_legal_holds_lifted_by`: `lifted_by` → `users`(`id`) ON DELETE NO ACTION
+- Records under hold also carry `legal_hold` = 1 in their table for fast exclusion (§11.2).
 
 **`personal_data_requests`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `type` | enum<locate,export,delete,anonymize> | |
-| `subject` | text | encrypted JSON of identifiers (email, national id, user id, name) |
-| `subject_hash` | hash | blind index for lookups |
-| `status` | enum<received,locating,awaiting_review,executing,completed,rejected,failed> | |
-| `findings` | json? | per form/log: counts and record ids |
-| `result_file_id` | bigint? | → `files.id` NO ACTION |
-| `justification_id` | bigint? | → `justifications.id` NO ACTION |
-| `completed_at` | datetime? | |
-| `completed_by` | bigint? | → `users.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `locate`, `export`, `delete`, `anonymize` |
+| `subject` | TEXT | NVARCHAR(MAX) | NOT NULL | — | encrypted JSON of identifiers (email, national id, user id, name) |
+| `subject_hash` | CHAR(64) CHARACTER SET ascii COLLATE ascii_bin | CHAR(64) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | blind index for lookups |
+| `status` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `received`, `locating`, `awaiting_review`, `executing`, `completed`, `rejected`, `failed` |
+| `findings` | JSON | NVARCHAR(MAX) | NULL | — | per form/log: counts and record ids |
+| `result_file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` NO ACTION |
+| `justification_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `justifications.id` NO ACTION |
+| `completed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `completed_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 
-Indexes: (`organization_id`, `status`); `subject_hash`.
+- **Primary key:** `pk_personal_data_requests` (`id`); SQL Server clustered.
+- **Index:** `ix_personal_data_requests_organization_id_status` (`organization_id`, `status`)
+- **Index:** `ix_personal_data_requests_subject_hash` (`subject_hash`)
+- **Index:** `ix_personal_data_requests_created_by` (`created_by`) — supports FK
+- **Index:** `ix_personal_data_requests_updated_by` (`updated_by`) — supports FK
+- **Index:** `ix_personal_data_requests_result_file_id` (`result_file_id`) — supports FK
+- **Index:** `ix_personal_data_requests_justification_id` (`justification_id`) — supports FK
+- **Index:** `ix_personal_data_requests_completed_by` (`completed_by`) — supports FK
+- **Foreign key:** `fk_personal_data_requests_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_personal_data_requests_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_personal_data_requests_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_personal_data_requests_result_file_id`: `result_file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_personal_data_requests_justification_id`: `justification_id` → `justifications`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_personal_data_requests_completed_by`: `completed_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_personal_data_requests_type`: `type IN ('locate', 'export', 'delete', 'anonymize')` (both engines)
+- **Check:** `ck_personal_data_requests_status`: `status IN ('received', 'locating', 'awaiting_review', 'executing', 'completed', 'rejected', 'failed')` (both engines)
+- **Check (SQL Server):** `ck_personal_data_requests_findings_json`: `ISJSON(findings) = 1`
 
 **`subject_keys`** (supporting — crypto-shredding of personal data in logs, ADR-0014)
 
-| Column | Type | Notes |
-|---|---|---|
-| `@pk @org @ts` | | |
-| `form_id` | bigint? | → `forms.id` NO ACTION; NULL for user-account subjects |
-| `record_id` | bigint? | |
-| `user_id` | bigint? | → `users.id` NO ACTION (subject is a user account) |
-| `wrapped_key` | text? | data key wrapped by the org `blind_index`/`fields` key; NULL once destroyed |
-| `destroyed_at` | datetime? | |
-| `destroyed_by_request_id` | bigint? | → `personal_data_requests.id` NO ACTION |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `form_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `forms.id` NO ACTION; NULL for user-account subjects |
+| `record_id` | BIGINT UNSIGNED | BIGINT | NULL | — |  |
+| `user_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION (subject is a user account) |
+| `wrapped_key` | TEXT | NVARCHAR(MAX) | NULL | — | data key wrapped by the org `blind_index`/`fields` key; NULL once destroyed |
+| `destroyed_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `destroyed_by_request_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `personal_data_requests.id` NO ACTION |
 
-Indexes: (`form_id`, `record_id`) unique (partial); `user_id` unique (partial).
+- **Primary key:** `pk_subject_keys` (`id`); SQL Server clustered.
+- **Unique:** `uq_subject_keys_form_id_record_id` (`form_id`, `record_id`) — SQL Server: filtered `WHERE form_id IS NOT NULL AND record_id IS NOT NULL`; MySQL: unique (NULLs never collide)
+- **Unique:** `uq_subject_keys_user_id` (`user_id`) — SQL Server: filtered `WHERE user_id IS NOT NULL`; MySQL: unique (NULLs never collide)
+- **Index:** `ix_subject_keys_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_subject_keys_destroyed_by_request_id` (`destroyed_by_request_id`) — supports FK
+- **Foreign key:** `fk_subject_keys_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_subject_keys_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_subject_keys_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_subject_keys_destroyed_by_request_id`: `destroyed_by_request_id` → `personal_data_requests`(`id`) ON DELETE NO ACTION
 
 **`storage_quotas`**
 
-| Column | Type | Notes |
-|---|---|---|
-| `@meta` | | |
-| `scope_type` | enum<organization,application,form> | |
-| `scope_id` | bigint | |
-| `warn_bytes` | bigint | |
-| `limit_bytes` | bigint | |
-| `used_bytes` | bigint | |
-| `measured_at` | datetime? | |
-| `state` | enum<ok,warning,exceeded> | |
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `uuid` | CHAR(36) CHARACTER SET ascii COLLATE ascii_bin | UNIQUEIDENTIFIER | NOT NULL | — | stable cross-environment identity (ADR-0003) |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+| `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `scope_type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `organization`, `application`, `form` |
+| `scope_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — |  |
+| `warn_bytes` | BIGINT | BIGINT | NOT NULL | — |  |
+| `limit_bytes` | BIGINT | BIGINT | NOT NULL | — |  |
+| `used_bytes` | BIGINT | BIGINT | NOT NULL | 0 |  |
+| `measured_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
+| `state` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `ok`, `warning`, `exceeded` |
 
-Indexes: (`scope_type`, `scope_id`) unique.
+- **Primary key:** `pk_storage_quotas` (`id`); SQL Server clustered.
+- **Unique:** `uq_storage_quotas_scope_type_scope_id` (`scope_type`, `scope_id`)
+- **Index:** `ix_storage_quotas_organization_id` (`organization_id`) — supports FK
+- **Index:** `ix_storage_quotas_created_by` (`created_by`) — supports FK
+- **Index:** `ix_storage_quotas_updated_by` (`updated_by`) — supports FK
+- **Foreign key:** `fk_storage_quotas_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_storage_quotas_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_storage_quotas_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_storage_quotas_scope_type`: `scope_type IN ('organization', 'application', 'form')` (both engines)
+- **Check:** `ck_storage_quotas_state`: `state IN ('ok', 'warning', 'exceeded')` (both engines)
 
 ### 10.26 Entity checklist (specification §7)
 
@@ -3958,7 +6446,7 @@ numeric ids or column names, so definitions are portable between environments.
   "access":     [ { "target": {"type": "field", "uuid": "…"},
                     "subject": {"type": "role", "uuid": "…"},
                     "status": "<status uuid>|null", "mode": "edit|null",
-                    "access": "read_only", "deny": false } ],
+                    "access": "read_only", "effect": "allow" } ],
   "justification": [ { "uuid": "…", "scope": "field", "target": "<uuid>",
                        "subject": {"type": "everyone"}, "level": "mandatory",
                        "condition": "<condition uuid>|null", "levelWhen": null,
@@ -4163,57 +6651,92 @@ Full specification: [`docs/expression-language.md`](expression-language.md).
 
 ### 16.1 Inputs
 
-- **Permission grants** (`permission_assignments`): allow/deny of catalog permissions
-  to roles, departments (optionally with descendants), and users; optional condition.
-- **Access rules** (`field_access_rules`): sparse overrides of Hidden/Read-only/
+- **Permission grants** (`permission_assignments`): `allow`, `deny`, or `hard_deny`
+  of catalog permissions to roles, departments (optionally with descendants), and
+  users; optional condition.
+- **Access rules** (`field_access_rules`): sparse rules setting Hidden/Read-only/
   Editable/Required at form, group, or field target, optionally narrowed by status
-  and/or mode, for everyone/role/department/user.
-- **Record rules** (`record_access_rules`): scope per operation.
+  and/or mode, for everyone/department/role/user, each with an `effect`
+  (`allow`, `deny`, `hard_deny`).
+- **Record rules** (`record_access_rules`): scopes per operation, same three effects.
 - Defaults: system default (all fields `editable` in create/edit, `read_only` in
   view/print; nothing permitted without grants), form defaults (form-level rule rows
   with `subject_type=everyone`), group, field.
 
-### 16.2 Permission (allow/deny) resolution
+### 16.2 Precedence model (one algorithm for all three rule kinds)
 
-For permission *p* and user *u*:
+Specification §4.11 (owner decision, ADR-0009):
 
-1. Collect grants on *p* for subjects: u's roles (active `user_roles`), u's
-   department and its ancestors (when `include_descendants`), and u.
-2. Drop grants whose condition evaluates false for the request context.
-3. Specificity tiers: **user > department > role** (spec §4.11 precedence).
-   Take the most specific tier that has any grant.
-4. Within that tier, **deny beats allow**. A deny in a less specific tier is
-   overridden only by an explicit allow in a more specific tier (a user-level allow
-   overrides a role-level deny — "user overrides department, which overrides role");
-   an allow never overrides a deny in the same or a more specific tier. Worked truth
-   table: ADR-0009.
-5. No grant → denied.
+1. **Subject tiers**, least to most specific: everyone → **department** → **role** →
+   **specific user**. (Department grants with `include_descendants` belong to the
+   department tier.)
+2. **Within a tier, deny beats allow.**
+3. **A more specific tier overrides a less specific tier, including its deny.**
+4. **A hard deny overrides every tier** and cannot be overridden.
+
+Evaluation applies tiers in order from least to most specific to a running value
+`v` (starting at the default), then applies hard denies last:
+
+```
+v ← default
+for tier in [everyone, department, role, user]:          # least → most specific
+    rules ← applicable rules of this tier (conditions true), excluding hard_deny
+    if rules has any allow:  v ← join(allow values in tier)  # override lower tiers
+    if rules has any deny:   v ← meet(v, deny values in tier) # deny wins inside the tier
+v ← meet(v, all hard_deny values from any tier)              # nothing overrides these
+```
+
+`join`/`meet` are "most permissive"/"most restrictive" on the value domain:
+
+| Rule kind | Value domain | default | join (allows in a tier) | meet (deny / hard deny) |
+|---|---|---|---|---|
+| Permission grant | {denied < granted} | denied | granted | denied |
+| Field/group access | hidden < read_only < editable < required | §16.1 defaults | highest allowed level (roles are additive) | cap at the deny's level (a `deny` with `access=read_only` means "at most read-only") |
+| Record scope | set of scopes | ∅ | union of allowed scopes | remove the denied scopes (`deny all` removes every scope) |
+
+Worked truth table for a permission (ADR-0009):
+
+| Department | Role | User | Hard deny anywhere | Result | Why |
+|---|---|---|---|---|---|
+| allow | — | — | no | granted | only tier |
+| allow | deny | — | no | denied | role overrides department |
+| deny | allow | — | no | granted | role overrides department's deny |
+| — | allow + deny (two roles) | — | no | denied | deny beats allow within a tier |
+| — | deny | allow | no | granted | user overrides role's deny |
+| allow | allow | deny | no | denied | user tier wins |
+| — | allow | allow | yes (role) | denied | hard deny overrides every tier |
+| — | — | — | no | denied | default |
+
+Safeguards: granting `hard_deny` is a dangerous operation (2FA re-confirmation,
+audited); the service refuses any hard deny that would leave no active Super Admin
+holding `system.manage_permissions` (lockout guard). The matrix shows hard denies
+with a distinct lock marker; *explain access* always lists them first.
 
 ### 16.3 Field & group access resolution
 
-Order (general → specific): **system default → form default → group (inherited down
-the group tree) → field → status override → mode override → subject (role →
-department → specific user, per ADR-0009)**. Each rule row has a *specificity vector*:
+Each rule has a *specificity vector*. Order (general → specific): **system default →
+form default → group (inherited down the group tree) → field → status override →
+mode override → department → role → specific user** (specification §4.11):
 
 ```
 target level:  form(0) < group(1, + depth) < field(2)
 status:        any(0) < specific(1)
 mode:          any(0) < specific(1)
-subject:       everyone(0) < role(1) < department(2) < user(3)   (ADR-0009)
+subject:       everyone(0) < department(1) < role(2) < user(3)
 ```
 
 Resolution for (user, field, status, mode):
 
-1. Candidate rules = rules whose target is the form, any ancestor group of the
-   field, or the field; whose status is NULL or equal; whose mode is NULL or equal;
-   whose subject matches the user (everyone, their department/ancestors, roles, user).
-2. If any candidate has `is_deny = 1`, the result is capped at that rule's access
-   (deny = ceiling; Hidden deny hides regardless of anything else).
-3. Otherwise sort by the lexicographic vector (target, status, mode, subject) and
-   take the **highest** (most specific) rule. Ties at the same specificity (user in
-   two roles with different rules) resolve to the **most permissive** of them
-   (union of role grants) — `required` > `editable` > `read_only` > `hidden` —
-   because roles are additive; restrictions are expressed with deny rules.
+1. Candidates = rules whose target is the form, any ancestor group of the field, or
+   the field; whose status is NULL or equal; whose mode is NULL or equal; whose
+   subject matches the user (everyone, their department/ancestors, roles, user).
+2. Group the non-hard candidates into **tiers by full vector** (target, status,
+   mode, subject) and run the §16.2 algorithm over the tiers in ascending
+   lexicographic order: each tier's allows override everything less specific
+   (taking the highest allowed level when several roles tie), then its denies cap
+   the value within that tier.
+3. Apply every `hard_deny` candidate as a final ceiling (e.g. a hard deny at
+   `hidden` hides the field regardless of any user-level allow).
 4. No rule matched → system default for the mode.
 5. Form-level permission gate: without `form.view` the form is invisible; without
    `form.edit` every field is at most read-only in edit mode; without
@@ -4223,16 +6746,8 @@ Resolution for (user, field, status, mode):
    condition effect) for visibility/editability; required = resolved.required OR
    condition-required.
 
-The vector order (target, status, mode, subject) follows the specification's list
-exactly: a field rule beats a group rule beats a form rule; at the same target, a
-status-specific rule beats a status-less one, then a mode-specific rule beats a
-mode-less one, and finally the subject decides: user > department > role >
-everyone. The specification states two different department/role orders (§4.11
-"Precedence": *user overrides department, which overrides role*; §4.11
-"Resolution model": *… department → role → specific user*). ADR-0009 adopts the
-explicit "overrides" rule for **both** permission grants and field access so admins
-see one consistent precedence, and flags the conflict for the owner. The
-explain-access screen shows the full candidate list with each vector and the winner.
+The explain-access screen shows every candidate with its vector and effect, the
+tier walk, the hard-deny ceiling, and the winner.
 
 ### 16.4 Sparse storage & UI
 
@@ -4260,9 +6775,11 @@ the new value differs from the inherited value. "Show deviating only" is default
 ### 16.6 Record-level scope
 
 For operation *op* (view/edit/delete), the user's record scope is the union of
-allowed scopes from `record_access_rules` matching the user (same tier logic:
-user > department > role; deny at winning tier removes that scope), translated to
-a `WHERE` clause by the Query Planner:
+allowed scopes from `record_access_rules` matching the user, resolved with the
+§16.2 algorithm over the record-scope domain (department → role → user tiers; a
+tier's allows replace the lower tiers' scope set, its denies remove scopes, hard
+denies remove scopes at the end), translated to a `WHERE` clause by the Query
+Planner:
 
 | Scope | Predicate |
 |---|---|
@@ -4284,7 +6801,7 @@ uses the same scope and returns 404 when out of scope.
 ### 16.7 Explain access
 
 `ExplainAccess::field(user, form, field, status, mode)` returns the candidate
-rules with their vectors, the deny check, the winner, and links to where each rule
+rules with their vectors and effects, the tier walk, the hard-deny ceiling, the winner, and links to where each rule
 is defined (form/group/field/role/user screens); the same for permissions and
 record scopes.
 
@@ -4350,7 +6867,7 @@ changing the core renderer or the storage model.
 | Surface | Metadata | Server registry | Client registry | Rendering |
 |---|---|---|---|---|
 | Pages | `pages`, `page_widgets` | `PageTypeRegistry`, `WidgetRegistry` (data providers enforce permissions) | `PageRenderer`, widget components | `GET /pages/{uuid}` returns resolved layout + widget data endpoints |
-| Home screens | `home_screens`, `page_widgets` | same widget registry | same | resolver picks user > department > role > default |
+| Home screens | `home_screens`, `page_widgets` | same widget registry | same | resolver picks user > role > department > default |
 | Dashboards | `dashboards`, `dashboard_widgets` | `WidgetRegistry` + `ReportEngine` | ECharts widget components | |
 | Themes | `themes`, `theme_assets` | `ThemeCompiler` (tokens → CSS variables; sanitized custom CSS) | theme runtime applies CSS variables per app/org, light/dark | `GET /theme/{scope}.css` cached by version |
 | Automations | `automations`, `automation_triggers`, `automation_steps` | `TriggerRegistry`, `StepHandlerRegistry` | builder step forms from JSON schema | queue jobs |
@@ -4882,7 +7399,7 @@ object is configured by administrators.
 | **Users** | `GET/POST /users`; `GET/PATCH /users/{uuid}`; `POST /users/{uuid}/suspend|activate|reset-2fa|unlock`; `GET/DELETE /users/{uuid}/sessions/{id}`; `POST /users/import` | user fields, roles, department, attributes | `manage_users` |
 | **Departments** | `GET /departments/tree`; `POST/PATCH/DELETE /departments/{uuid}`; `POST /departments/{uuid}/move` | name i18n, code, parent, manager, calendar | `manage_users` |
 | **Roles & permissions** | `GET/POST/PATCH/DELETE /roles`; `POST /roles/{uuid}/copy-permissions`; `GET /permissions?scope=`; `PUT /permission-assignments` (bulk); `GET /access/explain?user=&form=&field=&status=&mode=`; `GET /access/view-as/{user}`; `GET /access/export`, `POST /access/import` | assignments `{permission_key, subject, effect, include_descendants, condition}` | `manage_permissions` |
-| **Form access matrix** | `GET /forms/{uuid}/access-matrix?status=&mode=&subject=&group=&deviating_only=&page=`; `PUT /forms/{uuid}/access-rules` (bulk upsert/reset); `GET/PUT /forms/{uuid}/record-rules` | cells `{target, subject, status, mode, access, deny}` | `manage_permissions` |
+| **Form access matrix** | `GET /forms/{uuid}/access-matrix?status=&mode=&subject=&group=&deviating_only=&page=`; `PUT /forms/{uuid}/access-rules` (bulk upsert/reset); `GET/PUT /forms/{uuid}/record-rules` | cells `{target, subject, status, mode, access, effect}` | `manage_permissions` |
 | **Audit** | `GET /audit?filters…`; `GET /audit/{id}`; `GET /records/{form}/{uuid}/audit`; `POST /audit/export`; `POST /audit/verify-chain` | | `view_audit_log` (record log also needs `form.view_log`) |
 | **Errors** | `GET /errors/groups`; `GET /errors/groups/{id}`; `PATCH /errors/groups/{id}` (status, assignee, notes); `GET /errors/logs?…`; `GET /errors/reference/{code}` | | `view_errors` |
 | **Applications** | `GET/POST/PATCH /applications`; `POST /applications/{uuid}/clone|archive|retire|maintenance` | | `manage_applications` (+ `enable_maintenance_mode`) |
@@ -5045,7 +7562,7 @@ Each decision has a full record in `docs/decisions/`.
 | 0006 | All datetimes UTC in `datetime(6)`/`datetime2(6)` | No 2038 limit, no engine timezone drift; display converts |
 | 0007 | Translations in a single keyed table; `ar`/`en` locales seeded as system settings | Spec §3 Languages; a third language without schema change |
 | 0008 | Expression language: JSON AST, decimal arithmetic, step-count bounds, shared corpus | Spec §4.7 parity; deterministic across runtimes |
-| 0009 | Permission precedence user > department > role for grants and field access; deny wins within the winning tier; field specificity vector (target, status, mode, subject) | Resolves the §4.11 department/role ordering conflict consistently |
+| 0009 | Precedence user > role > department for grants, field access, and record scopes; deny beats allow within a tier; a more specific tier overrides a less specific one including its deny; hard deny overrides every tier | Owner decision resolving the §4.11 ordering conflict; spec §4.11 updated |
 | 0010 | Transactional outbox for after-commit side effects | Notifications/automations/webhooks iff data committed |
 | 0011 | Hash-chained, sharded (16 chains) audit log with monthly partitions | Tamper evidence with acceptable write contention; growth plan |
 | 0012 | No outbound call during authentication (offline password list) | All egress through the gateway; login must not depend on third parties |

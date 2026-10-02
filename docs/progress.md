@@ -20,8 +20,9 @@ Project memory file (specification §8.1). Updated at the end of every run.
 - `docs/architecture.md`: layers and runtime engine (§2–§3), module boundaries (§4),
   folder structure (§5), database driver layer (§6), security architecture (§7),
   queues/jobs/events (§8), data model conventions (§9), complete ERD of
-  147 tables covering every specification §7 entity, with columns, types, indexes,
-  and foreign keys (§10), physical table generation (§11), schema change strategy
+  147 tables covering every specification §7 entity, each fully expanded with
+  exact MySQL 8 and SQL Server 2019 column types, nullability, defaults, and named
+  keys, indexes, foreign keys, and checks (§10), physical table generation (§11), schema change strategy
   (§12), versioning/rollback/drift (§13), metadata JSON schema (§14), permission
   resolution (§16), relation traversal (§17), extension model (§18), domain engine
   designs (§19), performance budgets (§20), API outline (§21), frontend
@@ -46,6 +47,11 @@ The design coverage check passed. Every requirement in §2–§7 is covered (see
 - Every foreign-key target in the ERD is a defined table (147 defined, 0 missing).
 - Every specification §7 entity maps to a defined table (0 missing).
 - Every ERD table is owned by exactly one module in architecture §4 (0 unassigned, 0 duplicates).
+- Every table has a primary key; every FK column's type matches its target on both
+  engines; no SET NULL on a NOT NULL column; no table is reachable through more
+  than one cascading path and there are no cascade cycles (SQL Server error 1785);
+  every constraint name is unique and at most 60 characters; every index key fits
+  MySQL's 3,072-byte and SQL Server's 1,700-byte (900 clustered) limits.
 - Every internal section reference in `architecture.md` and `design-coverage.md`
   resolves.
 - Every corpus case parses under the grammar in `expression-language.md` with the
@@ -56,17 +62,24 @@ Phase 0 produces no code, so steps 2–5 of §8.2 (tests on MySQL and SQL Server
 security check, regression check, manual guide) are replaced by the coverage check,
 as the specification states.
 
-## Open items for owner review (Phase 0 PR)
+## Owner decisions on the Phase 0 PR (2026-10-02)
 
-1. **ADR-0009:** specification §4.11 states two conflicting department/role
-   precedence orders. The design adopts user > department > role everywhere.
-   Please confirm.
-2. **ADR-0016:** CLAUDE.md says seven phases (0–6), but the specification defines
-   eight, including Phase 2.5. The design follows the specification. CLAUDE.md
-   could be updated, and a branch name for Phase 2.5 confirmed (proposed:
-   `phase-2-5-pilot`).
-3. Specification §10 asks for a GitHub issue per phase with a scope checklist. No
-   issue was opened in this run. It can be opened on request.
+1. **Precedence (ADR-0009):** specific user > role > department. Within a tier, deny
+   beats allow. A more specific tier overrides a less specific one, including its
+   deny. A hard deny cannot be overridden by any tier. Applied to specification
+   §4.11, architecture §16 (one algorithm for permissions, field access, and record
+   scopes), and the ERD (`effect enum<allow, deny, hard_deny>` on
+   `permission_assignments`, `field_access_rules`, `record_access_rules`).
+2. **Phase count (ADR-0016):** eight phases. The branch for Phase 2.5 is
+   `phase-2-5-pilot`. The owner updates CLAUDE.md.
+3. **ERD made fully explicit:** every table in architecture §10 now lists each
+   column with its exact MySQL 8 and SQL Server 2019 type, nullability, and
+   default, plus named primary key, unique constraints (filtered on SQL Server
+   when nullable), indexes (including FK-supporting indexes), foreign keys with
+   ON DELETE, and CHECK constraints. Totals: 147 tables, 2,312 columns, 646
+   foreign keys, 115 unique constraints, 643 indexes.
+4. **Phase issues:** one GitHub issue per phase with its scope checklist
+   (specification §10).
 
 ## Resume point
 

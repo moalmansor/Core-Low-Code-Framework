@@ -501,7 +501,10 @@ All access control lives in **one** interface.
   - Manage Reference Data, Manage Numbering, Manage Calendars, Manage Currencies;
   - Merge Records, Bulk Update, Access Recycle Bin, Repair Data;
   - Impersonate Users, Manage Access Policies, Manage Feature Flags, Manage Help Content, Publish Announcements, Enable Maintenance Mode.
-- **Precedence:** user overrides department, which overrides role; deny overrides allow.
+- **Precedence:** a specific user overrides role, which overrides department.
+  - Within the same tier, deny overrides allow.
+  - A more specific tier overrides a less specific tier, including that tier's deny.
+  - A **hard deny** cannot be overridden by any tier. It is set explicitly by an administrator, is marked distinctly in the matrix, and the system refuses a hard deny that would leave no active Super Admin able to manage permissions.
 - **Tools:**
   - "View as user" to see effective permissions;
   - copy permissions between roles;
@@ -510,7 +513,7 @@ All access control lives in **one** interface.
 
 **Resolution model (inheritance and sparse storage)**
 - Access is **computed, not enumerated**. Only deviations are stored, so the number of rows stays proportional to the exceptions an admin actually creates, not to forms × fields × roles × statuses × modes.
-- Resolution order, most general to most specific: system default → form default → field group → field → status override → mode override → department → role → specific user. The most specific matching rule wins, and an explicit deny always beats an allow.
+- Resolution order, most general to most specific: system default → form default → field group → field → status override → mode override → department → role → specific user. The most specific matching rule wins; within the same tier a deny beats an allow; a hard deny beats every tier (see Precedence).
 - Every field inherits from its group unless overridden; every group inherits from the form. The UI marks inherited values distinctly from explicit ones, and offers "reset to inherited".
 - **Effective permissions** for a given user are resolved once per request and cached, with invalidation on any change to permissions, roles, departments, form versions, or statuses.
 - The matrix UI is filtered and paged by role, status, or group rather than rendering every combination at once, shows only fields that deviate by default, and supports bulk edit across a selection.
