@@ -2,7 +2,7 @@
 
 // odsl-/home/user/Core-Low-Code-Framework/backend/app/Modules/Identity/Auth/TenantAwareUserProvider.php-PHPStan\BetterReflection\Reflection\ReflectionClass-App\Modules\Identity\Auth\TenantAwareUserProvider
 return \PHPStan\Cache\CacheItem::__set_state(array(
-   'variableKey' => 'v2-6.73.0.5-8.3.6-5a5fbc73c681905eaeff15d0061a986667244bb369947e884a765acba0e8bce6',
+   'variableKey' => 'v2-6.73.0.5-8.3.6-f56618effa1ce6bb089cd3daf47bb48b2ed9d50291c3736ede908abf23847658',
    'data' => 
   array (
     'locatedSource' => 
@@ -31,8 +31,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
     'attributes' => 
     array (
     ),
-    'startLine' => 16,
-    'endLine' => 42,
+    'startLine' => 17,
+    'endLine' => 43,
     'startColumn' => 1,
     'endColumn' => 1,
     'parentClassName' => 'Illuminate\\Auth\\EloquentUserProvider',
@@ -66,8 +66,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 19,
-            'endLine' => 19,
+            'startLine' => 20,
+            'endLine' => 20,
             'startColumn' => 34,
             'endColumn' => 44,
             'parameterIndex' => 0,
@@ -106,9 +106,9 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         'attributes' => 
         array (
         ),
-        'docComment' => '/** @return (Authenticatable&\\Illuminate\\Database\\Eloquent\\Model)|null */',
-        'startLine' => 19,
-        'endLine' => 26,
+        'docComment' => '/** @return (Authenticatable&Model)|null */',
+        'startLine' => 20,
+        'endLine' => 27,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
@@ -138,8 +138,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 29,
-            'endLine' => 29,
+            'startLine' => 30,
+            'endLine' => 30,
             'startColumn' => 37,
             'endColumn' => 47,
             'parameterIndex' => 0,
@@ -164,8 +164,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
                 ),
               ),
             ),
-            'startLine' => 29,
-            'endLine' => 29,
+            'startLine' => 30,
+            'endLine' => 30,
             'startColumn' => 50,
             'endColumn' => 78,
             'parameterIndex' => 1,
@@ -204,9 +204,9 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         'attributes' => 
         array (
         ),
-        'docComment' => '/** @return (Authenticatable&\\Illuminate\\Database\\Eloquent\\Model)|null */',
-        'startLine' => 29,
-        'endLine' => 41,
+        'docComment' => '/** @return (Authenticatable&Model)|null */',
+        'startLine' => 30,
+        'endLine' => 42,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,

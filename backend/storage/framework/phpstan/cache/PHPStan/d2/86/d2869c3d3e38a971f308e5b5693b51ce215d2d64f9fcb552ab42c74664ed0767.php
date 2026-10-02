@@ -14,6 +14,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
           'eloquentuserprovider' => 'Illuminate\\Auth\\EloquentUserProvider',
           'authenticatable' => 'Illuminate\\Contracts\\Auth\\Authenticatable',
+          'model' => 'Illuminate\\Database\\Eloquent\\Model',
         ),
          'className' => 'App\\Modules\\Identity\\Auth\\TenantAwareUserProvider',
          'functionName' => NULL,
@@ -38,6 +39,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
           'eloquentuserprovider' => 'Illuminate\\Auth\\EloquentUserProvider',
           'authenticatable' => 'Illuminate\\Contracts\\Auth\\Authenticatable',
+          'model' => 'Illuminate\\Database\\Eloquent\\Model',
         ),
          'className' => 'App\\Modules\\Identity\\Auth\\TenantAwareUserProvider',
          'functionName' => 'retrieveById',
@@ -51,6 +53,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
           array (
             'eloquentuserprovider' => 'Illuminate\\Auth\\EloquentUserProvider',
             'authenticatable' => 'Illuminate\\Contracts\\Auth\\Authenticatable',
+            'model' => 'Illuminate\\Database\\Eloquent\\Model',
           ),
            'className' => 'App\\Modules\\Identity\\Auth\\TenantAwareUserProvider',
            'functionName' => NULL,
@@ -85,6 +88,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
           'eloquentuserprovider' => 'Illuminate\\Auth\\EloquentUserProvider',
           'authenticatable' => 'Illuminate\\Contracts\\Auth\\Authenticatable',
+          'model' => 'Illuminate\\Database\\Eloquent\\Model',
         ),
          'className' => 'App\\Modules\\Identity\\Auth\\TenantAwareUserProvider',
          'functionName' => 'retrieveByToken',
@@ -98,6 +102,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
           array (
             'eloquentuserprovider' => 'Illuminate\\Auth\\EloquentUserProvider',
             'authenticatable' => 'Illuminate\\Contracts\\Auth\\Authenticatable',
+            'model' => 'Illuminate\\Database\\Eloquent\\Model',
           ),
            'className' => 'App\\Modules\\Identity\\Auth\\TenantAwareUserProvider',
            'functionName' => NULL,
@@ -128,7 +133,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
     ),
     1 => 
     array (
-      '/home/user/Core-Low-Code-Framework/backend/app/Modules/Identity/Auth/TenantAwareUserProvider.php' => '5a5fbc73c681905eaeff15d0061a986667244bb369947e884a765acba0e8bce6',
+      '/home/user/Core-Low-Code-Framework/backend/app/Modules/Identity/Auth/TenantAwareUserProvider.php' => 'f56618effa1ce6bb089cd3daf47bb48b2ed9d50291c3736ede908abf23847658',
     ),
   ),
 ));

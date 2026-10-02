@@ -2,7 +2,7 @@
 
 // odsl-/home/user/Core-Low-Code-Framework/backend/app/Modules/Identity/IdentityServiceProvider.php-PHPStan\BetterReflection\Reflection\ReflectionClass-App\Modules\Identity\IdentityServiceProvider
 return \PHPStan\Cache\CacheItem::__set_state(array(
-   'variableKey' => 'v2-6.73.0.5-8.3.6-6f729a9c0b56fd30773b8e9c4063f28a2942704232f40e5f6ec385ebb13fb050',
+   'variableKey' => 'v2-6.73.0.5-8.3.6-27a3cc92cdc23b8c2ba2fa9ff1f3b4e58dc01a86e77623659ec4949c3cf051d0',
    'data' => 
   array (
     'locatedSource' => 
@@ -26,8 +26,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
     'attributes' => 
     array (
     ),
-    'startLine' => 28,
-    'endLine' => 62,
+    'startLine' => 30,
+    'endLine' => 65,
     'startColumn' => 1,
     'endColumn' => 1,
     'parentClassName' => 'Illuminate\\Support\\ServiceProvider',
@@ -65,8 +65,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => NULL,
-        'startLine' => 30,
-        'endLine' => 35,
+        'startLine' => 32,
+        'endLine' => 38,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
@@ -100,8 +100,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => NULL,
-        'startLine' => 37,
-        'endLine' => 61,
+        'startLine' => 40,
+        'endLine' => 64,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,

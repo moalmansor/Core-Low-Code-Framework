@@ -12,6 +12,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
          'namespace' => 'App\\Providers',
          'uses' => 
         array (
+          'trustproxies' => 'Illuminate\\Http\\Middleware\\TrustProxies',
           'serviceprovider' => 'Illuminate\\Support\\ServiceProvider',
         ),
          'className' => 'App\\Providers\\AppServiceProvider',
@@ -35,6 +36,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
          'namespace' => 'App\\Providers',
          'uses' => 
         array (
+          'trustproxies' => 'Illuminate\\Http\\Middleware\\TrustProxies',
           'serviceprovider' => 'Illuminate\\Support\\ServiceProvider',
         ),
          'className' => 'App\\Providers\\AppServiceProvider',
@@ -58,6 +60,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
          'namespace' => 'App\\Providers',
          'uses' => 
         array (
+          'trustproxies' => 'Illuminate\\Http\\Middleware\\TrustProxies',
           'serviceprovider' => 'Illuminate\\Support\\ServiceProvider',
         ),
          'className' => 'App\\Providers\\AppServiceProvider',
@@ -79,7 +82,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
     ),
     1 => 
     array (
-      '/home/user/Core-Low-Code-Framework/backend/app/Providers/AppServiceProvider.php' => 'bfb295b5098038ce8e9bbb229ee10bae03bc67dc1a2defa3aacec9e6e36a06bd',
+      '/home/user/Core-Low-Code-Framework/backend/app/Providers/AppServiceProvider.php' => '0b6fe78a2ef2c77e2cfb057ea001f98c98e11ba5c8d7039df4c5d4e8157d70fd',
     ),
   ),
 ));

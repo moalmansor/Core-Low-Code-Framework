@@ -24,7 +24,7 @@ Custom code is a rare exception, reserved for developers (see 4.19).
   - core system roles (Super Admin, Admin, Developer, User);
   - the full system permission catalog;
   - default system settings.
-- **Setup wizard (web-based), shown on first launch.** It collects:
+- **Setup wizard (web-based), shown on first launch.** Before the first step, the wizard asks for a one-time **setup token** that only someone with console access to the server can obtain (`php artisan setup:token`, also printed in the application container's log). Only the token's hash is stored, issuing a new token invalidates the previous one, and the token is discarded when setup completes. This stops whoever reaches a fresh installation first from claiming the Super Admin account. It collects:
   - system name, logo, and favicon;
   - default language and enabled languages;
   - timezone and date/number formats;
@@ -510,6 +510,12 @@ All access control lives in **one** interface.
   - copy permissions between roles;
   - export/import permission sets.
 - **Enforcement:** server-side via Laravel Policies/Gates on every request, with no reliance on UI hiding.
+- **Escalation safeguards for people management:** holding Manage Users never lets an administrator gain or hand out more power than they hold:
+  - a user account can be edited, suspended, unlocked, reset, signed out, or deleted only by someone who holds every permission that account holds;
+  - a role or department can be given to a user only if every permission it allows is held by the administrator giving it;
+  - nobody can change their own roles or department;
+  - giving an administrative role, or one that allows a sensitive permission, requires step-up confirmation (below).
+- **Step-up confirmation:** granting a sensitive (dangerous) permission, setting a hard deny, importing a permission set that contains either, and giving an administrative role require a fresh authenticator code or a one-time recovery code, verified server-side.
 
 **Resolution model (inheritance and sparse storage)**
 - Access is **computed, not enumerated**. Only deviations are stored, so the number of rows stays proportional to the exceptions an admin actually creates, not to forms × fields × roles × statuses × modes.
@@ -946,6 +952,14 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Data protection:** encryption of sensitive fields; secrets only in environment config; per-tenant and per-field key management with a documented key rotation procedure.
 - **Operations:** scheduled backups with a documented restore procedure; dependency vulnerability scanning (composer audit, npm audit).
 - No sensitive data in logs or in user-facing errors.
+- **Additional safeguards (added in Phase 1):**
+  - two-factor authentication cannot be switched off by holders of a role that requires it; an administrator can reset it, which forces re-enrollment at the next sign-in;
+  - "forgot password" answers the same way whether or not the address belongs to an account; passwords are checked against a list of the 10,000 most common passwords, must not contain the user's name or e-mail, and may not repeat recent passwords;
+  - session identifiers are never shown; session lists expose only an opaque keyed hash of each session;
+  - secret settings (SMTP password, LDAP bind password, SSO client secrets) are write-only: encrypted at rest and in the cache, never returned by the API, and masked in the audit log, as is any changed value whose field name denotes a secret;
+  - the egress gateway also blocks the whole 6to4 range (`2002::/16`) and IPv4-mapped, IPv4-compatible and NAT64 forms of blocked IPv4 addresses;
+  - users who sign in through OpenID Connect or LDAP never take over an existing local account; matching an existing account by e-mail is allowed only for accounts of the same source and only when the provider is configured to allow it;
+  - the Content Security Policy uses a per-request nonce and no `'unsafe-inline'` or `'unsafe-eval'`; styles injected by UI components carry the same nonce.
 
 ## 6. Non-Functional Requirements
 - **Performance:**

@@ -303,7 +303,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
     ),
     1 => 
     array (
-      '/home/user/Core-Low-Code-Framework/backend/app/Modules/Core/Settings/SettingsRegistry.php' => 'bdd5fa170b5a2b3f391ccdb083e7f6d45054e5d897632e8c0915f09283c9609d',
+      '/home/user/Core-Low-Code-Framework/backend/app/Modules/Core/Settings/SettingsRegistry.php' => '3f27fb2d12ada466f4fbb845492c8fd2ecc88bb8bf7f2808247c224b9624879f',
     ),
   ),
 ));

@@ -170,6 +170,71 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
          'typeAliasClassName' => NULL,
          'traitData' => NULL,
       )),
+      'fabf0b393829663b7781ab1ec853dbea' => 
+      \PHPStan\Analyser\IntermediaryNameScope::__set_state(array(
+         'namespace' => 'App\\Modules\\Access\\Http\\Controllers',
+         'uses' => 
+        array (
+          'accessguard' => 'App\\Modules\\Access\\AccessGuard',
+          'permissionassignment' => 'App\\Modules\\Access\\Models\\PermissionAssignment',
+          'role' => 'App\\Modules\\Access\\Models\\Role',
+          'auditwriter' => 'App\\Modules\\Audit\\AuditWriter',
+          'locale' => 'App\\Modules\\Core\\Models\\Locale',
+          'tenantcontext' => 'App\\Modules\\Core\\Tenancy\\TenantContext',
+          'jsonresponse' => 'Illuminate\\Http\\JsonResponse',
+          'request' => 'Illuminate\\Http\\Request',
+          'controller' => 'Illuminate\\Routing\\Controller',
+          'gate' => 'Illuminate\\Support\\Facades\\Gate',
+          'rule' => 'Illuminate\\Validation\\Rule',
+        ),
+         'className' => 'App\\Modules\\Access\\Http\\Controllers\\RoleController',
+         'functionName' => 'options',
+         'templatePhpDocNodes' => 
+        array (
+        ),
+         'parent' => 
+        \PHPStan\Analyser\IntermediaryNameScope::__set_state(array(
+           'namespace' => 'App\\Modules\\Access\\Http\\Controllers',
+           'uses' => 
+          array (
+            'accessguard' => 'App\\Modules\\Access\\AccessGuard',
+            'permissionassignment' => 'App\\Modules\\Access\\Models\\PermissionAssignment',
+            'role' => 'App\\Modules\\Access\\Models\\Role',
+            'auditwriter' => 'App\\Modules\\Audit\\AuditWriter',
+            'locale' => 'App\\Modules\\Core\\Models\\Locale',
+            'tenantcontext' => 'App\\Modules\\Core\\Tenancy\\TenantContext',
+            'jsonresponse' => 'Illuminate\\Http\\JsonResponse',
+            'request' => 'Illuminate\\Http\\Request',
+            'controller' => 'Illuminate\\Routing\\Controller',
+            'gate' => 'Illuminate\\Support\\Facades\\Gate',
+            'rule' => 'Illuminate\\Validation\\Rule',
+          ),
+           'className' => 'App\\Modules\\Access\\Http\\Controllers\\RoleController',
+           'functionName' => NULL,
+           'templatePhpDocNodes' => 
+          array (
+          ),
+           'parent' => NULL,
+           'typeAliasesMap' => 
+          array (
+          ),
+           'bypassTypeAliases' => false,
+           'constUses' => 
+          array (
+          ),
+           'typeAliasClassName' => NULL,
+           'traitData' => NULL,
+        )),
+         'typeAliasesMap' => 
+        array (
+        ),
+         'bypassTypeAliases' => false,
+         'constUses' => 
+        array (
+        ),
+         'typeAliasClassName' => NULL,
+         'traitData' => NULL,
+      )),
       '4f9ccbf16ff9677a80a6ab38558b8e3c' => 
       \PHPStan\Analyser\IntermediaryNameScope::__set_state(array(
          'namespace' => 'App\\Modules\\Access\\Http\\Controllers',
@@ -628,7 +693,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
     ),
     1 => 
     array (
-      '/home/user/Core-Low-Code-Framework/backend/app/Modules/Access/Http/Controllers/RoleController.php' => 'fc268b7b73f2efd240414c8f51821e246134e9a7951f8e76561d55ced7483427',
+      '/home/user/Core-Low-Code-Framework/backend/app/Modules/Access/Http/Controllers/RoleController.php' => '0d7d4e124328f6f5376ed256823fd53415ec10407cb1a38cc6450430ce4a1c85',
     ),
   ),
 ));

@@ -46,6 +46,9 @@ final class UserProvisioner
                 if (! $allowCreate || $email === null) {
                     return null;
                 }
+                if ((clone $query)->where('email', $email)->exists()) {
+                    return null; // the address belongs to another account: never merge silently
+                }
                 $user = new User;
                 $user->forceFill([
                     'name' => $name,

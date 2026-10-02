@@ -35,6 +35,7 @@ const session = useSession()
 const rows = ref<LocaleRow[]>([])
 const editing = ref<(LocaleRow & { isNew?: boolean }) | null>(null)
 const errors = ref<Record<string, string>>({})
+const groupSeparators = [',', '.', ' ', '٬', "'", '']
 
 async function load(): Promise<void> {
   rows.value = (await get<{ data: LocaleRow[] }>('/locales')).data
@@ -59,6 +60,11 @@ function create(): void {
     is_default: false,
     sort_order: rows.value.length + 1,
   }
+}
+
+function edit(row: LocaleRow): void {
+  errors.value = {}
+  editing.value = JSON.parse(JSON.stringify(row))
 }
 
 async function save(): Promise<void> {
@@ -97,15 +103,7 @@ async function save(): Promise<void> {
         <Tag v-if="data.is_default" severity="info" :value="t('locales.default')" /></template
     ></Column>
     <Column style="width: 4rem"
-      ><template #body="{ data }"
-        ><Button
-          icon="pi pi-pencil"
-          text
-          :aria-label="t('common.edit')"
-          @click="
-            editing = JSON.parse(JSON.stringify(data))
-            errors = {}
-          " /></template
+      ><template #body="{ data }"><Button icon="pi pi-pencil" text :aria-label="t('common.edit')" @click="edit(data)" /></template
     ></Column>
   </DataTable>
 
@@ -146,7 +144,7 @@ async function save(): Promise<void> {
       </div>
       <div class="field">
         <label for="lgrp">{{ t('settings.formats.thousands_separator') }}</label
-        ><Select v-model="editing.number_format.group" input-id="lgrp" :options="[',', '.', ' ', '٬', '\'', '']" />
+        ><Select v-model="editing.number_format.group" input-id="lgrp" :options="groupSeparators" />
       </div>
       <div class="field">
         <label for="lfd">{{ t('settings.formats.first_day_of_week') }}</label

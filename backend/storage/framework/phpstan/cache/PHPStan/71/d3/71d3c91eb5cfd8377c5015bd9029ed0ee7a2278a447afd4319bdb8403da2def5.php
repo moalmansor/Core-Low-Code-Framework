@@ -2,7 +2,7 @@
 
 // odsl-/home/user/Core-Low-Code-Framework/backend/app/Modules/Identity/Auth/UserProvisioner.php-PHPStan\BetterReflection\Reflection\ReflectionClass-App\Modules\Identity\Auth\UserProvisioner
 return \PHPStan\Cache\CacheItem::__set_state(array(
-   'variableKey' => 'v2-6.73.0.5-8.3.6-b64da753218ef86782574047a1826640e413c3fb3cd3b96e32d671dc67696cb6',
+   'variableKey' => 'v2-6.73.0.5-8.3.6-ad5e8296f25be5e6857d0469e1be0f2b0651e25a93603fa5ef50a42dcee9e3ab',
    'data' => 
   array (
     'locatedSource' => 
@@ -32,7 +32,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
     array (
     ),
     'startLine' => 19,
-    'endLine' => 86,
+    'endLine' => 89,
     'startColumn' => 1,
     'endColumn' => 1,
     'parentClassName' => NULL,
@@ -518,7 +518,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
  * @param  list<string>  $managedRoleKeys  every role the IdP\'s map can grant
  */',
         'startLine' => 27,
-        'endLine' => 85,
+        'endLine' => 88,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,

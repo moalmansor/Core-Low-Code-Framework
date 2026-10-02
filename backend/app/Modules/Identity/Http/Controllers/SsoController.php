@@ -31,7 +31,7 @@ final class SsoController extends Controller
     public function providers(): JsonResponse
     {
         $list = array_values(array_map(
-            static fn (OidcProviderConfig $c): array => ['key' => $c->key, 'name' => $c->name[app()->getLocale()] ?? (reset($c->name) ?: $c->key)],
+            static fn (OidcProviderConfig $c): array => ['key' => $c->key, 'name' => $c->name[app()->getLocale()] ?? (array_values($c->name)[0] ?? $c->key)],
             array_filter(OidcProviderConfig::all($this->settings), static fn (OidcProviderConfig $c): bool => $c->enabled),
         ));
 

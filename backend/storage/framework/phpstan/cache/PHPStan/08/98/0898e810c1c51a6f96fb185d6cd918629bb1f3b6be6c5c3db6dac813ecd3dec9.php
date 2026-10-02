@@ -2,7 +2,7 @@
 
 // odsl-/home/user/Core-Low-Code-Framework/backend/app/Modules/Access/Http/Controllers/RoleController.php-PHPStan\BetterReflection\Reflection\ReflectionClass-App\Modules\Access\Http\Controllers\RoleController
 return \PHPStan\Cache\CacheItem::__set_state(array(
-   'variableKey' => 'v2-6.73.0.5-8.3.6-fc268b7b73f2efd240414c8f51821e246134e9a7951f8e76561d55ced7483427',
+   'variableKey' => 'v2-6.73.0.5-8.3.6-0d7d4e124328f6f5376ed256823fd53415ec10407cb1a38cc6450430ce4a1c85',
    'data' => 
   array (
     'locatedSource' => 
@@ -27,7 +27,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
     array (
     ),
     'startLine' => 20,
-    'endLine' => 152,
+    'endLine' => 163,
     'startColumn' => 1,
     'endColumn' => 1,
     'parentClassName' => 'Illuminate\\Routing\\Controller',
@@ -164,6 +164,41 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         'currentClassName' => 'App\\Modules\\Access\\Http\\Controllers\\RoleController',
         'aliasName' => NULL,
       ),
+      'options' => 
+      array (
+        'name' => 'options',
+        'parameters' => 
+        array (
+        ),
+        'returnsReference' => false,
+        'returnType' => 
+        array (
+          'class' => 'PHPStan\\BetterReflection\\Reflection\\ReflectionNamedType',
+          'data' => 
+          array (
+            'name' => 'Illuminate\\Http\\JsonResponse',
+            'isIdentifier' => false,
+          ),
+        ),
+        'attributes' => 
+        array (
+        ),
+        'docComment' => '/** Role choices for user administration (holders of manage_users need them too). */',
+        'startLine' => 33,
+        'endLine' => 41,
+        'startColumn' => 5,
+        'endColumn' => 5,
+        'couldThrow' => false,
+        'isClosure' => false,
+        'isGenerator' => false,
+        'isVariadic' => false,
+        'modifiers' => 1,
+        'namespace' => 'App\\Modules\\Access\\Http\\Controllers',
+        'declaringClassName' => 'App\\Modules\\Access\\Http\\Controllers\\RoleController',
+        'implementingClassName' => 'App\\Modules\\Access\\Http\\Controllers\\RoleController',
+        'currentClassName' => 'App\\Modules\\Access\\Http\\Controllers\\RoleController',
+        'aliasName' => NULL,
+      ),
       'show' => 
       array (
         'name' => 'show',
@@ -188,8 +223,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 32,
-            'endLine' => 32,
+            'startLine' => 43,
+            'endLine' => 43,
             'startColumn' => 26,
             'endColumn' => 35,
             'parameterIndex' => 0,
@@ -210,8 +245,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => NULL,
-        'startLine' => 32,
-        'endLine' => 38,
+        'startLine' => 43,
+        'endLine' => 49,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
@@ -249,8 +284,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 40,
-            'endLine' => 40,
+            'startLine' => 51,
+            'endLine' => 51,
             'startColumn' => 27,
             'endColumn' => 42,
             'parameterIndex' => 0,
@@ -271,8 +306,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => NULL,
-        'startLine' => 40,
-        'endLine' => 60,
+        'startLine' => 51,
+        'endLine' => 71,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
@@ -310,8 +345,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 62,
-            'endLine' => 62,
+            'startLine' => 73,
+            'endLine' => 73,
             'startColumn' => 28,
             'endColumn' => 43,
             'parameterIndex' => 0,
@@ -336,8 +371,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 62,
-            'endLine' => 62,
+            'startLine' => 73,
+            'endLine' => 73,
             'startColumn' => 46,
             'endColumn' => 55,
             'parameterIndex' => 1,
@@ -358,8 +393,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => NULL,
-        'startLine' => 62,
-        'endLine' => 81,
+        'startLine' => 73,
+        'endLine' => 92,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
@@ -397,8 +432,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 83,
-            'endLine' => 83,
+            'startLine' => 94,
+            'endLine' => 94,
             'startColumn' => 29,
             'endColumn' => 38,
             'parameterIndex' => 0,
@@ -419,8 +454,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => NULL,
-        'startLine' => 83,
-        'endLine' => 94,
+        'startLine' => 94,
+        'endLine' => 105,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
@@ -458,8 +493,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 97,
-            'endLine' => 97,
+            'startLine' => 108,
+            'endLine' => 108,
             'startColumn' => 37,
             'endColumn' => 52,
             'parameterIndex' => 0,
@@ -484,8 +519,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 97,
-            'endLine' => 97,
+            'startLine' => 108,
+            'endLine' => 108,
             'startColumn' => 55,
             'endColumn' => 64,
             'parameterIndex' => 1,
@@ -506,8 +541,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => '/** Copy every grant of one role onto another (replacing the target\'s grants). */',
-        'startLine' => 97,
-        'endLine' => 116,
+        'startLine' => 108,
+        'endLine' => 127,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
@@ -545,8 +580,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 119,
-            'endLine' => 119,
+            'startLine' => 130,
+            'endLine' => 130,
             'startColumn' => 32,
             'endColumn' => 47,
             'parameterIndex' => 0,
@@ -590,8 +625,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 119,
-            'endLine' => 119,
+            'startLine' => 130,
+            'endLine' => 130,
             'startColumn' => 50,
             'endColumn' => 60,
             'parameterIndex' => 1,
@@ -612,8 +647,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => '/** @return array<string, mixed> */',
-        'startLine' => 119,
-        'endLine' => 133,
+        'startLine' => 130,
+        'endLine' => 144,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
@@ -651,8 +686,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 136,
-            'endLine' => 136,
+            'startLine' => 147,
+            'endLine' => 147,
             'startColumn' => 30,
             'endColumn' => 39,
             'parameterIndex' => 0,
@@ -673,8 +708,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => '/** @return array<string, mixed> */',
-        'startLine' => 136,
-        'endLine' => 151,
+        'startLine' => 147,
+        'endLine' => 162,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,

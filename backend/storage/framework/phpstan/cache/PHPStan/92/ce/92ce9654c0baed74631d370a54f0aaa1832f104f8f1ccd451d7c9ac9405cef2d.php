@@ -2,7 +2,7 @@
 
 // odsl-/home/user/Core-Low-Code-Framework/backend/app/Modules/Core/Http/Controllers/TranslationController.php-PHPStan\BetterReflection\Reflection\ReflectionClass-App\Modules\Core\Http\Controllers\TranslationController
 return \PHPStan\Cache\CacheItem::__set_state(array(
-   'variableKey' => 'v2-6.73.0.5-8.3.6-b1a752468415ed8e04decd75576c2da5670ff5c5548e525d81540a0edff9bf19',
+   'variableKey' => 'v2-6.73.0.5-8.3.6-540513d670acf66c746b818531d2d07e21f6937b55de4cccb832f46f807f66e0',
    'data' => 
   array (
     'locatedSource' => 
@@ -31,7 +31,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
     array (
     ),
     'startLine' => 24,
-    'endLine' => 199,
+    'endLine' => 202,
     'startColumn' => 1,
     'endColumn' => 1,
     'parentClassName' => 'Illuminate\\Routing\\Controller',
@@ -336,7 +336,7 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         ),
         'docComment' => NULL,
         'startLine' => 78,
-        'endLine' => 113,
+        'endLine' => 116,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
@@ -374,8 +374,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 116,
-            'endLine' => 116,
+            'startLine' => 119,
+            'endLine' => 119,
             'startColumn' => 28,
             'endColumn' => 43,
             'parameterIndex' => 0,
@@ -396,8 +396,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => '/** Export one locale\'s interface strings and labels as JSON. */',
-        'startLine' => 116,
-        'endLine' => 126,
+        'startLine' => 119,
+        'endLine' => 129,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
@@ -435,8 +435,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 129,
-            'endLine' => 129,
+            'startLine' => 132,
+            'endLine' => 132,
             'startColumn' => 28,
             'endColumn' => 43,
             'parameterIndex' => 0,
@@ -457,8 +457,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => '/** Import interface strings for a locale (labels of objects are edited in place). */',
-        'startLine' => 129,
-        'endLine' => 151,
+        'startLine' => 132,
+        'endLine' => 154,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
@@ -496,8 +496,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 154,
-            'endLine' => 154,
+            'startLine' => 157,
+            'endLine' => 157,
             'startColumn' => 29,
             'endColumn' => 42,
             'parameterIndex' => 0,
@@ -522,8 +522,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 154,
-            'endLine' => 154,
+            'startLine' => 157,
+            'endLine' => 157,
             'startColumn' => 45,
             'endColumn' => 58,
             'parameterIndex' => 1,
@@ -544,8 +544,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => '/** @return list<array{type: string, object: null, key: string, field: string, source: string|null, value: string|null}> */',
-        'startLine' => 154,
-        'endLine' => 165,
+        'startLine' => 157,
+        'endLine' => 168,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
@@ -583,8 +583,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 168,
-            'endLine' => 168,
+            'startLine' => 171,
+            'endLine' => 171,
             'startColumn' => 33,
             'endColumn' => 44,
             'parameterIndex' => 0,
@@ -609,8 +609,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 168,
-            'endLine' => 168,
+            'startLine' => 171,
+            'endLine' => 171,
             'startColumn' => 47,
             'endColumn' => 60,
             'parameterIndex' => 1,
@@ -635,8 +635,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
             'attributes' => 
             array (
             ),
-            'startLine' => 168,
-            'endLine' => 168,
+            'startLine' => 171,
+            'endLine' => 171,
             'startColumn' => 63,
             'endColumn' => 76,
             'parameterIndex' => 2,
@@ -657,8 +657,8 @@ return \PHPStan\Cache\CacheItem::__set_state(array(
         array (
         ),
         'docComment' => '/** @return list<array<string, mixed>> */',
-        'startLine' => 168,
-        'endLine' => 198,
+        'startLine' => 171,
+        'endLine' => 201,
         'startColumn' => 5,
         'endColumn' => 5,
         'couldThrow' => false,
