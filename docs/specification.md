@@ -9,6 +9,8 @@ Everything is created by administrators through the UI and stored as metadata:
 - workflows and statuses;
 - permissions, views, filters, and actions;
 - download profiles;
+- automations, integrations, and external access;
+- pages, menus, home screens, branding, and reference data;
 - conditions and notifications.
 
 Nothing business-specific is hard-coded. A **runtime engine** reads this metadata and executes it dynamically, so every form works correctly the moment it is published.
@@ -99,8 +101,13 @@ A single, well-organized control center with navigation to:
 - Dashboard & System Health
 - Operations Center
 - Form Builder
-- Collections
-- Applications & Menus
+- Collections & Reference Data
+- Applications, Pages & Menus
+- Appearance & Branding
+- Blueprints & Template Library
+- Automations & Scheduler
+- Integrations & External Data Sources
+- External Access & Portals
 - Roles & Permissions
 - Workflows & Statuses
 - Views, Filters & Actions
@@ -109,7 +116,9 @@ A single, well-organized control center with navigation to:
 - Email Templates & Notification Rules
 - Document Templates
 - Reports & Dashboards
-- Users & Departments
+- Users, Departments & Access Policies
+- Data Quality & Bulk Tools
+- Help Content & Announcements
 - Audit Log
 - Error Monitoring
 - Developer Extensions
@@ -486,7 +495,12 @@ All access control lives in **one** interface.
   - Manage Download Profiles, Create Personal Download Profiles;
   - Manage Justification Rules, View Justifications;
   - Assign Records, Reassign Records, Manage Delegation, Delegate Own Work;
-  - Manage Retention, Manage Personal Data Requests, Apply Legal Hold.
+  - Manage Retention, Manage Personal Data Requests, Apply Legal Hold;
+  - Manage Applications, Manage Pages & Menus, Manage Branding, Manage Blueprints;
+  - Manage Automations, Run Automations Manually, Manage Integrations, Manage External Access;
+  - Manage Reference Data, Manage Numbering, Manage Calendars, Manage Currencies;
+  - Merge Records, Bulk Update, Access Recycle Bin, Repair Data;
+  - Impersonate Users, Manage Access Policies, Manage Feature Flags, Manage Help Content, Publish Announcements, Enable Maintenance Mode.
 - **Precedence:** user overrides department, which overrides role; deny overrides allow.
 - **Tools:**
   - "View as user" to see effective permissions;
@@ -819,6 +833,86 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Personal data handling:** an admin can locate every record and log entry relating to a given person, export them, and action a deletion or anonymization request. Anonymization preserves the audit trail's integrity by replacing identifying values while keeping the sequence of events intact. Fields are markable as personal data in the field properties, which is what drives this search.
 - Legal hold: a record or a set of records can be exempted from deletion until the hold is lifted, with the reason recorded.
 
+### 4.27 Applications, Workspaces & Tenancy
+- One installation hosts many **applications** (HR, Procurement, Support), each with its own menus, forms, collections, permissions, branding, and settings, built by admins without code.
+- Applications can be enabled per department or per role, cloned wholesale, exported as a configuration package, archived, or retired.
+- Data can be shared across applications through relations, or isolated, as the admin chooses per form.
+- **Business units / tenancy mode**, chosen at setup: single organization, or multiple organizations sharing the installation with isolated data, separate branding, separate admins, and a global administrator above them. Cross-organization reporting is permission-controlled.
+
+### 4.28 Appearance, Branding & Theming
+- A visual theme editor with live preview: primary and accent colors, semantic colors, surface and border colors, light and dark palettes, border radius, shadow depth, density (compact, normal, comfortable), and font family per script, with Arabic and Latin fonts set independently.
+- Logos, favicon, login background, browser title, and email header and footer artwork.
+- **Per-application and per-organization themes**, so each area can look like its own product, with a global default.
+- Login page content, welcome text, legal links, and support contact, all translatable.
+- Admin-managed custom CSS, scoped and sanitized, applied after the theme so it cannot break layout primitives or hide security controls.
+- Theme import and export, preset themes, and reset to default. Accessibility contrast is checked and warned on before a theme is saved.
+
+### 4.29 Pages, Home Screens & Navigation
+- **Custom pages** built by admins: rich content pages, link pages, dashboard pages, embedded report pages, and pages that host a form directly. Pages are placed in the menu like any form and carry their own permissions.
+- **Home screen builder:** a different landing page per role, department, or user, assembled from widgets — my work, my records, charts, KPIs, shortcuts, announcements, recent activity, pinned links, and embedded tables.
+- **Navigation builder:** unlimited menu depth, drag-and-drop ordering, icons, badges showing live counts (such as pending approvals), separators, section headers, and visibility per role, department, or condition.
+- **Global search configuration:** which forms and fields are searchable, their weighting, result display, and per-role scope.
+- **Announcements and banners:** system-wide or per application, scheduled, dismissible, targeted by role, with severity styling.
+- **Maintenance mode:** admins take the system or a single application offline with a custom message, while retaining their own access.
+
+### 4.30 Blueprints, Cloning & the Template Library
+- Any form, collection, workflow, view, action, notification, dashboard, or whole application can be **saved as a blueprint** and reused.
+- Duplicate anything with a choice of what comes along: structure only, structure plus permissions, or everything including notifications and actions.
+- An internal **template library** with categories, search, descriptions, and previews, managed by admins, so common patterns (request-and-approve, register-and-review, inspection checklist) are started from rather than rebuilt.
+- Blueprints carry a version, and updating a blueprint offers to propagate changes to objects created from it, listing what would change before anything is applied.
+- Import and export of blueprints between environments and installations.
+
+### 4.31 Scheduler & Automation Rules
+- An admin-managed **automation builder** with no code: a trigger, optional conditions, and a sequence of steps reusing the action library of 4.15.
+- **Triggers:** record created, updated, or deleted; field changed; status changed; a condition becoming true; a schedule (hourly, daily, weekly, monthly, cron-style); a date field reached, with an offset such as three days before expiry; an inbound webhook; a file arriving in a watched folder; manual run.
+- **Steps:** update fields, change status, assign or reassign, create a linked record, send an email or in-app notification, generate a document, run a custom download and deliver it, call an outbound webhook through the egress gateway, or wait for a delay or a condition.
+- **Controls:** enable and disable, run now, test against a sample record, concurrency limits, retry policy, loop protection (an automation cannot re-trigger itself indefinitely), and a maximum affected-record count per run with a confirmation above it.
+- A **run history** per automation showing trigger, records affected, steps executed, duration, and errors, with failures surfacing in the Operations Center.
+- A scheduled-task manager listing everything scheduled across the system, with next and last run times.
+
+### 4.32 External Access & Public Portals
+- Any form can be published as an **external form** reachable without an internal account, with a dedicated URL, its own theme, and a defined status on submission.
+- Protection options: CAPTCHA, rate limits per address, allowed time window, submission caps, email or SMS verification, and an optional access password.
+- **External user accounts** (customers, suppliers, applicants) with their own registration and approval flow, their own role, and record-level access limited to their own records and the forms the admin exposes.
+- **Tokenized single-record links**: send a reviewer or signer a secure expiring link to one record, with a scoped action such as approve, reject, complete a section, or sign, without an account.
+- **Signature requests**: send a record for signature, track status, and store the signed output with the audit trail.
+- Everything external is still governed by the permission, condition, justification, and audit rules of the rest of the system.
+
+### 4.33 Integrations & External Data Sources
+- **External data sources** defined in the UI: a REST endpoint or a database view registered as a source, with authentication, headers, a response mapping, and a cache policy. Once registered it can feed select options, lookups, validation, and read-only panels exactly like a collection.
+- **Sync jobs:** scheduled import from, or export to, an external source, with field mapping, matching keys, conflict rules, dry run, and a run log.
+- **Inbound API endpoints per form**, with scoped tokens, schema documentation, validation, and the same permission and workflow enforcement as the UI.
+- **Incoming webhooks** that create or update records, with signature verification and a payload mapping screen.
+- **Notification channels beyond email:** in-app, SMS, and messaging providers configured as channels, selectable per notification rule, with per-user channel preferences and the same template, placeholder, and logging treatment as email.
+- Every integration appears in the Operations Center with its failures, retries, and delivery history.
+
+### 4.34 Reference Data, Calendars & Numbering
+- **Business calendars:** working days, working hours, public holidays per country or organization, and multiple calendars assignable per department or form. SLA timers, due dates, and reminders count working time, not wall-clock time, when the admin chooses.
+- **Numbering sequences manager:** every auto-number pattern in one place, with prefix, date parts, padding, step, reset period (never, daily, monthly, yearly), per-form or shared scope, current value, and a controlled, audited manual adjustment.
+- **Currencies and exchange rates:** enabled currencies, display and rounding rules, manual or scheduled rate updates, and historical rates so past records keep their original values.
+- **Units of measure** and conversion rules for numeric fields.
+- **Shared reference collections** (countries, cities, departments, job titles, document types) usable across applications, with one owner and read-only use elsewhere.
+
+### 4.35 Data Quality & Bulk Data Tools
+- **Duplicate detection:** admin-defined matching rules per form (exact, normalized, or fuzzy on chosen fields), applied at entry time as a warning or a block, and runnable as a sweep over existing records.
+- **Record merge:** choose the surviving record, pick the winning value field by field, repoint related records, and keep a full audit of the merge with a justification.
+- **Bulk update, bulk reassign, and bulk status change** with a preview of affected records, a dry run, a maximum-count guard, and a mandatory justification where configured.
+- **Data repair tools** for admins: find orphans, find records failing current validation after a rule change, and fix them in a guided screen rather than in the database.
+- **Recycle bin** with retention: soft-deleted records are restorable until the retention period expires, and restoration is audited.
+
+### 4.36 User Self-Service, Impersonation & Access Policies
+- **User profile:** language, timezone, calendar preference, date and number format, theme (light, dark, system), density, notification channel preferences and digest frequency, and default landing page, all within limits the admin sets.
+- **Saved views, pinned records, and personal shortcuts**, and personal API tokens if the admin permits them.
+- **Impersonation:** an admin with the permission can act as another user to reproduce a problem. A persistent banner shows it, the session is time-limited, sensitive actions can be blocked during it, and every action is recorded as performed by the admin impersonating the user.
+- **Access policies per role:** IP allowlists, permitted time windows, maximum concurrent sessions, session lifetime, device trust, and a stricter policy for administrative roles.
+- **Feature flags** per application or role, so admins can release a new form or capability to a pilot group before everyone.
+
+### 4.37 Help, Guidance & Adoption
+- Admins author **help content** per form, per field, and per page, translatable, shown as tooltips, side panels, or a help page.
+- **Guided tours** and first-use hints per form or role, with a reset option.
+- An internal **knowledge page** per application, plus a changelog that admins publish to users when forms change.
+- Usage insight for admins: which forms are used, by whom, how often, where users abandon a form, and which fields are left empty, so the builder can be improved on evidence.
+
 ## 5. Security Requirements
 - **Standards:** full OWASP Top 10 compliance.
 - **Access control:**
@@ -843,6 +937,9 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Server-side request forgery:** all outbound calls made on a user's or admin's behalf (webhooks, action steps, remote template or image fetches) go through a single egress gateway enforcing the allowlist, blocked address ranges, address pinning, redirect and size limits described in 4.15. No module issues outbound HTTP directly.
 - **Untrusted input parsing:** spreadsheet, document, and image parsing runs with external entities and remote references disabled, with size and time limits, and produces escaped output (4.15).
 - **Expression safety:** the expression language is pure, bounded in depth and time, and cannot reach the filesystem, the network, or arbitrary code (4.7). Developer hooks remain the only code path, and they are reviewed and approved (4.19).
+- **External surfaces:** public forms, external users, and tokenized links are separated from internal authentication, hold no implicit permissions, are rate limited, and expose only the fields and records the admin published. Tokens are single-purpose, expiring, revocable, and bound to one record and one action.
+- **Admin-authored content** (custom CSS, help content, page content, email templates) is sanitized before rendering and cannot introduce script, exfiltrate data, or conceal security controls.
+- **Impersonation** cannot be used to escalate privilege, is always visible in the interface, is time-limited, and is audited as the acting admin.
 - **Data protection:** encryption of sensitive fields; secrets only in environment config; per-tenant and per-field key management with a documented key rotation procedure.
 - **Operations:** scheduled backups with a documented restore procedure; dependency vulnerability scanning (composer audit, npm audit).
 - No sensitive data in logs or in user-facing errors.
@@ -882,6 +979,14 @@ Design complete schemas (all columns, types, indexes, foreign keys) for the foll
 - **Retention & personal data:** RetentionPolicies, RetentionRuns, ArchivedRecords, LegalHolds, PersonalDataRequests, StorageQuotas.
 - **Schema management:** MigrationPlans, MigrationSteps, SchemaSnapshots, SchemaReconciliationReports, PublishLocks.
 - **Localization:** Locales, Translations (keyed by object type, object id, field, and locale).
+- **Appearance & pages:** Themes, ThemeAssets, Pages, PageWidgets, HomeScreens, Announcements, HelpContent, Tours.
+- **Blueprints:** Blueprints, BlueprintVersions, BlueprintInstances.
+- **Automation:** Automations, AutomationTriggers, AutomationSteps, AutomationRuns, ScheduledTasks.
+- **External access:** ExternalForms, ExternalUsers, AccessTokens, SignatureRequests, SubmissionThrottles.
+- **Integrations:** ExternalDataSources, SyncJobs, SyncRuns, NotificationChannels, InboundEndpoints.
+- **Reference data:** BusinessCalendars, Holidays, NumberSequences, Currencies, ExchangeRates, UnitsOfMeasure.
+- **Data quality:** DuplicateRules, MergeHistory, BulkOperations, RecycleBin.
+- **Access & adoption:** AccessPolicies, FeatureFlags, ImpersonationSessions, UserPreferences, UsageMetrics.
 - **Notifications:** NotificationRules, EmailTemplates, EmailQueue, InAppNotifications.
 - **Documents & reports:** DocumentTemplates, Reports, Dashboards, DashboardWidgets.
 - **Operations & monitoring:** SubmissionJournal, AuditLogs, ErrorLogs, ErrorGroups.
@@ -959,6 +1064,7 @@ When resuming:
 - **Permission resolution algorithm:** the inheritance order, sparse storage model, caching, and invalidation strategy (4.11).
 - **Schema change strategy:** migration plans, failure and recovery handling, locking, snapshots, and reconciliation (4.9).
 - **Performance budgets and capacity assumptions** (section 6).
+- **Extension model for admin-built surfaces:** how pages, widgets, themes, automations, and external data sources are represented in metadata and rendered by the runtime, so later phases add capability without reworking the core.
 - **Relation traversal design:** how multi-level relation paths are resolved and queried efficiently (used by filters, view panels, reports, and custom downloads).
 - **API outline:** every endpoint group, with methods, payloads, and required permissions.
 - **Frontend architecture:**
@@ -1017,6 +1123,8 @@ When resuming:
   - database binding and schema introspection.
 - **Versioning:** draft, preview, impact analysis, diff, rollback (4.10).
 - **Publishing:** sidebar placement and the menu editor (4.13).
+- **Blueprints and cloning** (4.30) for forms, collections, and views, so the pilot in Phase 2.5 can be built quickly.
+- **Reference data, calendars, and numbering sequences** (4.34), which fields depend on.
 - **Runtime form renderer:** create, edit, and view modes with live preview as any role/user.
 - **Submission journal:** capture of every submission. Its management UI comes in Phase 4.
 - **Permission matrix extended:**
@@ -1065,7 +1173,9 @@ When resuming:
   - permissions and scheduled downloads;
   - background jobs.
 - **Email notifications:** triggers, To/CC/BCC control, visual template editor, preview, test send.
-- **In-app notifications center.**
+- **In-app notifications center**, with per-user channel preferences.
+- **Automations and scheduler** (4.31): trigger and step builder, run history, loop protection, test run.
+- **Data quality tools** (4.35): duplicate rules, merge, bulk operations with guards, recycle bin.
 - **Document templates:** DOCX and HTML to DOCX/PDF.
 - **Operations Center:**
   - email queue monitor with resend;
@@ -1083,6 +1193,13 @@ When resuming:
 - **Webhooks:** incoming and outgoing, with signing and delivery logs.
 - **Configuration packages:** export/import with conflict resolution, plus the compare-environments drift report (4.10).
 - **Reports & dashboards:** report builder, pivot tables, charts, drag-and-drop dashboards.
+- **Applications, pages, home screens, and navigation** (4.27, 4.29), including global search configuration, announcements, and maintenance mode.
+- **Appearance and branding** (4.28), per application and per organization, with contrast checking.
+- **Integrations and external data sources** (4.33), sync jobs, inbound endpoints, and additional notification channels.
+- **External access and portals** (4.32): external forms, external users, tokenized links, signature requests.
+- **Blueprint library** completed (4.30), including whole-application cloning and propagation.
+- **Self-service, impersonation, access policies, and feature flags** (4.36).
+- **Help content, tours, announcements, and usage insight** (4.37).
 
 **Phase 6: Hardening & Final Delivery**
 - **Retention, archiving, storage quotas, and personal data handling** (4.26), including partitioning of audit and error tables and the documented restore path.
@@ -1107,6 +1224,7 @@ When resuming:
 - No module issues outbound HTTP except through the egress gateway.
 - Conditions, formulas, and defaults use the expression language only; never generated code.
 - Every record write uses optimistic concurrency; silent overwrite is never acceptable.
+- Anything an admin should be able to change belongs in metadata and the admin UI, never in a configuration file, a seeder, or code.
 
 ## 10. Repository & Delivery Workflow (GitHub)
 
