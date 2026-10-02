@@ -16,17 +16,21 @@ $dsn = $driver === 'sqlsrv'
     : "mysql:host={$host};port={$port}";
 
 $pdo = null;
+$last = '';
 for ($i = 0; $i < 90; $i++) {
     try {
         $pdo = new PDO($dsn, $user, $password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
         break;
     } catch (PDOException $e) {
-        fwrite(STDERR, "waiting for {$driver}: {$e->getMessage()}\n");
+        if ($e->getMessage() !== $last) {
+            $last = $e->getMessage();
+            echo "waiting for {$driver}: {$last}\n";
+        }
         sleep(2);
     }
 }
 if ($pdo === null) {
-    fwrite(STDERR, "database service never became ready\n");
+    echo "::error::database service never became ready: {$last}\n";
     exit(1);
 }
 

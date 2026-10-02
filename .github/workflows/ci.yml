@@ -69,13 +69,23 @@ jobs:
       REDIS_HOST: 127.0.0.1
     steps:
       - uses: actions/checkout@v4
+      - name: Microsoft ODBC Driver 18 (SQL Server only)
+        if: matrix.db == 'sqlsrv'
+        run: |
+          if ! odbcinst -q -d 2>/dev/null | grep -q "ODBC Driver 18 for SQL Server"; then
+            curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+            curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+            sudo apt-get update
+            sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+          fi
+          odbcinst -q -d
       - uses: shivammathur/setup-php@v2
         with: { php-version: '${{ env.PHP_VERSION }}', extensions: '${{ env.PHP_EXTENSIONS }}', coverage: none, tools: composer:v2 }
       - run: composer install --no-interaction --no-progress --prefer-dist
         working-directory: backend
       - name: Throw-away application key for this run
         run: echo "APP_KEY=base64:$(openssl rand -base64 32)" >> "$GITHUB_ENV"
-      - run: php .github/scripts/prepare-database.php lcf_test
+      - run: php -m | grep -i -E 'sqlsrv|pdo_mysql' && php .github/scripts/prepare-database.php lcf_test
       - name: Pest (Feature, Integration, Unit) on ${{ matrix.db }}
         working-directory: backend
         run: php artisan test --log-junit ../junit-${{ matrix.db }}.xml
@@ -145,6 +155,16 @@ jobs:
       LCF_E2E_URL: http://127.0.0.1:8000
     steps:
       - uses: actions/checkout@v4
+      - name: Microsoft ODBC Driver 18 (SQL Server only)
+        if: matrix.db == 'sqlsrv'
+        run: |
+          if ! odbcinst -q -d 2>/dev/null | grep -q "ODBC Driver 18 for SQL Server"; then
+            curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+            curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+            sudo apt-get update
+            sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+          fi
+          odbcinst -q -d
       - uses: shivammathur/setup-php@v2
         with: { php-version: '${{ env.PHP_VERSION }}', extensions: '${{ env.PHP_EXTENSIONS }}', coverage: none, tools: composer:v2 }
       - uses: actions/setup-node@v4
