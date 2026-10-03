@@ -14,6 +14,27 @@ return [
     'conflict' => 'Someone else changed this record after you opened it.',
     'legal_hold' => 'This record is under legal hold and cannot be deleted.',
     'row_version_required' => 'The version of the record you loaded is required.',
+    'export' => [
+        'columns' => [
+            'id' => 'Record ID',
+            'version' => 'Version',
+            'record_number' => 'Record number',
+            'created_at' => 'Created at',
+            'updated_at' => 'Updated at',
+        ],
+    ],
+    'import' => [
+        'empty' => 'The file has no rows.',
+        'too_large' => 'The file has more than :max rows. Split it into smaller files.',
+        'header_ambiguous' => 'The column ":header" matches more than one field. Rename it to the field key.',
+        'header_duplicate' => 'The column ":header" appears more than once.',
+        'no_columns' => 'No column of the file matches a field of this form.',
+        'record_not_found' => 'No record has the ID :id.',
+        'version_changed' => 'The record changed after it was exported (version :expected, now :current). Export it again.',
+        'reference_not_found' => 'No record matches ":value".',
+        'reference_ambiguous' => 'More than one record matches ":value". Use the record ID.',
+        'unreadable' => 'The file cannot be read.',
+    ],
     'invalid_value' => [
         'text' => 'Enter text.',
         'list' => 'Choose one or more values.',

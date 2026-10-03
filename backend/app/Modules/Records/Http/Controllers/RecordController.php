@@ -16,6 +16,7 @@ use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RecordException;
 use App\Modules\Records\Runtime\RecordPipeline;
 use App\Modules\Records\Runtime\RecordPresenter;
+use App\Modules\Records\Runtime\RecordQuery;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\RecordValidator;
 use App\Modules\Records\Runtime\References;
@@ -57,69 +58,19 @@ final class RecordController extends Controller
         return response()->json(['data' => $client->build($rt->definition, $levels, $mode) + ['name' => $form->translate('name') ?? $form->key, 'names' => $form->translationsFor('name')]]);
     }
 
-    public function index(Request $request, Form $form, DatabaseDriver $driver): JsonResponse
+    public function index(Request $request, Form $form, RecordQuery $query): JsonResponse
     {
         $rt = $this->runtime($form, 'view');
-        $data = $request->validate([
-            'search' => ['sometimes', 'nullable', 'string', 'max:200'],
-            'sort' => ['sometimes', 'nullable', 'string', 'max:64'],
-            'direction' => ['sometimes', Rule::in(['asc', 'desc'])],
+        $data = $request->validate(RecordQuery::rules() + [
             'page' => ['sometimes', 'integer', 'min:1', 'max:100000'],
             'per_page' => ['sometimes', 'integer', 'between:1,100'],
-            'filter' => ['sometimes', 'array', 'max:20'],
-            'filter.*' => ['nullable'],
-            'trashed' => ['sometimes', 'boolean'],
         ]);
-        $user = $this->user();
-        $levels = $this->fieldAccess->resolve($user, $form->id, $form->uuid, $rt->definition, 'view');
-        $q = DB::table($rt->table);
-        if (($data['trashed'] ?? false) && $this->access->allows($user, "form.{$form->uuid}.restore")) {
-            $q->whereNotNull('deleted_at');
-        } else {
-            $q->whereNull('deleted_at');
-        }
-        if (! empty($data['search'])) {
-            $term = mb_strtolower(Unicode::normalizeArabic(trim($data['search'])));
-            $driver->caseInsensitiveLike($q, 'search_text', $term);
-        }
-        foreach ($data['filter'] ?? [] as $key => $value) {
-            $uuid = $rt->keys[$key] ?? null;
-            if ($uuid === null || ($levels['fields'][$uuid] ?? 'hidden') === 'hidden' || $value === null || $value === '') {
-                continue;
-            }
-            $f = $rt->fields[$uuid];
-            $col = $rt->column($uuid);
-            if ($col === null || ($col['encrypted'] ?? false) || ! ($f['table']['filterable'] ?? false)) {
-                continue;
-            }
-            if ($col['type'] === 'bigint' && is_string($value) && preg_match('/^[0-9a-f-]{36}$/i', $value) === 1 && ($table = $rt->targetTable($f)) !== null) {
-                $q->where($col['name'], app(References::class)->ids($table, [$value])[strtolower($value)] ?? 0);
-            } elseif (is_array($value) && (isset($value['from']) || isset($value['to']))) {
-                if (($value['from'] ?? null) !== null) {
-                    $q->where($col['name'], '>=', $value['from']);
-                }
-                if (($value['to'] ?? null) !== null) {
-                    $q->where($col['name'], '<=', $value['to']);
-                }
-            } elseif (in_array($col['type'], ['string', 'code', 'text'], true)) {
-                $driver->caseInsensitiveLike($q, $col['name'], (string) $value);
-            } elseif (is_scalar($value)) {
-                $q->where($col['name'], $col['type'] === 'bool' ? (int) filter_var($value, FILTER_VALIDATE_BOOLEAN) : $value);
-            }
-        }
-        $sort = $data['sort'] ?? null;
-        $direction = $data['direction'] ?? 'desc';
-        $sortColumn = match (true) {
-            $sort === null, $sort === 'updated_at' => 'updated_at',
-            $sort === 'created_at' => 'created_at',
-            $sort === 'record_number' => 'record_number',
-            isset($rt->keys[$sort]) && ($levels['fields'][$rt->keys[$sort]] ?? 'hidden') !== 'hidden' && ($rt->fields[$rt->keys[$sort]]['table']['sortable'] ?? false) => $rt->column($rt->keys[$sort])['name'] ?? 'updated_at',
-            default => 'updated_at',
-        };
+        $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'view');
+        $q = $query->build($rt, $this->user(), $levels['fields'], $data);
         $total = (clone $q)->count();
         $perPage = $data['per_page'] ?? 25;
         $page = $data['page'] ?? 1;
-        $rows = $q->orderBy($sortColumn, $direction)->orderBy('id', $direction)->forPage($page, $perPage)->get()->map(static fn ($r) => (array) $r)->all();
+        $rows = $query->order($q, $rt, $levels['fields'], $data)->forPage($page, $perPage)->get()->map(static fn ($r) => (array) $r)->all();
         $records = $this->store->hydrate($rt, $rows, false);
 
         return response()->json([

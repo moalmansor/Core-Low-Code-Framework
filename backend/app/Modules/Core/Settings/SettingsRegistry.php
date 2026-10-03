@@ -63,6 +63,10 @@ final class SettingsRegistry
         $d('schema', 'blocking_confirmation_rows', 100000, ['required', 'integer', 'between:0,1000000000']);
         $d('schema', 'reconcile_daily', true, ['required', 'boolean']);
 
+        // Records import/export (§4.8)
+        $d('records', 'export_max_rows', 50000, ['required', 'integer', 'between:100,1000000']);
+        $d('records', 'import_max_rows', 5000, ['required', 'integer', 'between:10,50000']);
+
         // Formats and calendar (§2)
         $d('formats', 'timezone', 'UTC', ['required', 'timezone:all']);
         $d('formats', 'date_format', 'yyyy-MM-dd', ['required', 'string', 'max:32', 'regex:/^[yMdHhmsaEG\/\-\.\s,]+$/']);

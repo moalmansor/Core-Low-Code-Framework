@@ -173,6 +173,38 @@ final class RecordPipeline
         }
     }
 
+    /**
+     * Runs the same checks as create/update (field access, rules, validation)
+     * without writing anything; used to preview imports. Returns the errors by
+     * field key, empty when the submission would be accepted. Uniqueness among
+     * rows of the same batch is checked when the batch is committed.
+     *
+     * @param  array<string, mixed>  $input
+     * @param  array{id: int, uuid: string, row_version: int, values: array<string, mixed>, system: array<string, mixed>}|null  $current
+     * @return array<string, list<string>>
+     */
+    public function check(FormRuntime $rt, User $user, array $input, ?array $current): array
+    {
+        $mode = $current === null ? 'create' : 'edit';
+        $this->guardForm($rt, $user, $mode);
+        $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, $mode);
+        [$normalized, $errors] = $this->normalize($rt, $input);
+        [$normalized, $rowErrors] = $this->guardRows($rt, $normalized, $current['values'] ?? null, $levels['fields']);
+        $errors += $rowErrors;
+        $base = $current === null ? $normalized : array_replace($current['values'], $normalized);
+        $result = $this->rules->run($rt, $base, $current['values'] ?? null, $mode, $user, $current === null);
+        $blocked = $this->blocked($rt, $levels['fields'], $result['state']);
+        if (array_intersect_key($normalized, $blocked) !== []) {
+            $kept = array_diff_key($normalized, $blocked);
+            $result = $this->rules->run($rt, $current === null ? $kept : array_replace($current['values'], $kept), $current['values'] ?? null, $mode, $user, $current === null);
+        }
+        $errors += $this->accessViolations($rt, $input, $result['values'], $current['values'] ?? null, $levels['fields'], $result['state']);
+        $ctx = $this->rules->context($rt, $mode, $user);
+        $errors += $this->validator->validate($rt, $result['values'], $result['state'], $levels['fields'], $ctx, $current['id'] ?? null);
+
+        return $errors;
+    }
+
     public function delete(FormRuntime $rt, User $user, string $uuid, int $expectedVersion, string $key): void
     {
         $this->guardForm($rt, $user, 'delete');

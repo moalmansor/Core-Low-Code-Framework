@@ -5,12 +5,16 @@ declare(strict_types=1);
 use App\Modules\Records\Http\Controllers\CommentController;
 use App\Modules\Records\Http\Controllers\FileController;
 use App\Modules\Records\Http\Controllers\RecordController;
+use App\Modules\Records\Http\Controllers\RecordExchangeController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::get('/r/{form}/definition', [RecordController::class, 'definition']);
     Route::get('/r/{form}/options/{field}', [RecordController::class, 'options'])->where('field', '[a-z][a-z0-9_]{0,47}');
     Route::post('/r/{form}/validate-field', [RecordController::class, 'validateField']);
+    Route::get('/r/{form}/export', [RecordExchangeController::class, 'export'])->middleware('throttle:10,1');
+    Route::get('/r/{form}/import/template', [RecordExchangeController::class, 'template']);
+    Route::post('/r/{form}/import', [RecordExchangeController::class, 'import'])->middleware('throttle:10,1');
     Route::get('/r/{form}', [RecordController::class, 'index']);
     Route::post('/r/{form}', [RecordController::class, 'store']);
     Route::get('/r/{form}/{record}', [RecordController::class, 'show'])->whereUuid('record');
