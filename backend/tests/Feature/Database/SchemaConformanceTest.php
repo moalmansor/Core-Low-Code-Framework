@@ -15,11 +15,12 @@ use Illuminate\Support\Facades\DB;
 
 const DEFERRED_COLUMNS = [
     'organizations' => ['theme_id'],
-    'departments' => ['business_calendar_id'],
-    'roles' => ['application_id', 'access_policy_id'],
-    'permission_assignments' => ['condition_id'],
+    'roles' => ['access_policy_id'],
     'sessions' => ['external_user_id', 'trusted_device_id', 'impersonation_session_id'],
-    'files' => ['form_id', 'record_id', 'field_id', 'external_user_id'],
+    'files' => ['external_user_id'],
+    'applications' => ['theme_id', 'home_screen_id'],
+    'field_access_rules' => ['status_id'],
+    'submission_journal' => ['external_user_id', 'import_job_id'],
 ];
 
 const FRAMEWORK_TABLES = ['migrations', 'cache', 'cache_locks', 'job_batches', 'failed_jobs'];
@@ -174,7 +175,7 @@ it('matches the ERD for every created table', function () {
 
         $want = array_filter($spec['objects'], static function (string $name) use ($deferred): bool {
             foreach ($deferred as $column) {
-                if (str_ends_with($name, '_'.$column)) {
+                if (str_contains($name.'_', '_'.$column.'_')) {
                     return false;
                 }
             }
