@@ -35,8 +35,9 @@ if ($pdo === null) {
 }
 
 foreach (array_slice($argv, 1) as $name) {
-    if (! preg_match('/^[a-z_]+$/', $name)) {
-        exit("bad database name\n");
+    if (! preg_match('/^[a-z][a-z0-9_]*$/', $name)) {
+        echo "::error::bad database name: {$name}\n";
+        exit(1);
     }
     if ($driver === 'sqlsrv') {
         $pdo->exec("IF DB_ID('{$name}') IS NOT NULL DROP DATABASE [{$name}]");
