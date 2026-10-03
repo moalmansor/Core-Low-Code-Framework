@@ -117,6 +117,11 @@ export const icons: Record<string, string> = {
   system_settings: 'pi-sliders-h',
   audit_log: 'pi-history',
   error_monitoring: 'pi-exclamation-triangle',
+  applications: 'pi-th-large',
+  forms: 'pi-file-edit',
+  blueprints: 'pi-clone',
+  reference_data: 'pi-book',
+  schema: 'pi-database',
 }
 </script>
 

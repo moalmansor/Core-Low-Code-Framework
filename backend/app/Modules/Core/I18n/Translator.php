@@ -258,14 +258,19 @@ final class Translator
     /** @return array<string, string> */
     public function bundledUi(string $locale): array
     {
-        $path = resource_path("ui-strings/{$locale}.json");
-        if (! is_file($path)) {
-            return [];
+        // `ui-strings/{locale}.json` plus one file per area in `ui-strings/{locale}/`.
+        $paths = [resource_path("ui-strings/{$locale}.json"), ...(glob(resource_path("ui-strings/{$locale}/*.json")) ?: [])];
+        $merged = [];
+        foreach ($paths as $path) {
+            if (! is_file($path)) {
+                continue;
+            }
+            /** @var array<string, string> $data */
+            $data = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+            $merged = array_replace($merged, $data);
         }
-        /** @var array<string, string> $data */
-        $data = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
 
-        return $data;
+        return $merged;
     }
 
     /** @return array<string, string> */
