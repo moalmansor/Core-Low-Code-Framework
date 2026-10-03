@@ -7,7 +7,7 @@ namespace App\Infrastructure\Database\Connections;
 use App\Infrastructure\Database\Grammars\SqlServerSchemaGrammar;
 use Illuminate\Database\SqlServerConnection as BaseConnection;
 
-final class SqlServerConnection extends BaseConnection
+class SqlServerConnection extends BaseConnection
 {
     protected function getDefaultSchemaGrammar()
     {

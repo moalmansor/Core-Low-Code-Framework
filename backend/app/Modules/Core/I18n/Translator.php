@@ -6,6 +6,7 @@ namespace App\Modules\Core\I18n;
 
 use App\Modules\Core\Models\Locale;
 use App\Modules\Core\Models\Translation;
+use App\Modules\Core\Tenancy\TenantContext;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -149,6 +150,87 @@ final class Translator
                 ['object_type' => $type, 'object_id' => $id, 'field' => $field, 'locale' => $locale],
                 ['value' => $value, 'updated_by' => Auth::id()],
             );
+        }
+    }
+
+    /**
+     * Every stored locale value of the given objects: [id => [field => [locale => value]]].
+     *
+     * @param  list<int>  $ids
+     * @return array<int, array<string, array<string, string>>>
+     */
+    public function allMany(string $type, array $ids): array
+    {
+        $out = [];
+        foreach (array_chunk($ids, 1000) as $chunk) {
+            $rows = Translation::query()->where('object_type', $type)->whereIn('object_id', $chunk)->get(['object_id', 'field', 'locale', 'value']);
+            foreach ($rows as $row) {
+                $out[(int) $row->object_id][$row->field][$row->locale] = $row->value;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Makes the stored translations of many objects equal to the given values in
+     * one pass: missing (object, field, locale) rows are inserted, changed ones
+     * updated, and rows of the listed objects that are no longer given deleted.
+     * Used by bulk metadata saves (form drafts) instead of per-value upserts.
+     *
+     * @param  array<int, array<string, array<string, string|null>>>  $values  id => field => locale => value
+     */
+    public function syncObjects(string $type, array $values): void
+    {
+        if ($values === []) {
+            return;
+        }
+        $known = array_flip(Locale::query()->pluck('code')->all());
+        $existing = $this->allMany($type, array_keys($values));
+        $userId = Auth::id();
+        $now = now('UTC')->format('Y-m-d H:i:s.u');
+        $organizationId = app(TenantContext::class)->organizationId();
+        $inserts = [];
+        $deletes = [];
+        foreach ($values as $id => $fields) {
+            $current = $existing[$id] ?? [];
+            foreach ($fields as $field => $locales) {
+                foreach ($locales as $locale => $value) {
+                    if (! isset($known[$locale])) {
+                        throw ValidationException::withMessages(["{$field}.{$locale}" => __('validation.in', ['attribute' => 'locale'])]);
+                    }
+                    $value = ($value === null || trim($value) === '') ? '' : $value;
+                    $old = $current[$field][$locale] ?? null;
+                    if ($value === '') {
+                        continue;
+                    }
+                    if ($old === null) {
+                        $inserts[] = ['organization_id' => $organizationId, 'object_type' => $type, 'object_id' => $id, 'field' => $field, 'locale' => $locale, 'value' => $value, 'updated_by' => $userId, 'updated_at' => $now];
+                    } elseif ($old !== $value) {
+                        Translation::query()->where(['object_type' => $type, 'object_id' => $id, 'field' => $field, 'locale' => $locale])
+                            ->update(['value' => $value, 'updated_by' => $userId, 'updated_at' => $now]);
+                    }
+                }
+            }
+            foreach ($current as $field => $locales) {
+                foreach ($locales as $locale => $old) {
+                    $new = $fields[$field][$locale] ?? null;
+                    if ($new === null || trim($new) === '') {
+                        $deletes[$id][] = [$field, $locale];
+                    }
+                }
+            }
+        }
+        foreach (array_chunk($inserts, 200) as $chunk) {
+            Translation::query()->insert($chunk);
+        }
+        foreach ($deletes as $id => $pairs) {
+            Translation::query()->where('object_type', $type)->where('object_id', $id)
+                ->where(function ($q) use ($pairs): void {
+                    foreach ($pairs as [$field, $locale]) {
+                        $q->orWhere(fn ($w) => $w->where('field', $field)->where('locale', $locale));
+                    }
+                })->delete();
         }
     }
 

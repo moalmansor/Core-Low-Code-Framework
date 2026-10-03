@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Infrastructure\Database\Contracts\DatabaseDriver;
+use App\Infrastructure\Database\FrameworkTables;
 use Illuminate\Support\Facades\DB;
 
 /*
@@ -131,9 +132,22 @@ function liveChecks(string $table): array
     return array_map(static fn ($r): string => (string) $r->name, $rows);
 }
 
+/** Metadata tables only: record tables generated from forms are checked by the schema reconciler. */
+function metadataTables(): array
+{
+    return array_values(array_filter(
+        array_diff(app(DatabaseDriver::class)->tables(), FRAMEWORK_TABLES),
+        static fn (string $t): bool => preg_match('/^(f\d*_|c\d*_|p_|zz_)/', $t) !== 1,
+    ));
+}
+
+it('lists every ERD table in the framework table registry', function () {
+    expect(FrameworkTables::ERD)->toEqualCanonicalizing(array_keys(erdTables()));
+});
+
 it('creates only tables that the ERD defines', function () {
     $erd = erdTables();
-    $live = array_diff(app(DatabaseDriver::class)->tables(), FRAMEWORK_TABLES);
+    $live = metadataTables();
     expect(array_values(array_diff($live, array_keys($erd))))->toBe([]);
     expect(count($live))->toBeGreaterThanOrEqual(22);
 });
@@ -143,7 +157,7 @@ it('matches the ERD for every created table', function () {
     $erd = erdTables();
     $problems = [];
     $checked = 0;
-    foreach (array_diff(app(DatabaseDriver::class)->tables(), FRAMEWORK_TABLES) as $table) {
+    foreach (metadataTables() as $table) {
         $spec = $erd[$table];
         $deferred = DEFERRED_COLUMNS[$table] ?? [];
         $live = liveColumns($table);

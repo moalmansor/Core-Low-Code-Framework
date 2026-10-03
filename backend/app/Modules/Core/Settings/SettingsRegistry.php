@@ -57,6 +57,11 @@ final class SettingsRegistry
         $d('branding', 'logo_file', null, ['nullable', 'uuid']);
         $d('branding', 'favicon_file', null, ['nullable', 'uuid']);
 
+        // Schema changes (§4.9, architecture §12.3, §12.5, §12.6)
+        $d('schema', 'snapshot_retention_days', 30, ['required', 'integer', 'between:1,3650']);
+        $d('schema', 'blocking_confirmation_rows', 100000, ['required', 'integer', 'between:0,1000000000']);
+        $d('schema', 'reconcile_daily', true, ['required', 'boolean']);
+
         // Formats and calendar (§2)
         $d('formats', 'timezone', 'UTC', ['required', 'timezone:all']);
         $d('formats', 'date_format', 'yyyy-MM-dd', ['required', 'string', 'max:32', 'regex:/^[yMdHhmsaEG\/\-\.\s,]+$/']);
