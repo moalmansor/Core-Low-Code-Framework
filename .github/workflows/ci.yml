@@ -88,9 +88,13 @@ jobs:
       - name: Throw-away application key for this run
         run: echo "APP_KEY=base64:$(openssl rand -base64 32)" >> "$GITHUB_ENV"
       - run: php -m | grep -i -E 'sqlsrv|pdo_mysql' && php .github/scripts/prepare-database.php lcf_test
-      - name: Pest (Feature, Integration, Unit) on ${{ matrix.db }}
+      - name: Pest (Feature, Integration) on ${{ matrix.db }}
         working-directory: backend
-        run: COLUMNS=250 php artisan test --display-warnings --log-junit ../junit-${{ matrix.db }}.xml
+        # An empty .env keeps phpdotenv from raising a file warning; configuration
+        # comes from the job environment, which phpdotenv never overrides.
+        run: |
+          touch .env
+          COLUMNS=250 php artisan test --display-warnings --fail-on-warning --log-junit ../junit-${{ matrix.db }}.xml
       - name: Error sink summary (on failure)
         if: failure()
         working-directory: backend

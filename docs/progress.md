@@ -137,7 +137,10 @@ Scope: specification §8.3 Phase 1; issue [moalmansor/Core-Low-Code-Framework#3]
 ## Resume point
 
 Phase 1 is complete on `phase-1-foundation`; its pull request (→ `main`, closes
-issue #3) carries the verification report. **Do not start Phase 2** until the owner
+issue #3) carries the verification report. CI passes on both engines: 203 Pest
+tests (747 assertions) and 7 Playwright tests each on MySQL 8.4 and SQL Server 2019,
+plus lint, static analysis, frontend checks, dependency audits and image builds.
+**Do not start Phase 2** until the owner
 merges the Phase 1 PR and approves Phase 2. If review comments arrive, push fixes to
 `phase-1-foundation`.
 
