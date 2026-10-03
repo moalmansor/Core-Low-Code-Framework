@@ -44,6 +44,8 @@ final class AuditWriter
         ?array $meta = null,
         ?int $actorUserId = null,
         ?int $subjectUserId = null,
+        ?int $formId = null,
+        ?int $recordId = null,
     ): int {
         $request = app()->bound('request') ? app(Request::class) : null;
         $entry = [
@@ -53,8 +55,8 @@ final class AuditWriter
             'category' => $category,
             'object_type' => $objectType,
             'object_id' => $objectId,
-            'form_id' => null,
-            'record_id' => null,
+            'form_id' => $formId,
+            'record_id' => $recordId,
             'changes' => $changes === null ? null : $this->mask($changes),
             'actor_user_id' => $actorUserId ?? Auth::id(),
             'subject_user_id' => $subjectUserId,

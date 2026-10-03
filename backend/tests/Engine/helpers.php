@@ -76,5 +76,10 @@ function publish(TestCase $test, string $form, array $options = []): array
     expect($impact['impact']['blocking'])->toBe([]);
     $plan = $test->postJson("/api/v1/forms/{$form}/publish", ['impact_hash' => $impact['impact_hash']] + $options)->assertStatus(202)->json('data.plan');
 
-    return $test->getJson("/api/v1/migration-plans/{$plan}")->assertOk()->json('data');
+    $data = $test->getJson("/api/v1/migration-plans/{$plan}")->assertOk()->json('data');
+    if ($data['status'] !== 'applied' && getenv('LCF_DEBUG')) {
+        fwrite(STDERR, json_encode(array_values(array_filter($data['steps'], static fn ($s) => $s['error'] !== null)), JSON_PRETTY_PRINT));
+    }
+
+    return $data;
 }

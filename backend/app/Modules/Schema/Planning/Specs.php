@@ -23,7 +23,7 @@ final class Specs
             length: isset($c['length']) ? (int) $c['length'] : null,
             precision: isset($c['precision']) ? (int) $c['precision'] : null,
             scale: isset($c['scale']) ? (int) $c['scale'] : null,
-            unsigned: in_array($c['type'], ['bigint'], true) && (str_ends_with($c['name'], '_id') || in_array($c['name'], ['created_by', 'updated_by', 'deleted_by'], true)),
+            unsigned: (bool) ($c['unsigned'] ?? false) || ($c['type'] === 'bigint' && (str_ends_with($c['name'], '_id') || in_array($c['name'], ['created_by', 'updated_by', 'deleted_by'], true))),
             default: self::scalarDefault($c['default'] ?? null),
         );
     }

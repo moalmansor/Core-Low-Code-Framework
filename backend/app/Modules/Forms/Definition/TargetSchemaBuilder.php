@@ -131,7 +131,7 @@ final class TargetSchemaBuilder
             $external[] = [
                 'table' => $targetTable,
                 'relation' => $relation['uuid'],
-                'column' => ['name' => $column, 'type' => 'bigint', 'nullable' => true, 'relation' => $relation['uuid']],
+                'column' => ['name' => $column, 'type' => 'bigint', 'unsigned' => true, 'nullable' => true, 'relation' => $relation['uuid']],
                 'index' => $this->index($targetTable, [$column]),
                 'foreignKey' => $this->fk($targetTable, $column, $tableName, 'no action'),
             ];
@@ -208,13 +208,13 @@ final class TargetSchemaBuilder
             'duration' => [$col('bigint')],
             'json' => [$col('json')],
             'choice' => $refTable !== null && ! $multiRef
-                ? [$base + ['name' => $name, 'type' => 'bigint', 'fk' => $refTable, 'onDelete' => 'no action']]
+                ? [$base + ['name' => $name, 'type' => 'bigint', 'unsigned' => true, 'fk' => $refTable, 'onDelete' => 'no action']]
                 : ($refTable !== null ? [] : [$col('string', ['length' => (int) ($s['length'] ?? 255)])]),
             'multi_choice' => $refTable !== null ? [] : [$col('json')],
             'lookup', 'user', 'role', 'department' => $multiRef || $refTable === null
                 ? []
-                : [$base + ['name' => $name, 'type' => 'bigint', 'fk' => $refTable, 'onDelete' => 'no action']],
-            'file' => [$base + ['name' => $name, 'type' => 'bigint', 'fk' => 'files', 'onDelete' => 'no action']],
+                : [$base + ['name' => $name, 'type' => 'bigint', 'unsigned' => true, 'fk' => $refTable, 'onDelete' => 'no action']],
+            'file' => [$base + ['name' => $name, 'type' => 'bigint', 'unsigned' => true, 'fk' => 'files', 'onDelete' => 'no action']],
             'files' => [$col('json')],
             'range_date' => [$base + ['name' => $name.'__from', 'type' => 'date', 'part' => 'from'], $base + ['name' => $name.'__to', 'type' => 'date', 'part' => 'to']],
             'range_time' => [$base + ['name' => $name.'__from', 'type' => 'time', 'part' => 'from'], $base + ['name' => $name.'__to', 'type' => 'time', 'part' => 'to']],

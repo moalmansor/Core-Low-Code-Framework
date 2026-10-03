@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Core\Settings;
 
+use App\Modules\Records\FileStore;
 use Illuminate\Validation\Rule;
 
 /**
@@ -83,6 +84,7 @@ final class SettingsRegistry
 
         // Files and virus scanning (§3, §5)
         $d('files', 'max_upload_mb', 10, ['required', 'integer', 'between:1,512']);
+        $d('files', 'allowed_file_types', ['pdf', 'docx', 'xlsx', 'pptx', 'csv', 'txt', 'png', 'jpg', 'jpeg', 'webp'], ['required', 'array', 'min:1', '*' => ['distinct', Rule::in(array_keys(FileStore::MIMES))]]);
         $d('files', 'allowed_image_types', ['png', 'jpg', 'jpeg', 'webp', 'ico'], ['required', 'array', 'min:1', '*' => ['distinct', Rule::in(['png', 'jpg', 'jpeg', 'webp', 'ico'])]]);
         $d('clamav', 'enabled', false, ['required', 'boolean']);
         $d('clamav', 'host', 'clamav', ['required', 'string', 'max:255']);

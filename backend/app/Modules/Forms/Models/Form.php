@@ -43,8 +43,8 @@ use Illuminate\Support\Carbon;
  * @property array<string, mixed> $settings
  * @property int|null $blueprint_instance_id
  * @property int $record_count_cache
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 final class Form extends BaseModel
 {
