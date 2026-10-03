@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1.7
-# One image for the web (php-fpm), queue worker and scheduler containers.
+# Images: "app" (php-fpm; also runs the queue worker and the scheduler), "web"
+# (nginx with the built public directory), and "dev" (the dev container).
 
 FROM node:22-bookworm-slim AS frontend
 WORKDIR /src
@@ -45,10 +46,19 @@ COPY backend ./
 COPY docs/architecture.md /var/www/docs/architecture.md
 COPY --from=frontend /src/backend/public/build public/build
 RUN composer dump-autoload --optimize --classmap-authoritative --no-dev \
-    && mkdir -p storage/framework/{cache,sessions,views} storage/logs/errors storage/app/files bootstrap/cache \
+    && mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs/errors storage/app/files storage/app/private storage/app/public bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache
 COPY docker/php/entrypoint.sh /usr/local/bin/lcf-entrypoint
-RUN chmod +x /usr/local/bin/lcf-entrypoint
+# Strip carriage returns: a script checked out with CRLF (Windows without the
+# repository's .gitattributes) would otherwise fail with "no such file or
+# directory" because the kernel looks for the interpreter "/bin/sh\r" (ADR-0026).
+RUN sed -i 's/\r$//' /usr/local/bin/lcf-entrypoint && chmod +x /usr/local/bin/lcf-entrypoint
 USER www-data
 ENTRYPOINT ["lcf-entrypoint"]
 CMD ["php-fpm"]
+
+FROM nginx:1.27-alpine AS web
+# The public directory comes from the same build as the app image, so the
+# assets nginx serves always match the manifest the application reads.
+COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY --from=app /var/www/backend/public /var/www/backend/public

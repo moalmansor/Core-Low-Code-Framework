@@ -33,6 +33,70 @@ Artisan::command('audit:verify {--full : Re-verify every chain from its first en
     return 1;
 })->purpose('Verify the audit log hash chains and report breaks');
 
+Artisan::command('db:ensure {--timeout=180 : Seconds to wait for the database server}', function (): int {
+    // Creates the configured database, with the collation architecture §9
+    // prescribes, when it does not exist yet; never alters or drops one.
+    $name = (string) config('database.default');
+    $config = (array) config("database.connections.{$name}");
+    $driver = (string) ($config['driver'] ?? '');
+    $database = (string) ($config['database'] ?? '');
+    if (! in_array($driver, ['mysql', 'sqlsrv'], true)) {
+        $this->error("Unsupported database driver [{$driver}].");
+
+        return 1;
+    }
+    if (preg_match('/^[A-Za-z][A-Za-z0-9_]{0,63}$/', $database) !== 1) {
+        $this->error('DB_DATABASE must start with a letter and contain only letters, digits, and underscores.');
+
+        return 1;
+    }
+
+    // Connect to the server rather than to the (possibly missing) database.
+    config(['database.connections.lcf_server' => array_merge($config, ['database' => $driver === 'sqlsrv' ? 'master' : null])]);
+    $deadline = time() + max(0, (int) $this->option('timeout'));
+    $waiting = false;
+    while (true) {
+        try {
+            $server = DB::connection('lcf_server');
+            $server->getPdo();
+            break;
+        } catch (Throwable $e) {
+            DB::purge('lcf_server');
+            if (time() >= $deadline) {
+                $this->error('The database server did not accept a connection: '.$e->getMessage());
+
+                return 1;
+            }
+            if (! $waiting) {
+                $this->line('Waiting for the database server…');
+                $waiting = true;
+            }
+            sleep(2);
+        }
+    }
+
+    $exists = $driver === 'sqlsrv'
+        ? $server->selectOne('SELECT DB_ID(?) AS id', [$database])?->id !== null
+        : $server->selectOne('SELECT SCHEMA_NAME AS name FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?', [$database]) !== null;
+    if ($exists) {
+        $this->line("Database [{$database}] exists.");
+        DB::purge('lcf_server');
+
+        return 0;
+    }
+
+    if ($driver === 'sqlsrv') {
+        $server->statement("CREATE DATABASE [{$database}] COLLATE Arabic_100_CI_AI_SC");
+        $server->statement("ALTER DATABASE [{$database}] SET READ_COMMITTED_SNAPSHOT ON");
+    } else {
+        $server->statement("CREATE DATABASE `{$database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci");
+    }
+    DB::purge('lcf_server');
+    $this->info("Created database [{$database}].");
+
+    return 0;
+})->purpose('Create the configured database with the prescribed collation when it does not exist');
+
 Artisan::command('security:prune', function (): int {
     $cutoff = now()->subDays(90)->format('Y-m-d H:i:s.u');
     $deleted = DB::table('login_attempts')->where('attempted_at', '<', $cutoff)->delete();
