@@ -189,4 +189,18 @@ final class FileStore
 
         return [$contents, $width, $height];
     }
+
+    /** Deletes temporary uploads no record adopted within the given hours. */
+    public function purgeTemporary(int $hours): int
+    {
+        $count = 0;
+        StoredFile::query()->withoutGlobalScopes()->where('is_temporary', true)->where('created_at', '<', now()->subHours($hours))
+            ->orderBy('id')->limit(1000)->get()->each(function (StoredFile $file) use (&$count): void {
+                Storage::disk($file->disk)->delete($file->path);
+                $file->delete();
+                $count++;
+            });
+
+        return $count;
+    }
 }

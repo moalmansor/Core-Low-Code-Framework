@@ -5,7 +5,11 @@ declare(strict_types=1);
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Audit\ChainVerifier;
 use App\Modules\Core\Outbox\OutboxRelay;
+use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Monitoring\ErrorReporter;
+use App\Modules\Records\FileStore;
+use App\Modules\Schema\Execution\SchemaReconciler;
+use App\Modules\Schema\Execution\Snapshots;
 use App\Modules\Setup\SetupState;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -105,6 +109,38 @@ Artisan::command('security:prune', function (): int {
     return 0;
 })->purpose('Remove expired security bookkeeping rows');
 
+Artisan::command('files:purge-temporary {--hours=24}', function (FileStore $files): int {
+    $this->info('Purged '.$files->purgeTemporary(max(1, (int) $this->option('hours'))).' temporary upload(s).');
+
+    return 0;
+})->purpose('Delete uploads that no record adopted');
+
+Artisan::command('schema:purge-snapshots', function (Snapshots $snapshots): int {
+    $this->info('Purged '.$snapshots->purgeExpired().' expired schema snapshot(s).');
+
+    return 0;
+})->purpose('Delete pre-publish snapshots past their retention');
+
+Artisan::command('schema:reconcile {--scheduled : Run only when daily reconciliation is enabled in the settings}', function (SchemaReconciler $reconciler, SettingsService $settings, ErrorReporter $errors): int {
+    if ($this->option('scheduled') && ! $settings->get('schema', 'reconcile_daily')) {
+        $this->info('Daily reconciliation is disabled.');
+
+        return 0;
+    }
+    $report = $reconciler->run(null, $this->option('scheduled') ? 'scheduled' : 'on_demand', null);
+    $this->info("Reconciliation {$report->status}: {$report->difference_count} difference(s).");
+    if ($report->status !== 'clean') {
+        $errors->report(new RuntimeException("Schema reconciliation found {$report->difference_count} difference(s) (report {$report->id})."), 'warning');
+
+        return 1;
+    }
+
+    return 0;
+})->purpose('Compare form metadata with the physical schema and report every difference');
+
+Schedule::command('files:purge-temporary')->hourly()->onOneServer();
+Schedule::command('schema:purge-snapshots')->dailyAt('04:10')->onOneServer();
+Schedule::command('schema:reconcile --scheduled')->dailyAt('01:40')->withoutOverlapping()->onOneServer();
 Schedule::command('outbox:relay')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('audit:verify')->dailyAt('02:10')->withoutOverlapping()->onOneServer();
 Schedule::command('audit:verify --full')->weeklyOn(0, '03:10')->withoutOverlapping()->onOneServer();

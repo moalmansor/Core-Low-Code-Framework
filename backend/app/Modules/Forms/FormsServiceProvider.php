@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Forms;
 
+use App\Modules\Blueprints\Models\Blueprint;
 use App\Modules\Core\I18n\TranslatableRegistry;
 use App\Modules\Forms\Models\Application;
 use App\Modules\Forms\Models\Field;
@@ -46,5 +47,6 @@ final class FormsServiceProvider extends ServiceProvider
         $r->register('holiday', Holiday::class, ['name'], 'translations.type.holiday');
         $r->register('currency', Currency::class, ['name'], 'translations.type.currency');
         $r->register('unit_of_measure', UnitOfMeasure::class, ['name'], 'translations.type.unit_of_measure');
+        $r->register('blueprint', Blueprint::class, ['name', 'description'], 'translations.type.blueprint');
     }
 }

@@ -115,4 +115,28 @@ final class Snapshots
 
         return Carbon::now('UTC')->addDays(max(1, $days));
     }
+
+    /**
+     * Deletes snapshots past their retention (setting `schema.snapshot_retention_days`).
+     * Snapshots of a form in the Schema Inconsistent state are kept until it is repaired.
+     */
+    public function purgeExpired(): int
+    {
+        $count = 0;
+        $expired = SchemaSnapshot::query()->withoutGlobalScopes()->where('expires_at', '<', Carbon::now('UTC'))
+            ->whereNotIn('form_id', DB::table('forms')->where('state', 'schema_inconsistent')->select('id'))
+            ->orderBy('id')->limit(500)->get();
+        foreach ($expired as $snapshot) {
+            DB::transaction(function () use ($snapshot): void {
+                DB::table('migration_plans')->where('snapshot_id', $snapshot->id)->update(['snapshot_id' => null]);
+                DB::table('form_versions')->where('snapshot_id', $snapshot->id)->update(['snapshot_id' => null]);
+                $snapshot->delete();
+            });
+            $storage = Storage::disk($snapshot->disk);
+            $snapshot->kind === 'data_backup' ? $storage->deleteDirectory($snapshot->path) : $storage->delete($snapshot->path);
+            $count++;
+        }
+
+        return $count;
+    }
 }
