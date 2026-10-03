@@ -36,12 +36,7 @@ final class NumberGenerator
             }
             $at ??= new DateTimeImmutable('now', new DateTimeZone(config('app.timezone', 'UTC')));
             $parts = $this->dateParts((string) $row->calendar, $at);
-            $period = match ((string) $row->reset_period) {
-                'daily' => $parts['yyyy'].$parts['MM'].$parts['dd'],
-                'monthly' => $parts['yyyy'].$parts['MM'],
-                'yearly' => $parts['yyyy'],
-                default => 'all',
-            };
+            $period = self::period((string) $row->reset_period, $parts);
             $value = $period === (string) $row->period_key ? (int) $row->current_value + (int) $row->step : (int) $row->step;
             DB::table('number_sequences')->where('id', $sequence->id)->update(['current_value' => $value, 'period_key' => $period]);
 
@@ -54,8 +49,20 @@ final class NumberGenerator
     {
         $at ??= new DateTimeImmutable('now', new DateTimeZone(config('app.timezone', 'UTC')));
         $parts = $this->dateParts($sequence->calendar, $at);
+        $value = self::period($sequence->reset_period, $parts) === $sequence->period_key ? $sequence->current_value + $sequence->step : $sequence->step;
 
-        return $this->render($sequence->pattern, (string) $sequence->prefix, $sequence->padding, $parts, $sequence->current_value + $sequence->step);
+        return $this->render($sequence->pattern, (string) $sequence->prefix, $sequence->padding, $parts, $value);
+    }
+
+    /** @param  array{yyyy: string, yy: string, MM: string, dd: string}  $parts */
+    private static function period(string $reset, array $parts): string
+    {
+        return match ($reset) {
+            'daily' => $parts['yyyy'].$parts['MM'].$parts['dd'],
+            'monthly' => $parts['yyyy'].$parts['MM'],
+            'yearly' => $parts['yyyy'],
+            default => 'all',
+        };
     }
 
     public static function validPattern(string $pattern): bool
