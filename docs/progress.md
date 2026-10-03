@@ -210,19 +210,43 @@ Done and committed:
   API.
 - Engine tests (`tests/Engine`, real DDL, truncation): publish, rename,
   archive, widen, validated type change, reversal on failure.
+- Records runtime (`app/Modules/Records/Runtime`): query-builder record store,
+  value codec, rule runtime (defaults, formulas, conditions), validator,
+  record pipeline with submission journal, idempotency keys, optimistic
+  concurrency with the 409 conflict payload, child tables, pivots, files,
+  numbering, comments, history; records API under `/api/v1/r/{form}`.
+- Reference data (`app/Modules/Reference`): business calendars and holidays
+  (working-time arithmetic), number sequences (tokens, padding, period reset,
+  Hijri), currencies and exchange rates, units of measure, with APIs.
+- Excel/CSV import and export of records (`app/Modules/Records/Exchange`):
+  labels instead of codes, formula-safe cells, validate-then-commit import,
+  updates by record ID with the exported version, idempotent re-import.
+- Blueprints (`app/Modules/Blueprints`): save a form or collection as a
+  versioned blueprint (structure, or structure plus permissions), instantiate
+  with derived uuids, three-way propagation preview/apply, detach, export and
+  import with content hashes.
+- Scheduled maintenance: `files:purge-temporary` (hourly),
+  `schema:reconcile --scheduled` (daily, setting `schema.reconcile_daily`),
+  `schema:purge-snapshots` (daily, retention setting).
+- SQL Server parity: the SQL Server connection converts BIGINT and
+  UNIQUEIDENTIFIER results by declared type; all 605 backend tests pass on
+  MySQL 8 and SQL Server 2019 locally.
 
 ## Resume point
 
-Next, in order (task list): records runtime (DynamicRecord/QueryBuilder access,
-record pipeline with submission journal, optimistic concurrency 409 payload,
-child rows, pivots, files, numbering, list/search for collections); reference
-data module (calendars, holidays, number sequences, currencies, rates, units —
-models, services, APIs); collections Excel import/export (OpenSpout);
-blueprints; then the frontend (builder, property panels, rule/formula editors,
-renderer with all field components, admin screens); SQL Server run; ADR-0028
-(record the decisions marked "ADR-0028" in code: problems vs errors, table
-naming per organization, "allowed" grants on publish, FK actions enforced by the
-pipeline, archived key tombstones); docs/spec/arch updates; PR "Closes #4".
+Backend scope of Phase 2 is built and tested on both engines. Next, in order:
+1. Frontend (`frontend/src`): form builder (three panels, drag and drop,
+   nesting, undo/redo, copy/paste, multi-select, autosave, field library),
+   property panels for groups and fields, rule builder and formula editor,
+   runtime renderer with every field component and the conflict screen,
+   publish/impact/menu editor, versions/diff/rollback, applications, forms and
+   collections lists with records table and import/export, schema explorer
+   with ERD, migration plans and repair, access matrix and explain, reference
+   data screens, blueprints, settings for the new keys; ui-strings en/ar.
+2. Playwright end-to-end tests for the builder → publish → record flow.
+3. ADR-0028 (decisions marked "ADR-0028" in code), specification and
+   architecture updates, CHANGELOG.
+4. PR "Closes #4" with the full section 8.2 report citing CI on the head commit.
 
 ### Local development notes
 
