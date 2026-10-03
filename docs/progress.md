@@ -7,7 +7,7 @@ Project memory file (specification §8.1). Updated at the end of every run.
 | Phase | Branch | Status | Pull request |
 |---|---|---|---|
 | 0 — Architecture & Data Model | `phase-0-architecture` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#1](https://github.com/moalmansor/Core-Low-Code-Framework/pull/1) |
-| 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **Complete. Pull request open, awaiting owner review.** | see Resume point |
+| 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **Complete. Pull request open, awaiting owner review.** | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
 | 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | Not started | — |
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | Not started | — |
 | 3 — Workflow, Records & Views | `phase-3-workflow` | Not started | — |
@@ -136,8 +136,8 @@ Scope: specification §8.3 Phase 1; issue [moalmansor/Core-Low-Code-Framework#3]
 
 ## Resume point
 
-Phase 1 is complete on `phase-1-foundation`; its pull request (→ `main`, closes
-issue #3) carries the verification report. CI passes on both engines: 203 Pest
+Phase 1 is complete on `phase-1-foundation`; its pull request
+[moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) (→ `main`, closes issue #3) carries the verification report. CI passes on both engines: 203 Pest
 tests (747 assertions) and 7 Playwright tests each on MySQL 8.4 and SQL Server 2019,
 plus lint, static analysis, frontend checks, dependency audits and image builds.
 **Do not start Phase 2** until the owner
