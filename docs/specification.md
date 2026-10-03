@@ -445,7 +445,9 @@ Clicking any field shows a complete properties panel. It is organized in tabs an
 
 ### 4.8 Collections (Tables & Option Sources)
 - Admins create collections, from simple key/value lists to full tables, using the same field engine as forms.
-- Records are managed in the UI, with Excel import/export.
+- Records are managed in the UI, with Excel import/export:
+  - export (Excel or CSV) contains the records the user can list and only the fields they may see, with option labels and referenced-record titles instead of codes, and cells that spreadsheet software cannot execute as formulas; the row limit is a system setting;
+  - import maps the header row to fields by key, column name or label in any language, checks every row through the same validation and access rules as the form before anything is written, and reports errors per row and column; rows carrying a record ID update that record only if it is still at the exported version; importing the same file again never creates duplicates; the row limit is a system setting.
 - Collections serve as sources for selects, lookups, cascading dropdowns, and filters.
 - Relations between collections and forms: 1:1, 1:N, N:N.
 - A schema explorer shows all tables, columns, indexes, and relations, including an ERD diagram view.
@@ -457,7 +459,7 @@ Clicking any field shows a complete properties panel. It is organized in tabs an
   - indexes on filterable fields.
 - Repeaters and inline sub-forms become child tables.
 - A metadata layer describes all tables, fields, and relations for the runtime engine.
-- Referential integrity is enforced: no orphaned records, and configurable on-delete rules (restrict, cascade, set null).
+- Referential integrity is enforced: no orphaned records, and configurable on-delete rules (restrict, cascade, set null). Because deleted records are kept for restore, the rules are applied by the framework when a record is deleted: the whole cascade is checked first, a restrict anywhere in it refuses the delete with the number of referencing records, and every cascaded change is audited.
 - **Optimistic concurrency:** every record table carries a `row_version` column, incremented on each write. Saves pass the version the user loaded; a mismatch is rejected with a conflict screen showing which fields changed and who changed them, and the user chooses to reload, overwrite field by field, or cancel. Silent last-write-wins is never acceptable.
 
 **Schema change execution (DDL safety)**
@@ -877,8 +879,8 @@ A status alone does not say who is expected to act, so records carry assignment 
 - Any form, collection, workflow, view, action, notification, dashboard, or whole application can be **saved as a blueprint** and reused.
 - Duplicate anything with a choice of what comes along: structure only, structure plus permissions, or everything including notifications and actions.
 - An internal **template library** with categories, search, descriptions, and previews, managed by admins, so common patterns (request-and-approve, register-and-review, inspection checklist) are started from rather than rebuilt.
-- Blueprints carry a version, and updating a blueprint offers to propagate changes to objects created from it, listing what would change before anything is applied.
-- Import and export of blueprints between environments and installations.
+- Blueprints carry a version, and updating a blueprint offers to propagate changes to objects created from it, listing what would change before anything is applied. Elements changed locally in an object are kept and listed as conflicts; propagated changes land in the object's draft and take effect when it is published; an object can be detached to stop receiving updates.
+- Import and export of blueprints between environments and installations; each exported version carries a content hash that import verifies, and objects that the blueprint relates to must exist in the target before it can be used.
 
 ### 4.31 Scheduler & Automation Rules
 - An admin-managed **automation builder** with no code: a trigger, optional conditions, and a sequence of steps reusing the action library of 4.15.

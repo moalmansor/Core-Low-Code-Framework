@@ -30,3 +30,5 @@ One short record per significant decision (specification §8.1). New records are
 | [0024](0024-frontend-stack-and-csp.md) | SPA stack, interface strings, and a strict CSP |
 | [0025](0025-settings-driven-mail.md) | SMTP configured from System Settings |
 | [0026](0026-portable-container-stack.md) | A container stack that runs from any host's checkout |
+| [0027](0027-expression-runtime-semantics.md) | Expression runtime details left open by the language specification |
+| [0028](0028-phase-2-data-engine.md) | Data engine decisions made while building Phase 2 |
