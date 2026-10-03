@@ -5,7 +5,17 @@ import { expect, type Page } from '@playwright/test'
 export const backendDir = process.env.LCF_BACKEND_DIR ?? '../backend'
 export const admin = { name: 'E2E Root', email: 'root@e2e.test', password: 'Vq7!mR2#tL9$wZ4p-Xk' }
 
+/**
+ * Runs an Artisan command against the backend under test: locally with PHP, or
+ * inside the Docker stack when LCF_E2E_DOCKER=1 (CI's stack smoke test).
+ */
 export function artisan(...args: string[]): string {
+  if (process.env.LCF_E2E_DOCKER === '1') {
+    return execFileSync('docker', ['compose', 'exec', '-T', 'app', 'php', 'artisan', ...args, '--no-ansi'], {
+      cwd: process.env.LCF_E2E_COMPOSE_DIR ?? '..',
+      encoding: 'utf8',
+    })
+  }
   return execFileSync('php', ['artisan', ...args, '--no-ansi'], { cwd: backendDir, encoding: 'utf8' })
 }
 

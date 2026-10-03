@@ -164,7 +164,6 @@ jobs:
       CACHE_STORE: redis
       QUEUE_CONNECTION: sync
       REDIS_HOST: 127.0.0.1
-      MAIL_MAILER: log
       LCF_E2E_URL: http://127.0.0.1:8000
     steps:
       - uses: actions/checkout@v4
@@ -211,6 +210,138 @@ jobs:
             serve.log
             backend/storage/logs
 
+  line-endings:
+    name: Line endings (Windows checkout)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Nothing is committed with CRLF
+        run: |
+          crlf=$(git ls-files --eol | awk '$1 == "i/crlf" { print $NF }')
+          if [ -n "$crlf" ]; then echo "::error::Committed with CRLF line endings:"; echo "$crlf"; exit 1; fi
+      - name: A Windows checkout (core.autocrlf=true) still gets LF everywhere
+        run: |
+          out="$RUNNER_TEMP/windows-checkout"
+          git -c core.autocrlf=true checkout-index --all --force --prefix="$out/"
+          cd "$out"
+          crlf=$(grep -rlI --exclude='*.bat' --exclude='*.cmd' --exclude='*.ps1' $'\r' . || true)
+          if [ -n "$crlf" ]; then echo "::error::These files get CRLF on Windows; fix .gitattributes:"; echo "$crlf"; exit 1; fi
+          for f in docker/php/entrypoint.sh docker/php/Dockerfile docker/nginx/default.conf docker-compose.yml .env.example backend/.env.example; do
+            head -c 64 "$f" | od -c | grep -q '\\r' && { echo "::error::$f has CRLF"; exit 1; }
+          done
+          echo "All $(git -C "$GITHUB_WORKSPACE" ls-files | wc -l) tracked files check out with LF under core.autocrlf=true."
+
+  stack:
+    name: Docker stack from a Windows checkout (${{ matrix.db }})
+    runs-on: ubuntu-24.04
+    needs: [line-endings]
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [mysql, sqlsrv]
+    env:
+      STACK: ${{ github.workspace }}/../windows-checkout
+      LCF_DB_PASSWORD: ${{ format('Db-{0}-pw', github.run_id) }}
+      LCF_SA_PASSWORD: ${{ format('Sa-{0}-Pw!', github.run_id) }}
+    steps:
+      - uses: actions/checkout@v4
+      # The stack is started from a checkout made the way Git for Windows makes
+      # it (core.autocrlf=true), then exactly as the README's guide describes.
+      - name: Windows-style checkout
+        run: git -c core.autocrlf=true checkout-index --all --force --prefix="$STACK/"
+      - name: Guide steps 2-4 — configuration files
+        working-directory: ${{ env.STACK }}
+        run: |
+          cp .env.example .env
+          sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$LCF_DB_PASSWORD/; s/^DB_ROOT_PASSWORD=.*/DB_ROOT_PASSWORD=Root-$LCF_DB_PASSWORD/; s/^MSSQL_SA_PASSWORD=.*/MSSQL_SA_PASSWORD=$LCF_SA_PASSWORD/" .env
+          cp backend/.env.example backend/.env
+          if [ "${{ matrix.db }}" = sqlsrv ]; then
+            sed -i "s/^DB_CONNECTION=.*/DB_CONNECTION=sqlsrv/; s/^DB_HOST=.*/DB_HOST=sqlserver/; s/^DB_PORT=.*/DB_PORT=1433/; s/^DB_USERNAME=.*/DB_USERNAME=sa/; s/^DB_PASSWORD=.*/DB_PASSWORD=$LCF_SA_PASSWORD/; s/^DB_TRUST_SERVER_CERTIFICATE=.*/DB_TRUST_SERVER_CERTIFICATE=true/" backend/.env
+          else
+            sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$LCF_DB_PASSWORD/" backend/.env
+          fi
+      - name: Guide step 5 — build the images
+        working-directory: ${{ env.STACK }}
+        run: docker compose build
+      - name: Guide step 6 — application key
+        working-directory: ${{ env.STACK }}
+        run: |
+          key=$(docker compose run --rm --no-deps --entrypoint php app artisan key:generate --show --no-ansi | tr -d '\r' | tail -n 1)
+          case "$key" in base64:*) ;; *) echo "::error::unexpected key output: $key"; exit 1 ;; esac
+          sed -i "s#^APP_KEY=.*#APP_KEY=$key#" backend/.env
+      - name: Guide step 7 — start the stack and wait until it is healthy
+        working-directory: ${{ env.STACK }}
+        run: |
+          profile=""; [ "${{ matrix.db }}" = sqlsrv ] && profile="--profile sqlsrv"
+          docker compose $profile up -d --wait --wait-timeout 600
+          docker compose $profile ps
+      - name: Every container is up, healthy, and never restarted
+        working-directory: ${{ env.STACK }}
+        run: |
+          sleep 20
+          for c in $(docker compose ps -q); do
+            name=$(docker inspect -f '{{.Name}}' "$c"); state=$(docker inspect -f '{{.State.Status}}' "$c")
+            health=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$c")
+            restarts=$(docker inspect -f '{{.RestartCount}}' "$c")
+            echo "$name state=$state health=$health restarts=$restarts"
+            [ "$state" = running ] && [ "$restarts" = 0 ] && [ "$health" != unhealthy ] || { echo "::error::$name is not healthy"; exit 1; }
+          done
+          for s in app web; do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q $s)")" = healthy ] || { echo "::error::$s is not healthy"; exit 1; }
+          done
+      - name: The application answers through nginx and the images carry no secrets
+        working-directory: ${{ env.STACK }}
+        run: |
+          curl -fsS -o /dev/null -w 'GET /up -> %{http_code}\n' http://localhost:8080/up
+          curl -fsS -o /dev/null -w 'GET /setup -> %{http_code}\n' http://localhost:8080/setup
+          docker compose exec -T app sh -c 'test ! -e /var/www/backend/.env' || { echo "::error::backend/.env was baked into the app image"; exit 1; }
+          docker compose exec -T app php artisan setup:token --no-ansi | tail -n 1 | grep -Eq '^[A-Za-z0-9_-]{20,}$'
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - name: Playwright end-to-end suite against the stack
+        working-directory: frontend
+        env:
+          LCF_E2E_URL: http://localhost:8080
+          LCF_E2E_DOCKER: '1'
+          LCF_E2E_COMPOSE_DIR: ${{ env.STACK }}
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - name: Container logs (on failure)
+        if: failure()
+        working-directory: ${{ env.STACK }}
+        run: docker compose --profile sqlsrv logs --no-color --tail 200
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stack-${{ matrix.db }}
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+
+  devcontainer:
+    name: Dev container (Codespaces path)
+    runs-on: ubuntu-24.04
+    needs: [line-endings]
+    steps:
+      - uses: actions/checkout@v4
+      # Builds and starts .devcontainer the way Codespaces does (devcontainer CLI,
+      # postCreate and postStart included), then checks the result from inside.
+      - name: Start the dev container and verify it
+        uses: devcontainers/ci@v0.3
+        with:
+          imageName: lcf-devcontainer
+          push: never
+          runCmd: |
+            set -e
+            curl -fsS -o /dev/null -w 'GET /up -> %{http_code}\n' http://127.0.0.1:8000/up
+            curl -fsS -o /dev/null -w 'GET /setup -> %{http_code}\n' http://127.0.0.1:8000/setup
+            cd backend
+            php artisan setup:token --no-ansi | tail -n 1 | grep -Eq '^[a-f0-9-]{20,}$'
+            DB_DATABASE=lcf_test php artisan db:ensure --no-interaction
+            php artisan test --fail-on-warning
+
   docker:
     name: Docker image builds
     runs-on: ubuntu-24.04
@@ -231,6 +362,8 @@ jobs:
           target: dev
           push: false
           tags: lcf/dev:ci
+      - name: The dev container's compose file needs no .env
+        run: docker compose -f .devcontainer/docker-compose.devcontainer.yml config --quiet
       - name: Compose file is valid
         run: |
           cp .env.example .env
