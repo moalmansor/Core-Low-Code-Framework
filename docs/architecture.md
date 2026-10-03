@@ -649,7 +649,9 @@ and returned in the response header so users can quote it.
 - Tables: `snake_case`, plural (`form_versions`). Columns: `snake_case`.
 - Physical record tables generated per form: `f_{form_key}` (forms),
   `c_{collection_key}` (collections), child tables `f_{form_key}__{group_key}`,
-  pivots `p_{relation_key}`; archived columns renamed `zz_{column}_{yyyymmddhhmm}`.
+  pivots `p_{form_key}__{relation_key}`; archived columns renamed
+  `zz_{column}_v{version}`; organizations other than the platform one add their
+  id (`f{org}_{key}`) (ADR-0028).
   All generated identifiers ≤ 60 chars (hash suffix when truncated). See §11.
 - Constraints and indexes: `pk_{table}`, `uq_{table}_{cols}`, `ix_{table}_{cols}`,
   `fk_{table}_{col}`, `ck_{table}_{col}` (JSON checks `ck_{table}_{col}_json`);
@@ -6226,7 +6228,12 @@ Supporting tables: `organizations`, `encryption_keys`, `environment_drift_report
 | Form (`kind=form`, `binding_mode=managed`) | `f_{form_key}` |
 | Collection (`kind=collection`) | `c_{collection_key}` |
 | Repeater group / inline sub-form group | `f_{form_key}__{group_key}` (child table with real FK `parent_id`) — for an inline sub-form of a *linked* form, the linked form's own table with the relation FK |
-| many-to-many relation | `p_{relation_key}` pivot (`source_id`, `target_id`, `sort_order`, `created_at`, `created_by`) with FKs to both tables and a unique pair |
+| many-to-many relation | `p_{form_key}__{relation_key}` pivot (`source_id`, `target_id`, `sort_order`, `created_at`, `created_by`) with FKs to both tables and a unique pair |
+
+Tables of organizations other than the platform organization carry the
+organization id after the prefix (`f{org}_{key}`, `c{org}_{key}`), because all
+organizations share one database; every name is fitted to 60 characters
+(ADR-0028).
 | Bound form (`binding_mode=bound`) | an existing table found by introspection; the framework adds only its system columns after admin confirmation in the impact analysis, and never drops anything |
 
 ### 11.2 System columns of every record table
@@ -6306,7 +6313,7 @@ compatible types in the field's *Data & Database Binding* tab):
 - **Rename** a field label: metadata only. Rename the *key/column*: `rename_column`
   step (reverse = rename back); dependent views/filters/downloads updated by uuid
   references (they never store column names).
-- **Remove**: the column is **archived** — renamed to `zz_{column}_{timestamp}`,
+- **Remove**: the column is **archived** — renamed to `zz_{column}_v{version}` (the publishing version, so a plan's impact hash is deterministic),
   made nullable, and excluded from the definition; `fields.archived_at`,
   `archived_column_name` recorded; data remains and can be restored with the field.
   Purging archived columns is a separate, explicit, audited admin action that first
@@ -6319,12 +6326,15 @@ compatible types in the field's *Data & Database Binding* tab):
 
 ### 11.6 Relations & integrity
 
-FKs are real (`add_foreign_key`). On-delete per relation: `restrict` → DB
-`NO ACTION`; `cascade` → DB `CASCADE` when the table has no other cascading path,
-otherwise performed by the Record Pipeline inside the delete transaction (soft
-deletes cascade as soft deletes in the pipeline); `set_null` → DB `SET NULL` under
-the same rule. The orphan scan (§19.10) verifies integrity for paths enforced in
-the application.
+FKs are real (`add_foreign_key`) with DB `NO ACTION` for references. Records are
+soft-deleted, so the database never applies on-delete rules; the Record
+Pipeline applies each relation's rule inside the delete transaction
+(`ReferentialIntegrity`, ADR-0028): the whole cascade is planned first and a
+`restrict` anywhere refuses the delete (409 `referenced`); `cascade` soft-deletes
+referencing records (recursively), removes referencing repeater rows and
+many-to-many links; `set_null` clears the reference. Child-row `parent_id` and
+pivot `source_id` use DB `CASCADE` for hard row removal only. The orphan scan
+(§19.10) verifies integrity for paths enforced in the application.
 
 ## 12. Schema change strategy
 
