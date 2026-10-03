@@ -228,13 +228,22 @@ Done and committed:
 - Scheduled maintenance: `files:purge-temporary` (hourly),
   `schema:reconcile --scheduled` (daily, setting `schema.reconcile_daily`),
   `schema:purge-snapshots` (daily, retention setting).
+- Relation on-delete rules (restrict, cascade, set null) enforced by the
+  record pipeline (`ReferentialIntegrity`), planned as a unit and audited.
+- Frontend groundwork: console areas for applications, forms, blueprints,
+  reference data and schema; route modules `frontend/src/router/{runtime,
+  builder,building}.ts` (empty, to be filled); per-area interface strings in
+  `backend/resources/ui-strings/{en,ar}/*.json` (merged by the server and the
+  SPA); `vuedraggable` and `@vue-flow/core` installed.
 - SQL Server parity: the SQL Server connection converts BIGINT and
   UNIQUEIDENTIFIER results by declared type; all 605 backend tests pass on
   MySQL 8 and SQL Server 2019 locally.
 
 ## Resume point
 
-Backend scope of Phase 2 is built and tested on both engines. Next, in order:
+Backend scope of Phase 2 is built and tested on both engines. The frontend
+screens are not started (a parallel attempt stopped on a usage limit before
+writing files). Next, in order:
 1. Frontend (`frontend/src`): form builder (three panels, drag and drop,
    nesting, undo/redo, copy/paste, multi-select, autosave, field library),
    property panels for groups and fields, rule builder and formula editor,
