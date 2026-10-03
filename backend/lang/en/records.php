@@ -12,6 +12,8 @@ return [
     'unknown_field' => 'This field does not exist on the form.',
     'not_editable' => 'You cannot change this field.',
     'conflict' => 'Someone else changed this record after you opened it.',
+    'referenced' => 'This record is used by :count record(s) of :form and cannot be deleted.',
+    'cascade_too_deep' => 'Deleting this record would remove too many levels of related records.',
     'legal_hold' => 'This record is under legal hold and cannot be deleted.',
     'row_version_required' => 'The version of the record you loaded is required.',
     'export' => [

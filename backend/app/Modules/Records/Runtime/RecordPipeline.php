@@ -38,6 +38,7 @@ final class RecordPipeline
         private readonly OutboxWriter $outbox,
         private readonly NumberGenerator $numbers,
         private readonly References $refs,
+        private readonly ReferentialIntegrity $integrity,
     ) {}
 
     /**
@@ -219,6 +220,7 @@ final class RecordPipeline
                 throw new RecordException(423, 'legal_hold', __('records.legal_hold'));
             }
             DB::transaction(function () use ($rt, $user, $current, $expectedVersion): void {
+                $this->integrity->beforeDelete($rt, $current['id'], $user->id);
                 if (! $this->store->softDelete($rt, $current['id'], $expectedVersion, $user->id)) {
                     $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'edit');
                     throw $this->conflict($rt, $this->store->find($rt, $current['uuid'], true) ?? $current, $expectedVersion, [], $levels['fields']);
