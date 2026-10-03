@@ -319,6 +319,48 @@ final class DraftRepository
         $form->fill($updates)->save();
         $this->translator->syncObjects('form', [$form->id => $this->fromI18n($f['i18n'] ?? [], ['name' => 'name', 'description' => 'description', 'submitButtonLabel' => 'submit_button_label'])]);
 
+        // Removed elements first (their keys are freed), and keys that change are
+        // parked under temporary names so swaps never collide.
+        $docFieldUuids = array_column($doc['fields'], 'uuid');
+        $docGroupUuids = array_column($doc['groups'], 'uuid');
+        foreach (Field::query()->where('form_id', $form->id)->whereNotIn('uuid', $docFieldUuids ?: ['-'])->whereNull('archived_at')->get() as $removed) {
+            if (isset($publishedFields[$removed->uuid])) {
+                // The key is freed for new fields; the published definition keeps the original.
+                $removed->forceFill(['archived_at' => $now, 'key' => substr('zz_'.$removed->id.'_'.$removed->key, 0, 48)])->save();
+            } else {
+                DB::table('field_access_rules')->where('field_id', $removed->id)->delete();
+                DB::table('relations')->where('display_field_id', $removed->id)->update(['display_field_id' => null]);
+                DB::table('relations')->where('value_field_id', $removed->id)->update(['value_field_id' => null]);
+                DB::table('number_sequences')->where('field_id', $removed->id)->update(['field_id' => null]);
+                DB::table('files')->where('field_id', $removed->id)->update(['field_id' => null]);
+                DB::table('collections')->where('value_field_id', $removed->id)->update(['value_field_id' => null]);
+                DB::table('collections')->where('label_field_id', $removed->id)->update(['label_field_id' => null]);
+                DB::table('collections')->where('parent_field_id', $removed->id)->update(['parent_field_id' => null]);
+                FieldOption::query()->where('field_id', $removed->id)->delete();
+                $this->translator->forget('field', $removed->id);
+                $removed->delete();
+            }
+        }
+        foreach (FieldGroup::query()->where('form_id', $form->id)->whereNotIn('uuid', $docGroupUuids ?: ['-'])->whereNull('archived_at')->orderByDesc('id')->get() as $removed) {
+            if (isset($publishedGroups[$removed->uuid])) {
+                $removed->forceFill(['archived_at' => $now, 'key' => substr('zz_'.$removed->id.'_'.$removed->key, 0, 48)])->save();
+            } else {
+                FieldGroup::query()->where('parent_group_id', $removed->id)->update(['parent_group_id' => null]);
+                Field::query()->where('group_id', $removed->id)->update(['group_id' => null]);
+                DB::table('field_access_rules')->where('group_id', $removed->id)->delete();
+                $this->translator->forget('field_group', $removed->id);
+                $removed->delete();
+            }
+        }
+        foreach ([[Field::class, $doc['fields']], [FieldGroup::class, $doc['groups']]] as [$model, $items]) {
+            $keys = array_column($items, 'key', 'uuid');
+            foreach ($model::query()->where('form_id', $form->id)->whereIn('uuid', array_keys($keys) ?: ['-'])->get(['id', 'uuid', 'key']) as $row) {
+                if ($row->key !== $keys[$row->uuid]) {
+                    $model::query()->whereKey($row->id)->update(['key' => 'zz_tmp_'.$row->id]);
+                }
+            }
+        }
+
         // Groups (two passes: rows, then parents).
         $groupIds = FieldGroup::query()->where('form_id', $form->id)->pluck('id', 'uuid')->all();
         $groupTr = [];
@@ -534,8 +576,6 @@ final class DraftRepository
         $this->translator->syncObjects('field_option', $optionTr);
 
         // Removals: published elements are archived (history, restorable); unpublished ones are deleted.
-        $docFieldUuids = array_column($doc['fields'], 'uuid');
-        $docGroupUuids = array_column($doc['groups'], 'uuid');
         $staleOptionIds = FieldOption::query()->whereIn('field_id', array_values($fieldIds))->whereNotIn('id', $keptOptions ?: [0])->pluck('id')->all();
         if ($staleOptionIds !== []) {
             FieldOption::query()->whereIn('id', $staleOptionIds)->delete();
@@ -544,39 +584,11 @@ final class DraftRepository
             }
         }
         Condition::query()->where('form_id', $form->id)->whereNotIn('id', $keptConditions ?: [0])->delete();
-        foreach (Field::query()->where('form_id', $form->id)->whereNotIn('uuid', $docFieldUuids ?: ['-'])->whereNull('archived_at')->get() as $removed) {
-            if (isset($publishedFields[$removed->uuid])) {
-                $removed->forceFill(['archived_at' => $now])->save();
-            } else {
-                DB::table('field_access_rules')->where('field_id', $removed->id)->delete();
-                DB::table('relations')->where('display_field_id', $removed->id)->update(['display_field_id' => null]);
-                DB::table('relations')->where('value_field_id', $removed->id)->update(['value_field_id' => null]);
-                DB::table('number_sequences')->where('field_id', $removed->id)->update(['field_id' => null]);
-                DB::table('files')->where('field_id', $removed->id)->update(['field_id' => null]);
-                DB::table('collections')->where('value_field_id', $removed->id)->update(['value_field_id' => null]);
-                DB::table('collections')->where('label_field_id', $removed->id)->update(['label_field_id' => null]);
-                DB::table('collections')->where('parent_field_id', $removed->id)->update(['parent_field_id' => null]);
-                FieldOption::query()->where('field_id', $removed->id)->delete();
-                $this->translator->forget('field', $removed->id);
-                $removed->delete();
-            }
-        }
         $relationUuids = array_column($doc['relations'], 'uuid');
         foreach (Relation::query()->where('source_form_id', $form->id)->whereNotIn('uuid', $relationUuids ?: ['-'])->get() as $removed) {
             Field::query()->where('relation_id', $removed->id)->update(['relation_id' => null]);
             FieldGroup::query()->where('relation_id', $removed->id)->update(['relation_id' => null]);
             $removed->delete();
-        }
-        foreach (FieldGroup::query()->where('form_id', $form->id)->whereNotIn('uuid', $docGroupUuids ?: ['-'])->whereNull('archived_at')->orderByDesc('id')->get() as $removed) {
-            if (isset($publishedGroups[$removed->uuid])) {
-                $removed->forceFill(['archived_at' => $now])->save();
-            } else {
-                FieldGroup::query()->where('parent_group_id', $removed->id)->update(['parent_group_id' => null]);
-                Field::query()->where('group_id', $removed->id)->update(['group_id' => null]);
-                DB::table('field_access_rules')->where('group_id', $removed->id)->delete();
-                $this->translator->forget('field_group', $removed->id);
-                $removed->delete();
-            }
         }
     }
 

@@ -33,6 +33,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $finished_at
  * @property string|null $error
  * @property string $correlation_id
+ * @property \Illuminate\Support\Carbon|null $created_at
  */
 final class MigrationPlan extends BaseModel
 {

@@ -51,6 +51,7 @@ final class PublishService
         private readonly AccessCache $accessCache,
         private readonly CorrelationId $correlation,
         private readonly DatabaseDriver $driver,
+        private readonly Placement $placement,
     ) {}
 
     /**
@@ -67,7 +68,8 @@ final class PublishService
         $nextVersion = (int) $form->draft_version_number;
         $compiled = $this->compiler->compile($form, $nextVersion);
         $definition = $compiled['definition'];
-        $stamp = Carbon::now('UTC')->format('ymdHis');
+        // Deterministic per version, so the reviewed plan and the executed plan are identical.
+        $stamp = 'v'.$nextVersion;
         $live = [];
         if ($form->binding_mode === 'bound' && $published === null && in_array($form->table_name, $this->driver->tables(), true)) {
             $live[$form->table_name] = array_column($this->driver->columns($form->table_name), 'name');
@@ -165,6 +167,7 @@ final class PublishService
                 $status = $this->executor->run($plan);
                 if ($status === 'applied') {
                     $version = $this->switchVersion($form, $plan, $definition, $published);
+                    $this->placement->apply($form->refresh(), $plan->impact['_options']['placement'] ?? [], (int) $plan->confirmed_by);
                     $this->reconciler->run($form->refresh(), 'post_publish', (int) $plan->confirmed_by);
                     $this->outbox->publish('form.published', ['form' => $form->uuid, 'version' => $version->version_number]);
                 } elseif ($status === 'inconsistent') {
@@ -182,6 +185,18 @@ final class PublishService
         } finally {
             $this->locks->release($group);
         }
+    }
+
+    /** Completes a plan whose remaining steps were applied from the repair screen. */
+    public function finishRepaired(MigrationPlan $plan): void
+    {
+        $form = Form::query()->findOrFail($plan->form_id);
+        if ($plan->status !== 'applied' || FormVersion::query()->where('migration_plan_id', $plan->id)->exists()) {
+            return;
+        }
+        $published = $form->current_version_id === null ? null : $this->definitions->version($form->id, (int) $form->current_version_id);
+        $this->switchVersion($form, $plan, $plan->impact['_definition'], $published);
+        $this->placement->apply($form->refresh(), $plan->impact['_options']['placement'] ?? [], (int) $plan->confirmed_by);
     }
 
     /**

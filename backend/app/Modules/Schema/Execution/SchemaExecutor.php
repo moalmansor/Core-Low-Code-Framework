@@ -36,8 +36,9 @@ final class SchemaExecutor
             if (in_array($step->status, ['applied', 'skipped'], true)) {
                 continue;
             }
+            $retrying = $step->started_at !== null; // attempted before: a retry
             try {
-                $this->apply($step, $step->forward);
+                $this->apply($step, $step->forward, $retrying);
                 $plan->increment('steps_applied');
             } catch (Throwable $e) {
                 $message = $this->message($e);
@@ -68,7 +69,7 @@ final class SchemaExecutor
             }
             try {
                 $started = microtime(true);
-                $this->execute($step->reverse);
+                $this->execute($step->reverse, true);
                 $step->forceFill(['status' => 'reversed', 'reversed_at' => Carbon::now('UTC'), 'error' => null, 'duration_ms' => (int) ((microtime(true) - $started) * 1000)])->save();
                 $plan->decrement('steps_applied');
             } catch (Throwable $e) {
@@ -100,30 +101,31 @@ final class SchemaExecutor
     /**
      * @param  array<string, mixed>  $spec
      */
-    private function apply(MigrationStep $step, array $spec): void
+    private function apply(MigrationStep $step, array $spec, bool $retrying): void
     {
         $step->forceFill(['status' => 'pending', 'started_at' => Carbon::now('UTC')])->save();
         $started = microtime(true);
-        $this->execute($spec);
+        $this->execute($spec, $retrying);
         $step->forceFill(['status' => 'applied', 'applied_at' => Carbon::now('UTC'), 'duration_ms' => (int) ((microtime(true) - $started) * 1000), 'error' => null])->save();
     }
 
     /** @param  array<string, mixed>  $spec */
-    public function execute(array $spec): void
+    public function execute(array $spec, bool $retrying = false): void
     {
         match ($spec['op']) {
             'validate_data' => $this->validateData($spec),
             'copy_data' => $this->copyData($spec),
             'noop' => null,
-            default => $this->ddl($spec),
+            default => $this->ddl($spec, $retrying),
         };
     }
 
     /** @param  array<string, mixed>  $spec */
-    private function ddl(array $spec): void
+    private function ddl(array $spec, bool $retrying): void
     {
-        // Idempotence for retries: skip steps whose effect is already visible.
-        if ($this->alreadyApplied($spec)) {
+        // Retries and reverses are idempotent: skip a step whose effect is already
+        // visible (a first run never skips, so unexpected drift fails loudly).
+        if ($retrying && $this->alreadyApplied($spec)) {
             return;
         }
         foreach (StepSql::for($this->driver, $spec) as $sql) {

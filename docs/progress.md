@@ -7,8 +7,8 @@ Project memory file (specification §8.1). Updated at the end of every run.
 | Phase | Branch | Status | Pull request |
 |---|---|---|---|
 | 0 — Architecture & Data Model | `phase-0-architecture` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#1](https://github.com/moalmansor/Core-Low-Code-Framework/pull/1) |
-| 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **In review.** The owner's review found that the stack did not run from a Windows clone; fixed on the branch (see "Phase 1 review" below). Awaiting re-review. | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
-| 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | Not started | — |
+| 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
+| 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | **In progress** (issue #4) | — |
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | Not started | — |
 | 3 — Workflow, Records & Views | `phase-3-workflow` | Not started | — |
 | 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | Not started | — |
@@ -187,22 +187,42 @@ runners cannot run Linux containers; CI reproduces the Windows checkout on Linux
 instead), and a real GitHub Codespace (the same dev container definition is
 started in CI with the devcontainer CLI).
 
+## Phase 2: work so far (branch `phase-2-form-builder`, issue #4)
+
+Done and committed:
+- Expression language: PHP reference parser, type checker and evaluator
+  (`backend/app/Expressions`), TypeScript twin (`frontend/src/expressions`),
+  shared corpus extended to 198 cases, green on both (Pest `Conformance`,
+  Vitest `tests/conformance`). ADR-0027 records the open semantics decided.
+- Metadata tables of every Phase 2 module plus the deferred ADR-0021 columns;
+  schema conformance test updated (`DEFERRED_COLUMNS`, record tables excluded,
+  `FrameworkTables` registry kept equal to the ERD).
+- Forms module: field-type registry, JSON schemas (`form-draft`, expression
+  AST), draft repository over the working tables with optimistic draft locking,
+  draft validator (errors vs problems), target schema builder, definition
+  compiler, client definition, form/application/menu/field-library/expression
+  controllers, publish service with placement, impact analyzer, version diff.
+- Schema module: differ, planner with SQL previews for both engines, executor
+  (reverse on failure, `inconsistent` state, idempotent retries), publish locks,
+  snapshots (encrypted), reconciler, schema explorer/ERD/plans/repair API.
+- Access: auto-registered `form.*`, `app.*`, `menu.*` permissions with Super
+  Admin grants, field/group access resolver (§16.3) with explain, access matrix
+  API.
+- Engine tests (`tests/Engine`, real DDL, truncation): publish, rename,
+  archive, widen, validated type change, reversal on failure.
+
 ## Resume point
 
-Phase 1 is on `phase-1-foundation`, in review in
-[moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) (→ `main`, closes issue #3). The PR's
-verification report cites the CI run on the PR's head commit (CLAUDE.md); after
-any new commit, wait for CI on it and update the report. Next: the owner re-runs
-the README guide on Windows; address what they report on the same branch.
-**Do not start Phase 2** until the owner
-merges the Phase 1 PR and approves Phase 2. If review comments arrive, push fixes to
-`phase-1-foundation`.
-
-When Phase 2 begins: create `phase-2-form-builder` from the updated `main`, add the
-deferred columns of ADR-0021 that point at Phase 2 tables (`departments.business_calendar_id`,
-`roles.application_id`, `permission_assignments.condition_id`, `files.form_id|record_id|field_id`)
-in the migrations that create those tables, and follow the Phase 2 row of
-architecture §25.
+Next, in order (task list): records runtime (DynamicRecord/QueryBuilder access,
+record pipeline with submission journal, optimistic concurrency 409 payload,
+child rows, pivots, files, numbering, list/search for collections); reference
+data module (calendars, holidays, number sequences, currencies, rates, units —
+models, services, APIs); collections Excel import/export (OpenSpout);
+blueprints; then the frontend (builder, property panels, rule/formula editors,
+renderer with all field components, admin screens); SQL Server run; ADR-0028
+(record the decisions marked "ADR-0028" in code: problems vs errors, table
+naming per organization, "allowed" grants on publish, FK actions enforced by the
+pipeline, archived key tombstones); docs/spec/arch updates; PR "Closes #4".
 
 ### Local development notes
 
