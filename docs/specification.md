@@ -89,10 +89,19 @@ Custom code is a rare exception, reserved for developers (see 4.19).
 
 **Deployment & Environments**
 - Docker Compose (app, queue worker, scheduler, Redis, MySQL, SQL Server, ClamAV, Mailpit for development).
-- A `.devcontainer` configuration so the repository opens and runs in a cloud development environment (GitHub Codespaces or an equivalent sandbox) with no local installation.
-- GitHub Actions workflows for CI: service containers for MySQL, SQL Server, and Redis; the full test suite (Pest, Vitest, Playwright); static analysis (Larastan/PHPStan, ESLint, Prettier); dependency audits (composer audit, npm audit).
+- The Compose stack runs unchanged on Linux, macOS, and Windows hosts:
+  - every text file is stored and checked out with LF line endings on every operating system (enforced by `.gitattributes`), because the containers run on Linux;
+  - application images are built from the checkout and never pulled from a registry;
+  - no secret (`.env` files, keys, passwords) is ever copied into an image; configuration reaches containers at run time;
+  - every long-running service that others depend on has a health check, and the documented start command returns only when the stack is healthy;
+  - a missing required setting stops start-up with a message that says how to fix it.
+- A `.devcontainer` configuration so the repository opens and runs in a cloud development environment (GitHub Codespaces or an equivalent sandbox) with no local installation. It starts with no manual configuration: credentials are generated, and the application is installed, migrated, and served on a forwarded port.
+- GitHub Actions workflows for CI: service containers for MySQL, SQL Server, and Redis; the full test suite (Pest, Vitest, Playwright); static analysis (Larastan/PHPStan, ESLint, Prettier); dependency audits (composer audit, npm audit). CI also:
+  - fails when any file is committed with CRLF or would be checked out with CRLF on Windows;
+  - starts the Compose stack on MySQL and on SQL Server from a Windows-style checkout, following the installation guide command by command, and runs the Playwright suite against it;
+  - starts the dev container the way Codespaces does and verifies it.
 - Playwright artifacts (screenshots, videos, HTML report) uploaded on every CI run.
-- Full installation documentation.
+- Full installation documentation, with commands for each supported host operating system.
 
 ## 4. Modules & Requirements
 
@@ -960,6 +969,8 @@ A status alone does not say who is expected to act, so records carry assignment 
   - the egress gateway also blocks the whole 6to4 range (`2002::/16`) and IPv4-mapped, IPv4-compatible and NAT64 forms of blocked IPv4 addresses;
   - users who sign in through OpenID Connect or LDAP never take over an existing local account; matching an existing account by e-mail is allowed only for accounts of the same source and only when the provider is configured to allow it;
   - the Content Security Policy uses a per-request nonce and no `'unsafe-inline'` or `'unsafe-eval'`; styles injected by UI components carry the same nonce.
+  - creating a local user e-mails a password set-up link; when outgoing e-mail is not configured yet (the setup wizard allows configuring it later) or sending fails, the user is still created, the administrator is told that the link was not sent and why, a sending failure is recorded in error monitoring, and the link can be sent again from the user's actions;
+  - the application never starts with a missing application key or database: start-up stops with instructions when the key is empty, and the configured database is created with the prescribed collation when it does not exist (an existing database is never altered or dropped).
 
 ## 6. Non-Functional Requirements
 - **Performance:**

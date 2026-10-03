@@ -16,10 +16,29 @@ All notable changes to this project are documented here, one section per phase.
   precedence, hard deny, step-up, view-as-user, explain, copy, export/import.
 - Admin Console, System health, System Settings, Audit Log (hash-chained), Error
   Monitoring, egress gateway, security headers and nonce-based CSP.
-- ADR-0021 to ADR-0025.
+- ADR-0021 to ADR-0026.
+- `php artisan db:ensure`: creates the configured database with the prescribed
+  collation when it is missing (run by the container entrypoint).
+- CI jobs `line-endings`, `stack` (the Compose stack from a Windows-style checkout
+  on MySQL and SQL Server, with the Playwright suite through nginx), and
+  `devcontainer`.
+
+### Fixed (owner review of the Phase 1 pull request)
+- The stack now starts from a Windows clone: LF line endings enforced by
+  `.gitattributes`, and the entrypoint is stripped of CR in the image.
+- `docker compose up -d` builds instead of pulling; services start in health
+  order; `MSSQL_SA_PASSWORD` is needed only for SQL Server; a missing `APP_KEY`
+  stops start-up with instructions.
+- No `.env` file or other local state is copied into images (`.dockerignore`).
+- nginx serves assets from a `web` image built with the app, never stale.
+- The dev container starts in a fresh Codespace with no manual configuration.
+- Creating a user before e-mail is configured no longer fails; the administrator
+  is told the password link was not sent.
+- README: step-by-step installation for bash and PowerShell, including SQL Server.
 
 ### Changed
-- Specification §2, §4.11 and §5 record the safeguards added in this phase.
+- Specification §2, §4.11 and §5 record the safeguards added in this phase;
+  §3 records the portability, image, health, and CI rules (ADR-0026).
 - Architecture §10: `uq_{table}_uuid` listed for every table with a `uuid` column;
   §21.2 aligned with the built API.
 

@@ -7590,19 +7590,39 @@ screen), 423 (locked). Modes: create, edit, view, print.
 
 ## 23. Deployment, environments & CI
 
-- **Docker Compose** services: `app` (php-fpm 8.3 + nginx), `worker` (Horizon),
-  `scheduler` (`schedule:work`), `redis`, `mysql` (8.0), `sqlserver` (2019/2022
-  Linux), `clamav`, `mailpit` (dev), `frontend` (Vite dev server, dev only).
-- **Dev container** (`.devcontainer/devcontainer.json`): compose-based; forwards
-  app port; post-create installs dependencies, generates `.env` from `.env.example`
-  with random keys, migrates and seeds; works in Codespaces.
-- **CI** (`.github/workflows/ci.yml`): jobs `backend` (matrix
-  `db: [mysql, sqlsrv]`, service containers MySQL 8, SQL Server 2019, Redis; composer
-  install, Larastan level max, Pint, migrate, seed, Pest incl. conformance & driver
-  contract tests), `frontend` (ESLint, Prettier, vue-tsc, Vitest incl. conformance),
-  `e2e` (matrix db; build SPA; Playwright; upload screenshots, videos, HTML report
-  as artifacts every run), `audit` (composer audit, npm audit). Secrets only from
-  GitHub Secrets.
+- **Docker Compose** services: `app` (php-fpm 8.3; its entrypoint runs
+  `db:ensure`, migrations, seeders, and config caching, and stops with
+  instructions when `APP_KEY` is empty), `web` (nginx with the built `public/`
+  baked in from the same Dockerfile), `worker` (Horizon), `scheduler`
+  (`schedule:work`), `redis`, `mysql` (8.4), `sqlserver` (2019, profile
+  `sqlsrv`), `clamav`, `mailpit` (profile `dev`). `app` and `web` are built
+  (`pull_policy: build`), never pulled; `worker` and `scheduler` reuse the app
+  image (`pull_policy: never`). `app` is healthy when php-fpm listens (after the
+  entrypoint), `web` when `/up` answers through php-fpm; `worker`, `scheduler`,
+  and `web` wait for a healthy `app`, so `docker compose up -d --wait` returns
+  when the stack works. `.dockerignore` keeps `.env` files, `.git`,
+  dependencies, and runtime state out of every image (ADR-0026).
+- **Line endings:** `.gitattributes` (`* text=auto eol=lf`) gives every checkout
+  LF on every OS; the Dockerfile also strips `\r` from the entrypoint (ADR-0026).
+- **Dev container** (`.devcontainer/`): its own compose file (dev image, MySQL,
+  Redis, Mailpit), independent of the root stack and of any `.env`. MySQL's
+  password is generated on first start into a volume shared with the dev
+  container. `post-create.sh` installs dependencies, writes `backend/.env`
+  (generated key; in Codespaces the forwarded URL and Sanctum stateful domain),
+  creates, migrates, and seeds the database, and builds the SPA; `post-start.sh`
+  serves the application on forwarded port 8000 and runs the scheduler.
+- **CI** (`.github/workflows/ci.yml`): `backend-quality` (Pint, Larastan,
+  composer audit), `backend-tests` (matrix `db: [mysql, sqlsrv]`, service
+  containers MySQL 8.4, SQL Server 2019, Redis; Pest with `--fail-on-warning`),
+  `frontend` (ESLint, Prettier, vue-tsc, Vitest, build, npm audit), `e2e` (matrix
+  db; Playwright against `artisan serve`), `line-endings` (nothing committed with
+  CRLF; a `core.autocrlf=true` checkout gets LF everywhere), `stack` (matrix db:
+  from a Windows-style checkout, the README guide command by command, health and
+  restart assertions, no `.env` in the image, Playwright through nginx),
+  `devcontainer` (devcontainer CLI as Codespaces runs it; HTTP checks and the
+  Pest suite inside), `docker` (image builds, compose validation). Screenshots,
+  traces, and HTML reports are uploaded as artifacts. Secrets only from GitHub
+  Secrets.
 - Backups: a scheduled system task runs engine-native backups (MySQL
   `mysqldump --single-transaction` / SQL Server `BACKUP DATABASE … WITH COPY_ONLY`)
   plus a storage sync of the private disk, with retention from settings; status is
@@ -7642,6 +7662,12 @@ Each decision has a full record in `docs/decisions/`.
 | 0018 | Draft metadata lives in working tables; published versions are immutable JSON snapshots | Fast editing + exact history, diff, and rollback |
 | 0019 | Sparse access rules with `rule_hash` uniqueness; nullable-partial uniqueness via filtered index (SQL Server) | Engine-neutral uniqueness semantics |
 | 0020 | OpenSpout streaming writers under maatwebsite/excel for large exports | Memory-bounded multi-sheet xlsx generation for downloads |
+| 0021 | Foreign-key columns that point at later-phase tables are added by the phase that creates those tables | No dangling references; the ERD conformance test lists the deferred columns |
+| 0022 | The first-run wizard requires a one-time console-issued setup token, stored only as a hash | An exposed fresh install cannot be claimed by whoever reaches it first |
+| 0023 | Server-side escalation guard for people administration and role/department grants | Administrators cannot give or manage more access than they hold |
+| 0024 | Vue 3 + PrimeVue SPA served by Laravel with a per-request CSP nonce; interface strings as translations | Strict CSP without unsafe-inline; RTL/LTR from one code base |
+| 0025 | SMTP configured from System Settings through a custom `lcf` mail transport | No credentials in files; workers pick up changes without a restart |
+| 0026 | Portable container stack: LF checkouts, built-not-pulled images, health-ordered start-up, no secrets in images, CI from a Windows-style checkout | The owner's Windows run of Phase 1 crash-looped on a CRLF entrypoint that Linux-only CI never exercised |
 
 ## 25. Phase map
 

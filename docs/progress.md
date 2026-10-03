@@ -7,7 +7,7 @@ Project memory file (specification §8.1). Updated at the end of every run.
 | Phase | Branch | Status | Pull request |
 |---|---|---|---|
 | 0 — Architecture & Data Model | `phase-0-architecture` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#1](https://github.com/moalmansor/Core-Low-Code-Framework/pull/1) |
-| 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **Complete. Pull request open, awaiting owner review.** | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
+| 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **In review.** The owner's review found that the stack did not run from a Windows clone; fixed on the branch (see "Phase 1 review" below). Awaiting re-review. | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
 | 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | Not started | — |
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | Not started | — |
 | 3 — Workflow, Records & Views | `phase-3-workflow` | Not started | — |
@@ -134,12 +134,63 @@ Scope: specification §8.3 Phase 1; issue [moalmansor/Core-Low-Code-Framework#3]
 - **Docs:** specification §2, §4.11, §5 updated with the safeguards added;
   ADR-0021 to ADR-0025; architecture §21.2 aligned with the built API.
 
+## Phase 1 review: gaps found and fixed (2026-10-03)
+
+The owner ran the stack from a clean clone on Windows (PowerShell, Docker
+Desktop). It could not start, although all seven CI jobs were green.
+
+**What failed, and why CI missed it**
+- `app`, `worker`, and `scheduler` crash-looped with
+  `exec /usr/local/bin/lcf-entrypoint: no such file or directory`. Cause
+  (reproduced): Git for Windows checks files out with CRLF, so the entrypoint's
+  shebang became `#!/bin/sh\r`; 105 of 343 files got CRLF. CI used Linux
+  checkouts only and never started the Compose stack.
+- `docker compose up -d` tried to pull `lcf/app:local` ("pull access denied").
+- Compose required `MSSQL_SA_PASSWORD` even for MySQL.
+- The guide did not state the SQL Server password policy or how to generate
+  `APP_KEY`, used `grep`, which PowerShell lacks, and its SQL Server step
+  ("create database `lcf` with collation …") gave no command.
+
+**Found while fixing (not reported, same area)**
+- No `.dockerignore`: a `backend/.env` created before the build (APP_KEY,
+  passwords) was copied into the image.
+- nginx served `public/` from a volume filled once, so a rebuild would serve
+  stale assets.
+- The dev container (the specification's no-local-machine path) could not start
+  in a fresh Codespace: it included the root compose file, which needs a root
+  `.env`; its `backend/.env` had no database password and nothing migrated.
+- Creating a user before SMTP was configured returned HTTP 500 whenever the queue
+  ran synchronously (the dev container), because the password-link e-mail failed
+  inside the request. The CI end-to-end job had used `MAIL_MAILER=log`, which hid it.
+
+**Fixes** (ADR-0026; specification §3 Deployment & Environments and §5 updated):
+`.gitattributes` (LF everywhere) plus a CRLF strip in the Dockerfile; built-not-
+pulled images; health checks and health-ordered start-up (`up -d --wait`);
+`.dockerignore`; a `web` image with the assets baked in; `APP_KEY` check and
+`php artisan db:ensure` in the entrypoint; a self-contained dev container with a
+generated database password; users are created even when the link cannot be
+e-mailed, and the administrator is told why. README "Run it with Docker" is now
+a step-by-step guide for bash and PowerShell.
+
+**CI added:** `line-endings` (fails on CRLF in the repository or in a
+`core.autocrlf=true` checkout), `stack` (MySQL and SQL Server: Windows-style
+checkout, the README guide command by command, health and restart checks, no
+`.env` in the image, Playwright through nginx), `devcontainer` (started as
+Codespaces does; HTTP checks and the Pest suite inside). The `e2e` job now uses
+the production mailer.
+
+**Could not be run by Claude:** Docker Desktop on Windows (GitHub's Windows
+runners cannot run Linux containers; CI reproduces the Windows checkout on Linux
+instead), and a real GitHub Codespace (the same dev container definition is
+started in CI with the devcontainer CLI).
+
 ## Resume point
 
-Phase 1 is complete on `phase-1-foundation`; its pull request
-[moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) (→ `main`, closes issue #3) carries the verification report. CI passes on both engines: 203 Pest
-tests (747 assertions) and 7 Playwright tests each on MySQL 8.4 and SQL Server 2019,
-plus lint, static analysis, frontend checks, dependency audits and image builds.
+Phase 1 is on `phase-1-foundation`, in review in
+[moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) (→ `main`, closes issue #3). The PR's
+verification report cites the CI run on the PR's head commit (CLAUDE.md); after
+any new commit, wait for CI on it and update the report. Next: the owner re-runs
+the README guide on Windows; address what they report on the same branch.
 **Do not start Phase 2** until the owner
 merges the Phase 1 PR and approves Phase 2. If review comments arrive, push fixes to
 `phase-1-foundation`.
@@ -152,7 +203,9 @@ architecture §25.
 
 ### Local development notes
 
-- `cd backend && cp .env.example .env && php artisan key:generate && php artisan migrate --seed && php artisan setup:token`
+- Dev container / Codespaces: everything is prepared by `.devcontainer/post-create.sh`;
+  the application runs on port 8000; `cd backend && php artisan setup:token`.
+- Without a container: `cd backend && cp .env.example .env && php artisan key:generate && php artisan db:ensure && php artisan migrate --seed && php artisan setup:token`
 - `cd frontend && npm ci && npm run dev` (proxies the API to `:8000`), or `npm run build`
   to serve the SPA from Laravel.
 - Tests: `php artisan test` (set `DB_CONNECTION=sqlsrv` for SQL Server);
