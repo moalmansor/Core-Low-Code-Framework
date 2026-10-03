@@ -1,5 +1,7 @@
-# Development container: the production image's base stage (PHP 8.3 with every
-# extension, including the SQL Server drivers) plus Node, repository mounted.
+# Development container (VS Code "Reopen in Container" and GitHub Codespaces).
+# Self-contained: unlike ../docker-compose.yml it needs no .env file before it
+# starts. The MySQL password is generated on first start into a volume shared
+# with the dev container, so no credential is stored in the repository.
 services:
   devcontainer:
     build:
@@ -8,5 +10,44 @@ services:
       target: dev
     volumes:
       - ..:/workspace:cached
+      - secrets:/run/lcf-secrets:ro
     command: sleep infinity
-    depends_on: [mysql, redis]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.4
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        f=/run/lcf-secrets/db_password
+        if [ ! -s "$$f" ]; then (umask 077; head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32 > "$$f"); fi
+        MYSQL_ROOT_PASSWORD="$$(cat "$$f")"; export MYSQL_ROOT_PASSWORD
+        exec docker-entrypoint.sh mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci --default-time-zone=+00:00
+    environment:
+      MYSQL_DATABASE: lcf
+    volumes:
+      - mysql:/var/lib/mysql
+      - secrets:/run/lcf-secrets
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:latest
+
+volumes:
+  secrets:
+  mysql:

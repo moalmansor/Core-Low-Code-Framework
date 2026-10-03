@@ -1,11 +1,16 @@
 {
   "name": "Low-Code Framework",
-  "dockerComposeFile": ["../docker-compose.yml", "docker-compose.devcontainer.yml"],
+  "dockerComposeFile": ["docker-compose.devcontainer.yml"],
   "service": "devcontainer",
   "workspaceFolder": "/workspace",
-  "runServices": ["devcontainer", "mysql", "redis", "clamav", "mailpit"],
-  "forwardPorts": [5173, 8000, 8025],
-  "postCreateCommand": "cd backend && composer install && cp -n .env.example .env && php artisan key:generate && cd ../frontend && npm ci",
+  "forwardPorts": [8000, 5173, 8025],
+  "portsAttributes": {
+    "8000": { "label": "Application", "onAutoForward": "openBrowser" },
+    "5173": { "label": "Vite dev server" },
+    "8025": { "label": "Mailpit (test e-mail)" }
+  },
+  "postCreateCommand": "sh .devcontainer/post-create.sh",
+  "postStartCommand": "sh .devcontainer/post-start.sh",
   "customizations": {
     "vscode": {
       "extensions": ["Vue.volar", "bmewburn.vscode-intelephense-client", "dbaeumer.vscode-eslint", "esbenp.prettier-vscode", "open-southeners.laravel-pint"]
