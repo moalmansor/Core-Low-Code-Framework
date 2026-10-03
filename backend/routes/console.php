@@ -1,0 +1,125 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Modules\Audit\AuditWriter;
+use App\Modules\Audit\ChainVerifier;
+use App\Modules\Core\Outbox\OutboxRelay;
+use App\Modules\Monitoring\ErrorReporter;
+use App\Modules\Setup\SetupState;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
+
+Artisan::command('outbox:relay {--limit=200}', function (OutboxRelay $relay): int {
+    $count = $relay->relayPending((int) $this->option('limit'));
+    $this->info("Relayed {$count} event(s).");
+
+    return 0;
+})->purpose('Deliver committed outbox events to their handlers');
+
+Artisan::command('audit:verify {--full : Re-verify every chain from its first entry}', function (ChainVerifier $verifier, AuditWriter $audit, ErrorReporter $errors): int {
+    $result = $verifier->verify((bool) $this->option('full'));
+    $this->info("Verified {$result['verified']} entr(ies).");
+    if ($result['breaks'] === []) {
+        return 0;
+    }
+    foreach ($result['breaks'] as $break) {
+        $this->error(sprintf('Chain %d broken at sequence %d (entry %d): %s', $break['chain_id'], $break['chain_seq'], $break['id'], $break['reason']));
+    }
+    $audit->record('audit.chain_break_detected', 'security', meta: ['breaks' => $result['breaks']]);
+    $errors->report(new RuntimeException('Audit hash chain verification found '.count($result['breaks']).' break(s).'), 'critical');
+
+    return 1;
+})->purpose('Verify the audit log hash chains and report breaks');
+
+Artisan::command('db:ensure {--timeout=180 : Seconds to wait for the database server}', function (): int {
+    // Creates the configured database, with the collation architecture §9
+    // prescribes, when it does not exist yet; never alters or drops one.
+    $name = (string) config('database.default');
+    $config = (array) config("database.connections.{$name}");
+    $driver = (string) ($config['driver'] ?? '');
+    $database = (string) ($config['database'] ?? '');
+    if (! in_array($driver, ['mysql', 'sqlsrv'], true)) {
+        $this->error("Unsupported database driver [{$driver}].");
+
+        return 1;
+    }
+    if (preg_match('/^[A-Za-z][A-Za-z0-9_]{0,63}$/', $database) !== 1) {
+        $this->error('DB_DATABASE must start with a letter and contain only letters, digits, and underscores.');
+
+        return 1;
+    }
+
+    // Connect to the server rather than to the (possibly missing) database.
+    config(['database.connections.lcf_server' => array_merge($config, ['database' => $driver === 'sqlsrv' ? 'master' : null])]);
+    $deadline = time() + max(0, (int) $this->option('timeout'));
+    $waiting = false;
+    while (true) {
+        try {
+            $server = DB::connection('lcf_server');
+            $server->getPdo();
+            break;
+        } catch (Throwable $e) {
+            DB::purge('lcf_server');
+            if (time() >= $deadline) {
+                $this->error('The database server did not accept a connection: '.$e->getMessage());
+
+                return 1;
+            }
+            if (! $waiting) {
+                $this->line('Waiting for the database server…');
+                $waiting = true;
+            }
+            sleep(2);
+        }
+    }
+
+    $exists = $driver === 'sqlsrv'
+        ? $server->selectOne('SELECT DB_ID(?) AS id', [$database])?->id !== null
+        : $server->selectOne('SELECT SCHEMA_NAME AS name FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?', [$database]) !== null;
+    if ($exists) {
+        $this->line("Database [{$database}] exists.");
+        DB::purge('lcf_server');
+
+        return 0;
+    }
+
+    if ($driver === 'sqlsrv') {
+        $server->statement("CREATE DATABASE [{$database}] COLLATE Arabic_100_CI_AI_SC");
+        $server->statement("ALTER DATABASE [{$database}] SET READ_COMMITTED_SNAPSHOT ON");
+    } else {
+        $server->statement("CREATE DATABASE `{$database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci");
+    }
+    DB::purge('lcf_server');
+    $this->info("Created database [{$database}].");
+
+    return 0;
+})->purpose('Create the configured database with the prescribed collation when it does not exist');
+
+Artisan::command('security:prune', function (): int {
+    $cutoff = now()->subDays(90)->format('Y-m-d H:i:s.u');
+    $deleted = DB::table('login_attempts')->where('attempted_at', '<', $cutoff)->delete();
+    $this->info("Pruned {$deleted} login attempt(s).");
+
+    return 0;
+})->purpose('Remove expired security bookkeeping rows');
+
+Schedule::command('outbox:relay')->everyMinute()->withoutOverlapping()->onOneServer();
+Schedule::command('audit:verify')->dailyAt('02:10')->withoutOverlapping()->onOneServer();
+Schedule::command('audit:verify --full')->weeklyOn(0, '03:10')->withoutOverlapping()->onOneServer();
+Schedule::command('security:prune')->dailyAt('03:40')->onOneServer();
+Schedule::command('queue:prune-failed --hours=720')->daily()->onOneServer();
+
+Artisan::command('setup:token', function (SetupState $state): int {
+    if ($state->isComplete()) {
+        $this->error('Setup is already complete; the wizard is locked.');
+
+        return 1;
+    }
+    $token = $state->issueToken();
+    $this->line('Setup token (enter it in the setup wizard; any earlier token is now invalid):');
+    $this->info($token);
+
+    return 0;
+})->purpose('Issue the one-time token that unlocks the first-run setup wizard');

@@ -1,0 +1,25 @@
+# Build context for docker/php/Dockerfile. Secrets and local state never enter
+# an image: backend/.env (APP_KEY, passwords) is supplied at run time through
+# env_file, and dependencies and assets are installed or built inside the image.
+.git
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+backend/vendor
+backend/public/build
+backend/public/hot
+backend/bootstrap/cache/*.php
+backend/storage/logs/*
+backend/storage/app/*
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+backend/storage/framework/testing
+backend/storage/framework/phpstan
+backend/.phpunit.result.cache
+frontend/dist
+frontend/playwright-report
+frontend/test-results
+frontend/e2e/.secret
+**/.e2e-totp-step

@@ -1,0 +1,19 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+    paths:
+        - app
+        - routes
+        - database
+        - bootstrap/app.php
+    tmpDir: storage/framework/cache/phpstan
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # Fortify's event classes document their user as App\Models\User; this
+        # application's user model lives in the Identity module.
+        - identifier: class.notFound
+          message: '#App\\Models\\User#'
+        - identifier: nullsafe.neverNull
+          path: app/Modules/Identity/Listeners/AuthEventSubscriber.php

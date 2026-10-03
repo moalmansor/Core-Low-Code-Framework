@@ -6,8 +6,8 @@ Project memory file (specification §8.1). Updated at the end of every run.
 
 | Phase | Branch | Status | Pull request |
 |---|---|---|---|
-| 0 — Architecture & Data Model | `phase-0-architecture` | **Complete. Awaiting owner review.** | [moalmansor/Core-Low-Code-Framework#1](https://github.com/moalmansor/Core-Low-Code-Framework/pull/1) |
-| 1 — Foundation, Security & Administration Core | `phase-1-foundation` | Not started. Blocked until the Phase 0 PR is merged and the owner approves. | — |
+| 0 — Architecture & Data Model | `phase-0-architecture` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#1](https://github.com/moalmansor/Core-Low-Code-Framework/pull/1) |
+| 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **In review.** The owner's review found that the stack did not run from a Windows clone; fixed on the branch (see "Phase 1 review" below). Awaiting re-review. | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
 | 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | Not started | — |
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | Not started | — |
 | 3 — Workflow, Records & Views | `phase-3-workflow` | Not started | — |
@@ -77,7 +77,9 @@ as the specification states.
    default, plus named primary key, unique constraints (filtered on SQL Server
    when nullable), indexes (including FK-supporting indexes), foreign keys with
    ON DELETE, and CHECK constraints. Totals: 147 tables, 2,312 columns, 646
-   foreign keys, 115 unique constraints, 643 indexes.
+   foreign keys, 115 unique constraints, 643 indexes. (Phase 1 added the
+   `uq_{table}_uuid` constraint to the 68 tables with a `uuid` column, which the
+   ERD had implied but not listed: 183 unique constraints.)
 4. **Phase issues:** one GitHub issue per phase with its scope checklist
    (specification §10): Phase 0 [moalmansor/Core-Low-Code-Framework#2](https://github.com/moalmansor/Core-Low-Code-Framework/issues/2),
    Phase 1 [moalmansor/Core-Low-Code-Framework#3](https://github.com/moalmansor/Core-Low-Code-Framework/issues/3),
@@ -89,14 +91,126 @@ as the specification states.
    Phase 6 [moalmansor/Core-Low-Code-Framework#9](https://github.com/moalmansor/Core-Low-Code-Framework/issues/9). The Phase 0 issue closes
    when the Phase 0 PR is merged.
 
+## Phase 1: completed deliverables
+
+Scope: specification §8.3 Phase 1; issue [moalmansor/Core-Low-Code-Framework#3](https://github.com/moalmansor/Core-Low-Code-Framework/issues/3).
+
+- **Project setup:** `backend/` (Laravel 12, modular monolith under `app/Modules`),
+  `frontend/` (Vue 3 + TypeScript SPA), `docker/` + `docker-compose.yml` (app,
+  worker, scheduler, nginx, MySQL, optional SQL Server, Redis, ClamAV, Mailpit),
+  `.devcontainer/`, GitHub Actions CI (`.github/workflows/ci.yml`): lint, static
+  analysis, backend tests on MySQL 8.4 and SQL Server 2019, frontend checks,
+  Playwright end-to-end tests on both engines, dependency audits, image builds.
+- **Database driver layer** (`app/Infrastructure/Database`): custom grammars with
+  logical types, named constraints, CHECKs, filtered uniques, introspection, JSON,
+  locks, SKIP LOCKED, named locks; 22 Phase 1 tables matching the ERD exactly
+  (asserted by `SchemaConformanceTest` on each engine; deferred columns in ADR-0021).
+- **First run:** setup wizard with console-issued setup token (ADR-0022), branding,
+  languages, regional formats, calendar, tenancy mode, SMTP with test, Super Admin
+  with password policy and mandatory TOTP; permanent lock afterwards.
+- **Application shell:** sidebar, top bar, Arabic (RTL) and English (LTR) with a
+  per-user preference, translations manager (interface strings and object labels,
+  untranslated filter, import/export), locales manager.
+- **Authentication:** Sanctum SPA sessions + Fortify; mandatory 2FA for roles that
+  require it (cannot be self-disabled), recovery codes, password policy (length,
+  classes, common-password list, identity check, history, expiry), lockout,
+  idle/absolute session timeouts, session list/revoke, OIDC SSO (PKCE, nonce, ID
+  token verification via the egress gateway), LDAP (bind, group→role mapping, JIT).
+- **Users & Departments:** user administration with escalation safeguards
+  (ADR-0023); department tree with closure table, move without cycles, archive.
+- **Roles & Permissions:** unified screen for role/user/department grants with
+  allow / deny / hard deny, precedence user > role > department, lockout guard,
+  step-up for dangerous changes, view-as-user, explain, copy, export/import.
+- **Admin Console** (built areas only, per permission) and **System health**.
+- **System Settings:** branding, formats, calendar, mail (+ test), files, ClamAV,
+  security policy, SSO providers, LDAP, alerts, egress allowlist, locales.
+- **Audit Log:** 16 SHA-256 hash chains, immutable entries, secret masking,
+  filters, CSV export (formula-injection safe), on-demand and scheduled
+  verification with alerting.
+- **Error Monitoring:** secondary JSON sink first, then database; fingerprint
+  grouping, reference codes, masking, correlation IDs, triage, e-mail alerts.
+- **Security baseline:** security headers, nonce-based CSP, CSRF, rate limits,
+  encrypted sessions and secrets, egress gateway with SSRF protections.
+- **Docs:** specification §2, §4.11, §5 updated with the safeguards added;
+  ADR-0021 to ADR-0025; architecture §21.2 aligned with the built API.
+
+## Phase 1 review: gaps found and fixed (2026-10-03)
+
+The owner ran the stack from a clean clone on Windows (PowerShell, Docker
+Desktop). It could not start, although all seven CI jobs were green.
+
+**What failed, and why CI missed it**
+- `app`, `worker`, and `scheduler` crash-looped with
+  `exec /usr/local/bin/lcf-entrypoint: no such file or directory`. Cause
+  (reproduced): Git for Windows checks files out with CRLF, so the entrypoint's
+  shebang became `#!/bin/sh\r`; 105 of 343 files got CRLF. CI used Linux
+  checkouts only and never started the Compose stack.
+- `docker compose up -d` tried to pull `lcf/app:local` ("pull access denied").
+- Compose required `MSSQL_SA_PASSWORD` even for MySQL.
+- The guide did not state the SQL Server password policy or how to generate
+  `APP_KEY`, used `grep`, which PowerShell lacks, and its SQL Server step
+  ("create database `lcf` with collation …") gave no command.
+
+**Found while fixing (not reported, same area)**
+- No `.dockerignore`: a `backend/.env` created before the build (APP_KEY,
+  passwords) was copied into the image.
+- nginx served `public/` from a volume filled once, so a rebuild would serve
+  stale assets.
+- The dev container (the specification's no-local-machine path) could not start
+  in a fresh Codespace: it included the root compose file, which needs a root
+  `.env`; its `backend/.env` had no database password and nothing migrated.
+- Creating a user before SMTP was configured returned HTTP 500 whenever the queue
+  ran synchronously (the dev container), because the password-link e-mail failed
+  inside the request. The CI end-to-end job had used `MAIL_MAILER=log`, which hid it.
+- The test suite depended on the developer's `.env`: with a Sanctum stateful
+  domain list that did not include `localhost` (as in the dev container), the
+  setup-wizard tests failed. `phpunit.xml` now pins `APP_URL` and the domain.
+
+**Fixes** (ADR-0026; specification §3 Deployment & Environments and §5 updated):
+`.gitattributes` (LF everywhere) plus a CRLF strip in the Dockerfile; built-not-
+pulled images; health checks and health-ordered start-up (`up -d --wait`);
+`.dockerignore`; a `web` image with the assets baked in; `APP_KEY` check and
+`php artisan db:ensure` in the entrypoint; a self-contained dev container with a
+generated database password; users are created even when the link cannot be
+e-mailed, and the administrator is told why. README "Run it with Docker" is now
+a step-by-step guide for bash and PowerShell.
+
+**CI added:** `line-endings` (fails on CRLF in the repository or in a
+`core.autocrlf=true` checkout), `stack` (MySQL and SQL Server: Windows-style
+checkout, the README guide command by command, health and restart checks, no
+`.env` in the image, Playwright through nginx), `devcontainer` (started as
+Codespaces does; HTTP checks and the Pest suite inside). The `e2e` job now uses
+the production mailer.
+
+**Could not be run by Claude:** Docker Desktop on Windows (GitHub's Windows
+runners cannot run Linux containers; CI reproduces the Windows checkout on Linux
+instead), and a real GitHub Codespace (the same dev container definition is
+started in CI with the devcontainer CLI).
+
 ## Resume point
 
-Phase 0 is complete. Its pull request ([moalmansor/Core-Low-Code-Framework#1](https://github.com/moalmansor/Core-Low-Code-Framework/pull/1), `phase-0-architecture` → `main`) is open and
-awaits review. **Do not start Phase 1** until the owner merges the Phase 0 PR and
-explicitly approves Phase 1. If review comments arrive, push fixes to
-`phase-0-architecture`.
+Phase 1 is on `phase-1-foundation`, in review in
+[moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) (→ `main`, closes issue #3). The PR's
+verification report cites the CI run on the PR's head commit (CLAUDE.md); after
+any new commit, wait for CI on it and update the report. Next: the owner re-runs
+the README guide on Windows; address what they report on the same branch.
+**Do not start Phase 2** until the owner
+merges the Phase 1 PR and approves Phase 2. If review comments arrive, push fixes to
+`phase-1-foundation`.
 
-When Phase 1 begins: create `phase-1-foundation` from the updated `main`, then
-start with architecture §5 scaffolding (`/backend`, `/frontend`, `/docker`,
-`/.devcontainer`, CI) and §6 driver layer contract tests, following the Phase 1
-row of architecture §25.
+When Phase 2 begins: create `phase-2-form-builder` from the updated `main`, add the
+deferred columns of ADR-0021 that point at Phase 2 tables (`departments.business_calendar_id`,
+`roles.application_id`, `permission_assignments.condition_id`, `files.form_id|record_id|field_id`)
+in the migrations that create those tables, and follow the Phase 2 row of
+architecture §25.
+
+### Local development notes
+
+- Dev container / Codespaces: everything is prepared by `.devcontainer/post-create.sh`;
+  the application runs on port 8000; `cd backend && php artisan setup:token`.
+- Without a container: `cd backend && cp .env.example .env && php artisan key:generate && php artisan db:ensure && php artisan migrate --seed && php artisan setup:token`
+- `cd frontend && npm ci && npm run dev` (proxies the API to `:8000`), or `npm run build`
+  to serve the SPA from Laravel.
+- Tests: `php artisan test` (set `DB_CONNECTION=sqlsrv` for SQL Server);
+  `npm run test`; `npm run e2e` against a fresh database (run `php artisan cache:clear`
+  after `migrate:fresh`, because settings are cached).
