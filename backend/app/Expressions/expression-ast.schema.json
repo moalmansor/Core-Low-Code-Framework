@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.core-lcf/expression-ast/v1",
+  "title": "Expression AST (docs/expression-language.md §6)",
+  "$ref": "#/$defs/node",
+  "$defs": {
+    "node": {
+      "oneOf": [
+        { "$ref": "#/$defs/literal" },
+        { "$ref": "#/$defs/list" },
+        { "$ref": "#/$defs/reference" },
+        { "$ref": "#/$defs/unary" },
+        { "$ref": "#/$defs/binary" },
+        { "$ref": "#/$defs/call" }
+      ]
+    },
+    "literal": {
+      "type": "object",
+      "required": ["k", "t"],
+      "properties": {
+        "k": { "const": "lit" },
+        "t": { "enum": ["null", "boolean", "number", "text", "date", "datetime", "time"] },
+        "v": {}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        { "if": { "properties": { "t": { "const": "null" } } }, "then": { "not": { "required": ["v"] } } },
+        { "if": { "properties": { "t": { "const": "boolean" } } }, "then": { "required": ["v"], "properties": { "v": { "type": "boolean" } } } },
+        { "if": { "properties": { "t": { "const": "number" } } }, "then": { "required": ["v"], "properties": { "v": { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]*[1-9])?$", "maxLength": 80 } } } },
+        { "if": { "properties": { "t": { "const": "text" } } }, "then": { "required": ["v"], "properties": { "v": { "type": "string", "maxLength": 65535 } } } },
+        { "if": { "properties": { "t": { "const": "date" } } }, "then": { "required": ["v"], "properties": { "v": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" } } } },
+        { "if": { "properties": { "t": { "const": "datetime" } } }, "then": { "required": ["v"], "properties": { "v": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" } } } },
+        { "if": { "properties": { "t": { "const": "time" } } }, "then": { "required": ["v"], "properties": { "v": { "type": "string", "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}$" } } } }
+      ]
+    },
+    "list": {
+      "type": "object",
+      "required": ["k", "items"],
+      "properties": {
+        "k": { "const": "list" },
+        "items": { "type": "array", "maxItems": 2000, "items": { "$ref": "#/$defs/node" } }
+      },
+      "additionalProperties": false
+    },
+    "reference": {
+      "type": "object",
+      "required": ["k", "scope", "path"],
+      "properties": {
+        "k": { "const": "ref" },
+        "scope": { "enum": ["record", "old", "user", "context", "row", "parent"] },
+        "path": { "type": "array", "minItems": 1, "maxItems": 5, "items": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" } },
+        "ids": { "type": "array", "maxItems": 5, "items": { "type": "string", "format": "uuid" } }
+      },
+      "additionalProperties": false
+    },
+    "unary": {
+      "type": "object",
+      "required": ["k", "op", "a"],
+      "properties": {
+        "k": { "const": "un" },
+        "op": { "enum": ["neg", "not"] },
+        "a": { "$ref": "#/$defs/node" }
+      },
+      "additionalProperties": false
+    },
+    "binary": {
+      "type": "object",
+      "required": ["k", "op", "a", "b"],
+      "properties": {
+        "k": { "const": "bin" },
+        "op": { "enum": ["+", "-", "*", "/", "%", "&", "=", "!=", "<", "<=", ">", ">=", "and", "or"] },
+        "a": { "$ref": "#/$defs/node" },
+        "b": { "$ref": "#/$defs/node" }
+      },
+      "additionalProperties": false
+    },
+    "call": {
+      "type": "object",
+      "required": ["k", "fn", "args"],
+      "properties": {
+        "k": { "const": "call" },
+        "fn": { "type": "string", "pattern": "^[a-z_]{1,32}$" },
+        "args": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/node" } }
+      },
+      "additionalProperties": false
+    }
+  }
+}

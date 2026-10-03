@@ -122,9 +122,63 @@ final class SafeRegex
         if (! self::isSafe($pattern) || str_contains($pattern, "\x01")) {
             return null;
         }
-        $result = @preg_match("\x01".$pattern."\x01uD", $subject);
+        $result = @preg_match("\x01".self::portable($pattern)."\x01uD", $subject);
 
         return $result === false ? null : $result === 1;
+    }
+
+    /**
+     * Rewrites the shorthand classes and `.` to explicit ASCII classes so PCRE
+     * (whose `u` modifier enables Unicode properties) and ECMAScript `u` mode
+     * agree (expression-language.md §9.3, ADR-0027): `\d` → 0-9, `\w` →
+     * A-Za-z0-9_, `\s` → space, tab, LF, CR, FF, VT; `.` → any code point but LF.
+     * The pattern must already have passed isSafe().
+     */
+    public static function portable(string $pattern): string
+    {
+        $map = ['d' => '0-9', 'w' => 'A-Za-z0-9_', 's' => ' \t\n\r\f\x{0B}'];
+        $chars = Unicode::codePoints($pattern);
+        $out = '';
+        $inClass = false;
+        $n = count($chars);
+        for ($i = 0; $i < $n; $i++) {
+            $c = $chars[$i];
+            if ($c === '\\' && $i + 1 < $n) {
+                $next = $chars[++$i];
+                if (isset($map[$next])) {
+                    $out .= $inClass ? $map[$next] : '['.$map[$next].']';
+                } else {
+                    $out .= '\\'.$next;
+                }
+
+                continue;
+            }
+            if ($inClass) {
+                if ($c === ']') {
+                    $inClass = false;
+                }
+                $out .= $c;
+
+                continue;
+            }
+            if ($c === '[') {
+                $inClass = true;
+                $out .= $c;
+                if (($chars[$i + 1] ?? null) === '^') {
+                    $out .= '^';
+                    $i++;
+                }
+                if (($chars[$i + 1] ?? null) === ']') {
+                    $out .= ']';
+                    $i++;
+                }
+
+                continue;
+            }
+            $out .= $c === '.' ? '[^\n]' : $c;
+        }
+
+        return $out;
     }
 
     private static function validEscape(string $next, bool $inClass): bool

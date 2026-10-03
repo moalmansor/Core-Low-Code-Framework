@@ -39,11 +39,23 @@ here and locked by conformance cases in `docs/conformance/expression-corpus.json
    original when the full mapping is not a single code point, plus a fixed
    table for the code points whose simple and full mappings differ in that
    way (U+1F80–U+1FAF iota-subscript forms, U+1FB3/1FC3/1FF3, U+0130).
+   The table also pins as *unchanged* the 54 code points that gained case
+   pairs in Unicode 16.0 (U+019B, U+0264, U+1C89–1C8A, U+A7CB–A7CD,
+   U+A7DA–A7DC, U+10D50–10D65, U+10D70–10D85): PHP 8.3 (Unicode 15.1) leaves
+   them as they are, while browsers with a newer ICU would map them. The
+   mapping was verified equal for all 1 112 064 non-surrogate code points.
+   Moving the backend to a PHP built on Unicode 16 requires revisiting this
+   table and adding corpus cases.
 7. **Safe regex subset.** Allowed escapes are `\d \w \s \n \t \r` and escaped
    syntax characters; `\-` inside a class. Lazy and possessive quantifiers,
    stacked quantifiers, `{m,n}` with `n > 100` or `m > n`, lookaround,
-   backreferences and Unicode properties are `INVALID_ARG`. PHP runs the
-   pattern with the `u` and `D` modifiers; TypeScript with the `u` flag.
+   backreferences and Unicode properties are `INVALID_ARG`. Before running,
+   both runtimes rewrite `\d` → `[0-9]`, `\w` → `[A-Za-z0-9_]`,
+   `\s` → `[ \t\n\r\f\v]` (inside a class, the class contents) and `.` →
+   `[^\n]`, because PCRE's `u` modifier turns on Unicode properties for the
+   shorthands and the two engines disagree on what `.` excludes; this gives
+   the ASCII semantics of §9.3 identically. PHP then runs the pattern with the
+   `u` and `D` modifiers, TypeScript with the `u` flag.
 8. **Umm al-Qura data.** The table for 1300–1600 AH is generated once from
    ICU's `islamic-umalqura` calendar into
    `backend/resources/calendars/umm-al-qura.json`; both runtimes read that file

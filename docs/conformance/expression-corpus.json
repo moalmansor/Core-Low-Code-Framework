@@ -5521,6 +5521,169 @@
       "expectStatic": {
         "error": "TYPE"
       }
+    },
+    {
+      "id": "matches.digit_class_is_ascii",
+      "description": "\\d matches ASCII digits only (ADR-0027)",
+      "expr": "matches(\"٣\", \"^\\\\d$\")",
+      "ast": {
+        "k": "call",
+        "fn": "matches",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "٣"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "^\\d$"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "matches.word_class_is_ascii",
+      "expr": "matches(\"é\", \"^\\\\w$\")",
+      "ast": {
+        "k": "call",
+        "fn": "matches",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "é"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "^\\w$"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "matches.space_class_is_ascii",
+      "expr": "matches(\"\\uFEFF\", \"^\\\\s$\")",
+      "ast": {
+        "k": "call",
+        "fn": "matches",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "﻿"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "^\\s$"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "matches.dot_excludes_only_newline",
+      "expr": "matches(\"\\u2028\", \"^.$\")",
+      "ast": {
+        "k": "call",
+        "fn": "matches",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": " "
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "^.$"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "matches.dot_excludes_newline",
+      "expr": "matches(\"\\n\", \"^.$\")",
+      "ast": {
+        "k": "call",
+        "fn": "matches",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "\n"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "^.$"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "matches.shorthand_inside_class",
+      "expr": "matches(\"a1_\", \"^[\\\\d\\\\w]+$\")",
+      "ast": {
+        "k": "call",
+        "fn": "matches",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "a1_"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "^[\\d\\w]+$"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
     }
   ]
 }
