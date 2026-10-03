@@ -162,6 +162,9 @@ Desktop). It could not start, although all seven CI jobs were green.
 - Creating a user before SMTP was configured returned HTTP 500 whenever the queue
   ran synchronously (the dev container), because the password-link e-mail failed
   inside the request. The CI end-to-end job had used `MAIL_MAILER=log`, which hid it.
+- The test suite depended on the developer's `.env`: with a Sanctum stateful
+  domain list that did not include `localhost` (as in the dev container), the
+  setup-wizard tests failed. `phpunit.xml` now pins `APP_URL` and the domain.
 
 **Fixes** (ADR-0026; specification §3 Deployment & Environments and §5 updated):
 `.gitattributes` (LF everywhere) plus a CRLF strip in the Dockerfile; built-not-
