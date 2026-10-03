@@ -34,7 +34,13 @@ export const settingsSchema: Record<string, FieldDef[]> = {
     s('from_address', true),
     s('from_name'),
   ],
-  files: [n('max_upload_mb', 1, 512), { key: 'allowed_image_types', type: 'multiselect', options: ['png', 'jpg', 'jpeg', 'webp', 'ico'] }],
+  files: [
+    n('max_upload_mb', 1, 512),
+    { key: 'allowed_image_types', type: 'multiselect', options: ['png', 'jpg', 'jpeg', 'webp', 'ico'] },
+    { key: 'allowed_file_types', type: 'multiselect', options: ['pdf', 'docx', 'xlsx', 'pptx', 'csv', 'txt', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'odt', 'ods'] },
+  ],
+  schema: [n('snapshot_retention_days', 1, 3650), n('blocking_confirmation_rows', 0, 1000000000), b('reconcile_daily')],
+  records: [n('export_max_rows', 100, 1000000), n('import_max_rows', 10, 50000)],
   clamav: [b('enabled'), s('host', true), n('port', 1, 65535), n('timeout_seconds', 1, 300)],
   security: [
     n('password_min_length', 8, 128),

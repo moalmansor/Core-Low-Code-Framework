@@ -28,7 +28,7 @@ const session = useSession()
 const tabs = computed(() => {
   const list: string[] = []
   if (session.can('system.manage_branding')) list.push('branding')
-  if (session.can('system.manage_settings')) list.push('formats', 'calendar', 'mail', 'files', 'clamav', 'security', 'sso', 'ldap', 'monitoring', 'egress')
+  if (session.can('system.manage_settings')) list.push('formats', 'calendar', 'mail', 'files', 'records', 'schema', 'clamav', 'security', 'sso', 'ldap', 'monitoring', 'egress')
   if (session.can('system.manage_translations')) list.push('locales')
   return list
 })
