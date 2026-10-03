@@ -48,6 +48,9 @@ A run that stops mid-phase is fine. A run that stops with uncommitted work is no
 - From Phase 1 onward, CI must actually run and pass on both database engines
   before a phase is reported complete. If a check could not run, say so plainly
   rather than reporting it as passed.
+- The verification report must cite a CI run on the pull request's head commit.
+  Whenever a later commit lands, re-run CI on it and update the report, so the
+  report always describes exactly what would be merged.
 - The manual verification guide must be executable in a browser, with exact URLs,
   credentials, and expected results for every step.
 - Never merge a pull request. The repository owner reviews and merges.
