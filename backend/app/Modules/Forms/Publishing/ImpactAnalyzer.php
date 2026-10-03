@@ -87,8 +87,8 @@ final class ImpactAnalyzer
         $removedGroups = array_column(array_filter($diff['groups'] ?? [], static fn ($e) => $e['change'] === 'removed'), 'uuid');
         $orphanRules = DB::table('field_access_rules')->where('form_id', $form->id)
             ->where(function ($q) use ($removedFields, $removedGroups): void {
-                $q->whereIn('field_id', DB::table('fields')->whereIn('uuid', $removedFields ?: ['-'])->select('id'))
-                    ->orWhereIn('group_id', DB::table('field_groups')->whereIn('uuid', $removedGroups ?: ['-'])->select('id'));
+                $q->whereIn('field_id', DB::table('fields')->whereIn('uuid', $removedFields ?: ['00000000-0000-0000-0000-000000000000'])->select('id'))
+                    ->orWhereIn('group_id', DB::table('field_groups')->whereIn('uuid', $removedGroups ?: ['00000000-0000-0000-0000-000000000000'])->select('id'));
             })->count();
 
         // Linked forms: relations from other forms to this one, and what they display.
