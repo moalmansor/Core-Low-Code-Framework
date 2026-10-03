@@ -113,6 +113,8 @@ return [
             'prefix_indexes' => true,
             'encrypt' => env('DB_ENCRYPT', 'yes'),
             'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
+            // Integers and floats come back as PHP numbers, as they do on MySQL.
+            'options' => extension_loaded('pdo_sqlsrv') ? [PDO::SQLSRV_ATTR_FETCHES_NUMERIC_TYPE => true] : [],
         ],
 
     ],

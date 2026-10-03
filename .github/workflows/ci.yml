@@ -90,7 +90,14 @@ jobs:
       - run: php -m | grep -i -E 'sqlsrv|pdo_mysql' && php .github/scripts/prepare-database.php lcf_test
       - name: Pest (Feature, Integration, Unit) on ${{ matrix.db }}
         working-directory: backend
-        run: php artisan test --log-junit ../junit-${{ matrix.db }}.xml
+        run: COLUMNS=250 php artisan test --display-warnings --log-junit ../junit-${{ matrix.db }}.xml
+      - name: Error sink summary (on failure)
+        if: failure()
+        working-directory: backend
+        run: |
+          for f in storage/logs/testing/errors-*.log; do
+            [ -f "$f" ] && php -r 'foreach (file($argv[1]) as $l) { $c = json_decode($l, true)["context"] ?? []; echo ($c["exception_class"] ?? "?"), " ", substr($c["message"] ?? "", 0, 300), " @ ", ($c["file"] ?? ""), ":", ($c["line"] ?? ""), PHP_EOL; }' "$f" | sort | uniq -c | sort -rn | head -40
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: 'backend-junit-${{ matrix.db }}', path: 'junit-${{ matrix.db }}.xml' }

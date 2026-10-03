@@ -151,7 +151,7 @@ final class AccessResolver
         }
         $roleIds = $user->activeRoles()->pluck('roles.id')->all();
         $deptIds = [];
-        $ownDept = $user->department_id;
+        $ownDept = $user->department_id === null ? null : (int) $user->department_id;
         if ($ownDept !== null) {
             $deptIds = DB::table('department_closure')->where('descendant_id', $ownDept)->pluck('ancestor_id')->map(static fn ($id): int => (int) $id)->all();
         }

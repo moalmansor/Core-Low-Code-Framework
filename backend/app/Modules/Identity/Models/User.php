@@ -69,6 +69,9 @@ final class User extends Authenticatable
             'locked_until' => 'datetime',
             'anonymized_at' => 'datetime',
             'failed_login_count' => 'integer',
+            'organization_id' => 'integer',
+            'department_id' => 'integer',
+            'manager_id' => 'integer',
         ];
     }
 

@@ -19,7 +19,7 @@ final class SetTenantFromUser
     {
         $user = $request->user();
         if ($user instanceof User) {
-            $this->tenant->set($user->organization_id);
+            $this->tenant->set((int) $user->organization_id);
         }
 
         return $next($request);
