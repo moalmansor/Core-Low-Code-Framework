@@ -4984,6 +4984,543 @@
       "expectStatic": {
         "error": "PRECISION"
       }
+    },
+    {
+      "id": "agg.first.skips_null",
+      "description": "first/last skip null items (decision ADR-0024)",
+      "expr": "first([null, 2, 3])",
+      "ast": {
+        "k": "call",
+        "fn": "first",
+        "args": [
+          {
+            "k": "list",
+            "items": [
+              {
+                "k": "lit",
+                "t": "null"
+              },
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "2"
+              },
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "3"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "2"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.last.skips_null",
+      "expr": "last([1, 2, null])",
+      "ast": {
+        "k": "call",
+        "fn": "last",
+        "args": [
+          {
+            "k": "list",
+            "items": [
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "1"
+              },
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "2"
+              },
+              {
+                "k": "lit",
+                "t": "null"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "2"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.distinct.drops_null",
+      "expr": "distinct([1, null, 1, 2])",
+      "ast": {
+        "k": "call",
+        "fn": "distinct",
+        "args": [
+          {
+            "k": "list",
+            "items": [
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "1"
+              },
+              {
+                "k": "lit",
+                "t": "null"
+              },
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "1"
+              },
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "2"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "list",
+          "v": [
+            {
+              "t": "number",
+              "v": "1"
+            },
+            {
+              "t": "number",
+              "v": "2"
+            }
+          ]
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "agg.sum.row_scope_explicit",
+      "expr": "sum(lines, @row.qty)",
+      "ast": {
+        "k": "call",
+        "fn": "sum",
+        "args": [
+          {
+            "k": "ref",
+            "scope": "record",
+            "path": [
+              "lines"
+            ]
+          },
+          {
+            "k": "ref",
+            "scope": "row",
+            "path": [
+              "qty"
+            ]
+          }
+        ]
+      },
+      "record": {
+        "lines": {
+          "t": "rows",
+          "v": [
+            {
+              "qty": {
+                "t": "number",
+                "v": "2"
+              }
+            },
+            {
+              "qty": {
+                "t": "number",
+                "v": "3"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "5"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "to_text.list_skips_null",
+      "expr": "to_text([1, null, 2])",
+      "ast": {
+        "k": "call",
+        "fn": "to_text",
+        "args": [
+          {
+            "k": "list",
+            "items": [
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "1"
+              },
+              {
+                "k": "lit",
+                "t": "null"
+              },
+              {
+                "k": "lit",
+                "t": "number",
+                "v": "2"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "1, 2"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "ref.user_attribute_absent",
+      "description": "an attribute the user does not have is null, not a missing reference",
+      "expr": "@user.attributes.missing",
+      "ast": {
+        "k": "ref",
+        "scope": "user",
+        "path": [
+          "attributes",
+          "missing"
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "list.mixed_types_runtime",
+      "description": "a heterogeneous list is rejected at runtime when the AST bypasses the checker",
+      "expr": "[1, \"a\"]",
+      "ast": {
+        "k": "list",
+        "items": [
+          {
+            "k": "lit",
+            "t": "number",
+            "v": "1"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "a"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          {
+            "code": "TYPE_MISMATCH",
+            "node": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "upper.simple_mapping_keeps_sharp_s",
+      "description": "simple case mapping: ß has no single-code-point uppercase",
+      "expr": "upper(\"straße\")",
+      "ast": {
+        "k": "call",
+        "fn": "upper",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "straße"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "STRAßE"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "upper.simple_titlecase_greek",
+      "description": "U+1F80 maps to U+1F88 under simple uppercase",
+      "expr": "upper(\"ᾀ\")",
+      "ast": {
+        "k": "call",
+        "fn": "upper",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "ᾀ"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "ᾈ"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "lower.dotted_capital_i",
+      "description": "U+0130 lowercases to U+0069 under simple mapping",
+      "expr": "lower(\"İ\")",
+      "ast": {
+        "k": "call",
+        "fn": "lower",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "İ"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "text",
+          "v": "i"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "matches.escaped_hyphen_in_class",
+      "expr": "matches(\"a-b\", \"^[a\\\\-z]-b$\")",
+      "ast": {
+        "k": "call",
+        "fn": "matches",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "a-b"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "^[a\\-z]-b$"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "boolean",
+          "v": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "matches.reversed_quantifier",
+      "expr": "matches(\"ab\", \"a{2,1}\")",
+      "ast": {
+        "k": "call",
+        "fn": "matches",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "ab"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "a{2,1}"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          {
+            "code": "INVALID_ARG",
+            "node": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "matches.lazy_quantifier_not_in_subset",
+      "expr": "matches(\"aaa\", \"a+?\")",
+      "ast": {
+        "k": "call",
+        "fn": "matches",
+        "args": [
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "aaa"
+          },
+          {
+            "k": "lit",
+            "t": "text",
+            "v": "a+?"
+          }
+        ]
+      },
+      "expect": {
+        "value": {
+          "t": "null"
+        },
+        "diagnostics": [
+          {
+            "code": "INVALID_ARG",
+            "node": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "round.half_away_symmetry",
+      "expr": "round(2.5) + round(-2.5)",
+      "ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "call",
+          "fn": "round",
+          "args": [
+            {
+              "k": "lit",
+              "t": "number",
+              "v": "2.5"
+            }
+          ]
+        },
+        "b": {
+          "k": "call",
+          "fn": "round",
+          "args": [
+            {
+              "k": "lit",
+              "t": "number",
+              "v": "-2.5"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "0"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "arith.div.sixteen_digits",
+      "expr": "2 / 3",
+      "ast": {
+        "k": "bin",
+        "op": "/",
+        "a": {
+          "k": "lit",
+          "t": "number",
+          "v": "2"
+        },
+        "b": {
+          "k": "lit",
+          "t": "number",
+          "v": "3"
+        }
+      },
+      "expect": {
+        "value": {
+          "t": "number",
+          "v": "0.6666666666666667"
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "static.list_mixed_types",
+      "expr": "[1, \"a\"]",
+      "expectStatic": {
+        "error": "TYPE"
+      }
+    },
+    {
+      "id": "static.operand_types",
+      "expr": "1 + \"a\"",
+      "expectStatic": {
+        "error": "TYPE"
+      }
+    },
+    {
+      "id": "static.compare_types",
+      "expr": "\"a\" < 1",
+      "expectStatic": {
+        "error": "TYPE"
+      }
+    },
+    {
+      "id": "static.branch_types",
+      "description": "if branches must share one type",
+      "expr": "if(true, 1, \"a\")",
+      "expectStatic": {
+        "error": "TYPE"
+      }
+    },
+    {
+      "id": "static.unknown_user_property",
+      "expr": "@user.nickname",
+      "expectStatic": {
+        "error": "TYPE"
+      }
+    },
+    {
+      "id": "static.row_scope_outside_aggregate",
+      "expr": "@row.qty",
+      "expectStatic": {
+        "error": "TYPE"
+      }
+    },
+    {
+      "id": "static.nested_row_form",
+      "description": "row-form aggregates cannot nest",
+      "expr": "sum(items, count(sub, true))",
+      "expectStatic": {
+        "error": "TYPE"
+      }
+    },
+    {
+      "id": "static.changed_needs_reference",
+      "expr": "changed(1)",
+      "expectStatic": {
+        "error": "TYPE"
+      }
     }
   ]
 }
