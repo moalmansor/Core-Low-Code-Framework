@@ -90,6 +90,9 @@ return [
         'cannot_delete_self' => 'You cannot delete your own account.',
         'cannot_suspend_self' => 'You cannot suspend or disable your own account.',
         'reset_own_2fa' => 'Reset your own two-factor authentication from your profile.',
+        'mail_not_configured' => 'Outgoing e-mail is not configured yet. Configure it in System settings → E-mail, then send the password link from the user\'s actions.',
+        'link_throttled' => 'A password link was sent to this user moments ago. Wait a minute before sending another.',
+        'mail_failed' => 'The password link could not be e-mailed. Error monitoring has the details.',
         'self_manager' => 'A user cannot be their own manager.',
     ],
 ];

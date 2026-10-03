@@ -429,6 +429,8 @@
   "users.activated": "User activated.",
   "users.all_statuses": "All statuses",
   "users.created": "User created; a password set-up link was e-mailed.",
+  "users.created_mail_failed": "User created, but the password link could not be e-mailed. Error monitoring has the details; use \"Send password link\" to try again.",
+  "users.created_no_mail": "User created. No password link was sent because outgoing e-mail is not configured yet: configure it in System settings → E-mail, then use \"Send password link\" in the user's actions.",
   "users.delete_confirm": "Delete {name}? Their history stays in the audit log.",
   "users.deleted": "User deleted.",
   "users.department": "Department",

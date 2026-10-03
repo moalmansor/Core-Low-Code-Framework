@@ -37,6 +37,12 @@ interface UserRow {
   roles: { uuid: string; key: string; name: string }[]
 }
 
+/** POST /users: whether the password-setup link could be e-mailed. */
+interface CreatedUser {
+  data: UserRow
+  meta?: { password_link: 'sent' | 'mail_not_configured' | 'throttled' | 'failed' | null }
+}
+
 const { t } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
@@ -100,10 +106,18 @@ async function save(): Promise<void> {
   }
   errors.value = {}
   try {
-    const done = await withStepUp(stepUp, (code) => (e.uuid ? send('patch', `/users/${e.uuid}`, { ...body, confirmation_code: code }) : send('post', '/users', { ...body, confirmation_code: code })))
+    const done = await withStepUp(stepUp, (code) =>
+      e.uuid ? send('patch', `/users/${e.uuid}`, { ...body, confirmation_code: code }) : send<CreatedUser>('post', '/users', { ...body, confirmation_code: code }),
+    )
     if (done === null) return
     editing.value = null
-    toast.add({ severity: 'success', summary: e.uuid ? t('common.saved') : t('users.created'), life: 4000 })
+    const link = e.uuid ? undefined : (done as CreatedUser).meta?.password_link
+    if (link === 'mail_not_configured' || link === 'failed') {
+      // The account exists; only the e-mailed password link is missing.
+      toast.add({ severity: 'warn', summary: t(link === 'failed' ? 'users.created_mail_failed' : 'users.created_no_mail'), life: 12000 })
+    } else {
+      toast.add({ severity: 'success', summary: e.uuid ? t('common.saved') : t('users.created'), life: 4000 })
+    }
     await load()
   } catch (err) {
     if (err instanceof ApiError) {

@@ -12,6 +12,8 @@ use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
+use Symfony\Component\Mailer\Exception\TransportException;
 
 beforeEach(function () {
     $this->completeSetup();
@@ -26,7 +28,7 @@ function roleUuid(string $key): string
 it('creates a user, sends a password set-up link, and audits the change', function () {
     $this->actingAs($this->superAdmin(), 'web');
     $uuid = $this->postJson('/api/v1/users', ['name' => 'Sara Ali', 'email' => 'Sara@Example.test', 'roles' => [roleUuid('user')]])
-        ->assertCreated()->assertJsonPath('data.email', 'sara@example.test')->json('data.uuid');
+        ->assertCreated()->assertJsonPath('data.email', 'sara@example.test')->assertJsonPath('meta.password_link', 'sent')->json('data.uuid');
     $user = User::query()->where('uuid', $uuid)->firstOrFail();
     expect($user->password)->toBeNull()->and($user->roleKeys())->toBe(['user']);
     Notification::assertSentTo($user, ResetPassword::class);
@@ -34,6 +36,34 @@ it('creates a user, sends a password set-up link, and audits the change', functi
 
     $this->postJson('/api/v1/users', ['name' => 'Dup', 'email' => 'sara@example.test'])->assertUnprocessable()->assertJsonValidationErrors('email');
     $this->getJson('/api/v1/users?search=sara')->assertOk()->assertJsonPath('total', 1);
+});
+
+it('creates the user even when outgoing e-mail is not configured yet', function () {
+    // The setup wizard lets the administrator configure e-mail later.
+    config(['mail.default' => 'lcf']);
+    $this->actingAs($this->superAdmin(), 'web');
+    $uuid = $this->postJson('/api/v1/users', ['name' => 'Omar Said', 'email' => 'omar@example.test'])
+        ->assertCreated()->assertJsonPath('meta.password_link', 'mail_not_configured')->json('data.uuid');
+    expect(User::query()->where('uuid', $uuid)->exists())->toBeTrue();
+    Notification::assertNothingSent();
+
+    $this->postJson("/api/v1/users/{$uuid}/password-link")
+        ->assertUnprocessable()->assertJsonPath('message', __('ui.users.mail_not_configured'));
+});
+
+it('creates the user and reports the failure when the link cannot be e-mailed', function () {
+    $broker = Mockery::mock();
+    $broker->shouldReceive('sendResetLink')->andThrow(new TransportException('Connection refused'));
+    Password::shouldReceive('broker')->andReturn($broker);
+    $this->actingAs($this->superAdmin(), 'web');
+
+    $uuid = $this->postJson('/api/v1/users', ['name' => 'Huda Nasser', 'email' => 'huda@example.test'])
+        ->assertCreated()->assertJsonPath('meta.password_link', 'failed')->json('data.uuid');
+    expect(User::query()->where('uuid', $uuid)->exists())->toBeTrue()
+        ->and(DB::table('error_logs')->count())->toBeGreaterThan(0);
+
+    $this->postJson("/api/v1/users/{$uuid}/password-link")
+        ->assertUnprocessable()->assertJsonPath('message', __('ui.users.mail_failed'));
 });
 
 it('never exposes password hashes or 2FA secrets', function () {

@@ -21,6 +21,9 @@ test('administrators build the department tree and create users', async ({ page 
   await page.getByTestId('user-name').fill('Sara Ali')
   await page.getByTestId('user-email').fill('sara@e2e.test')
   await page.getByTestId('user-save').click()
+  // Setup chose "configure e-mail later": the user is created and the
+  // administrator is told the password link was not sent.
+  await expect(page.getByText('No password link was sent')).toBeVisible()
   await expect(page.locator('table')).toContainText('sara@e2e.test')
   expect(problems).toEqual([])
 })

@@ -8,8 +8,10 @@ use App\Modules\Access\AccessGuard;
 use App\Modules\Access\EscalationGuard;
 use App\Modules\Access\Models\Role;
 use App\Modules\Audit\AuditWriter;
+use App\Modules\Core\Mail\SettingsSmtpTransport;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Sessions\SessionRevoker;
+use App\Modules\Monitoring\ErrorReporter;
 use App\Modules\Organization\Models\Department;
 use App\Support\Like;
 use Illuminate\Http\JsonResponse;
@@ -20,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\Rule;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 /** User administration (Phase 1 scope: Users & Departments management). */
 final class UserController extends Controller
@@ -28,6 +31,7 @@ final class UserController extends Controller
         private readonly AccessGuard $guard,
         private readonly AuditWriter $audit,
         private readonly EscalationGuard $escalation,
+        private readonly ErrorReporter $errors,
     ) {}
 
     private function actor(): User
@@ -98,11 +102,15 @@ final class UserController extends Controller
 
             return $user;
         });
-        if ($user->auth_source === 'local') {
-            Password::broker()->sendResetLink(['email' => $user->email]);
-        }
+        // The account exists even when the link cannot be e-mailed (for example
+        // before SMTP is configured); the response says so, and the link can be
+        // sent later from the user's actions.
+        $link = $user->auth_source === 'local' ? $this->sendPasswordSetupLink($user) : null;
 
-        return response()->json(['data' => $this->present($user->load(['roles', 'department']))], 201);
+        return response()->json([
+            'data' => $this->present($user->load(['roles', 'department'])),
+            'meta' => ['password_link' => $link],
+        ], 201);
     }
 
     public function update(Request $request, User $user): JsonResponse
@@ -175,10 +183,38 @@ final class UserController extends Controller
         Gate::authorize('system.manage_users');
         $this->escalation->assertCanManage($this->actor(), $user);
         abort_if($user->auth_source !== 'local', 422, __('ui.auth.external_account'));
-        Password::broker()->sendResetLink(['email' => $user->email]);
+        $link = $this->sendPasswordSetupLink($user);
+        abort_if($link === 'mail_not_configured', 422, __('ui.users.mail_not_configured'));
+        abort_if($link === 'throttled', 429, __('ui.users.link_throttled'));
+        abort_if($link === 'failed', 422, __('ui.users.mail_failed'));
         $this->audit->record('user.password_link_sent', 'access', objectType: 'user', objectId: $user->id);
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * E-mails a password-setup link.
+     *
+     * @return 'sent'|'mail_not_configured'|'throttled'|'failed'
+     */
+    private function sendPasswordSetupLink(User $user): string
+    {
+        if (config('mail.default') === 'lcf' && app(SettingsSmtpTransport::class)->config() === null) {
+            return 'mail_not_configured';
+        }
+        try {
+            $status = Password::broker()->sendResetLink(['email' => $user->email]);
+        } catch (TransportExceptionInterface $e) {
+            $this->errors->report($e);
+
+            return 'failed';
+        }
+
+        return match ($status) {
+            Password::RESET_LINK_SENT => 'sent',
+            Password::RESET_THROTTLED => 'throttled',
+            default => 'failed',
+        };
     }
 
     public function sessions(User $user): JsonResponse
