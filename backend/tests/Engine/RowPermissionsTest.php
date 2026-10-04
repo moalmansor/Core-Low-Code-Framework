@@ -33,7 +33,7 @@ it('enforces repeater row permissions and gives the client its user context', fu
 
     // Rows written by someone allowed to add them may be removed by a super admin.
     $id = DB::table('f_expenses')->where('uuid', $created['uuid'])->value('id');
-    DB::table('f_expenses__lines')->insert(['uuid' => uid(), 'organization_id' => 1, 'parent_id' => $id, 'sort_order' => 0, 'amount' => '5', 'created_at' => now(), 'updated_at' => now()]);
+    DB::table('f_expenses__lines')->insert(['uuid' => uid(), 'organization_id' => DB::table('f_expenses')->where('id', $id)->value('organization_id'), 'parent_id' => $id, 'sort_order' => 0, 'amount' => '5', 'created_at' => now(), 'updated_at' => now()]);
     $this->patchJson("/api/v1/r/{$form}/{$created['uuid']}", ['values' => ['lines' => []], 'row_version' => 1])->assertOk();
     expect(DB::table('f_expenses__lines')->where('parent_id', $id)->count())->toBe(0);
 });
