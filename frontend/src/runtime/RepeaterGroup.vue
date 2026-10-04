@@ -33,11 +33,13 @@ const editable = computed(() => {
 })
 
 /**
- * Row permissions name roles by uuid, which the client cannot match against
- * the user's roles, so a restricted action is withheld here (secure default).
+ * Row permissions name the roles allowed to add, remove or reorder rows (by
+ * uuid); an empty list allows everyone. The server enforces the same rule.
  */
 function permitted(kind: 'add' | 'remove' | 'reorder'): boolean {
-  return editable.value && (cfg.value.rowPermissions?.[kind] ?? []).length === 0
+  const allowed = (cfg.value.rowPermissions?.[kind] ?? []).map((u) => u.toLowerCase())
+  const mine = ctx.env.value.user.roleUuids ?? []
+  return editable.value && (allowed.length === 0 || allowed.some((u) => mine.includes(u)))
 }
 const canAdd = computed(() => permitted('add') && (cfg.value.maxRows === null || cfg.value.maxRows === undefined || rows.value.length < cfg.value.maxRows))
 const canRemove = computed(() => permitted('remove') && rows.value.length > (cfg.value.minRows ?? 0))

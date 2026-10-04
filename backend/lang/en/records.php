@@ -16,6 +16,11 @@ return [
     'cascade_too_deep' => 'Deleting this record would remove too many levels of related records.',
     'legal_hold' => 'This record is under legal hold and cannot be deleted.',
     'row_version_required' => 'The version of the record you loaded is required.',
+    'rows' => [
+        'add_forbidden' => 'You cannot add rows here.',
+        'remove_forbidden' => 'You cannot remove rows here.',
+        'reorder_forbidden' => 'You cannot change the order of these rows.',
+    ],
     'export' => [
         'columns' => [
             'id' => 'Record ID',

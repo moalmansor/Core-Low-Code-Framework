@@ -231,6 +231,22 @@ export interface ClientDefinition {
   /** Present on GET /r/{form}/definition. */
   name?: string
   names?: I18nText
+  /** The user the definition was resolved for (the previewed user or role in builder previews). */
+  user?: DefinitionUser
+}
+
+/** User context for expressions, defaults and row permissions, as the server resolves it. */
+export interface DefinitionUser {
+  id: number | null
+  uuid: string | null
+  name: string | null
+  email: string | null
+  roles: string[]
+  role_uuids: string[]
+  department: string | null
+  department_uuid: string | null
+  departments: string[]
+  attributes: Record<string, string | number | boolean | null>
 }
 
 /** Values by field key; repeater keys hold row arrays. */

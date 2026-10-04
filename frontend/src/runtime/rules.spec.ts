@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { daysFromCivil } from '@/expressions/civil'
 import { FormIndex } from './formIndex'
-import { applyDefaults, baseContext, fieldState, runRules, type RuleEnv } from './rules'
+import { applyDefaults, baseContext, contextUser, fieldState, runRules, type RuleEnv } from './rules'
 import { ast, definition, field, group, uuid } from './testing'
 import type { Condition } from './types'
 import { validate } from './validation'
@@ -88,6 +88,32 @@ describe('rule runtime (twin of RuleRuntime.php)', () => {
     expect(values.grand).toBe('40')
     expect(state.flag(discount.uuid, 'hidden', ['lines', 0])).toBe(true)
     expect(state.flag(discount.uuid, 'hidden', ['lines', 1])).toBe(false)
+  })
+
+  it('uses the server user context for department defaults and @user attributes', () => {
+    const user = contextUser(
+      {
+        id: 3,
+        uuid: 'u-1',
+        name: 'Sara',
+        email: null,
+        roles: ['clerk'],
+        role_uuids: ['r-1'],
+        department: 'FIN',
+        department_uuid: 'd-1',
+        departments: ['FIN', 'HQ'],
+        attributes: { grade: 7, remote: true, region: 'west' },
+      },
+      'ar',
+    )
+    expect(user.roleUuids).toEqual(['r-1'])
+    const fields = [
+      field('dept_code', 'text', { behavior: { default: { kind: 'current_department' } } }),
+      field('dept', 'department_picker', { behavior: { default: { kind: 'current_department' } } }),
+      field('grade', 'number', { behavior: { default: { kind: 'formula', expr: { k: 'ref', scope: 'user', path: ['attributes', 'grade'] } as never } } }),
+    ]
+    const values = applyDefaults(new FormIndex(definition(fields)), {}, env('create', { user }))
+    expect(values).toMatchObject({ dept_code: 'FIN', dept: 'd-1', grade: '7' })
   })
 
   it('applies defaults on create: static, user, today, URL parameter, field, formula, option defaults and repeater rows', () => {

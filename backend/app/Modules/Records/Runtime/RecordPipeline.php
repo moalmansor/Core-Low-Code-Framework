@@ -57,7 +57,7 @@ final class RecordPipeline
             $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'create');
             [$normalized, $errors] = $this->normalize($rt, $input);
             [$normalized, $rowErrors] = $this->guardRows($rt, $normalized, null, $levels['fields']);
-            $errors += $rowErrors;
+            $errors += $rowErrors + $this->rowPermissions($rt, $normalized, null, $user);
             $result = $this->rules->run($rt, $normalized, null, 'create', $user, true, $params);
             $blocked = $this->blocked($rt, $levels['fields'], $result['state']);
             if (array_intersect_key($normalized, $blocked) !== []) {
@@ -128,7 +128,7 @@ final class RecordPipeline
             }
             [$normalized, $errors] = $this->normalize($rt, $input);
             [$normalized, $rowErrors] = $this->guardRows($rt, $normalized, $current['values'], $levels['fields']);
-            $errors += $rowErrors;
+            $errors += $rowErrors + $this->rowPermissions($rt, $normalized, $current['values'], $user);
             $merged = array_replace($current['values'], $normalized);
             $result = $this->rules->run($rt, $merged, $current['values'], 'edit', $user, false);
             $blocked = $this->blocked($rt, $levels['fields'], $result['state']);
@@ -191,7 +191,7 @@ final class RecordPipeline
         $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, $mode);
         [$normalized, $errors] = $this->normalize($rt, $input);
         [$normalized, $rowErrors] = $this->guardRows($rt, $normalized, $current['values'] ?? null, $levels['fields']);
-        $errors += $rowErrors;
+        $errors += $rowErrors + $this->rowPermissions($rt, $normalized, $current['values'] ?? null, $user);
         $base = $current === null ? $normalized : array_replace($current['values'], $normalized);
         $result = $this->rules->run($rt, $base, $current['values'] ?? null, $mode, $user, $current === null);
         $blocked = $this->blocked($rt, $levels['fields'], $result['state']);
@@ -418,6 +418,44 @@ final class RecordPipeline
         }
 
         return [$normalized, $errors];
+    }
+
+    /**
+     * Repeater row permissions (group `repeater.rowPermissions`): when a list
+     * of roles is set for adding, removing or reordering rows, only holders of
+     * one of those roles may do it.
+     *
+     * @param  array<string, mixed>  $normalized
+     * @param  array<string, mixed>|null  $current
+     * @return array<string, list<string>>
+     */
+    private function rowPermissions(FormRuntime $rt, array $normalized, ?array $current, User $user): array
+    {
+        $errors = [];
+        $roles = null;
+        foreach ($rt->repeaters as $rep) {
+            $key = $rep['group']['key'];
+            $rules = $rep['group']['repeater']['rowPermissions'] ?? [];
+            if (! isset($normalized[$key]) || ! is_array($rules) || array_filter($rules) === []) {
+                continue;
+            }
+            $roles ??= $user->activeRoles()->pluck('roles.uuid')->map(static fn ($u) => strtolower((string) $u))->all();
+            $may = static fn (string $kind): bool => ($rules[$kind] ?? []) === [] || array_intersect(array_map('strtolower', $rules[$kind]), $roles) !== [];
+            $stored = array_values(array_filter(array_map(static fn ($r) => $r['uuid'] ?? null, $current[$key] ?? [])));
+            $submitted = array_map(static fn ($r) => $r['uuid'] ?? null, $normalized[$key]);
+            $kept = array_values(array_filter($submitted, static fn ($u) => $u !== null && in_array($u, $stored, true)));
+            if (! $may('add') && count($kept) < count($submitted)) {
+                $errors[$key][] = __('records.rows.add_forbidden');
+            }
+            if (! $may('remove') && count(array_diff($stored, $kept)) > 0) {
+                $errors[$key][] = __('records.rows.remove_forbidden');
+            }
+            if (! $may('reorder') && $kept !== array_values(array_intersect($stored, $kept))) {
+                $errors[$key][] = __('records.rows.reorder_forbidden');
+            }
+        }
+
+        return $errors;
     }
 
     /**

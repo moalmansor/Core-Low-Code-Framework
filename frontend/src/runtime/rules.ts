@@ -1,6 +1,6 @@
-import { Context, evaluate, Values as V, type ContextUser, type RawNode, type Value } from '@/expressions'
+import { Context, Decimal, evaluate, Values as V, type ContextUser, type RawNode, type Value } from '@/expressions'
 import type { FormIndex } from './formIndex'
-import type { ClientField, Effect, EffectTarget, I18nText, References, Row, Values } from './types'
+import type { ClientField, DefinitionUser, Effect, EffectTarget, I18nText, References, Row, Values } from './types'
 import { toApi, ValuesRecord } from './values'
 
 /**
@@ -54,7 +54,7 @@ export class RuleState {
 
 export interface RuleEnv {
   mode: 'create' | 'edit' | 'view' | 'print'
-  user: ContextUser & { uuid?: string | null }
+  user: ContextUser & { uuid?: string | null; departmentUuid?: string | null; roleUuids?: string[] }
   /** URL parameters for `url_param` defaults and `@context.param.*`. */
   params?: Record<string, string>
   locale?: string
@@ -62,6 +62,27 @@ export interface RuleEnv {
   references?: References
   /** Fixed evaluation instant (tests); defaults to now. */
   now?: { today: number; now: number }
+}
+
+/** Expression user context from the server's definition user block. */
+export function contextUser(u: DefinitionUser, locale: string): RuleEnv['user'] {
+  const attributes: Record<string, Value> = {}
+  for (const [k, v] of Object.entries(u.attributes)) {
+    attributes[k] = typeof v === 'boolean' ? V.bool(v) : typeof v === 'number' ? ((d) => (d ? V.number(d) : V.null()))(Decimal.parse(String(v))) : typeof v === 'string' ? V.text(v) : V.null()
+  }
+  return {
+    id: u.id,
+    uuid: u.uuid,
+    name: u.name,
+    email: u.email,
+    roles: u.roles,
+    roleUuids: u.role_uuids,
+    department: u.department,
+    departmentUuid: u.department_uuid,
+    departments: u.departments,
+    attributes,
+    locale,
+  }
 }
 
 export function baseContext(index: FormIndex, env: RuleEnv): Context {
@@ -106,8 +127,7 @@ export function defaultValue(index: FormIndex, field: ClientField, values: Value
     case 'current_user':
       return storage === 'user' ? (env.user.uuid ?? null)?.toLowerCase() || null : (env.user.name ?? null)
     case 'current_department':
-      // Needs the department's uuid or code, which only the server holds; applied on save.
-      return null
+      return storage === 'department' ? (env.user.departmentUuid ?? null) : (env.user.department ?? null)
     case 'now':
       return toApi(index, field, V.datetime(ctx.now))
     case 'today':

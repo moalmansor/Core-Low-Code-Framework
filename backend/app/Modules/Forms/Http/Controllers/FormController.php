@@ -27,6 +27,7 @@ use App\Modules\Forms\Publishing\PublishBlocked;
 use App\Modules\Forms\Publishing\PublishService;
 use App\Modules\Forms\Publishing\VersionDiff;
 use App\Modules\Identity\Models\User;
+use App\Modules\Records\Runtime\ExpressionContext;
 use App\Modules\Schema\Models\MigrationPlan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -228,12 +229,17 @@ final class FormController extends Controller
         if (! empty($data['as_role'])) {
             $role = Role::query()->where('uuid', $data['as_role'])->firstOrFail();
             $levels = $access->resolveForRole($role->id, $form->id, $form->uuid, $definition, $mode);
+            // A role has no person behind it: only its key and uuid are known.
+            $userContext = ['id' => null, 'uuid' => null, 'name' => null, 'email' => null, 'roles' => [$role->key], 'role_uuids' => [strtolower((string) $role->uuid)],
+                'department' => null, 'department_uuid' => null, 'departments' => [], 'attributes' => []];
         } else {
+            /** @var User $user */
             $user = ! empty($data['as_user']) ? User::query()->where('uuid', $data['as_user'])->firstOrFail() : Auth::user();
             $levels = $access->resolve($user, $form->id, $form->uuid, $definition + ['form' => $definition['form'] + ['version' => 'draft-'.$form->draft_updated_at?->getTimestamp()]], $mode);
+            $userContext = app(ExpressionContext::class)->client($user);
         }
 
-        return response()->json(['data' => ['definition' => $client->build($definition, $levels, $mode), 'problems' => $compiled['problems']]]);
+        return response()->json(['data' => ['definition' => $client->build($definition, $levels, $mode) + ['user' => $userContext], 'problems' => $compiled['problems']]]);
     }
 
     public function impact(Form $form): JsonResponse

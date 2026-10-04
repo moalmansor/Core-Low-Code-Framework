@@ -11,6 +11,7 @@ use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Forms\Definition\ClientDefinition;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
+use App\Modules\Records\Runtime\ExpressionContext;
 use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RecordException;
@@ -55,7 +56,7 @@ final class RecordController extends Controller
         $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, $mode);
         abort_unless($levels['modes'][$mode] ?? false, 403, __('records.forbidden'));
 
-        return response()->json(['data' => $client->build($rt->definition, $levels, $mode) + ['name' => $form->translate('name') ?? $form->key, 'names' => $form->translationsFor('name')]]);
+        return response()->json(['data' => $client->build($rt->definition, $levels, $mode) + ['name' => $form->translate('name') ?? $form->key, 'names' => $form->translationsFor('name'), 'user' => app(ExpressionContext::class)->client($this->user())]]);
     }
 
     public function index(Request $request, Form $form, RecordQuery $query): JsonResponse

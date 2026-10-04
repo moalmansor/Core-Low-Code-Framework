@@ -25,6 +25,32 @@ final class ExpressionContext
         return $this->memo[$user->id] ??= $this->build($user);
     }
 
+    /**
+     * The same user context for the browser runtime (definition responses):
+     * attribute values as plain JSON scalars, plus the uuids the client needs
+     * for `current_department` defaults and repeater row permissions.
+     *
+     * @return array<string, mixed>
+     */
+    public function client(User $user): array
+    {
+        $ctx = $this->user($user);
+        $raw = [];
+        foreach ($user->attributes ?? [] as $key => $value) {
+            $raw[(string) $key] = is_scalar($value) ? $value : null;
+        }
+
+        return [
+            'id' => $ctx['id'], 'uuid' => strtolower((string) $user->uuid), 'name' => $ctx['name'], 'email' => $ctx['email'],
+            'roles' => $ctx['roles'],
+            'role_uuids' => $user->activeRoles()->pluck('roles.uuid')->map(static fn ($u) => strtolower((string) $u))->all(),
+            'department' => $ctx['department'],
+            'department_uuid' => $user->department_id === null ? null : strtolower((string) DB::table('departments')->where('id', $user->department_id)->value('uuid')),
+            'departments' => $ctx['departments'],
+            'attributes' => $raw,
+        ];
+    }
+
     /** @return array{id: int, name: string, email: string|null, roles: list<string>, department: string|null, departments: list<string>, attributes: array<string, Value>, locale: string|null} */
     private function build(User $user): array
     {

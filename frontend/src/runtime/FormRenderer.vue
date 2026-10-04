@@ -10,7 +10,7 @@ import { pathOf, RECORD_FILES, RENDERER, valueOf, type RendererContext } from '.
 import { FormIndex } from './formIndex'
 import GroupBody from './GroupBody.vue'
 import { pickText } from './i18nText'
-import { applyDefaults, baseContext, RuleState, runRules, type RowRef, type RuleEnv } from './rules'
+import { applyDefaults, baseContext, contextUser, RuleState, runRules, type RowRef, type RuleEnv } from './rules'
 import type { ClientDefinition, ClientField, ClientGroup, FileMeta, FormMode, References, Row, Values } from './types'
 import { validate as runValidation } from './validation'
 import { same, toApi, ValuesRecord } from './values'
@@ -67,7 +67,9 @@ const params = computed<Record<string, string>>(() => {
 
 const env = computed<RuleEnv>(() => ({
   mode: props.mode,
-  user: { id: session.me?.id ?? null, uuid: session.me?.uuid ?? null, name: session.me?.name ?? null, email: session.me?.email ?? null, roles: session.me?.roles ?? [], locale: locale.value },
+  user: props.definition.user
+    ? contextUser(props.definition.user, locale.value)
+    : { id: session.me?.id ?? null, uuid: session.me?.uuid ?? null, name: session.me?.name ?? null, email: session.me?.email ?? null, roles: session.me?.roles ?? [], locale: locale.value },
   params: params.value,
   locale: locale.value,
   references: references.value,
