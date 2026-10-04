@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Modules\Access\AccessCache;
+use App\Modules\Access\Models\PermissionAssignment;
 use Illuminate\Support\Facades\DB;
 
 require_once __DIR__.'/helpers.php';
@@ -34,4 +36,14 @@ it('enforces repeater row permissions and gives the client its user context', fu
     DB::table('f_expenses__lines')->insert(['uuid' => uid(), 'organization_id' => 1, 'parent_id' => $id, 'sort_order' => 0, 'amount' => '5', 'created_at' => now(), 'updated_at' => now()]);
     $this->patchJson("/api/v1/r/{$form}/{$created['uuid']}", ['values' => ['lines' => []], 'row_version' => 1])->assertOk();
     expect(DB::table('f_expenses__lines')->where('parent_id', $id)->count())->toBe(0);
+});
+
+it('lets form builders list roles for previews and row permissions', function () {
+    $user = $this->makeUser();
+    $permission = DB::table('permissions')->where('key', 'system.manage_forms')->value('id');
+    PermissionAssignment::query()->create(['permission_id' => $permission, 'subject_type' => 'user', 'subject_id' => $user->id, 'effect' => 'allow', 'include_descendants' => false]);
+    app(AccessCache::class)->bump();
+    $this->flushSession();
+    $this->actingAs($user, 'web');
+    $this->getJson('/api/v1/role-options')->assertOk()->assertJsonFragment(['key' => 'user']);
 });

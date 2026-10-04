@@ -71,7 +71,7 @@ watch(visible, async (open) => {
   if (open) {
     originalLocale = session.locale
     values.value = {}
-    if (!roles.value.length && (session.can('system.manage_users') || session.can('system.manage_permissions'))) roles.value = await referenceApi.roles().catch(() => [])
+    if (!roles.value.length) roles.value = await referenceApi.roles().catch(() => [])
     await load()
   } else if (originalLocale && originalLocale !== session.locale) {
     await session.switchLocale(originalLocale, false)

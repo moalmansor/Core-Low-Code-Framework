@@ -32,7 +32,7 @@ final class RoleController extends Controller
     /** Role choices for user administration (holders of manage_users need them too). */
     public function options(): JsonResponse
     {
-        abort_unless(Gate::any(['system.manage_users', 'system.manage_permissions']), 403);
+        abort_unless(Gate::any(['system.manage_users', 'system.manage_permissions', 'system.manage_forms']), 403);
         $roles = Role::query()->orderBy('sort_order')->orderBy('id')->get();
 
         return response()->json(['data' => $roles->map(static fn (Role $r): array => [
