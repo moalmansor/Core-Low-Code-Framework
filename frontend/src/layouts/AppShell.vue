@@ -7,7 +7,19 @@ import { useRoute, useRouter } from 'vue-router'
 import { get } from '@/api/http'
 import BrandMark from '@/components/BrandMark.vue'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+import NavTree, { type NavItem } from '@/runtime/NavTree.vue'
 import { useSession } from '@/stores/session'
+
+/** A published application with the menu items the user may see (GET /navigation). */
+interface NavApp {
+  uuid: string
+  key: string
+  name: string
+  icon: string | null
+  color: string | null
+  maintenance: boolean
+  items: NavItem[]
+}
 
 interface Area {
   key: string
@@ -20,6 +32,8 @@ const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 const areas = ref<Area[]>([])
+const apps = ref<NavApp[]>([])
+const collapsedApps = ref<Record<string, boolean>>({})
 const sidebarOpen = ref(false)
 const userMenu = ref<InstanceType<typeof Menu> | null>(null)
 
@@ -30,8 +44,23 @@ async function loadAreas(): Promise<void> {
   }
   areas.value = (await get<{ data: { areas: Area[] } }>('/admin/console')).data.areas
 }
-onMounted(loadAreas)
-watch(() => [session.gate, session.me?.permissions.length], loadAreas)
+async function loadNavigation(): Promise<void> {
+  if (session.gate !== 'none') {
+    apps.value = []
+    return
+  }
+  try {
+    apps.value = (await get<{ data: NavApp[] }>('/navigation')).data
+  } catch {
+    apps.value = []
+  }
+}
+function loadSidebar(): void {
+  void loadAreas()
+  void loadNavigation()
+}
+onMounted(loadSidebar)
+watch(() => [session.gate, session.me?.permissions.length, session.locale], loadSidebar)
 watch(
   () => route.fullPath,
   () => {
@@ -81,6 +110,21 @@ const userItems = computed(() => [
       </div>
       <nav class="p-3 flex flex-col gap-1 overflow-y-auto" data-testid="sidebar">
         <RouterLink class="nav-link" :to="{ name: 'home' }" exact-active-class="nav-active"><i class="pi pi-home" />{{ t('shell.home') }}</RouterLink>
+        <section v-for="app in apps" :key="app.uuid" class="mt-3" :data-testid="`nav-app-${app.key}`">
+          <button
+            type="button"
+            class="w-full mb-1 px-3 flex items-center gap-2 text-xs uppercase tracking-wide text-muted-color"
+            :aria-expanded="!collapsedApps[app.uuid]"
+            @click="collapsedApps = { ...collapsedApps, [app.uuid]: !collapsedApps[app.uuid] }"
+          >
+            <i v-if="app.icon" :class="app.icon" :style="app.color ? { color: app.color } : undefined" />
+            <span class="flex-1 text-start">{{ app.name }}</span>
+            <i v-if="app.maintenance" v-tooltip="t('records.app_maintenance')" class="pi pi-wrench text-orange-500" />
+            <i :class="collapsedApps[app.uuid] ? 'pi pi-chevron-right rtl:rotate-180' : 'pi pi-chevron-down'" class="text-[0.625rem]" />
+          </button>
+          <NavTree v-if="!collapsedApps[app.uuid]" :items="app.items" />
+        </section>
+        <div v-if="apps.length && areas.length" class="mt-3 border-t border-surface-200 dark:border-surface-700" />
         <RouterLink v-if="areas.length" class="nav-link" :to="{ name: 'admin' }" exact-active-class="nav-active"><i class="pi pi-cog" />{{ t('admin.title') }}</RouterLink>
         <template v-for="[section, items] in sections" :key="section">
           <div class="mt-3 mb-1 px-3 text-xs uppercase tracking-wide text-muted-color">{{ t(`admin.section.${section}`) }}</div>
