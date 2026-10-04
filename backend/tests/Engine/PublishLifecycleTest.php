@@ -112,3 +112,20 @@ it('reverses applied steps when a step fails and keeps the previous version', fu
     $this->getJson("/api/v1/forms/{$form}")->assertJsonPath('data.version', 1)->assertJsonPath('data.state', 'published');
     expect(columnsOf('f_tickets'))->not->toHaveKey('aaa_first');
 });
+
+it('places a published form in the sidebar and grants the allowed roles', function () {
+    [$app, $form] = createForm($this, 'permits');
+    saveDraft($this, $form, [], [fieldDoc('title', 'text')])->assertOk();
+    $role = DB::table('roles')->where('key', 'user')->first();
+    $plan = publish($this, $form, [
+        'placement' => ['application' => $app, 'label' => ['en' => 'Permits', 'ar' => 'التصاريح']],
+        'allowed' => ['roles' => [$role->uuid]],
+    ]);
+    expect($plan['status'])->toBe('applied');
+    $formId = DB::table('forms')->where('uuid', $form)->value('id');
+    expect(DB::table('menu_items')->where('target_type', 'form')->where('target_id', $formId)->where('is_active', true)->exists())->toBeTrue();
+    $granted = DB::table('permission_assignments')->join('permissions', 'permissions.id', '=', 'permission_id')
+        ->where('subject_type', 'role')->where('subject_id', $role->id)->where('permissions.key', 'like', "form.{$form}.%")->pluck('permissions.key')->all();
+    expect($granted)->toContain("form.{$form}.view", "form.{$form}.create", "form.{$form}.edit");
+    $this->getJson('/api/v1/navigation')->assertOk()->assertSee('Permits');
+});

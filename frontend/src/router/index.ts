@@ -18,16 +18,6 @@ const routes: RouteRecordRaw[] = [
   { path: '/setup', name: 'setup', component: () => import('@/views/setup/SetupWizard.vue'), meta: { public: true, title: 'setup.title' } },
   {
     path: '/',
-    component: () => import('@/layouts/AuthLayout.vue'),
-    children: [
-      { path: 'login', name: 'login', component: () => import('@/views/auth/LoginView.vue'), meta: { guest: true, title: 'auth.sign_in' } },
-      { path: 'login/two-factor', name: 'two-factor', component: () => import('@/views/auth/TwoFactorChallenge.vue'), meta: { guest: true, title: 'auth.two_factor_title' } },
-      { path: 'forgot-password', name: 'forgot', component: () => import('@/views/auth/ForgotPassword.vue'), meta: { guest: true, title: 'auth.forgot_title' } },
-      { path: 'reset-password/:token', name: 'reset', component: () => import('@/views/auth/ResetPassword.vue'), meta: { guest: true, title: 'auth.reset_title' } },
-    ],
-  },
-  {
-    path: '/',
     component: () => import('@/layouts/AppShell.vue'),
     children: [
       { path: '', name: 'home', component: () => import('@/views/HomeView.vue'), meta: { title: 'shell.home' } },
@@ -59,6 +49,17 @@ const routes: RouteRecordRaw[] = [
       ...buildingRoutes,
       ...builderRoutes,
       ...runtimeRoutes,
+    ],
+  },
+  // After the shell: both parents have the path '/', and an exact '/' must open the shell's home.
+  {
+    path: '/',
+    component: () => import('@/layouts/AuthLayout.vue'),
+    children: [
+      { path: 'login', name: 'login', component: () => import('@/views/auth/LoginView.vue'), meta: { guest: true, title: 'auth.sign_in' } },
+      { path: 'login/two-factor', name: 'two-factor', component: () => import('@/views/auth/TwoFactorChallenge.vue'), meta: { guest: true, title: 'auth.two_factor_title' } },
+      { path: 'forgot-password', name: 'forgot', component: () => import('@/views/auth/ForgotPassword.vue'), meta: { guest: true, title: 'auth.forgot_title' } },
+      { path: 'reset-password/:token', name: 'reset', component: () => import('@/views/auth/ResetPassword.vue'), meta: { guest: true, title: 'auth.reset_title' } },
     ],
   },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFound.vue'), meta: { public: true } },

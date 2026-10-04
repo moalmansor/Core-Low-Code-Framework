@@ -57,7 +57,8 @@ final readonly class FieldType
             'native' => $this->native,
             'icon' => $this->icon,
             'calculated' => $this->calculated,
-            'defaults' => array_filter([
+            // An object even when empty: JSON `[]` would read as a list on the client.
+            'defaults' => (object) array_filter([
                 'length' => in_array($this->storage, ['string', 'choice', 'auto_number'], true) ? $this->defaultLength : null,
                 'precision' => $this->defaultPrecision,
                 'scale' => $this->defaultScale,

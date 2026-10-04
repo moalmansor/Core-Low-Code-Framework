@@ -496,6 +496,7 @@ export function pruneReferences(doc: DraftDocument): void {
 /** A new field of a palette type with the defaults the registry declares. */
 export function newField(info: FieldTypeInfo, label: I18nText): FieldDef {
   const stored = info.stored
+  const defaults = info.defaults && !Array.isArray(info.defaults) ? info.defaults : {}
   return {
     uuid: newUuid(),
     key: toKey(info.key),
@@ -504,9 +505,9 @@ export function newField(info: FieldTypeInfo, label: I18nText): FieldDef {
     order: 0,
     storage: stored
       ? {
-          ...(info.defaults.length !== undefined ? { length: info.defaults.length } : {}),
-          ...(info.defaults.precision !== undefined ? { precision: info.defaults.precision } : {}),
-          ...(info.defaults.scale !== undefined ? { scale: info.defaults.scale } : {}),
+          ...(defaults.length !== undefined ? { length: defaults.length } : {}),
+          ...(defaults.precision !== undefined ? { precision: defaults.precision } : {}),
+          ...(defaults.scale !== undefined ? { scale: defaults.scale } : {}),
           nullable: true,
           index: 'none',
         }

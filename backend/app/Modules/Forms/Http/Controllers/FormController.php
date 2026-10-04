@@ -294,7 +294,8 @@ final class FormController extends Controller
             Gate::authorize('system.manage_permissions');
         }
         try {
-            $plan = $this->publisher->start($form, (int) Auth::id(), $data + ['purpose' => $rollbackOf === null ? 'publish' : 'rollback', 'rollback_of' => $rollbackOf, 'placement' => ['menu' => $data['placement'] ?? null, 'allowed' => $data['allowed'] ?? null]]);
+            // The structured placement replaces the raw request keys (`+` would keep the raw ones).
+            $plan = $this->publisher->start($form, (int) Auth::id(), ['purpose' => $rollbackOf === null ? 'publish' : 'rollback', 'rollback_of' => $rollbackOf, 'placement' => ['menu' => $data['placement'] ?? null, 'allowed' => $data['allowed'] ?? null]] + $data);
         } catch (PublishBlocked $e) {
             return response()->json(['message' => $e->getMessage(), 'code' => $e->reason], $e->reason === 'impact_changed' ? 409 : 422);
         }
