@@ -135,7 +135,12 @@ function setLeafAst(leaf: RuleLeaf, ast: Ast | null): void {
 </script>
 
 <template>
-  <div :class="['rounded-md border p-2 flex flex-col gap-2', depth % 2 === 0 ? 'border-surface-300 dark:border-surface-600' : 'border-primary-200 dark:border-primary-800 bg-surface-50 dark:bg-surface-900']">
+  <div
+    :class="[
+      'rounded-md border p-2 flex flex-col gap-2',
+      depth % 2 === 0 ? 'border-surface-300 dark:border-surface-600' : 'border-primary-200 dark:border-primary-800 bg-surface-50 dark:bg-surface-900',
+    ]"
+  >
     <div class="flex flex-wrap items-center gap-2">
       <label class="flex items-center gap-1 text-sm"><Checkbox v-model="group.negate" binary />{{ t('builder.rule.not') }}</label>
       <SelectButton v-model="group.op" :options="joinOptions" option-label="label" option-value="value" :allow-empty="false" size="small" :aria-label="t('builder.rule.join')" />
@@ -148,7 +153,12 @@ function setLeafAst(leaf: RuleLeaf, ast: Ast | null): void {
       <RuleGroupEditor v-if="child.kind === 'group'" :group="child" :scope="scope" :depth="depth + 1" @remove="removeAt(i)" />
       <div v-else class="flex flex-wrap items-start gap-1 rounded bg-surface-0 dark:bg-surface-950 p-1">
         <span v-if="i > 0" class="text-xs font-semibold uppercase text-primary w-10 pt-2">{{ group.op === 'and' ? t('builder.rule.and') : t('builder.rule.or') }}</span>
-        <OperandInput v-if="!SUBJECTLESS.includes(child.operator)" :model-value="child.left ?? { kind: 'lit', t: 'null', v: null }" :scope="scope" @update:model-value="(o: Operand) => setLeft(child, o)" />
+        <OperandInput
+          v-if="!SUBJECTLESS.includes(child.operator)"
+          :model-value="child.left ?? { kind: 'lit', t: 'null', v: null }"
+          :scope="scope"
+          @update:model-value="(o: Operand) => setLeft(child, o)"
+        />
         <Select
           :model-value="child.operator"
           :options="operatorsFor(child)"
@@ -164,13 +174,15 @@ function setLeafAst(leaf: RuleLeaf, ast: Ast | null): void {
         </template>
         <template v-else>
           <template v-for="n in rightCount(child)" :key="n">
-            <span v-if="n > 1" class="text-xs text-muted-color pt-2">{{ child.operator === 'between' ? t('builder.rule.and') : child.operator === 'changed_from_to' ? t('builder.rule.to') : '' }}</span>
+            <span v-if="n > 1" class="text-xs text-muted-color pt-2">{{
+              child.operator === 'between' ? t('builder.rule.and') : child.operator === 'changed_from_to' ? t('builder.rule.to') : ''
+            }}</span>
             <OperandInput
               :model-value="child.right[n - 1]!"
-              @update:model-value="(o: Operand) => (child.right[n - 1] = o)"
               :scope="scope"
               :value-type="child.operator === 'has_role' || child.operator === 'in_department' ? (n === 2 ? 'boolean' : 'text') : child.operator === 'matches' ? 'text' : operandType(child.left)"
               :options="leftOptions(child)"
+              @update:model-value="(o: Operand) => (child.right[n - 1] = o)"
             />
             <Button
               v-if="OPERATOR_ARITY[child.operator] === 'list' && child.right.length > 1"

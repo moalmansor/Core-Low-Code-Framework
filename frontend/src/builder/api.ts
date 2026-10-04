@@ -178,15 +178,18 @@ export const builderApi = {
   evaluate: (body: { ast: AstNode; record?: Record<string, unknown>; old?: Record<string, unknown>; mode?: string; today?: string }) =>
     send<{ data: EvaluateResult }>('post', '/expressions/evaluate', body).then((r) => r.data),
   preview: (form: string, params: { mode: string; as_user?: string | null; as_role?: string | null }) =>
-    get<{ data: { definition: Record<string, unknown>; problems: DraftIssue[] } }>(`/forms/${form}/preview`, Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined))).then(
-      (r) => r.data,
-    ),
+    get<{ data: { definition: Record<string, unknown>; problems: DraftIssue[] } }>(
+      `/forms/${form}/preview`,
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined)),
+    ).then((r) => r.data),
   impact: (form: string) => send<{ data: ImpactResponse }>('post', `/forms/${form}/impact`).then((r) => r.data),
   publish: (form: string, body: Record<string, unknown>) => send<{ data: { plan: string; status: string } }>('post', `/forms/${form}/publish`, body).then((r) => r.data),
   plan: (plan: string) => get<{ data: PlanStatus }>(`/migration-plans/${plan}`).then((r) => r.data),
   versions: (form: string) => get<{ data: VersionEntry[] }>(`/forms/${form}/versions`).then((r) => r.data),
   version: (form: string, n: number) =>
-    get<{ data: { version: number; state: string; definition: Record<string, unknown>; impact_report: Impact | null; diff_from_previous: VersionDiff | null } }>(`/forms/${form}/versions/${n}`).then((r) => r.data),
+    get<{ data: { version: number; state: string; definition: Record<string, unknown>; impact_report: Impact | null; diff_from_previous: VersionDiff | null } }>(`/forms/${form}/versions/${n}`).then(
+      (r) => r.data,
+    ),
   diff: (form: string, from: string, to: string) => get<{ data: VersionDiff }>(`/forms/${form}/versions/${from}/diff/${to}`).then((r) => r.data),
   rollback: (form: string, n: number, discardDraft: boolean) =>
     send<{ data: { rollback_of: number; draft_updated_at: string } }>('post', `/forms/${form}/versions/${n}/rollback`, { discard_draft: discardDraft }).then((r) => r.data),

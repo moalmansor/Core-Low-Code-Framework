@@ -217,7 +217,10 @@ const status = computed(() => {
   if (local.value && !local.value.ok) return { severity: 'error', text: `${t(`builder.static_error.${local.value.code.toLowerCase()}`)}: ${local.value.message}` }
   if (server.value.state === 'checking') return { severity: 'muted', text: t('builder.formula.checking') }
   if (server.value.state === 'error' && server.value.error)
-    return { severity: 'error', text: `${t(`builder.static_error.${server.value.error.code.toLowerCase()}`)}: ${server.value.error.message}${server.value.stale ? ` — ${t('builder.formula.kept_previous')}` : ''}` }
+    return {
+      severity: 'error',
+      text: `${t(`builder.static_error.${server.value.error.code.toLowerCase()}`)}: ${server.value.error.message}${server.value.stale ? ` — ${t('builder.formula.kept_previous')}` : ''}`,
+    }
   if (server.value.state === 'ok') return { severity: 'ok', text: t('builder.formula.valid', { type: server.value.type }) }
   if (local.value?.ok) return { severity: 'ok', text: t('builder.formula.valid_local', { type: local.value.type }) }
   return { severity: 'muted', text: '' }
@@ -264,7 +267,8 @@ const status = computed(() => {
           :class="['px-2 py-1 cursor-pointer flex justify-between gap-3 text-sm', i === active ? 'bg-primary-100 dark:bg-primary-900' : '']"
           @mousedown.prevent="accept(i)"
         >
-          <span class="font-mono">{{ s.label }}</span><span class="text-xs text-muted-color truncate">{{ s.detail }}</span>
+          <span class="font-mono">{{ s.label }}</span
+          ><span class="text-xs text-muted-color truncate">{{ s.detail }}</span>
         </li>
       </ul>
     </div>
@@ -285,7 +289,9 @@ const status = computed(() => {
           <h4 class="text-sm font-semibold mb-1" :dir="builder.locales.find((l) => l.code === builder.locale)?.direction">{{ t(`builder.fn_group.${group}`) }}</h4>
           <ul class="flex flex-col">
             <li v-for="fn in fns" :key="fn">
-              <button type="button" class="w-full text-start px-1 py-0.5 rounded hover:bg-surface-100 dark:hover:bg-surface-800 font-mono text-xs" @click="insertText(`${fn}(`)">{{ signature(fn) }}</button>
+              <button type="button" class="w-full text-start px-1 py-0.5 rounded hover:bg-surface-100 dark:hover:bg-surface-800 font-mono text-xs" @click="insertText(`${fn}(`)">
+                {{ signature(fn) }}
+              </button>
             </li>
           </ul>
         </section>

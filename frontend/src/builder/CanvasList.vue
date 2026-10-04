@@ -128,15 +128,13 @@ const dir = computed(() => builder.locales.find((l) => l.code === locale.value)?
     @drop="onDrop"
   >
     <template v-for="(item, index) in items" :key="uuidOf(item)">
-      <div
-        role="listitem"
-        :style="{ gridColumn: `span ${span(item)} / span ${span(item)}` }"
-        class="relative min-w-0"
-        @dragover="(e) => onItemDragOver(e, index)"
-        @drop="onDrop"
-      >
+      <div role="listitem" :style="{ gridColumn: `span ${span(item)} / span ${span(item)}` }" class="relative min-w-0" @dragover="(e) => onItemDragOver(e, index)" @drop="onDrop">
         <div v-if="showLine(index)" :class="['absolute bg-primary rounded z-10', horizontal ? 'inset-y-0 -start-1.5 w-1' : 'inset-x-0 -top-1.5 h-1']" aria-hidden="true" />
-        <div v-if="showLine(index + 1) && index === items.length - 1" :class="['absolute bg-primary rounded z-10', horizontal ? 'inset-y-0 -end-1.5 w-1' : 'inset-x-0 -bottom-1.5 h-1']" aria-hidden="true" />
+        <div
+          v-if="showLine(index + 1) && index === items.length - 1"
+          :class="['absolute bg-primary rounded z-10', horizontal ? 'inset-y-0 -end-1.5 w-1' : 'inset-x-0 -bottom-1.5 h-1']"
+          aria-hidden="true"
+        />
 
         <!-- Group -->
         <section
@@ -164,7 +162,11 @@ const dir = computed(() => builder.locales.find((l) => l.code === locale.value)?
             <span v-if="ruleCounts.get(item.group.uuid)" class="text-xs text-primary" :title="t('builder.canvas.rules', { n: ruleCounts.get(item.group.uuid) })"
               ><i class="pi pi-bolt" aria-hidden="true" />{{ ruleCounts.get(item.group.uuid) }}</span
             >
-            <i v-if="issues.get(item.group.uuid)" :class="issues.get(item.group.uuid) === 'error' ? 'pi pi-times-circle text-red-500' : 'pi pi-exclamation-triangle text-orange-500'" :title="t('builder.problems.title')" />
+            <i
+              v-if="issues.get(item.group.uuid)"
+              :class="issues.get(item.group.uuid) === 'error' ? 'pi pi-times-circle text-red-500' : 'pi pi-exclamation-triangle text-orange-500'"
+              :title="t('builder.problems.title')"
+            />
             <span class="flex-1" />
             <template v-if="builder.selection.length === 1 && builder.selection[0] === item.group.uuid">
               <Button size="small" text icon="pi pi-arrow-up" :aria-label="t('builder.move_up')" :disabled="index === 0" @click.stop="builder.shift(-1, item.group.uuid)" />
@@ -204,7 +206,11 @@ const dir = computed(() => builder.locales.find((l) => l.code === locale.value)?
               ><i class="pi pi-bolt" aria-hidden="true" />{{ ruleCounts.get(item.field.uuid) }}</span
             >
             <i v-if="item.field.behavior?.formula" class="pi pi-calculator text-xs text-primary" :title="t('builder.behavior.formula')" />
-            <i v-if="issues.get(item.field.uuid)" :class="issues.get(item.field.uuid) === 'error' ? 'pi pi-times-circle text-red-500' : 'pi pi-exclamation-triangle text-orange-500'" :title="t('builder.problems.title')" />
+            <i
+              v-if="issues.get(item.field.uuid)"
+              :class="issues.get(item.field.uuid) === 'error' ? 'pi pi-times-circle text-red-500' : 'pi pi-exclamation-triangle text-orange-500'"
+              :title="t('builder.problems.title')"
+            />
             <span class="flex-1" />
             <span class="text-xs text-muted-color ltr-value truncate">{{ item.field.key }}</span>
             <template v-if="builder.selection.length === 1 && builder.selection[0] === item.field.uuid">
@@ -227,7 +233,11 @@ const dir = computed(() => builder.locales.find((l) => l.code === locale.value)?
     </template>
     <div v-if="items.length === 0" class="col-span-12 text-xs text-muted-color text-center py-3 relative">
       <div v-if="showLine(0)" class="absolute inset-x-0 top-0 h-1 bg-primary rounded" aria-hidden="true" />
-      {{ parentGroup && ['tabs', 'wizard', 'row'].includes(parentGroup.type) ? t('builder.canvas.drop_structural', { type: t(`builder.group.${parentGroup.type === 'tabs' ? 'tab' : parentGroup.type === 'wizard' ? 'step' : 'column'}`) }) : t('builder.canvas.drop_here') }}
+      {{
+        parentGroup && ['tabs', 'wizard', 'row'].includes(parentGroup.type)
+          ? t('builder.canvas.drop_structural', { type: t(`builder.group.${parentGroup.type === 'tabs' ? 'tab' : parentGroup.type === 'wizard' ? 'step' : 'column'}`) })
+          : t('builder.canvas.drop_here')
+      }}
     </div>
   </div>
 </template>

@@ -47,7 +47,11 @@ const saveLabel = computed(() => {
     case 'dirty':
       return { text: t('builder.save.unsaved'), icon: 'pi pi-circle-fill', severity: 'warn' }
     case 'saved':
-      return { text: builder.lastSavedAt ? t('builder.save.saved_at', { time: builder.lastSavedAt.toLocaleTimeString(builder.locale) }) : t('builder.save.saved'), icon: 'pi pi-check', severity: 'success' }
+      return {
+        text: builder.lastSavedAt ? t('builder.save.saved_at', { time: builder.lastSavedAt.toLocaleTimeString(builder.locale) }) : t('builder.save.saved'),
+        icon: 'pi pi-check',
+        severity: 'success',
+      }
     case 'invalid':
       return { text: t('builder.save.invalid'), icon: 'pi pi-times-circle', severity: 'danger' }
     case 'conflict':
@@ -160,12 +164,27 @@ function onPublished(version: number): void {
         </div>
       </div>
       <span class="flex-1" />
-      <span :class="['text-xs flex items-center gap-1', saveLabel.severity === 'danger' ? 'text-red-600' : saveLabel.severity === 'warn' ? 'text-orange-600' : 'text-muted-color']" role="status" aria-live="polite" data-testid="save-state">
+      <span
+        :class="['text-xs flex items-center gap-1', saveLabel.severity === 'danger' ? 'text-red-600' : saveLabel.severity === 'warn' ? 'text-orange-600' : 'text-muted-color']"
+        role="status"
+        aria-live="polite"
+        data-testid="save-state"
+      >
         <i :class="saveLabel.icon" aria-hidden="true" />{{ saveLabel.text }}
       </span>
-      <Button size="small" severity="secondary" icon="pi pi-save" :label="t('builder.save.now')" :disabled="!builder.doc || builder.saveState === 'saving'" data-testid="save-now" @click="builder.save()" />
+      <Button
+        size="small"
+        severity="secondary"
+        icon="pi pi-save"
+        :label="t('builder.save.now')"
+        :disabled="!builder.doc || builder.saveState === 'saving'"
+        data-testid="save-now"
+        @click="builder.save()"
+      />
       <Button size="small" severity="secondary" icon="pi pi-eye" :label="t('builder.preview.open')" :disabled="!builder.doc" data-testid="open-preview" @click="previewOpen = true" />
-      <RouterLink :to="{ name: 'admin.forms.versions', params: { form: formUuid } }" class="p-button p-button-secondary p-button-sm"><i class="pi pi-history me-1" />{{ t('builder.versions') }}</RouterLink>
+      <RouterLink :to="{ name: 'admin.forms.versions', params: { form: formUuid } }" class="p-button p-button-secondary p-button-sm"
+        ><i class="pi pi-history me-1" />{{ t('builder.versions') }}</RouterLink
+      >
       <Button size="small" icon="pi pi-send" :label="t('builder.publish.open')" :disabled="!builder.doc || builder.saveState === 'locked'" data-testid="open-publish" @click="publishOpen = true" />
     </header>
 
@@ -194,7 +213,10 @@ function onPublished(version: number): void {
             <div v-if="problemsOpen" class="h-[calc(100%-1.75rem)]"><ProblemsPanel /></div>
           </div>
         </main>
-        <aside :class="['min-h-0 overflow-auto border-s border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900', panel === 'properties' ? 'block' : 'hidden lg:block']" :aria-label="t('builder.properties')">
+        <aside
+          :class="['min-h-0 overflow-auto border-s border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900', panel === 'properties' ? 'block' : 'hidden lg:block']"
+          :aria-label="t('builder.properties')"
+        >
           <PropertyPanel />
         </aside>
       </div>

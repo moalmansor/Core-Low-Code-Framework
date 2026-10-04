@@ -22,7 +22,7 @@ const field = defineModel<FieldDef>('field', { required: true })
 const { t } = useI18n()
 const builder = useBuilder()
 
-const b = computed<BehaviorDef>(() => (field.value.behavior ??= {}))
+const b = computed<BehaviorDef>(() => field.value.behavior!)
 const storage = computed(() => props.info.storage)
 const isText = computed(() => ['string', 'text', 'longtext', 'phone'].includes(storage.value))
 const isNumber = computed(() => ['decimal', 'int', 'currency', 'formula', 'number'].includes(storage.value) || props.info.value_type === 'number')
@@ -54,7 +54,14 @@ function setKind(kind: DefaultKind | null): void {
 const staticText = computed({
   get: () => String(b.value.default?.value ?? ''),
   set: (s: string) => {
-    if (b.value.default) b.value.default.value = props.info.value_type === 'list' ? s.split(',').map((x) => x.trim()).filter(Boolean) : s
+    if (b.value.default)
+      b.value.default.value =
+        props.info.value_type === 'list'
+          ? s
+              .split(',')
+              .map((x) => x.trim())
+              .filter(Boolean)
+          : s
   },
 })
 const referencePath = computed({
@@ -177,7 +184,15 @@ onMounted(async () => {
       </label>
       <label class="field"
         ><span>{{ t('builder.behavior.mask') }}</span>
-        <InputText :model-value="b.mask ?? ''" size="small" class="ltr-value font-mono" maxlength="64" :invalid="maskInvalid" placeholder="999-999-9999" @update:model-value="(x: string | undefined) => (b.mask = x ? x : null)" />
+        <InputText
+          :model-value="b.mask ?? ''"
+          size="small"
+          class="ltr-value font-mono"
+          maxlength="64"
+          :invalid="maskInvalid"
+          placeholder="999-999-9999"
+          @update:model-value="(x: string | undefined) => (b.mask = x ? x : null)"
+        />
         <span class="text-xs text-muted-color">{{ t('builder.behavior.mask_hint') }}</span>
       </label>
     </section>
@@ -185,7 +200,9 @@ onMounted(async () => {
     <fieldset v-if="isNumber" class="grid grid-cols-2 gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
       <legend class="text-sm font-medium px-1">{{ t('builder.behavior.number_format') }}</legend>
       <label class="flex items-center gap-2 text-sm col-span-2"
-        ><ToggleSwitch :model-value="b.number?.thousandSeparator ?? false" @update:model-value="(x: boolean) => setNumber('thousandSeparator', x)" />{{ t('builder.behavior.thousand_separator') }}</label
+        ><ToggleSwitch :model-value="b.number?.thousandSeparator ?? false" @update:model-value="(x: boolean) => setNumber('thousandSeparator', x)" />{{
+          t('builder.behavior.thousand_separator')
+        }}</label
       >
       <label class="field"
         ><span>{{ t('builder.behavior.decimals') }}</span
@@ -317,7 +334,13 @@ onMounted(async () => {
       /></label>
       <label class="field col-span-2"
         ><span>{{ t('builder.behavior.folder') }}</span
-        ><InputText :model-value="b.file?.folder ?? ''" size="small" class="ltr-value font-mono" :invalid="folderInvalid" placeholder="{form}/{yyyy}/{MM}" @update:model-value="(x: string | undefined) => setFile('folder', x ?? '')"
+        ><InputText
+          :model-value="b.file?.folder ?? ''"
+          size="small"
+          class="ltr-value font-mono"
+          :invalid="folderInvalid"
+          placeholder="{form}/{yyyy}/{MM}"
+          @update:model-value="(x: string | undefined) => setFile('folder', x ?? '')"
       /></label>
     </fieldset>
 
@@ -325,10 +348,21 @@ onMounted(async () => {
       <legend class="text-sm font-medium px-1">{{ t('builder.behavior.autofill') }}</legend>
       <p class="text-xs text-muted-color">{{ t('builder.behavior.autofill_hint') }}</p>
       <div v-for="(a, i) in b.autofill ?? []" :key="i" class="flex flex-wrap items-center gap-1">
-        <Select :model-value="a.from[0]" :options="lookupKeys" option-label="label" option-value="value" filter size="small" class="flex-1 min-w-32" @update:model-value="(k: string) => (a.from = [k])" />
+        <Select
+          :model-value="a.from[0]"
+          :options="lookupKeys"
+          option-label="label"
+          option-value="value"
+          filter
+          size="small"
+          class="flex-1 min-w-32"
+          @update:model-value="(k: string) => (a.from = [k])"
+        />
         <i class="pi pi-arrow-right rtl:rotate-180" aria-hidden="true" />
         <FieldSelect v-model="a.to" :exclude="field.uuid" class="flex-1 min-w-32" />
-        <label class="flex items-center gap-1 text-xs"><ToggleSwitch :model-value="a.overwrite ?? false" @update:model-value="(x: boolean) => (a.overwrite = x)" />{{ t('builder.behavior.overwrite') }}</label>
+        <label class="flex items-center gap-1 text-xs"
+          ><ToggleSwitch :model-value="a.overwrite ?? false" @update:model-value="(x: boolean) => (a.overwrite = x)" />{{ t('builder.behavior.overwrite') }}</label
+        >
         <Button size="small" text severity="danger" icon="pi pi-times" :aria-label="t('builder.remove')" @click="b.autofill!.splice(i, 1)" />
       </div>
       <Button

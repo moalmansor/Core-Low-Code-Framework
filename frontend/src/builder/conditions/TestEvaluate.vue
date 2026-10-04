@@ -126,7 +126,9 @@ function inputType(type: string): string {
         {{ t('builder.test.result') }}: <span class="font-mono ltr-value">{{ shown }}</span>
       </div>
       <ul v-if="result.diagnostics.length" class="text-xs text-orange-700 dark:text-orange-400">
-        <li v-for="d in result.diagnostics" :key="d.code + d.node">{{ t(`builder.diagnostic.${d.code.toLowerCase()}`) }} <span class="ltr-value text-muted-color">{{ d.node }}</span></li>
+        <li v-for="d in result.diagnostics" :key="d.code + d.node">
+          {{ t(`builder.diagnostic.${d.code.toLowerCase()}`) }} <span class="ltr-value text-muted-color">{{ d.node }}</span>
+        </li>
       </ul>
     </div>
   </div>

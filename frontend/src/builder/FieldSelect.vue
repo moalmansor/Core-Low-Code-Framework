@@ -41,5 +41,17 @@ const options = computed(() =>
     :label-id="inputId"
     :placeholder="placeholder ?? t('builder.pick_fields')"
   />
-  <Select v-else v-model="single" :options="options" option-label="label" option-value="value" filter show-clear size="small" class="w-full" :label-id="inputId" :placeholder="placeholder ?? t('builder.pick_field')" />
+  <Select
+    v-else
+    v-model="single"
+    :options="options"
+    option-label="label"
+    option-value="value"
+    filter
+    show-clear
+    size="small"
+    class="w-full"
+    :label-id="inputId"
+    :placeholder="placeholder ?? t('builder.pick_field')"
+  />
 </template>

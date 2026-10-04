@@ -21,9 +21,7 @@ const props = defineProps<{ owner: { type: OwnerType; uuid: string }; scope: Exp
 const { t } = useI18n()
 const builder = useBuilder()
 
-const rules = computed(() =>
-  (builder.doc?.conditions ?? []).filter((c) => c.owner.type === props.owner.type && c.owner.uuid === props.owner.uuid).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-)
+const rules = computed(() => (builder.doc?.conditions ?? []).filter((c) => c.owner.type === props.owner.type && c.owner.uuid === props.owner.uuid).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
 const defaultTarget = computed<{ type: TargetType; uuid: string } | null>(() => (props.owner.type === 'form' ? null : { type: props.owner.type as TargetType, uuid: props.owner.uuid }))
 const evaluateOptions = computed(() => [
   { value: 'always', label: t('builder.condition.evaluate_always') },
@@ -80,7 +78,9 @@ function move(rule: ConditionDef, delta: -1 | 1): void {
     <article v-for="(rule, i) in rules" :key="rule.uuid" class="rounded-lg border border-surface-200 dark:border-surface-700 p-2 flex flex-col gap-2" :data-testid="`rule-${i}`">
       <div class="flex flex-wrap items-center gap-2">
         <InputText v-model="rule.name" size="small" class="flex-1 min-w-32" :placeholder="t('builder.condition.name')" :aria-label="t('builder.condition.name')" maxlength="255" />
-        <label class="flex items-center gap-1 text-sm"><ToggleSwitch :model-value="rule.active ?? true" @update:model-value="(v: boolean) => (rule.active = v)" />{{ t('builder.condition.active') }}</label>
+        <label class="flex items-center gap-1 text-sm"
+          ><ToggleSwitch :model-value="rule.active ?? true" @update:model-value="(v: boolean) => (rule.active = v)" />{{ t('builder.condition.active') }}</label
+        >
         <Button size="small" text icon="pi pi-arrow-up" :disabled="i === 0" :aria-label="t('builder.move_up')" @click="move(rule, -1)" />
         <Button size="small" text icon="pi pi-arrow-down" :disabled="i === rules.length - 1" :aria-label="t('builder.move_down')" @click="move(rule, 1)" />
         <Button size="small" text severity="danger" icon="pi pi-trash" :aria-label="t('builder.condition.remove')" @click="remove(rule)" />

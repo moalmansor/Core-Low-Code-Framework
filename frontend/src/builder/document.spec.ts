@@ -13,6 +13,7 @@ import {
   newField,
   normalizeDocument,
   removeElements,
+  renameKey,
   shiftElement,
   toKey,
   uniqueKey,
@@ -61,7 +62,13 @@ function field(doc: DraftDocument, info = TEXT, parent: string | null = null, in
 }
 
 function group(doc: DraftDocument, type: Parameters<typeof groupFragment>[0], parent: string | null = null, index = 99): string {
-  return insertFragment(doc, GROUPS, groupFragment(type, () => ({ en: type })), parent, index)![0]!
+  return insertFragment(
+    doc,
+    GROUPS,
+    groupFragment(type, () => ({ en: type })),
+    parent,
+    index,
+  )![0]!
 }
 
 /** The required members of each object kind in form-draft.schema.json. */
@@ -151,7 +158,15 @@ describe('document operations', () => {
     const rep = group(doc, 'repeater')
     expect(canPlace(doc, GROUPS, { kind: 'group', type: 'repeater' }, rep)).toBe(false)
     expect(canPlace(doc, GROUPS, { kind: 'field', type: 'submit' }, rep)).toBe(false)
-    expect(insertFragment(doc, GROUPS, groupFragment('tab', () => ({})), null, 0)).toBeNull()
+    expect(
+      insertFragment(
+        doc,
+        GROUPS,
+        groupFragment('tab', () => ({})),
+        null,
+        0,
+      ),
+    ).toBeNull()
   })
 
   it('moves and reorders elements, and never puts a group inside itself', () => {
@@ -267,5 +282,18 @@ describe('document operations', () => {
     expect(locateIssue(doc, 'fields.0.validation.pattern')).toEqual({ uuid: '33333333-3333-4333-8333-333333333333', kind: 'field', property: 'validation.pattern' })
     expect(locateIssue(doc, 'groups.0.parent').uuid).toBe('22222222-2222-4222-8222-222222222222')
     expect(locateIssue(doc, 'form.key')).toEqual({ uuid: null, kind: 'form', property: 'form.key' })
+  })
+
+  it('renames a key together with every expression reference to it', () => {
+    const doc = emptyDoc()
+    const a = field(doc)
+    const b = field(doc)
+    doc.fields.find((f) => f.uuid === b)!.behavior = { formula: { k: 'bin', op: '+', a: { k: 'ref', scope: 'record', path: ['text'] }, b: { k: 'ref', scope: 'old', path: ['text'] } } }
+    doc.conditions.push({ uuid: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', owner: { type: 'field', uuid: b }, when: { k: 'ref', scope: 'user', path: ['text'] }, effects: [] })
+    renameKey(doc, a, 'amount')
+    expect(doc.fields.find((f) => f.uuid === a)!.key).toBe('amount')
+    expect(doc.fields.find((f) => f.uuid === b)!.behavior!.formula).toEqual({ k: 'bin', op: '+', a: { k: 'ref', scope: 'record', path: ['amount'] }, b: { k: 'ref', scope: 'old', path: ['amount'] } })
+    // References in other scopes (the user's attributes) are not field references.
+    expect(doc.conditions[0]!.when).toEqual({ k: 'ref', scope: 'user', path: ['text'] })
   })
 })

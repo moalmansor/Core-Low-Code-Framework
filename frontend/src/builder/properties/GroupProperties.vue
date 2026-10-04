@@ -11,7 +11,7 @@ import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import ToggleSwitch from 'primevue/toggleswitch'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { referenceApi, type NamedOption } from '../api'
 import BreakpointsInput from '../BreakpointsInput.vue'
@@ -34,8 +34,8 @@ const builder = useBuilder()
 const tab = ref('general')
 
 const group = computed<GroupDef>(() => builder.doc!.groups.find((g) => g.uuid === props.uuid)!)
-const layout = computed(() => (group.value.layout ??= {}))
-const i18n = computed(() => (group.value.i18n ??= {}))
+const layout = computed(() => group.value.layout!)
+const i18n = computed(() => group.value.i18n!)
 const rowsKey = computed(() => {
   const d = dataAncestor(builder.doc!, group.value.uuid)
   return d?.type === 'repeater' ? d.key : null
@@ -59,7 +59,14 @@ function addRule(): void {
 
 // ---------------------------------------------------------------- repeater
 
-const repeater = computed<RepeaterSettings>(() => (group.value.repeater ??= {}))
+watch(
+  group,
+  (g) => {
+    if (g?.type === 'repeater' && !g.repeater) g.repeater = {}
+  },
+  { immediate: true },
+)
+const repeater = computed<RepeaterSettings>(() => group.value.repeater ?? {})
 const repeaterFields = computed(() => {
   if (group.value.type !== 'repeater') return []
   const ids = new Set(descendants(builder.doc!, group.value.uuid).fields)
@@ -96,7 +103,17 @@ function setSubform(form: string | null | undefined): void {
     if (existing) existing.target = form
     else {
       const uuid = newUuid()
-      d.relations.push({ uuid, key: uniqueKey(g.key, new Set(d.relations.map((r) => r.key))), type: 'one_to_many', target: form, kind: 'subform', onDelete: 'cascade', display: null, value: null, inverse: null })
+      d.relations.push({
+        uuid,
+        key: uniqueKey(g.key, new Set(d.relations.map((r) => r.key))),
+        type: 'one_to_many',
+        target: form,
+        kind: 'subform',
+        onDelete: 'cascade',
+        display: null,
+        value: null,
+        inverse: null,
+      })
       g.subform = { form, relation: uuid }
       return
     }
@@ -181,19 +198,19 @@ const cssInvalid = computed(() => !!layout.value.cssClass && !/^[A-Za-z0-9 _-]{0
               <p class="text-xs text-muted-color">{{ t('builder.repeater.permissions_hint') }}</p>
               <Message v-if="rolesUnavailable" severity="secondary" size="small">{{ t('builder.repeater.roles_unavailable') }}</Message>
               <template v-else>
-              <label v-for="k in ['add', 'remove', 'reorder'] as const" :key="k" class="field"
-                ><span>{{ t(`builder.repeater.can_${k}`) }}</span>
-                <MultiSelect
-                  :model-value="repeater.rowPermissions?.[k] ?? []"
-                  :options="roles"
-                  option-label="name"
-                  option-value="uuid"
-                  display="chip"
-                  size="small"
-                  :placeholder="t('builder.repeater.everyone')"
-                  @update:model-value="(v) => setPermission(k, v)"
-                />
-              </label>
+                <label v-for="k in ['add', 'remove', 'reorder'] as const" :key="k" class="field"
+                  ><span>{{ t(`builder.repeater.can_${k}`) }}</span>
+                  <MultiSelect
+                    :model-value="repeater.rowPermissions?.[k] ?? []"
+                    :options="roles"
+                    option-label="name"
+                    option-value="uuid"
+                    display="chip"
+                    size="small"
+                    :placeholder="t('builder.repeater.everyone')"
+                    @update:model-value="(v) => setPermission(k, v)"
+                  />
+                </label>
               </template>
             </fieldset>
           </template>
@@ -246,7 +263,14 @@ const cssInvalid = computed(() => !!layout.value.cssClass && !/^[A-Za-z0-9 _-]{0
           </div>
           <label class="field"
             ><span>{{ t('builder.justification.label') }}</span>
-            <Select :model-value="group.justification ?? 'inherit'" :options="justification" option-label="label" option-value="value" size="small" @update:model-value="(v) => (group.justification = v)" />
+            <Select
+              :model-value="group.justification ?? 'inherit'"
+              :options="justification"
+              option-label="label"
+              option-value="value"
+              size="small"
+              @update:model-value="(v) => (group.justification = v)"
+            />
           </label>
         </TabPanel>
 

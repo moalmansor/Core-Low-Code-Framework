@@ -117,7 +117,10 @@ const sections = computed(() => [
           type="button"
           role="tab"
           :aria-selected="section === s.value"
-          :class="['rounded px-1 py-1 text-xs flex flex-col items-center gap-0.5', section === s.value ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-200' : 'hover:bg-surface-100 dark:hover:bg-surface-800']"
+          :class="[
+            'rounded px-1 py-1 text-xs flex flex-col items-center gap-0.5',
+            section === s.value ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-200' : 'hover:bg-surface-100 dark:hover:bg-surface-800',
+          ]"
           @click="section = s.value"
         >
           <i :class="s.icon" aria-hidden="true" />{{ s.label }}
@@ -166,7 +169,15 @@ const sections = computed(() => [
       </ul>
 
       <template v-else>
-        <Button size="small" severity="secondary" icon="pi pi-bookmark" :label="t('builder.library.save_selection')" :disabled="!builder.selection.length" data-testid="save-template" @click="emit('saveTemplate')" />
+        <Button
+          size="small"
+          severity="secondary"
+          icon="pi pi-bookmark"
+          :label="t('builder.library.save_selection')"
+          :disabled="!builder.selection.length"
+          data-testid="save-template"
+          @click="emit('saveTemplate')"
+        />
         <p v-if="!templates.length" class="text-sm text-muted-color">{{ t('builder.library.empty') }}</p>
         <ul class="flex flex-col gap-1">
           <li

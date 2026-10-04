@@ -1,18 +1,4 @@
-import type {
-  ConditionDef,
-  DraftDocument,
-  DraftIssue,
-  Effect,
-  ElementRef,
-  FieldDef,
-  FieldTypeInfo,
-  Fragment,
-  GroupDef,
-  GroupType,
-  GroupTypeInfo,
-  I18nText,
-  RelationDef,
-} from './types'
+import type { ConditionDef, DraftDocument, DraftIssue, Effect, ElementRef, FieldDef, FieldTypeInfo, Fragment, GroupDef, GroupType, GroupTypeInfo, I18nText, RelationDef } from './types'
 import { newUuid } from './uuid'
 
 /**
@@ -251,7 +237,9 @@ export function extractFragment(doc: DraftDocument, uuids: string[]): Fragment {
   const fields = clone(doc.fields.filter((f) => fieldIds.has(f.uuid)))
   const options = optionUuids(fields)
   const conditions = clone(
-    doc.conditions.filter((c) => (c.owner.type === 'field' && fieldIds.has(c.owner.uuid)) || (c.owner.type === 'group' && groupIds.has(c.owner.uuid)) || (c.owner.type === 'option' && options.has(c.owner.uuid))),
+    doc.conditions.filter(
+      (c) => (c.owner.type === 'field' && fieldIds.has(c.owner.uuid)) || (c.owner.type === 'group' && groupIds.has(c.owner.uuid)) || (c.owner.type === 'option' && options.has(c.owner.uuid)),
+    ),
   )
   const relationIds = new Set<string>()
   for (const f of fields) if (f.relation) relationIds.add(f.relation)
@@ -351,6 +339,7 @@ export function insertFragment(doc: DraftDocument, catalog: GroupTypeInfo[], fra
   doc.fields.push(...fields)
   doc.relations.push(...newRelations)
   doc.conditions.push(...conditions)
+  shapeDocument(doc)
   const at = Math.max(0, Math.min(index, siblings.length))
   const ordered = [...siblings.slice(0, at).map((s) => s.uuid), ...roots.map((r) => r.uuid), ...siblings.slice(at).map((s) => s.uuid)]
   ordered.forEach((uuid, i) => setOrder(doc, uuid, i))
@@ -590,6 +579,12 @@ function list<T>(value: unknown): T[] {
  */
 export function normalizeDocument(raw: DraftDocument): DraftDocument {
   const doc = clone(raw)
+  shapeDocument(doc)
+  return doc
+}
+
+/** Gives every element the property objects the editors bind to (all optional in the schema). */
+export function shapeDocument(doc: DraftDocument): void {
   doc.form.settings = obj(doc.form.settings)
   doc.form.i18n = obj(doc.form.i18n)
   for (const k of ['name', 'description', 'submitButtonLabel'] as const) if (doc.form.i18n[k] !== undefined) doc.form.i18n[k] = obj(doc.form.i18n[k])
@@ -627,7 +622,7 @@ export function normalizeDocument(raw: DraftDocument): DraftDocument {
     c.effects = list(c.effects)
     c.else = list(c.else)
   }
-  return doc
+  if (doc.form.kind === 'collection' && !doc.collection) doc.collection = { type: 'table' }
 }
 
 /** Where a validator path (`fields.3.validation.pattern`) points in the document. */

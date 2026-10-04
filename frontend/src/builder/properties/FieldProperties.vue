@@ -52,13 +52,22 @@ const scope = computed(() => buildScope(builder.doc!, builder.catalog.fields, re
 const isLookup = computed(() => ['lookup', 'multi_lookup'].includes(info.value?.storage ?? ''))
 const hasContent = computed(() => ['static_html', 'heading', 'alert_box', 'link', 'divider', 'output'].includes(field.value.type))
 const visibleTabs = computed(() =>
-  ['general', 'data', info.value?.options ? 'options' : '', info.value && info.value.validation.length ? 'validation' : '', 'behavior', 'rules', display.value ? '' : 'events', display.value ? '' : 'table'].filter(Boolean),
+  [
+    'general',
+    'data',
+    info.value?.options ? 'options' : '',
+    info.value && info.value.validation.length ? 'validation' : '',
+    'behavior',
+    'rules',
+    display.value ? '' : 'events',
+    display.value ? '' : 'table',
+  ].filter(Boolean),
 )
 
-const ui = computed(() => (field.value.ui ??= {}))
-const table = computed(() => (field.value.table ??= {}))
-const exp = computed(() => (field.value.export ??= {}))
-const i18n = computed(() => (field.value.i18n ??= {}))
+const ui = computed(() => field.value.ui!)
+const table = computed(() => field.value.table!)
+const exp = computed(() => field.value.export!)
+const i18n = computed(() => field.value.i18n!)
 const sizes = computed(() => (['small', 'medium', 'large'] as const).map((v) => ({ value: v, label: t(`builder.ui.size_${v}`) })))
 const positions = computed(() => (['top', 'side', 'hidden'] as const).map((v) => ({ value: v, label: t(`builder.ui.label_${v}`) })))
 const justification = computed(() => (['inherit', 'not_required', 'optional', 'mandatory'] as JustificationLevel[]).map((v) => ({ value: v, label: t(`builder.justification.${v}`) })))
@@ -107,7 +116,14 @@ const canCode = computed(() => session.can('system.manage_code'))
             </label>
             <label class="field"
               ><span>{{ t('builder.icon') }}</span>
-              <InputText :model-value="ui.icon ?? ''" size="small" class="ltr-value" :invalid="iconInvalid" placeholder="pi pi-user" @update:model-value="(v: string | undefined) => (ui.icon = v ? v : null)" />
+              <InputText
+                :model-value="ui.icon ?? ''"
+                size="small"
+                class="ltr-value"
+                :invalid="iconInvalid"
+                placeholder="pi pi-user"
+                @update:model-value="(v: string | undefined) => (ui.icon = v ? v : null)"
+              />
             </label>
             <label class="field"
               ><span>{{ t('builder.css_class') }}</span>
@@ -116,8 +132,12 @@ const canCode = computed(() => session.can('system.manage_code'))
           </div>
           <BreakpointsInput v-model="ui.width" :label="t('builder.ui.width')" />
           <div v-if="!display" class="grid grid-cols-2 gap-2">
-            <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="ui.autofocus ?? false" @update:model-value="(v: boolean) => (ui.autofocus = v)" />{{ t('builder.ui.autofocus') }}</label>
-            <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="ui.spellcheck ?? true" @update:model-value="(v: boolean) => (ui.spellcheck = v)" />{{ t('builder.ui.spellcheck') }}</label>
+            <label class="flex items-center gap-2 text-sm"
+              ><ToggleSwitch :model-value="ui.autofocus ?? false" @update:model-value="(v: boolean) => (ui.autofocus = v)" />{{ t('builder.ui.autofocus') }}</label
+            >
+            <label class="flex items-center gap-2 text-sm"
+              ><ToggleSwitch :model-value="ui.spellcheck ?? true" @update:model-value="(v: boolean) => (ui.spellcheck = v)" />{{ t('builder.ui.spellcheck') }}</label
+            >
             <label class="field"
               ><span>{{ t('builder.ui.tab_index') }}</span>
               <InputNumber :model-value="ui.tabIndex ?? null" :min="-1" :max="32767" size="small" @update:model-value="(v) => (ui.tabIndex = v ?? null)" />
@@ -136,7 +156,14 @@ const canCode = computed(() => session.can('system.manage_code'))
           </div>
           <label v-if="!display" class="field"
             ><span>{{ t('builder.justification.label') }}</span>
-            <Select :model-value="field.justification ?? 'inherit'" :options="justification" option-label="label" option-value="value" size="small" @update:model-value="(v) => (field.justification = v)" />
+            <Select
+              :model-value="field.justification ?? 'inherit'"
+              :options="justification"
+              option-label="label"
+              option-value="value"
+              size="small"
+              @update:model-value="(v) => (field.justification = v)"
+            />
             <span class="text-xs text-muted-color">{{ t('builder.justification.hint') }}</span>
           </label>
         </TabPanel>
@@ -189,10 +216,18 @@ const canCode = computed(() => session.can('system.manage_code'))
         <TabPanel value="table" class="flex flex-col gap-3">
           <fieldset class="flex flex-col gap-2">
             <legend class="text-sm font-medium mb-1">{{ t('builder.table.title') }}</legend>
-            <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="table.visible ?? true" @update:model-value="(v: boolean) => (table.visible = v)" />{{ t('builder.table.visible') }}</label>
-            <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="table.sortable ?? false" @update:model-value="(v: boolean) => (table.sortable = v)" />{{ t('builder.table.sortable') }}</label>
-            <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="table.filterable ?? false" @update:model-value="(v: boolean) => (table.filterable = v)" />{{ t('builder.table.filterable') }}</label>
-            <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="table.searchable ?? false" @update:model-value="(v: boolean) => (table.searchable = v)" />{{ t('builder.table.searchable') }}</label>
+            <label class="flex items-center gap-2 text-sm"
+              ><ToggleSwitch :model-value="table.visible ?? true" @update:model-value="(v: boolean) => (table.visible = v)" />{{ t('builder.table.visible') }}</label
+            >
+            <label class="flex items-center gap-2 text-sm"
+              ><ToggleSwitch :model-value="table.sortable ?? false" @update:model-value="(v: boolean) => (table.sortable = v)" />{{ t('builder.table.sortable') }}</label
+            >
+            <label class="flex items-center gap-2 text-sm"
+              ><ToggleSwitch :model-value="table.filterable ?? false" @update:model-value="(v: boolean) => (table.filterable = v)" />{{ t('builder.table.filterable') }}</label
+            >
+            <label class="flex items-center gap-2 text-sm"
+              ><ToggleSwitch :model-value="table.searchable ?? false" @update:model-value="(v: boolean) => (table.searchable = v)" />{{ t('builder.table.searchable') }}</label
+            >
             <I18nInput v-model="i18n.columnLabel" :label="t('builder.table.column_label')" />
             <label class="field"
               ><span>{{ t('builder.table.display_format') }}</span>
@@ -201,13 +236,19 @@ const canCode = computed(() => session.can('system.manage_code'))
           </fieldset>
           <fieldset class="flex flex-col gap-2">
             <legend class="text-sm font-medium mb-1">{{ t('builder.export.title') }}</legend>
-            <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="exp.exportable ?? true" @update:model-value="(v: boolean) => (exp.exportable = v)" />{{ t('builder.export.exportable') }}</label>
-            <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="exp.importable ?? true" @update:model-value="(v: boolean) => (exp.importable = v)" />{{ t('builder.export.importable') }}</label>
+            <label class="flex items-center gap-2 text-sm"
+              ><ToggleSwitch :model-value="exp.exportable ?? true" @update:model-value="(v: boolean) => (exp.exportable = v)" />{{ t('builder.export.exportable') }}</label
+            >
+            <label class="flex items-center gap-2 text-sm"
+              ><ToggleSwitch :model-value="exp.importable ?? true" @update:model-value="(v: boolean) => (exp.importable = v)" />{{ t('builder.export.importable') }}</label
+            >
             <label class="field"
               ><span>{{ t('builder.export.excel_column') }}</span>
               <InputText :model-value="exp.excelColumn ?? ''" size="small" maxlength="128" @update:model-value="(v: string | undefined) => (exp.excelColumn = v ? v : null)" />
             </label>
-            <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="exp.print ?? true" @update:model-value="(v: boolean) => (exp.print = v)" />{{ t('builder.export.print') }}</label>
+            <label class="flex items-center gap-2 text-sm"
+              ><ToggleSwitch :model-value="exp.print ?? true" @update:model-value="(v: boolean) => (exp.print = v)" />{{ t('builder.export.print') }}</label
+            >
             <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="exp.pdf ?? true" @update:model-value="(v: boolean) => (exp.pdf = v)" />{{ t('builder.export.pdf') }}</label>
           </fieldset>
         </TabPanel>

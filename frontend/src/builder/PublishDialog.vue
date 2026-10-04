@@ -217,11 +217,23 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
 </script>
 
 <template>
-  <Dialog v-model:visible="visible" modal :header="rollbackOf ? t('builder.publish.rollback_title', { n: rollbackOf }) : t('builder.publish.title')" :style="{ width: '56rem' }" :breakpoints="{ '900px': '95vw' }" :closable="step !== 'running'">
+  <Dialog
+    v-model:visible="visible"
+    modal
+    :header="rollbackOf ? t('builder.publish.rollback_title', { n: rollbackOf }) : t('builder.publish.title')"
+    :style="{ width: '56rem' }"
+    :breakpoints="{ '900px': '95vw' }"
+    :closable="step !== 'running'"
+  >
     <div class="flex flex-col gap-3" data-testid="publish-dialog">
       <ol class="flex gap-2 text-xs" :aria-label="t('builder.publish.steps')">
-        <li v-for="(s, i) in ['impact', 'placement', 'running'] as const" :key="s" :class="['flex items-center gap-1', step === s || (step === 'done' && s === 'running') ? 'font-semibold text-primary' : 'text-muted-color']">
-          <span class="rounded-full border w-5 h-5 flex items-center justify-center">{{ i + 1 }}</span>{{ t(`builder.publish.step_${s}`) }}
+        <li
+          v-for="(s, i) in ['impact', 'placement', 'running'] as const"
+          :key="s"
+          :class="['flex items-center gap-1', step === s || (step === 'done' && s === 'running') ? 'font-semibold text-primary' : 'text-muted-color']"
+        >
+          <span class="rounded-full border w-5 h-5 flex items-center justify-center">{{ i + 1 }}</span
+          >{{ t(`builder.publish.step_${s}`) }}
         </li>
       </ol>
       <Message v-if="failure" severity="error">{{ failure }}</Message>
@@ -267,7 +279,9 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
           <section class="flex flex-col gap-1 text-sm">
             <h3 class="font-semibold">{{ t('builder.publish.affected') }}</h3>
             <ul class="list-disc ps-5">
-              <li v-if="impact.removed_fields.length">{{ t('builder.publish.removed_fields') }}: <span class="ltr-value">{{ impact.removed_fields.join(', ') }}</span></li>
+              <li v-if="impact.removed_fields.length">
+                {{ t('builder.publish.removed_fields') }}: <span class="ltr-value">{{ impact.removed_fields.join(', ') }}</span>
+              </li>
               <li v-for="f in impact.records.failing_required" :key="f.field">{{ t('builder.publish.failing_required', { key: f.key, n: f.records }) }}</li>
               <li v-for="c in impact.records.type_conflicts" :key="c.column">{{ t('builder.publish.type_conflict', { column: c.column, to: c.to, n: c.records.length }) }}</li>
               <li v-if="impact.permissions.orphaned_access_rules">{{ t('builder.publish.orphaned_rules', { n: impact.permissions.orphaned_access_rules }) }}</li>
@@ -277,7 +291,9 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
               </li>
               <li>{{ t('builder.publish.menus', { n: impact.menus }) }}</li>
               <li v-for="[k, n] in dependents" :key="k">{{ t(`builder.publish.dependent_${k}`) }}: {{ n }}</li>
-              <li v-if="impact.lock_set?.length">{{ t('builder.publish.lock_set') }}: <span class="ltr-value">{{ impact.lock_set.map((f) => f.key).join(', ') }}</span></li>
+              <li v-if="impact.lock_set?.length">
+                {{ t('builder.publish.lock_set') }}: <span class="ltr-value">{{ impact.lock_set.map((f) => f.key).join(', ') }}</span>
+              </li>
             </ul>
           </section>
 
@@ -288,14 +304,29 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
               <div>{{ t('builder.publish.blocking_steps') }}</div>
               <ul class="list-disc ps-5">
                 <li v-for="b in impact.schema.blocking" :key="b.sequence">
-                  <span class="ltr-value">{{ b.operation }} · {{ b.table }}</span> — {{ t('builder.publish.rows_seconds', { rows: b.rows.toLocaleString(session.locale), s: seconds(b.estimated_ms) }) }}
+                  <span class="ltr-value">{{ b.operation }} · {{ b.table }}</span> —
+                  {{ t('builder.publish.rows_seconds', { rows: b.rows.toLocaleString(session.locale), s: seconds(b.estimated_ms) }) }}
                 </li>
               </ul>
             </Message>
             <Message v-if="impact.schema.backup" severity="info" size="small">
-              {{ t('builder.publish.backup', { tables: impact.schema.backup.tables.join(', '), rows: impact.schema.backup.rows.toLocaleString(session.locale), days: impact.schema.backup.retention_days }) }}
+              {{
+                t('builder.publish.backup', {
+                  tables: impact.schema.backup.tables.join(', '),
+                  rows: impact.schema.backup.rows.toLocaleString(session.locale),
+                  days: impact.schema.backup.retention_days,
+                })
+              }}
             </Message>
-            <Button v-if="impact.schema.plan.length" size="small" text class="self-start" :icon="showSql ? 'pi pi-chevron-up' : 'pi pi-chevron-down'" :label="t('builder.publish.sql')" @click="showSql = !showSql" />
+            <Button
+              v-if="impact.schema.plan.length"
+              size="small"
+              text
+              class="self-start"
+              :icon="showSql ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
+              :label="t('builder.publish.sql')"
+              @click="showSql = !showSql"
+            />
             <ol v-if="showSql" class="flex flex-col gap-2">
               <li v-for="s in impact.schema.plan" :key="s.sequence" class="rounded border border-surface-200 dark:border-surface-700 p-2">
                 <div class="flex flex-wrap gap-2 text-xs mb-1">
@@ -311,7 +342,9 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
           </section>
 
           <section v-if="needsBlockingConfirm || needsTyped" class="flex flex-col gap-2 rounded border border-orange-300 p-2">
-            <label v-if="needsBlockingConfirm" class="flex items-start gap-2 text-sm"><Checkbox v-model="confirmBlocking" binary data-testid="confirm-blocking" />{{ t('builder.publish.confirm_blocking') }}</label>
+            <label v-if="needsBlockingConfirm" class="flex items-start gap-2 text-sm"
+              ><Checkbox v-model="confirmBlocking" binary data-testid="confirm-blocking" />{{ t('builder.publish.confirm_blocking') }}</label
+            >
             <template v-if="needsTyped">
               <label class="flex items-start gap-2 text-sm"><Checkbox v-model="confirmDestructive" binary data-testid="confirm-destructive" />{{ t('builder.publish.confirm_destructive') }}</label>
               <label class="field"

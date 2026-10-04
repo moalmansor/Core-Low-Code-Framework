@@ -24,10 +24,15 @@ const field = defineModel<FieldDef>('field', { required: true })
 const { t } = useI18n()
 const builder = useBuilder()
 
-const options = computed<OptionsDef>(() => {
-  field.value.options ??= { source: 'static', static: [] }
-  return field.value.options
-})
+watch(
+  field,
+  (f) => {
+    if (!f.options) f.options = { source: 'static', static: [] }
+    else if (f.options.source === 'static' && !f.options.static) f.options.static = []
+  },
+  { immediate: true },
+)
+const options = computed<OptionsDef>(() => field.value.options ?? { source: 'static', static: [] })
 const SOURCES: OptionSource[] = ['static', 'collection', 'form', 'query', 'users', 'roles', 'departments']
 const sources = computed(() => SOURCES.map((s) => ({ value: s, label: t(`builder.options.source_${s}`) })))
 
@@ -42,12 +47,12 @@ function setSource(source: OptionSource): void {
 
 // ---------------------------------------------------------------- static list
 
-const statics = computed<StaticOption[]>(() => (options.value.static ??= []))
+const statics = computed<StaticOption[]>(() => options.value.static ?? [])
 function addOption(): void {
   const used = new Set(statics.value.map((o) => o.value))
   let n = statics.value.length + 1
   while (used.has(`option_${n}`)) n++
-  statics.value.push({ uuid: newUuid(), value: `option_${n}`, active: true, default: false, order: statics.value.length, i18n: { label: {} } })
+  ;(options.value.static ??= []).push({ uuid: newUuid(), value: `option_${n}`, active: true, default: false, order: statics.value.length, i18n: { label: {} } })
 }
 function moveOption(i: number, delta: -1 | 1): void {
   const j = i + delta
@@ -217,16 +222,13 @@ const defaultsText = computed({
       <RelationEditor v-model:field="field" :info="info" />
       <div v-if="options.collection" class="grid grid-cols-2 gap-2">
         <label class="field"
-          ><span>{{ t('builder.options.value_field') }}</span>
-          <Select v-model="valuePath" :options="keyOptions" option-label="label" option-value="value" show-clear filter size="small"
+          ><span>{{ t('builder.options.value_field') }}</span> <Select v-model="valuePath" :options="keyOptions" option-label="label" option-value="value" show-clear filter size="small"
         /></label>
         <label class="field"
-          ><span>{{ t('builder.options.label_field') }}</span>
-          <Select v-model="labelPath" :options="keyOptions" option-label="label" option-value="value" show-clear filter size="small"
+          ><span>{{ t('builder.options.label_field') }}</span> <Select v-model="labelPath" :options="keyOptions" option-label="label" option-value="value" show-clear filter size="small"
         /></label>
         <label class="field"
-          ><span>{{ t('builder.options.group_by') }}</span>
-          <Select v-model="groupBy" :options="keyOptions" option-label="label" option-value="value" show-clear filter size="small"
+          ><span>{{ t('builder.options.group_by') }}</span> <Select v-model="groupBy" :options="keyOptions" option-label="label" option-value="value" show-clear filter size="small"
         /></label>
         <label class="field"
           ><span>{{ t('builder.options.preview') }}</span>
@@ -275,12 +277,10 @@ const defaultsText = computed({
         </label>
         <div class="grid grid-cols-2 gap-2">
           <label class="field"
-            ><span>{{ t('builder.options.value_field') }}</span>
-            <Select v-model="valuePath" :options="keyOptions" option-label="label" option-value="value" show-clear filter size="small"
+            ><span>{{ t('builder.options.value_field') }}</span> <Select v-model="valuePath" :options="keyOptions" option-label="label" option-value="value" show-clear filter size="small"
           /></label>
           <label class="field"
-            ><span>{{ t('builder.options.label_field') }}</span>
-            <Select v-model="labelPath" :options="keyOptions" option-label="label" option-value="value" show-clear filter size="small"
+            ><span>{{ t('builder.options.label_field') }}</span> <Select v-model="labelPath" :options="keyOptions" option-label="label" option-value="value" show-clear filter size="small"
           /></label>
         </div>
       </template>
@@ -304,26 +304,39 @@ const defaultsText = computed({
 
     <!-- Behaviour of the list -->
     <div class="grid grid-cols-2 gap-2">
-      <label class="flex items-center gap-2 text-sm col-span-2"><ToggleSwitch :model-value="options.allowCustom ?? false" @update:model-value="(v: boolean) => (options.allowCustom = v)" />{{ t('builder.options.allow_custom') }}</label>
-      <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="options.searchable ?? false" @update:model-value="(v: boolean) => (options.searchable = v)" />{{ t('builder.options.searchable') }}</label>
-      <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="options.lazy ?? false" @update:model-value="(v: boolean) => (options.lazy = v)" />{{ t('builder.options.lazy') }}</label>
+      <label class="flex items-center gap-2 text-sm col-span-2"
+        ><ToggleSwitch :model-value="options.allowCustom ?? false" @update:model-value="(v: boolean) => (options.allowCustom = v)" />{{ t('builder.options.allow_custom') }}</label
+      >
+      <label class="flex items-center gap-2 text-sm"
+        ><ToggleSwitch :model-value="options.searchable ?? false" @update:model-value="(v: boolean) => (options.searchable = v)" />{{ t('builder.options.searchable') }}</label
+      >
+      <label class="flex items-center gap-2 text-sm"
+        ><ToggleSwitch :model-value="options.lazy ?? false" @update:model-value="(v: boolean) => (options.lazy = v)" />{{ t('builder.options.lazy') }}</label
+      >
       <label v-if="options.lazy" class="field"
         ><span>{{ t('builder.options.page_size') }}</span>
         <InputNumber :model-value="options.pageSize ?? 50" :min="5" :max="200" size="small" @update:model-value="(v) => (options.pageSize = v ?? 50)"
       /></label>
       <template v-if="multiple">
         <label class="field"
-          ><span>{{ t('builder.options.min') }}</span>
-          <InputNumber :model-value="options.min ?? null" :min="0" :max="1000" size="small" @update:model-value="(v) => (options.min = v ?? null)"
+          ><span>{{ t('builder.options.min') }}</span> <InputNumber :model-value="options.min ?? null" :min="0" :max="1000" size="small" @update:model-value="(v) => (options.min = v ?? null)"
         /></label>
         <label class="field"
-          ><span>{{ t('builder.options.max') }}</span>
-          <InputNumber :model-value="options.max ?? null" :min="1" :max="1000" size="small" @update:model-value="(v) => (options.max = v ?? null)"
+          ><span>{{ t('builder.options.max') }}</span> <InputNumber :model-value="options.max ?? null" :min="1" :max="1000" size="small" @update:model-value="(v) => (options.max = v ?? null)"
         /></label>
       </template>
       <label class="field col-span-2"
         ><span>{{ t('builder.options.defaults') }}</span>
-        <MultiSelect v-if="options.source === 'static'" v-model="options.defaults" :options="staticValues" option-label="label" option-value="value" display="chip" size="small" :selection-limit="multiple ? 100 : 1" />
+        <MultiSelect
+          v-if="options.source === 'static'"
+          v-model="options.defaults"
+          :options="staticValues"
+          option-label="label"
+          option-value="value"
+          display="chip"
+          size="small"
+          :selection-limit="multiple ? 100 : 1"
+        />
         <InputText v-else v-model="defaultsText" size="small" class="ltr-value" :placeholder="t('builder.options.defaults_hint')" />
       </label>
     </div>

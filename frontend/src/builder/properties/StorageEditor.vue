@@ -16,14 +16,8 @@ const field = defineModel<FieldDef>('field', { required: true })
 const { t } = useI18n()
 const builder = useBuilder()
 
-const storage = computed<StorageDef>(() => {
-  field.value.storage ??= {}
-  return field.value.storage
-})
-const flags = computed(() => {
-  field.value.flags ??= {}
-  return field.value.flags
-})
+const storage = computed<StorageDef>(() => field.value.storage!)
+const flags = computed(() => field.value.flags!)
 const bound = computed(() => builder.doc?.form.bindingMode === 'bound')
 const DB_TYPES = ['string', 'text', 'longtext', 'int', 'bigint', 'decimal', 'bool', 'date', 'time', 'datetime', 'json'] as const
 const dbTypes = computed(() => [{ value: null, label: t('builder.storage.db_type_auto') }, ...DB_TYPES.map((v) => ({ value: v, label: v }))])
@@ -96,7 +90,9 @@ function nullableNumber(v: number | null | undefined, key: 'length' | 'precision
           ><span>{{ t('builder.storage.default') }}</span>
           <InputText v-model="defaultText" size="small" maxlength="255" />
         </label>
-        <label class="flex items-center gap-2 text-sm col-span-2"><ToggleSwitch :model-value="storage.nullable ?? true" @update:model-value="(v: boolean) => (storage.nullable = v)" />{{ t('builder.storage.nullable') }}</label>
+        <label class="flex items-center gap-2 text-sm col-span-2"
+          ><ToggleSwitch :model-value="storage.nullable ?? true" @update:model-value="(v: boolean) => (storage.nullable = v)" />{{ t('builder.storage.nullable') }}</label
+        >
         <label class="field"
           ><span>{{ t('builder.storage.index') }}</span>
           <Select :model-value="storage.index ?? 'none'" :options="indexes" option-label="label" option-value="value" size="small" @update:model-value="(v) => (storage.index = v)" />
@@ -111,11 +107,21 @@ function nullableNumber(v: number | null | undefined, key: 'length' | 'precision
       </div>
       <fieldset class="flex flex-col gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
         <legend class="text-sm font-medium px-1">{{ t('builder.flags.title') }}</legend>
-        <label v-if="encryptable" class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="flags.encrypted ?? false" @update:model-value="(v: boolean) => (flags.encrypted = v)" />{{ t('builder.flags.encrypted') }}</label>
-        <label v-if="flags.encrypted" class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="flags.blindIndex ?? false" @update:model-value="(v: boolean) => (flags.blindIndex = v)" />{{ t('builder.flags.blind_index') }}</label>
-        <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="flags.sensitive ?? false" @update:model-value="(v: boolean) => (flags.sensitive = v)" />{{ t('builder.flags.sensitive') }}</label>
-        <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="flags.personal ?? false" @update:model-value="(v: boolean) => (flags.personal = v)" />{{ t('builder.flags.personal') }}</label>
-        <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="flags.trackChanges ?? true" @update:model-value="(v: boolean) => (flags.trackChanges = v)" />{{ t('builder.flags.track_changes') }}</label>
+        <label v-if="encryptable" class="flex items-center gap-2 text-sm"
+          ><ToggleSwitch :model-value="flags.encrypted ?? false" @update:model-value="(v: boolean) => (flags.encrypted = v)" />{{ t('builder.flags.encrypted') }}</label
+        >
+        <label v-if="flags.encrypted" class="flex items-center gap-2 text-sm"
+          ><ToggleSwitch :model-value="flags.blindIndex ?? false" @update:model-value="(v: boolean) => (flags.blindIndex = v)" />{{ t('builder.flags.blind_index') }}</label
+        >
+        <label class="flex items-center gap-2 text-sm"
+          ><ToggleSwitch :model-value="flags.sensitive ?? false" @update:model-value="(v: boolean) => (flags.sensitive = v)" />{{ t('builder.flags.sensitive') }}</label
+        >
+        <label class="flex items-center gap-2 text-sm"
+          ><ToggleSwitch :model-value="flags.personal ?? false" @update:model-value="(v: boolean) => (flags.personal = v)" />{{ t('builder.flags.personal') }}</label
+        >
+        <label class="flex items-center gap-2 text-sm"
+          ><ToggleSwitch :model-value="flags.trackChanges ?? true" @update:model-value="(v: boolean) => (flags.trackChanges = v)" />{{ t('builder.flags.track_changes') }}</label
+        >
       </fieldset>
     </template>
   </div>

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { canonicalJson, parse, type AstNode } from '@/expressions'
+import { signature, ungrouped } from './functions'
 import { printExpression } from './print'
 import { astToRule, emptyGroup, ruleToAst, type RuleGroup, type RuleLeaf } from './ruleModel'
 
@@ -137,5 +138,12 @@ describe('printing ASTs as text', () => {
     expect(printExpression(parse('not (a = 1) and (b or c)'))).toBe('not a = 1 and (b or c)')
     expect(printExpression(parse('(a = b) = c'))).toBe('(a = b) = c')
     expect(printExpression(parse('@user.name & "\\n" & d"2026-01-31"'))).toBe('@user.name & "\\n" & d"2026-01-31"')
+  })
+})
+
+describe('function list', () => {
+  it('lists every registered function with a signature', () => {
+    expect(ungrouped()).toEqual([])
+    expect(signature('round')).toBe('round(number, number?) → number')
   })
 })

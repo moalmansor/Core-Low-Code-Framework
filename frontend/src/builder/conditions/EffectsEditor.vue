@@ -72,7 +72,16 @@ function add(): void {
     <div class="text-sm font-medium">{{ label }}</div>
     <div v-for="(e, i) in effects" :key="i" class="flex flex-col gap-1 rounded border border-surface-200 dark:border-surface-700 p-2">
       <div class="flex flex-wrap items-center gap-1">
-        <Select :model-value="e.effect" :options="kindOptions" option-label="label" option-value="value" size="small" class="w-44" :aria-label="t('builder.effect.kind')" @update:model-value="(k: EffectKind) => setKind(e, k)" />
+        <Select
+          :model-value="e.effect"
+          :options="kindOptions"
+          option-label="label"
+          option-value="value"
+          size="small"
+          class="w-44"
+          :aria-label="t('builder.effect.kind')"
+          @update:model-value="(k: EffectKind) => setKind(e, k)"
+        />
         <Select
           v-if="TARGETED.includes(e.effect)"
           :model-value="e.target ? `${e.target.type}:${e.target.uuid}` : null"
@@ -100,7 +109,15 @@ function add(): void {
         <span class="flex-1" />
         <Button size="small" text severity="danger" icon="pi pi-times" :aria-label="t('builder.effect.remove')" @click="effects.splice(i, 1)" />
       </div>
-      <FormulaEditor v-if="e.effect === 'set_value'" :model-value="e.value" @update:model-value="(a) => a && (e.value = a)" :scope="scope" :label="t('builder.effect.value')" :allow-empty="false" compact />
+      <FormulaEditor
+        v-if="e.effect === 'set_value'"
+        :model-value="e.value"
+        :scope="scope"
+        :label="t('builder.effect.value')"
+        :allow-empty="false"
+        compact
+        @update:model-value="(a) => a && (e.value = a)"
+      />
       <I18nInput v-if="e.effect === 'show_message' || e.effect === 'block_submit'" v-model="e.message" :label="t('builder.effect.message')" />
     </div>
     <Button size="small" text icon="pi pi-plus" :label="t('builder.effect.add')" class="self-start" @click="add" />

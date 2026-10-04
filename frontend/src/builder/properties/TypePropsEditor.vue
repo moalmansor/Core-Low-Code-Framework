@@ -33,7 +33,12 @@ function set(name: string, v: PropValue | undefined): void {
     <template v-for="s in specs" :key="s.name">
       <label v-if="s.kind === 'number'" class="field"
         ><span>{{ t(`builder.ui_prop.${s.name}`) }}</span>
-        <InputNumber :model-value="typeof value(s.name) === 'number' ? (value(s.name) as number) : null" :max-fraction-digits="4" size="small" @update:model-value="(v) => set(s.name, v ?? undefined)" />
+        <InputNumber
+          :model-value="typeof value(s.name) === 'number' ? (value(s.name) as number) : null"
+          :max-fraction-digits="4"
+          size="small"
+          @update:model-value="(v) => set(s.name, v ?? undefined)"
+        />
       </label>
       <label v-else-if="s.kind === 'boolean'" class="flex items-center gap-2 text-sm col-span-2"
         ><ToggleSwitch :model-value="value(s.name) === true" @update:model-value="(v: boolean) => set(s.name, v)" />{{ t(`builder.ui_prop.${s.name}`) }}</label

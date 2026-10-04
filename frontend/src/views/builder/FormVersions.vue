@@ -37,7 +37,10 @@ const diff = ref<VersionDiff | null>(null)
 const diffLoading = ref(false)
 const viewing = ref<{ version: number; definition: Record<string, unknown>; diff: VersionDiff | null } | null>(null)
 
-const choices = computed(() => [{ value: 'draft', label: t('builder.versions_page.draft') }, ...versions.value.map((v) => ({ value: String(v.version), label: t('builder.versions_page.version_n', { n: v.version }) }))])
+const choices = computed(() => [
+  { value: 'draft', label: t('builder.versions_page.draft') },
+  ...versions.value.map((v) => ({ value: String(v.version), label: t('builder.versions_page.version_n', { n: v.version }) })),
+])
 
 onMounted(async () => {
   try {
@@ -124,7 +127,9 @@ function formatDate(iso: string): string {
 <template>
   <div class="flex flex-col gap-4" data-testid="form-versions">
     <div class="flex flex-wrap items-center gap-2">
-      <RouterLink :to="{ name: 'admin.forms.builder', params: { form: formUuid } }" class="p-button p-button-text p-button-sm" :aria-label="t('builder.title')"><i class="pi pi-arrow-left rtl:rotate-180" /></RouterLink>
+      <RouterLink :to="{ name: 'admin.forms.builder', params: { form: formUuid } }" class="p-button p-button-text p-button-sm" :aria-label="t('builder.title')"
+        ><i class="pi pi-arrow-left rtl:rotate-180"
+      /></RouterLink>
       <h1 class="page-title !mb-0 flex-1">{{ t('builder.versions_page.title', { name: form?.name ?? '' }) }}</h1>
     </div>
     <Message v-if="failure" severity="error">{{ failure }}</Message>
@@ -141,7 +146,9 @@ function formatDate(iso: string): string {
               <th class="p-2 text-start">{{ t('builder.versions_page.change_class') }}</th>
               <th class="p-2 text-start">{{ t('builder.versions_page.changes') }}</th>
               <th class="p-2 text-start">{{ t('builder.versions_page.note') }}</th>
-              <th class="p-2"><span class="sr-only">{{ t('common.actions') }}</span></th>
+              <th class="p-2">
+                <span class="sr-only">{{ t('common.actions') }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -178,7 +185,14 @@ function formatDate(iso: string): string {
       </section>
     </template>
 
-    <Dialog :visible="!!viewing" modal :header="t('builder.versions_page.version_n', { n: viewing?.version ?? 0 })" :style="{ width: '48rem' }" :breakpoints="{ '800px': '95vw' }" @update:visible="(v: boolean) => !v && (viewing = null)">
+    <Dialog
+      :visible="!!viewing"
+      modal
+      :header="t('builder.versions_page.version_n', { n: viewing?.version ?? 0 })"
+      :style="{ width: '48rem' }"
+      :breakpoints="{ '800px': '95vw' }"
+      @update:visible="(v: boolean) => !v && (viewing = null)"
+    >
       <div v-if="viewing" class="flex flex-col gap-3">
         <h3 class="font-semibold text-sm">{{ t('builder.versions_page.fields', { n: viewedFields.length }) }}</h3>
         <ul class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">

@@ -26,11 +26,11 @@ const builder = useBuilder()
 const tab = ref('general')
 
 const form = computed(() => builder.doc!.form)
-const i18n = computed(() => (form.value.i18n ??= {}))
-const settings = computed<FormSettings>(() => (form.value.settings ??= {}))
+const i18n = computed(() => form.value.i18n!)
+const settings = computed<FormSettings>(() => form.value.settings!)
 const scope = computed(() => buildScope(builder.doc!, builder.catalog.fields))
 const isCollection = computed(() => form.value.kind === 'collection')
-const collection = computed<CollectionSettings>(() => (builder.doc!.collection ??= { type: 'table' }))
+const collection = computed<CollectionSettings>(() => builder.doc!.collection!)
 
 const applications = ref<{ value: string; label: string }[]>([])
 const sequences = ref<{ value: string; label: string }[]>([])
@@ -96,7 +96,14 @@ const iconInvalid = computed(() => !!form.value.icon && !/^[a-z0-9 -]{0,64}$/.te
           <div class="grid grid-cols-2 gap-2">
             <label class="field"
               ><span>{{ t('builder.icon') }}</span>
-              <InputText :model-value="form.icon ?? ''" size="small" class="ltr-value" :invalid="iconInvalid" placeholder="pi pi-file" @update:model-value="(v: string | undefined) => (form.icon = v ? v : null)" />
+              <InputText
+                :model-value="form.icon ?? ''"
+                size="small"
+                class="ltr-value"
+                :invalid="iconInvalid"
+                placeholder="pi pi-file"
+                @update:model-value="(v: string | undefined) => (form.icon = v ? v : null)"
+              />
             </label>
             <label class="field"
               ><span>{{ t('builder.form_props.application') }}</span>
@@ -118,11 +125,27 @@ const iconInvalid = computed(() => !!form.value.icon && !/^[a-z0-9 -]{0,64}$/.te
             </label>
             <label class="field"
               ><span>{{ t('builder.form_props.numbering') }}</span>
-              <Select :model-value="form.numbering ?? null" :options="sequences" option-label="label" option-value="value" show-clear size="small" @update:model-value="(v) => (form.numbering = v ?? null)" />
+              <Select
+                :model-value="form.numbering ?? null"
+                :options="sequences"
+                option-label="label"
+                option-value="value"
+                show-clear
+                size="small"
+                @update:model-value="(v) => (form.numbering = v ?? null)"
+              />
             </label>
             <label class="field col-span-2"
               ><span>{{ t('builder.form_props.calendar') }}</span>
-              <Select :model-value="form.calendar ?? null" :options="calendars" option-label="label" option-value="value" show-clear size="small" @update:model-value="(v) => (form.calendar = v ?? null)" />
+              <Select
+                :model-value="form.calendar ?? null"
+                :options="calendars"
+                option-label="label"
+                option-value="value"
+                show-clear
+                size="small"
+                @update:model-value="(v) => (form.calendar = v ?? null)"
+              />
               <span class="text-xs text-muted-color">{{ t('builder.form_props.calendar_hint') }}</span>
             </label>
           </div>
@@ -195,7 +218,9 @@ const iconInvalid = computed(() => !!form.value.icon && !/^[a-z0-9 -]{0,64}$/.te
             />
           </label>
           <label class="flex items-center gap-2 text-sm"
-            ><ToggleSwitch :model-value="collection.sharedReference ?? false" @update:model-value="(v: boolean) => (collection.sharedReference = v)" />{{ t('builder.collection.shared_reference') }}</label
+            ><ToggleSwitch :model-value="collection.sharedReference ?? false" @update:model-value="(v: boolean) => (collection.sharedReference = v)" />{{
+              t('builder.collection.shared_reference')
+            }}</label
           >
           <label class="field"
             ><span>{{ t('builder.collection.owner_application') }}</span>
@@ -209,9 +234,18 @@ const iconInvalid = computed(() => !!form.value.icon && !/^[a-z0-9 -]{0,64}$/.te
               @update:model-value="(v) => (collection.ownerApplication = v ?? null)"
             />
           </label>
-          <label class="field"><span>{{ t('builder.collection.value_field') }}</span><FieldSelect v-model="collection.valueField" /></label>
-          <label class="field"><span>{{ t('builder.collection.label_field') }}</span><FieldSelect v-model="collection.labelField" /></label>
-          <label class="field"><span>{{ t('builder.collection.parent_field') }}</span><FieldSelect v-model="collection.parentField" /></label>
+          <label class="field"
+            ><span>{{ t('builder.collection.value_field') }}</span
+            ><FieldSelect v-model="collection.valueField"
+          /></label>
+          <label class="field"
+            ><span>{{ t('builder.collection.label_field') }}</span
+            ><FieldSelect v-model="collection.labelField"
+          /></label>
+          <label class="field"
+            ><span>{{ t('builder.collection.parent_field') }}</span
+            ><FieldSelect v-model="collection.parentField"
+          /></label>
         </TabPanel>
 
         <TabPanel value="rules">

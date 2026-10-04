@@ -41,7 +41,9 @@ const kind = computed<Kind>(() => {
 })
 
 const kindOptions = computed(() =>
-  (['value', 'field', 'old', 'user', 'context', 'system', 'today', 'now', 'expr'] as Kind[]).filter((k) => props.allowRefs || ['value', 'today', 'now'].includes(k)).map((k) => ({ value: k, label: t(`builder.operand.${k}`) })),
+  (['value', 'field', 'old', 'user', 'context', 'system', 'today', 'now', 'expr'] as Kind[])
+    .filter((k) => props.allowRefs || ['value', 'today', 'now'].includes(k))
+    .map((k) => ({ value: k, label: t(`builder.operand.${k}`) })),
 )
 
 function literalType(): 'text' | 'number' | 'boolean' | 'date' | 'datetime' | 'time' {
@@ -225,7 +227,16 @@ const optionChoices = computed(() => props.options.map((o) => ({ value: o.value,
     />
 
     <template v-else-if="kind === 'value' && lit">
-      <Select :model-value="lit.t" :options="literalTypes" option-label="label" option-value="value" size="small" class="w-28" :aria-label="t('builder.operand.value_type')" @update:model-value="setLiteralType" />
+      <Select
+        :model-value="lit.t"
+        :options="literalTypes"
+        option-label="label"
+        option-value="value"
+        size="small"
+        class="w-28"
+        :aria-label="t('builder.operand.value_type')"
+        @update:model-value="setLiteralType"
+      />
       <Select
         v-if="lit.t === 'boolean'"
         :model-value="lit.v"
@@ -285,7 +296,15 @@ const optionChoices = computed(() => props.options.map((o) => ({ value: o.value,
 
     <label v-else-if="kind === 'today' && model.kind === 'today'" class="flex items-center gap-1 text-sm">
       {{ t('builder.operand.today_plus') }}
-      <InputNumber :model-value="model.offset" show-buttons :min="-36500" :max="36500" size="small" input-class="w-20" @update:model-value="(v: number | null) => (model = { kind: 'today', offset: v ?? 0 })" />
+      <InputNumber
+        :model-value="model.offset"
+        show-buttons
+        :min="-36500"
+        :max="36500"
+        size="small"
+        input-class="w-20"
+        @update:model-value="(v: number | null) => (model = { kind: 'today', offset: v ?? 0 })"
+      />
       {{ t('builder.operand.days') }}
     </label>
 

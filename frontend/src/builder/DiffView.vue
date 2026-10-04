@@ -48,8 +48,12 @@ function show(value: unknown): string {
         <tbody>
           <tr v-for="c in diff.form" :key="c.path" class="border-t border-surface-200 dark:border-surface-700 align-top">
             <td class="py-1 pe-2 ltr-value font-mono w-1/4">{{ c.path }}</td>
-            <td class="py-1 pe-2 text-red-700 dark:text-red-300 break-all"><span class="ltr-value">{{ show(c.before) }}</span></td>
-            <td class="py-1 text-green-700 dark:text-green-300 break-all"><span class="ltr-value">{{ show(c.after) }}</span></td>
+            <td class="py-1 pe-2 text-red-700 dark:text-red-300 break-all">
+              <span class="ltr-value">{{ show(c.before) }}</span>
+            </td>
+            <td class="py-1 text-green-700 dark:text-green-300 break-all">
+              <span class="ltr-value">{{ show(c.after) }}</span>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -62,11 +66,17 @@ function show(value: unknown): string {
           :key="e.uuid"
           :class="[
             'rounded border p-2',
-            e.change === 'added' ? 'border-green-300 bg-green-50 dark:bg-green-950' : e.change === 'removed' ? 'border-red-300 bg-red-50 dark:bg-red-950' : 'border-surface-200 dark:border-surface-700',
+            e.change === 'added'
+              ? 'border-green-300 bg-green-50 dark:bg-green-950'
+              : e.change === 'removed'
+                ? 'border-red-300 bg-red-50 dark:bg-red-950'
+                : 'border-surface-200 dark:border-surface-700',
           ]"
         >
           <div class="flex items-center gap-2">
-            <span :class="['text-xs font-semibold uppercase', e.change === 'added' ? 'text-green-700' : e.change === 'removed' ? 'text-red-700' : 'text-primary']">{{ t(`builder.diff.${e.change}`) }}</span>
+            <span :class="['text-xs font-semibold uppercase', e.change === 'added' ? 'text-green-700' : e.change === 'removed' ? 'text-red-700' : 'text-primary']">{{
+              t(`builder.diff.${e.change}`)
+            }}</span>
             <span>{{ title(s.kind, e) }}</span>
           </div>
           <table v-if="e.changes?.length" class="w-full text-xs mt-1">
@@ -80,8 +90,12 @@ function show(value: unknown): string {
             <tbody>
               <tr v-for="c in e.changes" :key="c.path" class="border-t border-surface-200 dark:border-surface-700 align-top">
                 <td class="py-1 pe-2 ltr-value font-mono w-1/4">{{ c.path }}</td>
-                <td class="py-1 pe-2 text-red-700 dark:text-red-300 break-all"><span class="ltr-value">{{ show(c.before) }}</span></td>
-                <td class="py-1 text-green-700 dark:text-green-300 break-all"><span class="ltr-value">{{ show(c.after) }}</span></td>
+                <td class="py-1 pe-2 text-red-700 dark:text-red-300 break-all">
+                  <span class="ltr-value">{{ show(c.before) }}</span>
+                </td>
+                <td class="py-1 text-green-700 dark:text-green-300 break-all">
+                  <span class="ltr-value">{{ show(c.after) }}</span>
+                </td>
               </tr>
             </tbody>
           </table>

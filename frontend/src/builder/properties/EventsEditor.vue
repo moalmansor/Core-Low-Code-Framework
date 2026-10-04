@@ -22,7 +22,7 @@ const field = defineModel<FieldDef>('field', { required: true })
 const { t } = useI18n()
 const builder = useBuilder()
 
-const events = computed(() => (field.value.events ??= []))
+const events = computed(() => field.value.events!)
 const triggers = computed(() => (['change', 'focus', 'blur'] as const).map((x) => ({ value: x, label: t(`builder.events.on_${x}`) })))
 const STEP_TYPES: EventStepType[] = ['set_field', 'reload_options', 'notify']
 const stepTypes = computed(() => STEP_TYPES.map((x) => ({ value: x, label: t(`builder.events.do_${x}`) })))
@@ -63,7 +63,12 @@ const optionFields = (f: FieldDef) => !!builder.typeInfo(f.type)?.options
       <div v-for="(step, j) in e.do" :key="j" class="flex flex-col gap-1 rounded bg-surface-50 dark:bg-surface-900 p-2">
         <div class="flex flex-wrap items-center gap-1">
           <Select :model-value="step.type" :options="stepTypes" option-label="label" option-value="value" size="small" class="w-44" @update:model-value="(x: EventStepType) => setType(step, x)" />
-          <FieldSelect v-if="step.type === 'set_field' || step.type === 'reload_options'" v-model="step.target" :filter="step.type === 'reload_options' ? optionFields : undefined" class="flex-1 min-w-32" />
+          <FieldSelect
+            v-if="step.type === 'set_field' || step.type === 'reload_options'"
+            v-model="step.target"
+            :filter="step.type === 'reload_options' ? optionFields : undefined"
+            class="flex-1 min-w-32"
+          />
           <Select v-if="step.type === 'notify'" v-model="step.severity" :options="severities" option-label="label" option-value="value" size="small" class="w-32" />
           <span class="flex-1" />
           <Button size="small" text severity="danger" icon="pi pi-times" :disabled="e.do.length === 1" :aria-label="t('builder.remove')" @click="e.do.splice(j, 1)" />
@@ -71,7 +76,15 @@ const optionFields = (f: FieldDef) => !!builder.typeInfo(f.type)?.options
         <FormulaEditor v-if="step.type === 'set_field'" v-model="step.value" :scope="scope" compact :label="t('builder.events.value')" />
         <I18nInput v-if="step.type === 'notify'" v-model="step.message" :label="t('builder.events.message')" />
       </div>
-      <Button v-if="e.do.length < 10" size="small" text icon="pi pi-plus" :label="t('builder.events.add_step')" class="self-start" @click="e.do.push({ type: 'notify', severity: 'info', message: {} })" />
+      <Button
+        v-if="e.do.length < 10"
+        size="small"
+        text
+        icon="pi pi-plus"
+        :label="t('builder.events.add_step')"
+        class="self-start"
+        @click="e.do.push({ type: 'notify', severity: 'info', message: {} })"
+      />
     </article>
     <Button v-if="events.length < 20" size="small" severity="secondary" icon="pi pi-plus" :label="t('builder.events.add')" class="self-start" @click="addEvent" />
   </div>

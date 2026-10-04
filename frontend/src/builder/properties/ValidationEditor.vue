@@ -26,7 +26,7 @@ const field = defineModel<FieldDef>('field', { required: true })
 const { t } = useI18n()
 const builder = useBuilder()
 
-const v = computed<ValidationDef>(() => (field.value.validation ??= {}))
+const v = computed<ValidationDef>(() => field.value.validation!)
 const allows = (rule: string) => props.info.validation.includes(rule)
 const DECIMAL = /^-?[0-9]{1,30}(\.[0-9]{1,18})?$/
 
@@ -132,10 +132,12 @@ function removeCustom(i: number): void {
       <h4>{{ t('builder.validation.length') }}</h4>
       <div class="grid grid-cols-2 gap-2">
         <label class="field"
-          ><span>{{ t('builder.min') }}</span><InputNumber :model-value="v.length?.min ?? null" :min="0" size="small" @update:model-value="(x) => setLength('min', x ?? null)"
+          ><span>{{ t('builder.min') }}</span
+          ><InputNumber :model-value="v.length?.min ?? null" :min="0" size="small" @update:model-value="(x) => setLength('min', x ?? null)"
         /></label>
         <label class="field"
-          ><span>{{ t('builder.max') }}</span><InputNumber :model-value="v.length?.max ?? null" :min="1" size="small" @update:model-value="(x) => setLength('max', x ?? null)"
+          ><span>{{ t('builder.max') }}</span
+          ><InputNumber :model-value="v.length?.max ?? null" :min="1" size="small" @update:model-value="(x) => setLength('max', x ?? null)"
         /></label>
       </div>
       <I18nInput v-if="v.length?.min != null || v.length?.max != null" :model-value="message('length')" :label="t('builder.validation.message')" @update:model-value="(m) => setMessage('length', m)" />
@@ -144,10 +146,17 @@ function removeCustom(i: number): void {
     <section v-if="allows('number')" class="rule">
       <h4>{{ t('builder.validation.number') }}</h4>
       <div class="grid grid-cols-3 gap-2">
-        <label class="field"><span>{{ t('builder.min') }}</span><InputText v-model="numMin" size="small" class="ltr-value" :invalid="!!numMin && !DECIMAL.test(numMin)" inputmode="decimal" /></label>
-        <label class="field"><span>{{ t('builder.max') }}</span><InputText v-model="numMax" size="small" class="ltr-value" :invalid="!!numMax && !DECIMAL.test(numMax)" inputmode="decimal" /></label>
         <label class="field"
-          ><span>{{ t('builder.validation.step') }}</span><InputText v-model="numStep" size="small" class="ltr-value" :invalid="!!numStep && !/^[0-9]{1,30}(\.[0-9]{1,18})?$/.test(numStep)" inputmode="decimal"
+          ><span>{{ t('builder.min') }}</span
+          ><InputText v-model="numMin" size="small" class="ltr-value" :invalid="!!numMin && !DECIMAL.test(numMin)" inputmode="decimal"
+        /></label>
+        <label class="field"
+          ><span>{{ t('builder.max') }}</span
+          ><InputText v-model="numMax" size="small" class="ltr-value" :invalid="!!numMax && !DECIMAL.test(numMax)" inputmode="decimal"
+        /></label>
+        <label class="field"
+          ><span>{{ t('builder.validation.step') }}</span
+          ><InputText v-model="numStep" size="small" class="ltr-value" :invalid="!!numStep && !/^[0-9]{1,30}(\.[0-9]{1,18})?$/.test(numStep)" inputmode="decimal"
         /></label>
       </div>
       <I18nInput v-if="numMin || numMax || numStep" :model-value="message('number')" :label="t('builder.validation.message')" @update:model-value="(m) => setMessage('number', m)" />
@@ -156,7 +165,14 @@ function removeCustom(i: number): void {
     <section v-if="allows('pattern')" class="rule">
       <label class="field"
         ><span class="font-medium">{{ t('builder.validation.pattern') }}</span>
-        <InputText :model-value="v.pattern ?? ''" size="small" class="ltr-value font-mono" maxlength="256" :invalid="patternUnsafe" @update:model-value="(x: string | undefined) => (v.pattern = x ? x : null)" />
+        <InputText
+          :model-value="v.pattern ?? ''"
+          size="small"
+          class="ltr-value font-mono"
+          maxlength="256"
+          :invalid="patternUnsafe"
+          @update:model-value="(x: string | undefined) => (v.pattern = x ? x : null)"
+        />
         <span v-if="patternUnsafe" class="field-error">{{ t('builder.validation.pattern_unsafe') }}</span>
         <span v-else class="text-xs text-muted-color">{{ t('builder.validation.pattern_hint') }}</span>
       </label>
@@ -178,15 +194,27 @@ function removeCustom(i: number): void {
       <p class="text-xs text-muted-color">{{ t('builder.validation.date_hint') }}</p>
       <label class="field"
         ><span>{{ t('builder.validation.disabled_weekdays') }}</span>
-        <MultiSelect :model-value="v.date?.disabledWeekdays ?? []" :options="weekdays" option-label="label" option-value="value" display="chip" size="small" @update:model-value="(x) => setDate('disabledWeekdays', x)" />
+        <MultiSelect
+          :model-value="v.date?.disabledWeekdays ?? []"
+          :options="weekdays"
+          option-label="label"
+          option-value="value"
+          display="chip"
+          size="small"
+          @update:model-value="(x) => setDate('disabledWeekdays', x)"
+        />
       </label>
       <label class="field"
         ><span>{{ t('builder.validation.disabled_dates') }}</span>
         <InputText v-model.lazy="disabledDates" size="small" class="ltr-value" :invalid="datesInvalid" placeholder="2026-12-01, 2026-12-02" />
       </label>
       <div class="flex flex-wrap gap-4">
-        <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="v.date?.noPast ?? false" @update:model-value="(x: boolean) => setDate('noPast', x)" />{{ t('builder.validation.no_past') }}</label>
-        <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="v.date?.noFuture ?? false" @update:model-value="(x: boolean) => setDate('noFuture', x)" />{{ t('builder.validation.no_future') }}</label>
+        <label class="flex items-center gap-2 text-sm"
+          ><ToggleSwitch :model-value="v.date?.noPast ?? false" @update:model-value="(x: boolean) => setDate('noPast', x)" />{{ t('builder.validation.no_past') }}</label
+        >
+        <label class="flex items-center gap-2 text-sm"
+          ><ToggleSwitch :model-value="v.date?.noFuture ?? false" @update:model-value="(x: boolean) => setDate('noFuture', x)" />{{ t('builder.validation.no_future') }}</label
+        >
       </div>
       <I18nInput v-if="v.date" :model-value="message('date')" :label="t('builder.validation.message')" @update:model-value="(m) => setMessage('date', m)" />
     </section>

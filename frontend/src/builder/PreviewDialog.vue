@@ -93,13 +93,31 @@ async function setLocale(code: string): Promise<void> {
 </script>
 
 <template>
-  <Dialog v-model:visible="visible" modal maximizable :header="t('builder.preview.title')" :style="{ width: '90vw', height: '90vh' }" :breakpoints="{ '640px': '100vw' }" content-class="flex flex-col gap-3">
+  <Dialog
+    v-model:visible="visible"
+    modal
+    maximizable
+    :header="t('builder.preview.title')"
+    :style="{ width: '90vw', height: '90vh' }"
+    :breakpoints="{ '640px': '100vw' }"
+    content-class="flex flex-col gap-3"
+  >
     <div class="flex flex-wrap items-center gap-2" role="toolbar" :aria-label="t('builder.preview.options')">
       <SelectButton v-model="mode" :options="modes" option-label="label" option-value="value" :allow-empty="false" size="small" :aria-label="t('builder.preview.mode')" data-testid="preview-mode" />
       <SelectButton v-model="device" :options="devices" option-value="value" :allow-empty="false" size="small" :aria-label="t('builder.canvas.device')">
-        <template #option="{ option }"><i :class="option.icon" :title="option.label" /><span class="sr-only">{{ option.label }}</span></template>
+        <template #option="{ option }"
+          ><i :class="option.icon" :title="option.label" /><span class="sr-only">{{ option.label }}</span></template
+        >
       </SelectButton>
-      <Select :model-value="session.locale" :options="localeOptions" option-label="label" option-value="value" size="small" :aria-label="t('builder.preview.language')" @update:model-value="setLocale" />
+      <Select
+        :model-value="session.locale"
+        :options="localeOptions"
+        option-label="label"
+        option-value="value"
+        size="small"
+        :aria-label="t('builder.preview.language')"
+        @update:model-value="setLocale"
+      />
       <Select
         v-if="roles.length"
         v-model="asRole"
