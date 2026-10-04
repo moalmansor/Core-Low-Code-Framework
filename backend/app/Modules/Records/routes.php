@@ -6,6 +6,7 @@ use App\Modules\Records\Http\Controllers\CommentController;
 use App\Modules\Records\Http\Controllers\FileController;
 use App\Modules\Records\Http\Controllers\RecordController;
 use App\Modules\Records\Http\Controllers\RecordExchangeController;
+use App\Modules\Records\Http\Controllers\SubformController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
@@ -22,6 +23,8 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::delete('/r/{form}/{record}', [RecordController::class, 'destroy'])->whereUuid('record');
     Route::post('/r/{form}/{record}/restore', [RecordController::class, 'restore'])->whereUuid('record');
     Route::get('/r/{form}/{record}/history', [RecordController::class, 'history'])->whereUuid('record');
+    Route::get('/r/{form}/{record}/subforms/{group}', [SubformController::class, 'index'])->whereUuid('record')->where('group', '[a-z][a-z0-9_]{0,47}');
+    Route::post('/r/{form}/{record}/subforms/{group}', [SubformController::class, 'store'])->whereUuid('record')->where('group', '[a-z][a-z0-9_]{0,47}');
     Route::get('/r/{form}/{record}/comments', [CommentController::class, 'index'])->whereUuid('record');
     Route::post('/r/{form}/{record}/comments', [CommentController::class, 'store'])->whereUuid('record');
     Route::delete('/r/{form}/{record}/comments/{comment}', [CommentController::class, 'destroy'])->whereUuid('record')->whereUuid('comment');

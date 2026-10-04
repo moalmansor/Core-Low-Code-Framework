@@ -160,6 +160,16 @@ final class ReferentialIntegrity
             }
         }
 
+        // Inline sub-forms of this form: the linked form's table holds a key to its records.
+        $own = $this->runtimes->forUuid($formUuid);
+        foreach ($own?->definition['schema']['external'] ?? [] as $external) {
+            $relation = $own->relations[$external['relation']] ?? null;
+            $linked = $relation === null ? null : $this->runtimes->forUuid($relation['target']);
+            if ($linked !== null && $linked->table === $external['table']) {
+                $out[] = ['rt' => $linked, 'rule' => $relation['onDelete'] ?? 'restrict', 'field' => ['key' => $external['column']['name']], 'kind' => 'column', 'column' => $external['column']['name']];
+            }
+        }
+
         return $this->memo[$formUuid] = $out;
     }
 

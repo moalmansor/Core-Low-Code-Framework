@@ -9,7 +9,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ApiError, ensureCsrf, get, http } from '@/api/http'
 import { newUuid } from '@/runtime/api'
 import { changedValues, conflictRows, isConflictPayload, mergeAfterResolution, resolvedSubmission, type Choice, type ConflictPayload } from '@/runtime/conflict'
-import { RECORD_FILES } from '@/runtime/context'
+import { RECORD_FILES, RECORD_UUID } from '@/runtime/context'
 import FormRenderer from '@/runtime/FormRenderer.vue'
 import { pickText } from '@/runtime/i18nText'
 import { submissionValues } from '@/runtime/submission'
@@ -43,6 +43,7 @@ const recordTitle = ref<string | null>(null)
 const references = ref<References>({})
 const files = ref<Record<string, FileMeta>>({})
 provide(RECORD_FILES, files)
+provide(RECORD_UUID, recordUuid)
 const serverErrors = ref<Record<string, string[]>>({})
 const loadError = ref('')
 const saving = ref(false)

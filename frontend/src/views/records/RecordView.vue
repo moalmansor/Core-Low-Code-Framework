@@ -16,7 +16,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError, ensureCsrf, get, http, send } from '@/api/http'
 import { newUuid, openFile } from '@/runtime/api'
-import { RECORD_FILES } from '@/runtime/context'
+import { RECORD_FILES, RECORD_UUID } from '@/runtime/context'
 import { FormIndex } from '@/runtime/formIndex'
 import { formatDatetime, formatLoose, formatValue } from '@/runtime/format'
 import FormRenderer from '@/runtime/FormRenderer.vue'
@@ -60,6 +60,7 @@ const record = ref<RecordPayload | null>(null)
 const loadError = ref('')
 const files = ref<Record<string, FileMeta>>({})
 provide(RECORD_FILES, files)
+provide(RECORD_UUID, recordUuid)
 const tab = ref('details')
 const printing = ref(false)
 

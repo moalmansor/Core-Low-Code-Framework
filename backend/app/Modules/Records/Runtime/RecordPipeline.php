@@ -44,9 +44,10 @@ final class RecordPipeline
     /**
      * @param  array<string, mixed>  $input  values by field key (repeater keys hold row lists)
      * @param  array<string, mixed>  $params  URL parameters (defaults)
+     * @param  array<string, int>  $links  foreign-key columns outside the definition set at insert (inline sub-form parent)
      * @return array{id: int, uuid: string}
      */
-    public function create(FormRuntime $rt, User $user, array $input, array $params, string $key, string $source = 'ui'): array
+    public function create(FormRuntime $rt, User $user, array $input, array $params, string $key, string $source = 'ui', array $links = []): array
     {
         $this->guardForm($rt, $user, 'create');
         $entry = $this->journal->open($key, $rt->form->id, $rt->versionId, 'create', $source, $user->id, $input, null, null);
@@ -77,7 +78,7 @@ final class RecordPipeline
 
                 return ['id' => $existing['id'], 'uuid' => $existing['uuid']];
             }
-            $id = DB::transaction(function () use ($rt, $user, $values, $entry): int {
+            $id = DB::transaction(function () use ($rt, $user, $values, $entry, $links): int {
                 $values = $this->assignNumbers($rt, $values);
                 $system = [
                     'organization_id' => $rt->form->organization_id,
@@ -88,7 +89,7 @@ final class RecordPipeline
                     'created_by' => $user->id,
                     'updated_by' => $user->id,
                     'search_text' => $this->searchText($rt, $values),
-                ];
+                ] + $links;
                 $id = $this->store->insert($rt, $entry['uuid'], $values, $system);
                 $this->attachFiles($rt, $id, $values, $user);
                 $this->audit->record('record.created', 'data', $this->diff($rt, [], $values), 'record', $id, ['form' => $rt->form->key, 'row_version' => 1], $user->id, null, $rt->form->id, $id);

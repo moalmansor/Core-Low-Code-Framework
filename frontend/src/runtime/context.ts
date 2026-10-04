@@ -39,6 +39,9 @@ export const RENDERER: InjectionKey<RendererContext> = Symbol('lcf-renderer')
 /** File metadata of the record being shown (uuid → meta), provided by record screens. */
 export const RECORD_FILES: InjectionKey<Ref<Record<string, FileMeta>>> = Symbol('lcf-record-files')
 
+/** Uuid of the stored record being shown or edited (null while creating), provided by record screens. */
+export const RECORD_UUID: InjectionKey<Ref<string | null>> = Symbol('lcf-record-uuid')
+
 export function useRenderer(): RendererContext {
   const ctx = inject(RENDERER)
   if (!ctx) throw new Error('Field components must be rendered inside FormRenderer')
