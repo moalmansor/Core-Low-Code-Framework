@@ -83,6 +83,28 @@ depends on one cites this ADR.
     `resources/ui-strings/{locale}/`; the server and the SPA merge them the
     same way.
 
+14. **User context in definitions.** Definition and preview responses carry
+    the resolved user (role keys and uuids, department code and uuid,
+    ancestor departments, attributes) so `@user` references and
+    `current_department` defaults evaluate in the browser exactly as on the
+    server; previews "as role" carry only that role.
+15. **Repeater row permissions are enforced on the server.** When a repeater
+    names roles for adding, removing or reordering rows, the record pipeline
+    refuses those changes from anyone without one of the roles; the renderer
+    hides the controls the same way.
+16. **Type-specific UI settings.** Settings a field type needs only for display
+    (rows, slider bounds, rating stars, image crop, map defaults, …) live in
+    `field.ui.props` under the names listed in `frontend/src/runtime/uiProps.ts`;
+    the builder writes exactly those names.
+17. **Inline sub-forms.** Records of a linked form shown inside a parent are
+    listed and added through `/r/{form}/{record}/subforms/{group}`, which runs
+    the linked form's own record pipeline and sets the parent key at insert;
+    the relation's on-delete rule applies when the parent is deleted.
+18. **Picker lists without management rights.** Menu and numbering editors list
+    forms through `GET /form-options` (uuid, key, kind, name, state), allowed to
+    holders of Manage Pages & Menus, Numbering or Applications as well as
+    Manage Forms, so those editors work without the right to change forms.
+
 ## Consequences
 
 - The specification and architecture are updated in the same pull request

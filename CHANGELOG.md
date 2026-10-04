@@ -2,7 +2,39 @@
 
 All notable changes to this project are documented here, one section per phase.
 
-## [Unreleased] — Phase 1: Foundation, Security & Administration Core
+## [Unreleased] — Phase 2: Form Builder, Collections & Data Engine
+
+### Added
+- Expression language: PHP reference evaluator and TypeScript twin, parser,
+  type checker; shared conformance corpus (198 cases) green on both in CI.
+- Form builder: three panels, drag and drop with nesting, undo/redo,
+  copy/paste, multi-select, autosave with draft locking, field library, every
+  input type and group, all group and field properties, rule builder and
+  formula editor, preview as any role or user.
+- Data engine: physical tables per form and collection, child tables, pivots,
+  migration plans persisted before execution with reversal, Schema
+  Inconsistent state and guided repair, publish locks, encrypted snapshots,
+  scheduled reconciliation, database binding and introspection.
+- Versioning: draft, impact analysis, diff, rollback; publishing with sidebar
+  placement and the menu editor.
+- Records runtime: record pipeline with submission journal and idempotency,
+  optimistic concurrency with the conflict screen, relation on-delete rules,
+  repeater row permissions, inline sub-form records, files, numbering,
+  comments, history; Excel/CSV import and export.
+- Permission matrix: form-level permissions, group and field access per
+  role, user, department and mode, cached resolution, explain access.
+- Blueprints with versions, propagation preview, export and import; reference
+  data (calendars, holidays, numbering, currencies, exchange rates, units).
+- Admin screens for applications, forms and collections, access, schema
+  explorer with ERD, migration plans, blueprints and reference data.
+- ADR-0027 and ADR-0028.
+
+### Fixed
+- SQL Server returns BIGINT and UNIQUEIDENTIFIER values with the same PHP
+  types as MySQL.
+- Opening the root URL directly shows the application shell.
+
+## Phase 1: Foundation, Security & Administration Core
 
 ### Added
 - Laravel 12 backend (modular monolith) and Vue 3 SPA; Docker Compose stack, dev

@@ -268,7 +268,7 @@ The palette must include **every HTML input type and form element**, each fully 
 - Row with columns (1–12 grid, per breakpoint).
 - Collapsible panel/accordion.
 - Repeater (repeatable group / inline sub-table).
-- Inline sub-form of a linked form (create child records inside the parent).
+- Inline sub-form of a linked form (create child records inside the parent). Once the parent is saved, the group lists the linked records and adds new ones, which are validated and stored by the linked form under its own permissions; deleting the parent applies the relation's on-delete rule to them.
 
 ### 4.5 Form Builder: Group Properties
 Clicking any group (section, fieldset, card, tab, step, row, panel, repeater) shows its full properties.
