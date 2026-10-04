@@ -29,6 +29,7 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::delete('/field-templates/{template}', [FieldTemplateController::class, 'destroy']);
 
     Route::get('/forms', [FormController::class, 'index']);
+    Route::get('/form-options', [FormController::class, 'options']);
     Route::post('/forms', [FormController::class, 'store']);
     Route::get('/forms/{form}', [FormController::class, 'show']);
     Route::delete('/forms/{form}', [FormController::class, 'destroy']);

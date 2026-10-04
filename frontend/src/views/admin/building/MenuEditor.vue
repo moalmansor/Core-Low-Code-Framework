@@ -27,7 +27,7 @@ import {
   type MenuNode,
   type MenuTreeContext,
 } from './menuTree'
-import { errorText, fetchAllForms, type FormSummary } from './shared'
+import { errorText, fetchFormOptions, FORM_OPTION_PERMISSIONS, type FormOption } from './shared'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -39,8 +39,8 @@ const appUuid = computed(() => String(route.params.application))
 const appName = ref('')
 const tree = ref<MenuNode[]>([])
 const saved = ref('[]')
-const forms = ref<FormSummary[]>([])
-const formsAvailable = session.can('system.manage_forms')
+const forms = ref<FormOption[]>([])
+const formsAvailable = FORM_OPTION_PERMISSIONS.some((p) => session.can(p))
 const loading = ref(true)
 const saving = ref(false)
 const selectedId = ref<string | null>(null)
@@ -65,7 +65,7 @@ onMounted(async () => {
     const app = apps.data.find((a) => a.uuid === appUuid.value)
     appName.value = app?.name ?? app?.key ?? ''
     adopt(menu.data)
-    if (formsAvailable) forms.value = await fetchAllForms()
+    if (formsAvailable) forms.value = await fetchFormOptions()
   } catch (e) {
     toast.add({ severity: 'error', summary: errorText(e, t('building.load_failed')), life: 6000 })
   } finally {

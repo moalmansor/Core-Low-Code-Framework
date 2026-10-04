@@ -10,7 +10,7 @@ import { MENU_TYPES, type MenuNode, type MenuType } from './menuTree'
 import type { FormSummary } from './shared'
 
 /** Properties of the selected menu item. */
-const props = defineProps<{ forms: FormSummary[]; defaultLocale: string }>()
+const props = defineProps<{ forms: FormOption[]; defaultLocale: string }>()
 /** The tree node being edited; nested properties are changed in place. */
 const node = defineModel<MenuNode>('node', { required: true })
 const { t } = useI18n()

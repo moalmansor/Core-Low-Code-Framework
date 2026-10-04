@@ -44,7 +44,8 @@ it('reconciles metadata with the physical schema and purges expired snapshots', 
     Schema::table('f_assets', fn ($t) => $t->dropColumn('model'));
     $this->artisan('schema:reconcile --scheduled')->assertFailed();
     $report = DB::table('schema_reconciliation_reports')->orderByDesc('id')->first();
-    expect($report->status)->toBe('drift')->and((int) $report->difference_count)->toBeGreaterThan(0);
+    expect($report->status)->toBe('drift')->and((int) $report->difference_count)->toBeGreaterThan(0)
+        ->and(json_decode((string) $report->differences, true)[0]['form_key'])->toBe('assets');
 
     // Snapshots past retention are deleted along with their files.
     $count = DB::table('schema_snapshots')->count();
@@ -52,4 +53,13 @@ it('reconciles metadata with the physical schema and purges expired snapshots', 
     SchemaSnapshot::query()->update(['expires_at' => now()->subDay()]);
     $this->artisan('schema:purge-snapshots')->assertSuccessful();
     expect(DB::table('schema_snapshots')->count())->toBe(0);
+});
+
+it('lists forms as picker options for menu and numbering editors', function () {
+    [, $form] = createForm($this, 'tickets');
+    $this->getJson('/api/v1/form-options')->assertOk()->assertJsonPath('data.0.uuid', $form)->assertJsonPath('data.0.key', 'tickets');
+    $user = $this->makeUser();
+    $this->flushSession();
+    $this->actingAs($user, 'web');
+    $this->getJson('/api/v1/form-options')->assertForbidden();
 });

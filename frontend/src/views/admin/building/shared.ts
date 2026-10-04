@@ -68,13 +68,12 @@ export interface FormSummary {
   updated_at: string | null
 }
 
-/** Every form and collection (all pages of GET /forms), for pickers. Needs Manage Forms. */
-export async function fetchAllForms(params: Record<string, unknown> = {}): Promise<FormSummary[]> {
-  const out: FormSummary[] = []
-  for (let page = 1; page <= 100; page++) {
-    const res = await get<{ data: FormSummary[]; meta: { total: number } }>('/forms', { ...params, page, per_page: 100 })
-    out.push(...res.data)
-    if (out.length >= res.meta.total || res.data.length === 0) break
-  }
-  return out
+export type FormOption = Pick<FormSummary, 'uuid' | 'key' | 'kind' | 'name' | 'state' | 'application'>
+
+/** Permissions that may list forms as picker options (GET /form-options). */
+export const FORM_OPTION_PERMISSIONS = ['system.manage_forms', 'system.manage_pages_menus', 'system.manage_numbering', 'system.manage_applications']
+
+/** Every form and collection, for pickers. */
+export async function fetchFormOptions(): Promise<FormOption[]> {
+  return (await get<{ data: FormOption[] }>('/form-options')).data
 }

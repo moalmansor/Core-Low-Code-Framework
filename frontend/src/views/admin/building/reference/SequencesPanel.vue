@@ -14,7 +14,7 @@ import { useI18n } from 'vue-i18n'
 import { get, send } from '@/api/http'
 import { useSession } from '@/stores/session'
 import { PATTERN_TOKENS, previewNext, validPattern, type NumberCalendar, type ResetPeriod } from '../numberPattern'
-import { errorText, fetchAllForms, fieldErrors, type FormSummary } from '../shared'
+import { errorText, fetchFormOptions, FORM_OPTION_PERMISSIONS, fieldErrors, type FormOption } from '../shared'
 
 interface Sequence {
   uuid: string
@@ -37,8 +37,8 @@ const toast = useToast()
 const session = useSession()
 const rows = ref<Sequence[]>([])
 const loading = ref(false)
-const forms = ref<FormSummary[]>([])
-const canForms = session.can('system.manage_forms')
+const forms = ref<FormOption[]>([])
+const canForms = FORM_OPTION_PERMISSIONS.some((p) => session.can(p))
 const formKey = (uuid: string | null) => (uuid ? (forms.value.find((f) => f.uuid === uuid)?.key ?? uuid) : '—')
 
 async function load(): Promise<void> {
@@ -53,7 +53,7 @@ async function load(): Promise<void> {
 }
 onMounted(async () => {
   await load()
-  if (canForms) forms.value = await fetchAllForms()
+  if (canForms) forms.value = await fetchFormOptions()
 })
 
 const resetOptions = computed(() => (['never', 'daily', 'monthly', 'yearly'] as const).map((v) => ({ value: v, label: t(`building.ref.reset.${v}`) })))

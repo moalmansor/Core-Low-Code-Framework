@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Forms\Http\Controllers;
 
+use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\Models\Role;
 use App\Modules\Access\ObjectPermissions;
@@ -51,6 +52,27 @@ final class FormController extends Controller
         private readonly FormService $forms,
         private readonly Translator $translator,
     ) {}
+
+    /**
+     * Every form and collection as a picker option (uuid, key, kind, name,
+     * state, application), for screens that target forms without managing
+     * them: menus, numbering sequences, applications.
+     */
+    public function options(AccessResolver $access): JsonResponse
+    {
+        /** @var User $user */
+        $user = Auth::user();
+        abort_unless(collect(['system.manage_forms', 'system.manage_pages_menus', 'system.manage_numbering', 'system.manage_applications'])
+            ->contains(static fn (string $p) => $access->allows($user, $p)), 403);
+        $forms = Form::query()->with('application:id,uuid,key')->orderBy('key')->get(['id', 'uuid', 'key', 'kind', 'state', 'application_id']);
+        $names = $this->translator->many('form', $forms->pluck('id')->map(fn ($i) => (int) $i)->all(), ['name']);
+
+        return response()->json(['data' => $forms->map(static fn (Form $f) => [
+            'uuid' => $f->uuid, 'key' => $f->key, 'kind' => $f->kind, 'state' => $f->state,
+            'name' => $names[$f->id]['name'] ?? $f->key,
+            'application' => $f->application === null ? null : ['uuid' => $f->application->uuid, 'key' => $f->application->key],
+        ])->values()]);
+    }
 
     public function index(Request $request): JsonResponse
     {

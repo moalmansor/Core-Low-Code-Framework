@@ -47,6 +47,7 @@ interface TableDetail {
 }
 interface Difference {
   form?: string
+  form_key?: string | null
   table?: string
   kind: string
   column?: string
@@ -291,7 +292,7 @@ const showValue = (v: unknown) => (v === null || v === undefined ? '—' : Array
               </thead>
               <tbody>
                 <tr v-for="(d, i) in data.differences as Difference[]" :key="i" class="border-t border-surface-200 dark:border-surface-700">
-                  <td class="p-1 ltr-value">{{ formKeyOf(d.form) }}</td>
+                  <td class="p-1 ltr-value">{{ d.form_key ?? formKeyOf(d.form) }}</td>
                   <td class="p-1 ltr-value">
                     <button v-if="d.table" type="button" class="underline cursor-pointer" @click="openTable(d.table)">{{ d.table }}</button><span v-else>—</span>
                   </td>

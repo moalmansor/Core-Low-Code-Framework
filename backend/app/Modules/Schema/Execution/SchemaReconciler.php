@@ -108,6 +108,10 @@ final class SchemaReconciler
                 }
             }
         }
+        $keys = $forms->pluck('key', 'uuid')->all();
+        foreach ($out as $i => $difference) {
+            $out[$i]['form_key'] = $keys[$difference['form']] ?? null;
+        }
 
         return $out;
     }
