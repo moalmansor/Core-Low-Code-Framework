@@ -7,7 +7,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import LocaleFields from './LocaleFields.vue'
 import { MENU_TYPES, type MenuNode, type MenuType } from './menuTree'
-import type { FormSummary } from './shared'
+import type { FormOption } from './shared'
 
 /** Properties of the selected menu item. */
 const props = defineProps<{ forms: FormOption[]; defaultLocale: string }>()
