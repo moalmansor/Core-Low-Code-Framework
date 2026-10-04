@@ -297,7 +297,7 @@ Clicking any group (section, fieldset, card, tab, step, row, panel, repeater) sh
 
 **Repeater-specific**
 - Minimum/maximum rows, and default rows.
-- Add/remove/reorder permissions per role.
+- Add/remove/reorder permissions per role, enforced by the server on every save, not only hidden in the form.
 - Row totals and aggregates.
 - Column layout as a table or as cards.
 - Storage as a child table with a real foreign key.
