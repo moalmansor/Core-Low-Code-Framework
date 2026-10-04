@@ -230,32 +230,31 @@ Done and committed:
   `schema:purge-snapshots` (daily, retention setting).
 - Relation on-delete rules (restrict, cascade, set null) enforced by the
   record pipeline (`ReferentialIntegrity`), planned as a unit and audited.
-- Frontend groundwork: console areas for applications, forms, blueprints,
-  reference data and schema; route modules `frontend/src/router/{runtime,
-  builder,building}.ts` (empty, to be filled); per-area interface strings in
-  `backend/resources/ui-strings/{en,ar}/*.json` (merged by the server and the
-  SPA); `vuedraggable` and `@vue-flow/core` installed.
+- Frontend: form builder (palette, canvas with drag and drop and nesting,
+  undo/redo, clipboard, multi-select, autosave, field library, property
+  panels, rule builder, formula editor, preview as role or user, publish
+  dialog with impact analysis and placement, versions/diff/rollback); runtime
+  renderer with every field type; records list, create/edit/view, conflict
+  screen, import/export, inline sub-forms; admin screens for applications and
+  menus, forms and collections, form access matrix and explain, schema
+  explorer with ERD, migration plans and repair, blueprints, reference data;
+  sidebar navigation from published menus. Strings per area in
+  `backend/resources/ui-strings/{en,ar}/*.json`.
+- Playwright `e2e/04-forms.spec.ts`: build a form, publish it into the
+  sidebar, create a record, resolve a concurrent edit on the conflict screen;
+  building screens in Arabic right to left. Passes locally on MySQL and SQL
+  Server.
 - SQL Server parity: the SQL Server connection converts BIGINT and
   UNIQUEIDENTIFIER results by declared type; all 605 backend tests pass on
   MySQL 8 and SQL Server 2019 locally.
 
 ## Resume point
 
-Backend scope of Phase 2 is built and tested on both engines. The frontend
-screens are not started (a parallel attempt stopped on a usage limit before
-writing files). Next, in order:
-1. Frontend (`frontend/src`): form builder (three panels, drag and drop,
-   nesting, undo/redo, copy/paste, multi-select, autosave, field library),
-   property panels for groups and fields, rule builder and formula editor,
-   runtime renderer with every field component and the conflict screen,
-   publish/impact/menu editor, versions/diff/rollback, applications, forms and
-   collections lists with records table and import/export, schema explorer
-   with ERD, migration plans and repair, access matrix and explain, reference
-   data screens, blueprints, settings for the new keys; ui-strings en/ar.
-2. Playwright end-to-end tests for the builder → publish → record flow.
-3. ADR-0028 (decisions marked "ADR-0028" in code), specification and
-   architecture updates, CHANGELOG.
-4. PR "Closes #4" with the full section 8.2 report citing CI on the head commit.
+Phase 2 is built. Backend: 611 tests pass on MySQL 8 and SQL Server 2019
+locally; frontend: eslint, prettier, vue-tsc and 487 unit tests pass; the
+Phase 2 end-to-end spec passes on both engines. Next: the Phase 2 pull request
+("Closes #4") with the section 8.2 report citing CI on its head commit, then
+the owner's review. Do not start Phase 2.5 (the owner's pilot).
 
 ### Local development notes
 
