@@ -175,5 +175,12 @@ test('the building screens open in Arabic, right to left, without errors', async
   }
   await page.getByTestId('nav-forms').click()
   await expect(page.getByTestId('forms-table')).toContainText('visit_requests')
+  await expect(page.getByTestId('nav-app-operations')).toContainText('طلبات الزيارة')
+
+  // Back to English: the sidebar's application and form names follow without a reload.
+  await page.getByRole('combobox', { name: 'اللغة' }).click()
+  await page.getByRole('option', { name: 'English' }).click()
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr')
+  await expect(page.getByTestId('nav-app-operations')).toContainText('Visit requests')
   expect(problems).toEqual([])
 })

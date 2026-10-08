@@ -83,16 +83,23 @@ export const useSession = defineStore('session', () => {
   async function switchLocale(code: string, persist = true): Promise<void> {
     const info = boot.value?.locales.find((l) => l.code === code)
     if (!info) return
+    // The server answers in the saved preference first, so save it before the
+    // interface switches: what reloads on the switch (navigation, names) then
+    // arrives in the new language.
+    if (persist && me.value) {
+      try {
+        await send('patch', '/me/preferences', { locale: code })
+        me.value.preferences.locale = code
+      } catch {
+        /* the switch still applies to this browser; the error toast explains */
+      }
+    }
     locale.value = code
     await useLocale(code, info.direction)
     try {
       localStorage.setItem(LOCALE_KEY, code)
     } catch {
       /* private mode */
-    }
-    if (persist && me.value) {
-      await send('patch', '/me/preferences', { locale: code })
-      me.value.preferences.locale = code
     }
   }
 
