@@ -324,6 +324,12 @@ jobs:
     name: Dev container (Codespaces path)
     runs-on: ubuntu-24.04
     needs: [line-endings]
+    env:
+      # Since runner image 20261004, Compose builds through Buildx Bake, which
+      # refuses to read the Dockerfile the devcontainer CLI writes to /tmp
+      # without an fs.read entitlement the CLI cannot pass. The classic Compose
+      # builder builds the same image.
+      COMPOSE_BAKE: 'false'
     steps:
       - uses: actions/checkout@v4
       # Builds and starts .devcontainer the way Codespaces does (devcontainer CLI,
