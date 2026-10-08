@@ -101,6 +101,57 @@ export function newRule(left: Operand | null = null): RuleLeaf {
   return { id: newUuid(), kind: 'rule', operator: 'eq', left, right: [{ kind: 'lit', t: 'text', v: '' }] }
 }
 
+// ---------------------------------------------------------------- completeness
+
+/** Why an operand cannot be saved yet: no field chosen, no value entered, or a malformed number. */
+export type OperandProblem = 'field' | 'key' | 'value' | 'number'
+
+const KEY = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
+const LITERAL: Partial<Record<string, RegExp>> = {
+  date: /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/,
+  datetime: /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/,
+  time: /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/,
+}
+
+/**
+ * The same checks the expression schema makes, in terms the rule row can show
+ * next to the control that needs attention.
+ */
+export function operandProblem(o: Operand | null): OperandProblem | null {
+  if (!o) return 'field'
+  if (o.kind === 'ref') {
+    if (o.path.length === 0 || o.path[0] === '') return 'field'
+    return o.path.every((p) => KEY.test(p)) ? null : 'key'
+  }
+  if (o.kind === 'lit') {
+    if (o.t === 'number') return Decimal.parse(String(o.v ?? '').trim()) === null ? 'number' : null
+    const pattern = LITERAL[o.t]
+    return pattern && !pattern.test(String(o.v ?? '')) ? 'value' : null
+  }
+  return null
+}
+
+/** The first problem of a rule row, by side: 'left' or the index of the right-hand operand. */
+export function leafProblem(leaf: RuleLeaf): { side: 'left' | number; problem: OperandProblem } | null {
+  if (leaf.operator === 'expr') return null
+  if (!SUBJECTLESS.includes(leaf.operator)) {
+    const p = operandProblem(leaf.left)
+    if (p) return { side: 'left', problem: p }
+  }
+  const arity = OPERATOR_ARITY[leaf.operator]
+  const count = arity === 'list' ? leaf.right.length : arity
+  for (let i = 0; i < count; i++) {
+    const p = operandProblem(leaf.right[i] ?? null)
+    if (p) return { side: i, problem: p === 'field' && !leaf.right[i] ? 'value' : p }
+  }
+  return null
+}
+
+/** True when every row of the tree can be saved. */
+export function isComplete(node: RuleNode): boolean {
+  return node.kind === 'rule' ? leafProblem(node) === null : node.children.every(isComplete)
+}
+
 // ---------------------------------------------------------------- to AST
 
 const TRUE: AstNode = { k: 'lit', t: 'boolean', v: true }

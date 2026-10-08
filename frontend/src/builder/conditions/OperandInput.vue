@@ -16,10 +16,11 @@ import type { Ast } from '../types'
  * row), a user / context / record attribute, a literal value, a date
  * relative to today, now, or a custom expression.
  */
-const props = withDefaults(defineProps<{ scope: ExpressionScope; valueType?: string; options?: { value: string; label: Record<string, string> }[]; allowRefs?: boolean }>(), {
+const props = withDefaults(defineProps<{ scope: ExpressionScope; valueType?: string; options?: { value: string; label: Record<string, string> }[]; allowRefs?: boolean; invalid?: boolean }>(), {
   valueType: 'any',
   options: () => [],
   allowRefs: true,
+  invalid: false,
 })
 const model = defineModel<Operand>({ required: true })
 const { t } = useI18n()
@@ -95,6 +96,11 @@ const fieldOptions = computed(() =>
 )
 
 const refPath = computed(() => (model.value.kind === 'ref' ? model.value.path : []))
+/** A field of a linked record can be compared (`supplier.name`) only when the chosen field links to records. */
+const linksRecords = computed(() => {
+  const f = props.scope.fields.find((x) => x.key === refPath.value[0])
+  return !!f && (f.valueType === 'record' || f.valueType === 'list<record>') && model.value.kind === 'ref' && model.value.scope !== 'old'
+})
 
 function setPath(path: string[]): void {
   const o = model.value
@@ -157,13 +163,16 @@ const optionChoices = computed(() => props.options.map((o) => ({ value: o.value,
         editable
         size="small"
         class="w-48"
+        :invalid="invalid"
         :aria-label="t('builder.operand.field')"
         @update:model-value="(v: string) => setFieldKey(v)"
       />
       <InputText
+        v-if="linksRecords || refPath.length > 1"
         :model-value="refPath.slice(1).join('.')"
         size="small"
-        class="w-32 ltr-value"
+        class="w-40 ltr-value"
+        :invalid="invalid"
         :placeholder="t('builder.operand.path_more')"
         :aria-label="t('builder.operand.path_more')"
         @update:model-value="(v: string | undefined) => setPath([refPath[0] ?? '', ...(v ?? '').split('.')])"
@@ -270,6 +279,7 @@ const optionChoices = computed(() => props.options.map((o) => ({ value: o.value,
         :model-value="String(lit.v ?? '')"
         size="small"
         class="w-40 ltr-value"
+        :invalid="invalid"
         :aria-label="t('builder.operand.value')"
         @update:model-value="(v: string | undefined) => setLiteral(lit!.t === 'time' && v && v.length === 5 ? `${v}:00` : (v ?? ''))"
       />
@@ -277,6 +287,7 @@ const optionChoices = computed(() => props.options.map((o) => ({ value: o.value,
         v-else-if="lit.t === 'datetime'"
         type="datetime-local"
         :model-value="datetimeInput(lit.v)"
+        :invalid="invalid"
         size="small"
         class="w-52 ltr-value"
         :aria-label="t('builder.operand.value_utc')"
@@ -285,7 +296,7 @@ const optionChoices = computed(() => props.options.map((o) => ({ value: o.value,
       <InputText
         v-else-if="lit.t !== 'null'"
         :model-value="String(lit.v ?? '')"
-        :invalid="numberInvalid"
+        :invalid="numberInvalid || invalid"
         size="small"
         :class="['w-44', lit.t === 'number' ? 'ltr-value' : '']"
         :inputmode="lit.t === 'number' ? 'decimal' : undefined"

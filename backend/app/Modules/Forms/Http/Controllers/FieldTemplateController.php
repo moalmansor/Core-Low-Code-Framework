@@ -8,6 +8,8 @@ use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Models\Locale;
 use App\Modules\Forms\Models\Application;
 use App\Modules\Forms\Models\FieldTemplate;
+use App\Modules\Monitoring\ErrorReporter;
+use App\Support\Json\InvalidDocument;
 use App\Support\Json\SchemaValidator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -126,7 +128,9 @@ final class FieldTemplateController extends Controller
             $doc = ['form' => ['uuid' => $u, 'key' => 'template', 'kind' => 'form'], 'groups' => $data['definition']['groups'] ?? [], 'fields' => $data['definition']['fields'] ?? [], 'relations' => [], 'conditions' => $data['definition']['conditions'] ?? []];
             $errors = $this->schemas->errors('https://schemas.core-lcf/form-draft/v1', $doc);
             if ($errors !== []) {
-                throw ValidationException::withMessages(collect($errors)->mapWithKeys(static fn ($m, $p) => ['definition'.str_replace('/', '.', $p) => $m])->all());
+                // The schema detail goes to Error Monitoring; the user gets a sentence and its reference.
+                $reference = app(ErrorReporter::class)->report(new InvalidDocument('https://schemas.core-lcf/form-draft/v1', $errors), 'warning');
+                throw ValidationException::withMessages(['definition' => __('forms.invalid_value', ['reference' => $reference])]);
             }
             if (($data['kind'] ?? $kind) === 'field' && count($doc['fields']) !== 1) {
                 throw ValidationException::withMessages(['definition.fields' => __('forms.template_single_field')]);

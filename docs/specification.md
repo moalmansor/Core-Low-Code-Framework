@@ -712,6 +712,7 @@ All access control lives in **one** interface.
   - environment, timestamp.
 - A correlation ID follows the request across jobs, emails, and hooks.
 - Users see a friendly message with a reference ID.
+- **Validation messages are written for people.** Errors and problems are shown in the user's language, next to the control that needs attention. Internal detail — schema messages, JSON pointers, expression-tree property names — is never shown; it is recorded in Error Monitoring under a reference that the message includes. Builders validate a condition when it is complete, not while it is being built.
 - **Durability:** errors are written to a secondary sink (file or external log service) as well as the database, so failures that take the database down are still recorded. The in-app console reads the database; the secondary sink is the fallback the admin is pointed to when it is unavailable.
 - **Error management:**
   - grouping of duplicates, with frequency and first/last seen;

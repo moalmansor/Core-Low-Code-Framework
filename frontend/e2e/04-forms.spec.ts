@@ -91,6 +91,72 @@ test('an administrator builds a form, publishes it into the sidebar, and records
   expect(problems).toEqual([])
 })
 
+test('a condition is built in the Visual builder, saved, and applied to records', async ({ page }) => {
+  const problems = watchConsole(page)
+  await openForms(page)
+  await page.getByTestId('form-new').click()
+  await page.getByTestId('create-key').fill('vip_visits')
+  await page.getByTestId('cf-name-en').fill('VIP visits')
+  await page.getByTestId('cf-name-ar').fill('زيارات كبار الضيوف')
+  await page.getByTestId('create-app').click()
+  await page.getByRole('option', { name: /Operations/ }).click()
+  await page.getByTestId('create-submit').click()
+  await expect(page.getByTestId('form-builder')).toBeVisible()
+
+  await page.getByTestId('palette-text').click()
+  await page.getByTestId('prop-key').fill('code')
+  await page.getByTestId('prop-label').locator('input').first().fill('Code')
+  await page.getByTestId('palette-text').click()
+  await page.getByTestId('prop-key').fill('reason')
+  await page.getByTestId('prop-label').locator('input').first().fill('Reason')
+
+  // Rule on "reason": show it when code equals VIP, otherwise hide it.
+  await page.getByTestId('tab-rules').click()
+  await page.getByTestId('add-rule').click()
+  const rule = page.getByTestId('rule-0')
+  await rule.getByRole('button', { name: 'Add condition' }).click()
+  await expect(rule.getByRole('combobox', { name: 'Field', exact: true })).toHaveValue('Code (code)')
+  // The linked-record path only appears for fields that link to records.
+  await expect(rule.getByLabel('Field of the linked record (optional)')).toHaveCount(0)
+
+  // An incomplete row is explained next to its control; nothing technical is shown and nothing invalid is saved.
+  await rule.getByRole('combobox', { name: 'Value type' }).click()
+  await page.getByRole('option', { name: 'Date', exact: true }).click()
+  await expect(rule.getByTestId('rule-row-hint')).toHaveText('Enter a value.')
+  await expect(rule.getByTestId('rule-incomplete')).toBeVisible()
+  await page.getByTestId('save-now').click()
+  await expect(page.getByTestId('save-state')).toContainText(/^\s*Saved/)
+  await expect(page.getByTestId('form-builder')).not.toContainText(/required properties|const value|invalid value|conditions\./)
+
+  await rule.getByRole('combobox', { name: 'Value type' }).click()
+  await page.getByRole('option', { name: 'Text', exact: true }).click()
+  await rule.getByRole('textbox', { name: 'Value', exact: true }).fill('VIP')
+  await expect(rule.getByTestId('rule-row-hint')).toHaveCount(0)
+  await page.getByTestId('save-now').click()
+  await expect(page.getByTestId('save-state')).toContainText(/^\s*Saved/)
+
+  // Saved: the rule is still there after reloading the builder.
+  await page.reload()
+  await page.getByTestId('canvas').getByText('Reason', { exact: true }).click()
+  await page.getByTestId('tab-rules').click()
+  await expect(page.getByTestId('rule-0').getByRole('textbox', { name: 'Value', exact: true })).toHaveValue('VIP')
+
+  // Applied: published, the record form hides "reason" until code is VIP.
+  await page.getByTestId('open-publish').click()
+  await page.getByTestId('publish-continue').click()
+  await page.getByTestId('add-to-menu').locator('input').check()
+  await page.getByTestId('publish-confirm').click()
+  await expect(page.getByTestId('publish-dialog')).toContainText(/applied|published/i, { timeout: 60_000 })
+  await page.goto('/')
+  await page.getByTestId('nav-app-operations').getByRole('link', { name: 'VIP visits' }).click()
+  await page.getByTestId('records-new').click()
+  await expect(page.getByTestId('field-code')).toBeVisible()
+  await expect(page.getByTestId('field-reason')).toHaveCount(0)
+  await page.getByTestId('field-code').locator('input').fill('VIP')
+  await expect(page.getByTestId('field-reason')).toBeVisible()
+  expect(problems).toEqual([])
+})
+
 test('the building screens open in Arabic, right to left, without errors', async ({ page }) => {
   const problems = watchConsole(page)
   await page.getByRole('combobox', { name: 'Language' }).click()

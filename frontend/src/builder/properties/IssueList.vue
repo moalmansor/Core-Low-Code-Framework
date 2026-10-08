@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { issueText } from '../issues'
+import { issueArea, issueText } from '../issues'
 import { useBuilder } from '../useBuilder'
 
 /** The save errors and publish problems the server reported for one element (or the form, for null). */
@@ -23,7 +23,7 @@ const issues = computed(() => [...builder.errors, ...builder.problems].filter((i
     >
       <i :class="i.severity === 'error' ? 'pi pi-times-circle' : 'pi pi-exclamation-triangle'" aria-hidden="true" />
       <span class="flex-1">{{ issueText(t, te, i) }}</span>
-      <span v-if="i.property" class="ltr-value text-muted-color">{{ i.property }}</span>
+      <span v-if="issueArea(t, i.property)" class="text-muted-color">{{ issueArea(t, i.property) }}</span>
     </li>
   </ul>
 </template>

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { canonicalJson, parse, type AstNode } from '@/expressions'
 import { signature, ungrouped } from './functions'
 import { printExpression } from './print'
-import { astToRule, emptyGroup, ruleToAst, type RuleGroup, type RuleLeaf } from './ruleModel'
+import { astToRule, emptyGroup, isComplete, leafProblem, ruleToAst, type RuleGroup, type RuleLeaf } from './ruleModel'
 
 const field = (key: string) => ({ kind: 'ref' as const, scope: 'record' as const, path: [key] })
 const text = (v: string) => ({ kind: 'lit' as const, t: 'text' as const, v })
@@ -145,5 +145,22 @@ describe('function list', () => {
   it('lists every registered function with a signature', () => {
     expect(ungrouped()).toEqual([])
     expect(signature('round')).toBe('round(number, number?) → number')
+  })
+})
+
+describe('rule completeness', () => {
+  it('flags the control that still needs input, and only complete trees are saved', () => {
+    expect(leafProblem(rule('eq', field(''), [text('x')]))).toEqual({ side: 'left', problem: 'field' })
+    expect(leafProblem(rule('eq', field('code'), [text('')]))).toBeNull() // comparing with empty text is valid
+    expect(leafProblem(rule('eq', field('when'), [{ kind: 'lit', t: 'date', v: '' }]))).toEqual({ side: 0, problem: 'value' })
+    expect(leafProblem(rule('gt', field('qty'), [num('1.')]))).toEqual({ side: 0, problem: 'number' })
+    expect(leafProblem(rule('between', field('qty'), [num('1')]))).toEqual({ side: 1, problem: 'value' })
+    expect(leafProblem(rule('eq', { kind: 'ref', scope: 'record', path: ['supplier', 'a b'] }, [text('x')]))).toEqual({ side: 'left', problem: 'key' })
+    expect(leafProblem(rule('has_role', null, [text('admin')]))).toBeNull()
+
+    const tree: RuleGroup = { ...emptyGroup(), children: [rule('eq', field('code'), [text('A')]), rule('gt', field('qty'), [num('')])] }
+    expect(isComplete(tree)).toBe(false)
+    tree.children[1] = rule('gt', field('qty'), [num('2')])
+    expect(isComplete(tree)).toBe(true)
   })
 })

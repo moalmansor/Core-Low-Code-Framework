@@ -7,7 +7,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import OperandInput from './OperandInput.vue'
 import FormulaEditor from './FormulaEditor.vue'
-import { emptyGroup, newRule, OPERATOR_ARITY, SUBJECTLESS, type Operand, type Operator, type RuleGroup, type RuleLeaf } from './ruleModel'
+import { emptyGroup, leafProblem, newRule, OPERATOR_ARITY, SUBJECTLESS, type Operand, type Operator, type RuleGroup, type RuleLeaf } from './ruleModel'
 import { CONTEXT_ATTRIBUTES, RECORD_ATTRIBUTES, USER_ATTRIBUTES, type ExpressionScope } from './scope'
 import type { Ast } from '../types'
 
@@ -157,6 +157,7 @@ function setLeafAst(leaf: RuleLeaf, ast: Ast | null): void {
           v-if="!SUBJECTLESS.includes(child.operator)"
           :model-value="child.left ?? { kind: 'lit', t: 'null', v: null }"
           :scope="scope"
+          :invalid="leafProblem(child)?.side === 'left'"
           @update:model-value="(o: Operand) => setLeft(child, o)"
         />
         <Select
@@ -182,6 +183,7 @@ function setLeafAst(leaf: RuleLeaf, ast: Ast | null): void {
               :scope="scope"
               :value-type="child.operator === 'has_role' || child.operator === 'in_department' ? (n === 2 ? 'boolean' : 'text') : child.operator === 'matches' ? 'text' : operandType(child.left)"
               :options="leftOptions(child)"
+              :invalid="leafProblem(child)?.side === n - 1"
               @update:model-value="(o: Operand) => (child.right[n - 1] = o)"
             />
             <Button
@@ -197,6 +199,9 @@ function setLeafAst(leaf: RuleLeaf, ast: Ast | null): void {
         </template>
         <span class="flex-1" />
         <Button size="small" text severity="danger" icon="pi pi-times" :aria-label="t('builder.rule.remove_rule')" @click="removeAt(i)" />
+        <p v-if="leafProblem(child)" class="w-full text-xs text-orange-700 dark:text-orange-300" data-testid="rule-row-hint">
+          {{ t(`builder.rule.needs_${leafProblem(child)!.problem}`) }}
+        </p>
       </div>
     </template>
     <div class="flex gap-2">

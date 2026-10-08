@@ -6,7 +6,7 @@ import { ApiError } from '@/api/http'
 import { builderApi } from './api'
 import { pick } from './conditions/scope'
 import { findField, findGroup, locateIssues } from './document'
-import { issueText } from './issues'
+import { issueArea, issueText } from './issues'
 import { useBuilder } from './useBuilder'
 
 /**
@@ -67,7 +67,7 @@ async function validateNow(): Promise<void> {
             <span class="text-xs text-muted-color ms-1">{{ i.severity === 'error' ? t('builder.problems.blocks_save') : t('builder.problems.blocks_publish') }}</span>
             <span class="block">{{ issueText(t, te, i) }}</span>
           </span>
-          <span v-if="i.property" class="text-xs text-muted-color ltr-value shrink-0">{{ i.property }}</span>
+          <span v-if="issueArea(t, i.property)" class="text-xs text-muted-color shrink-0">{{ issueArea(t, i.property) }}</span>
         </button>
       </li>
     </ul>

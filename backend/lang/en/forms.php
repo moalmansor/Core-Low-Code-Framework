@@ -6,6 +6,8 @@ return [
     'never_published' => 'This form has never been published.',
     'schema_inconsistent' => 'The form is locked because its database schema is inconsistent. Open the repair screen.',
     'delete_published' => 'A published form cannot be deleted. Archive it instead; its records are kept.',
+    'expression_malformed' => 'This condition or formula is incomplete.',
+    'invalid_value' => 'A setting here has a value that cannot be saved. If this keeps happening, give your administrator this reference: :reference.',
     'draft_invalid' => 'The draft could not be saved because it is not valid.',
     'draft_conflict' => 'Someone else saved this draft after you opened it.',
     'rollback_current' => 'This version is already the current one.',

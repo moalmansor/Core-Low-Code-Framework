@@ -13,6 +13,8 @@ use App\Modules\Forms\Definition\TargetSchemaBuilder;
 use App\Modules\Forms\Definition\ValueTypes;
 use App\Modules\Forms\FieldTypes\FieldTypeRegistry;
 use App\Modules\Forms\Models\Form;
+use App\Modules\Monitoring\ErrorReporter;
+use App\Support\Json\InvalidDocument;
 use App\Support\Json\SchemaValidator;
 
 /**
@@ -52,6 +54,7 @@ final class DraftValidator
         private readonly SchemaValidator $schemas,
         private readonly PublishedDefinitions $definitions,
         private readonly TargetSchemaBuilder $schemaBuilder,
+        private readonly ErrorReporter $reporter,
     ) {}
 
     /**
@@ -63,9 +66,7 @@ final class DraftValidator
     {
         $this->errors = [];
         $this->problems = [];
-        foreach ($this->schemas->errors(self::SCHEMA_ID, $doc) as $pointer => $messages) {
-            $this->error(str_replace('/', '.', ltrim($pointer, '/')), 'schema', implode(' ', $messages));
-        }
+        $this->schemaErrors($this->schemas->errors(self::SCHEMA_ID, $doc));
         if ($this->errors !== []) {
             return ['errors' => $this->errors, 'problems' => []];
         }
@@ -651,6 +652,32 @@ final class DraftValidator
         }
 
         return null;
+    }
+
+    /**
+     * Schema violations are not shown as such: the interface gets one issue per
+     * element and area (a field's rules, a group's validation, …) in the user's
+     * language with a reference; the pointers and schema messages go to Error
+     * Monitoring under that reference.
+     *
+     * @param  array<string, list<string>>  $errors
+     */
+    private function schemaErrors(array $errors): void
+    {
+        if ($errors === []) {
+            return;
+        }
+        $reference = $this->reporter->report(new InvalidDocument(self::SCHEMA_ID, $errors), 'warning');
+        $paths = [];
+        foreach (array_keys($errors) as $pointer) {
+            $parts = explode('/', trim($pointer, '/'));
+            // fields.3.validation, conditions.2.when, form.settings, …
+            $take = isset($parts[1]) && ctype_digit($parts[1]) ? 3 : 2;
+            $paths[implode('.', array_slice(array_filter($parts, static fn ($p) => $p !== ''), 0, $take))] = true;
+        }
+        foreach (array_keys($paths) as $path) {
+            $this->error($path, 'invalid_value', __('forms.invalid_value', ['reference' => $reference]), ['reference' => $reference]);
+        }
     }
 
     /** @param  array<string, mixed>  $params */

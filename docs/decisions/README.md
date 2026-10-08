@@ -32,3 +32,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0026](0026-portable-container-stack.md) | A container stack that runs from any host's checkout |
 | [0027](0027-expression-runtime-semantics.md) | Expression runtime details left open by the language specification |
 | [0028](0028-phase-2-data-engine.md) | Data engine decisions made while building Phase 2 |
+| [0029](0029-user-facing-validation-and-verbatim-expressions.md) | User-facing validation messages and verbatim expressions |

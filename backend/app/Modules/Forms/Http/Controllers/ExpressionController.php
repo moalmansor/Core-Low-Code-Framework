@@ -65,7 +65,7 @@ final class ExpressionController extends Controller
             'rows' => ['sometimes', 'nullable', 'string', 'max:48'],
         ]);
         if (! $this->schemas->isValid('https://schemas.core-lcf/expression-ast/v1', $data['ast'])) {
-            return response()->json(['data' => ['ok' => false, 'error' => ['code' => 'SYNTAX', 'message' => 'Malformed expression tree.', 'position' => null, 'node' => null]]]);
+            return response()->json(['data' => ['ok' => false, 'error' => ['code' => 'SYNTAX', 'message' => __('forms.expression_malformed'), 'position' => null, 'node' => null]]]);
         }
         try {
             $type = TypeChecker::check($data['ast'], $this->resolver($data['form'] ?? null, $data['rows'] ?? null), $data['expected'] ?? null);
@@ -88,7 +88,7 @@ final class ExpressionController extends Controller
             'today' => ['sometimes', 'date_format:Y-m-d'],
         ]);
         if (! $this->schemas->isValid('https://schemas.core-lcf/expression-ast/v1', $data['ast'])) {
-            return response()->json(['message' => 'Malformed expression tree.', 'code' => 'invalid_ast'], 422);
+            return response()->json(['message' => __('forms.expression_malformed'), 'code' => 'invalid_ast'], 422);
         }
         /** @var User $user */
         $user = Auth::user();
