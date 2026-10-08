@@ -258,13 +258,43 @@ Done and committed:
   issue.
 - **Blueprints of views** moved to Phase 3, with the views themselves.
 
+### Browser walkthrough review (2026-10-08)
+
+Fixed on the pull request, each with regression tests:
+
+1. **Comments failed to post** (500). The HTML sanitizer's allowed-scheme list
+   had a `false` entry that HTMLPurifier rejects, so every sanitize call failed
+   (comments, static HTML blocks). Rich-text record values are now sanitised
+   on the server too. The unexpected-error message now includes its
+   reference, so inline banners show it as well as the toast.
+6. **Condition builder showed schema errors.** Root cause: global
+   ConvertEmptyStringsToNull/TrimStrings rewrote text literals inside
+   expressions (`""` became `null`). Document and expression requests now keep
+   expression nodes verbatim (ADR-0029); schema failures become translated
+   issues with a reference (detail in Error Monitoring); the Visual builder
+   saves only complete conditions and marks incomplete rows; issue lists name
+   the panel tab, not a path; the linked-record path box has a readable label
+   and appears only for record links.
+- Also found and fixed: sidebar names stayed in the previous language after a
+  language switch (the preference is now saved before the interface switches).
+
+Waiting on the owner:
+
+- Item 3 ("field rules are repeated") arrived without a description or
+  screenshot; no duplication was found in the rule editors. Needs details.
+- Items 2, 4, 5 and the overall visual system: proposal with screenshots and
+  mockups published for review (records table, field properties panel, page
+  frame, design tokens). Nothing implemented until approved.
+- Formula-language diagnostics (syntax/type errors in typed formulas) are
+  English only; translating them by code is a follow-up.
+
 ## Resume point
 
-Phase 2 is built. Backend: 611 tests pass on MySQL 8 and SQL Server 2019
-locally; frontend: eslint, prettier, vue-tsc and 487 unit tests pass; the
-Phase 2 end-to-end spec passes on both engines. Next: the Phase 2 pull request
-("Closes #4") with the section 8.2 report citing CI on its head commit, then
-the owner's review. Do not start Phase 2.5 (the owner's pilot).
+Phase 2 is built and under review. Backend: 617 tests pass on MySQL 8 locally
+(SQL Server in CI); frontend: eslint, prettier, vue-tsc and 488 unit tests
+pass; `04-forms` end-to-end (three tests) passes locally. Next: CI on the head
+commit and the report update, then the owner's answers on item 3 and on the
+interface proposal. Do not start Phase 2.5 (the owner's pilot).
 
 ### Local development notes
 
