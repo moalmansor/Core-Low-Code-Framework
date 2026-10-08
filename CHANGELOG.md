@@ -29,10 +29,16 @@ All notable changes to this project are documented here, one section per phase.
   explorer with ERD, migration plans, blueprints and reference data.
 - ADR-0027 and ADR-0028.
 
+### Changed
+- Blueprints of views moved to Phase 3; the module overview no longer names
+  `record_attachments` or `access_cache_versions` (neither is needed).
+
 ### Fixed
 - SQL Server returns BIGINT and UNIQUEIDENTIFIER values with the same PHP
   types as MySQL.
 - Opening the root URL directly shows the application shell.
+- The access epoch is mirrored in `settings` as architecture §16.5 describes, so
+  a counter lost from the cache never lets an old access snapshot match again.
 
 ## Phase 1: Foundation, Security & Administration Core
 

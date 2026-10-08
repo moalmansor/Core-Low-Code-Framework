@@ -261,15 +261,15 @@ module's models.
 | **Core** | settings, locales, translations, organizations, egress_allowlist, feature_flags, encryption_keys, outbox_events | `Settings`, `Translator`, `TenantContext`, `Clock`, `CorrelationId` | P1 |
 | **Identity** | users, sessions, user_preferences, access_policies, impersonation_sessions, password_histories, login_attempts, trusted_devices | `CurrentUser`, `PasswordPolicy`, `SessionManager` | P1 (impersonation, access policies UI P5) |
 | **Organization** | departments, department_closure | `DepartmentTree` | P1 |
-| **Access** | roles, user_roles, permissions, permission_assignments, field_access_rules, record_access_rules, access_cache_versions | `AccessResolver`, `PermissionCatalog`, `ExplainAccess` | P1 (system), P2 (form/field), P3 (status/record) |
+| **Access** | roles, user_roles, permissions, permission_assignments, field_access_rules, record_access_rules | `AccessResolver`, `PermissionCatalog`, `ExplainAccess` | P1 (system), P2 (form/field), P3 (status/record) |
 | **Audit** | audit_logs, audit_chain_heads | `AuditWriter`, `ChainVerifier` | P1 |
 | **Monitoring** | error_logs, error_groups | `ErrorReporter` | P1 |
 | **Schema** | migration_plans, migration_steps, schema_snapshots, schema_reconciliation_reports, publish_locks | `SchemaManager`, `Introspector`, driver layer | P2 |
 | **Forms** | applications, forms, form_versions, collections, field_groups, fields, field_options, conditions, relations, field_templates, menu_items | `DefinitionRepository`, `DefinitionCompiler` | P2 |
 | **Expressions** | — (pure) | `ExpressionService` | P2 |
-| **Records** | per-form tables, submission_journal, record_comments, record_attachments, files | `RecordPipeline`, `QueryPlanner`, `DynamicRecord` | P2 (P3 views) |
+| **Records** | per-form tables, submission_journal, record_comments, files | `RecordPipeline`, `QueryPlanner`, `DynamicRecord` | P2 (P3 views) |
 | **Reference** | business_calendars, holidays, number_sequences, currencies, exchange_rates, units_of_measure | `WorkingTimeCalculator`, `NumberGenerator`, `FxConverter` | P2 |
-| **Blueprints** | blueprints, blueprint_versions, blueprint_instances | `BlueprintService` | P2 (library completed P5) |
+| **Blueprints** | blueprints, blueprint_versions, blueprint_instances | `BlueprintService` | P2 forms and collections; P3 views; library completed P5 |
 | **Workflow** | statuses, transitions, status_history, status_mappings, sla_rules, sla_timers | `WorkflowEngine` | P3 |
 | **Views** | views, view_columns, filters, saved_views, saved_view_shares, view_panels, reference_previews, print_layouts | `ViewResolver` | P3 |
 | **Justification** | justification_rules, justifications, justification_reason_codes, justification_attachments | `JustificationGate` | P3 |
@@ -6841,8 +6841,11 @@ the new value differs from the inherited value. "Show deviating only" is default
   record scopes, and a compact field-access table keyed by (status, mode) — computed
   lazily on first use per request and stored in Redis:
   `acc:{org}:{userId}:{formVersionId}:{accessEpoch}`.
-- `accessEpoch` is a global counter per organization in Redis (mirrored in
-  `settings`), bumped on any `AccessChanged` event: permission assignments, access
+- `accessEpoch` is a global counter per organization in Redis, mirrored in
+  `settings` (group `access`, key `epoch`, internal and never shown in the settings
+  screens) so that a counter lost from the cache resumes from the mirror instead
+  of restarting and matching old snapshots; there is no separate table. Bumped
+  on any `AccessChanged` event: permission assignments, access
   rules, record rules, roles, user roles, departments (tree changes), delegations,
   form publish (new version id changes key anyway), status changes in metadata.
   Old keys expire by TTL (1 h). Per-request memoization prevents repeated
@@ -7487,7 +7490,7 @@ object is configured by administrators.
 | **Schema** | `GET /schema/tables`; `GET /schema/tables/{name}`; `GET /schema/erd?forms=`; `GET /migration-plans/{uuid}`; `POST /migration-plans/{uuid}/retry|reverse|reconcile-step|restore-snapshot`; `POST /schema/reconcile`; `GET /schema/reconciliation-reports` | | `manage_forms` |
 | **Expressions** | `POST /expressions/parse`; `POST /expressions/check`; `POST /expressions/evaluate` (sandboxed preview) | text/AST + context form uuid → AST/diagnostics/value | `manage_forms` |
 | **Records (runtime)** | `GET /r/{form}` (list: view, filters, search, sort, page); `POST /r/{form}`; `GET /r/{form}/{uuid}`; `PATCH /r/{form}/{uuid}`; `DELETE /r/{form}/{uuid}`; `POST /r/{form}/{uuid}/restore`; `GET /r/{form}/{uuid}/definition?mode=`; `GET /r/{form}/options/{field}?q=&depends=`; `POST /r/{form}/validate-field` (async rules); `GET /r/{form}/{uuid}/history`; `GET/POST /r/{form}/{uuid}/comments`; `GET/POST /r/{form}/{uuid}/subforms/{group}` (inline sub-form records, parent key set at insert); `GET /r/{form}/export?format=xlsx|csv`, `GET /r/{form}/import/template`, `POST /r/{form}/import` (`commit`, `skip_invalid`); `POST /files`, `GET /files/{uuid}/url` (signed, five minutes); `POST /r/{form}/{uuid}/duplicate`; `GET /r/{form}/{uuid}/print?layout=` | values keyed by field key, `row_version`, `justification?` → record + `row_version` | `form.{uuid}.view/create/edit/delete/restore/print` + record scope + field access |
-| **Comments & attachments** | `GET/POST /r/{form}/{uuid}/comments`; `DELETE …/comments/{id}`; `GET /r/{form}/{uuid}/attachments` | | form view/edit |
+| **Comments & attachments** | `GET/POST /r/{form}/{uuid}/comments`; `DELETE …/comments/{id}`; `GET /r/{form}/{uuid}/attachments` (P3, the View Mode attachments panel; record attachments are `files` rows with the record's `form_id`/`record_id` and no `field_id`, so they need no table of their own) | | form view/edit |
 | **Files** | `POST /files` (multipart, temp); `GET /files/{uuid}/url` → signed URL; `GET /files/download/{uuid}` (signed) | | owner/record policy |
 | **Workflow** | `GET/PUT /forms/{uuid}/workflow` (statuses, transitions, layout); `POST /forms/{uuid}/workflow/status-mapping`; `GET /r/{form}/{uuid}/transitions`; `POST /r/{form}/{uuid}/transitions/{transition}` | comment, attachments, required fields, justification | `manage_forms` / `transition.{uuid}.perform` |
 | **SLA** | `GET/PUT /forms/{uuid}/sla-rules` | | `manage_forms` |

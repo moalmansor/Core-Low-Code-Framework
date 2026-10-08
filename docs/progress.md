@@ -248,6 +248,16 @@ Done and committed:
   UNIQUEIDENTIFIER results by declared type; all 605 backend tests pass on
   MySQL 8 and SQL Server 2019 locally.
 
+### Accepted limits (owner decisions on the Phase 2 pull request)
+
+- **Excel/CSV import is synchronous.** One request validates and imports up to
+  `records.import_max_rows` rows (default 5,000; the system setting allows
+  10–50,000) and files up to `files.max_upload_mb`. Larger files must be split.
+  Converting import to background jobs with progress, saved mappings, dry run
+  and upsert (`import_jobs`, `import_mappings`) is scheduled in the Phase 4
+  issue.
+- **Blueprints of views** moved to Phase 3, with the views themselves.
+
 ## Resume point
 
 Phase 2 is built. Backend: 611 tests pass on MySQL 8 and SQL Server 2019

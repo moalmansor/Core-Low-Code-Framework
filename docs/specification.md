@@ -1153,7 +1153,7 @@ When resuming:
   - database binding and schema introspection.
 - **Versioning:** draft, preview, impact analysis, diff, rollback (4.10).
 - **Publishing:** sidebar placement and the menu editor (4.13).
-- **Blueprints and cloning** (4.30) for forms, collections, and views, so the pilot in Phase 2.5 can be built quickly.
+- **Blueprints and cloning** (4.30) for forms and collections, so the pilot in Phase 2.5 can be built quickly. Blueprints of views come with the views themselves in Phase 3.
 - **Reference data, calendars, and numbering sequences** (4.34), which fields depend on.
 - **Runtime form renderer:** create, edit, and view modes with live preview as any role/user.
 - **Submission journal:** capture of every submission. Its management UI comes in Phase 4.
@@ -1183,6 +1183,7 @@ When resuming:
   - per-role columns and filters, including fields of linked forms;
   - saved/shared views, bulk selection;
   - soft delete and restore.
+- **Blueprints and cloning of views** (4.30): saving a view as a blueprint, creating views from it, and propagating its versions, as for forms and collections.
 - **Record-level security rules.**
 - **Edit justification** (4.24): rule configuration per form, field, group, status, role, and transition; the save-time prompt with reason codes and attachments; server-side enforcement; immutability; display in history, tables, and the audit log.
 - **Assignment, queues, delegation, and multi-party approvals** (4.25), including My Work, claim and release, and on-behalf-of recording.

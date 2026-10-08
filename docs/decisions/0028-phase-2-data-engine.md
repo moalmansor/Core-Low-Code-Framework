@@ -105,9 +105,19 @@ depends on one cites this ADR.
     holders of Manage Pages & Menus, Numbering or Applications as well as
     Manage Forms, so those editors work without the right to change forms.
 
+19. **No `record_attachments` or `access_cache_versions` tables.** The
+    architecture's module overview named both, but neither the ERD nor the
+    designs that use them need a table: record attachments are `files` rows
+    carrying the record's `form_id` and `record_id` with no `field_id` (the ERD
+    already defines those columns and their index), and the access epoch is a
+    cache counter mirrored in `settings` (architecture §16.5). Both names were
+    removed from the overview (owner decision on the Phase 2 pull request).
+    The epoch mirror, described in §16.5 but missing until then, was
+    implemented in the same change.
+
 ## Consequences
 
 - The specification and architecture are updated in the same pull request
   where these decisions add or refine behaviour (§4.8, §4.9, §4.30, §11).
-- Blueprints of views (named in the Phase 2 scope) depend on the Views module
-  of Phase 3; this is raised in the Phase 2 pull request.
+- Blueprints of views depend on the Views module, so the owner moved them to
+  Phase 3 (specification §8.3).
