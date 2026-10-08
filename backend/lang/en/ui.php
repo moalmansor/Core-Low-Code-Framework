@@ -29,7 +29,8 @@ return [
     ],
     'errors' => [
         'session_required' => 'This request needs a browser session. Reload the page and try again.',
-        'unexpected' => 'Something went wrong. Please try again; if it keeps happening, give your administrator the reference below.',
+        'unexpected' => 'Something went wrong. Please try again; if it keeps happening, contact your administrator.',
+        'unexpected_with_reference' => 'Something went wrong. Please try again; if it keeps happening, give your administrator this reference: :reference.',
     ],
     'files' => [
         'image_too_big' => 'The image dimensions are too large.',

@@ -90,7 +90,8 @@ return Application::configure(basePath: dirname(__DIR__))
             $reference = app()->bound('lcf.error_reference') ? (string) app('lcf.error_reference') : null;
 
             return response()->json([
-                'message' => __('ui.errors.unexpected'),
+                // The reference is part of the message, so every place that shows the message shows it too.
+                'message' => $reference === null || $reference === '' ? __('ui.errors.unexpected') : __('ui.errors.unexpected_with_reference', ['reference' => $reference]),
                 'reference' => $reference,
                 'correlation_id' => app(CorrelationId::class)->get(),
             ], $e instanceof HttpExceptionInterface ? $e->getStatusCode() : 500);

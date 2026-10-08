@@ -29,7 +29,8 @@ final class HtmlSanitizer
         $config = HTMLPurifier_Config::createDefault();
         $config->set('Cache.SerializerPath', storage_path('framework/cache'));
         $config->set('HTML.Allowed', 'p,br,strong,b,em,i,u,s,sub,sup,span[dir],div[dir],h1,h2,h3,h4,h5,h6,ul,ol,li,blockquote,code,pre,hr,a[href|title|target],img[src|alt|width|height],table,thead,tbody,tr,th[colspan|rowspan],td[colspan|rowspan]');
-        $config->set('URI.AllowedSchemes', ['http' => false, 'https' => true, 'mailto' => true]);
+        // A lookup table: HTMLPurifier accepts only `true` values, so a scheme is allowed by being listed.
+        $config->set('URI.AllowedSchemes', ['https' => true, 'mailto' => true]);
         $config->set('HTML.TargetBlank', true);
         $config->set('HTML.TargetNoopener', true);
         $config->set('HTML.TargetNoreferrer', true);

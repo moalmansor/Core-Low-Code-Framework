@@ -6,6 +6,7 @@ namespace App\Modules\Records\Runtime;
 
 use App\Expressions\Numbers\Decimal;
 use App\Expressions\Text\Unicode;
+use App\Support\Html\HtmlSanitizer;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Support\Facades\Crypt;
@@ -28,6 +29,8 @@ final class ValueCodec
 {
     public const UUID = '/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/';
 
+    public function __construct(private readonly HtmlSanitizer $sanitizer) {}
+
     /**
      * Normalizes a submitted value to its API shape; null for empty input.
      *
@@ -46,7 +49,7 @@ final class ValueCodec
         $ref = $rt->targetTable($field) !== null;
 
         return match ($storage) {
-            'string', 'text', 'longtext', 'auto_number' => $this->text($value, $field),
+            'string', 'text', 'longtext', 'auto_number' => ($field['type'] ?? null) === 'rich_text' ? $this->sanitizer->clean($this->text($value, $field)) : $this->text($value, $field),
             'decimal', 'number', 'currency' => $storage === 'currency' && ($field['storage']['multiCurrency'] ?? false) ? $this->money($value) : $this->decimal($value),
             'int' => $this->integer($value),
             'bool', 'consent' => $this->boolean($value),

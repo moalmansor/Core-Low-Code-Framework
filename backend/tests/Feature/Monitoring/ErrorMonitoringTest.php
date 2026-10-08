@@ -25,7 +25,8 @@ it('shows users a friendly message with a reference and records the error', func
         ->assertJsonMissingPath('exception')
         ->assertHeader('X-Correlation-ID', '01j8zzzzzzzzzzzzzzzzzzzzzz');
     $reference = $response->json('reference');
-    expect($reference)->toMatch('/^E-[A-Z0-9]{10}$/')->and($response->getContent())->not->toContain('Exploded');
+    expect($reference)->toMatch('/^E-[A-Z0-9]{10}$/')->and($response->getContent())->not->toContain('Exploded')
+        ->and($response->json('message'))->toContain($reference); // shown wherever the message is shown
 
     $log = ErrorLog::query()->where('reference_code', $reference)->firstOrFail();
     expect($log->correlation_id)->toBe('01j8zzzzzzzzzzzzzzzzzzzzzz')
