@@ -20,8 +20,11 @@ test('sign-in requires the second factor and the shell switches to Arabic right-
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl')
 
+  // Later specs sign in as the same user: wait until English is stored server-side.
+  const saved = page.waitForResponse((r) => r.url().endsWith('/me/preferences') && r.request().method() === 'PATCH')
   await page.getByTestId('language-switcher').click()
   await page.getByRole('option', { name: 'English' }).click()
+  expect((await saved).ok()).toBe(true)
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr')
   expect(problems).toEqual([])
 })
