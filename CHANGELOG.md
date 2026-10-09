@@ -28,10 +28,6 @@ All notable changes to this project are documented here, one section per phase.
   end-to-end CI jobs run with the JIT off as production does: PHP 8.3.35's
   JIT segfaulted on the form publish analysis.
 
-### Fixed
-- Opening *Publish* during an autosave no longer stops at "save first" (from
-  the Phase 2 branch, found by this pull request's CI).
-
 ## [Unreleased] — Phase 2: Form Builder, Collections & Data Engine
 
 ### Added
