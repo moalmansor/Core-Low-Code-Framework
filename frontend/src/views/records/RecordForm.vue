@@ -17,6 +17,7 @@ import type { ClientDefinition, FileMeta, RecordPayload, References, Values } fr
 import { same } from '@/runtime/values'
 import { useSession } from '@/stores/session'
 import ConflictDialog from './ConflictDialog.vue'
+import { scrollBehavior } from '@/theme/motion'
 
 /**
  * Create and edit pages of a record. Saves carry an Idempotency-Key (one per
@@ -117,7 +118,7 @@ const dirty = computed(
 function focusFirstError(): void {
   void nextTick(() => {
     const el = document.querySelector<HTMLElement>('[data-testid="form-renderer"] [role="alert"], [data-testid="form-error"]')
-    el?.closest('[data-field]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el?.closest('[data-field]')?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
     el?.closest('[data-field]')?.querySelector<HTMLElement>('input, textarea, [tabindex="0"], button')?.focus()
   })
 }

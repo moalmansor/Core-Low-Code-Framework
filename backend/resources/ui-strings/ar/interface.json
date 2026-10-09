@@ -4,6 +4,7 @@
   "builder.custom": "مخصّص",
   "builder.i18n.hide_other": "إخفاء اللغات الأخرى",
   "builder.i18n.other": "اللغات الأخرى: {names} ({set} من {total} مُعبّأة)",
+  "builder.options.color_low_contrast": "يصعب قراءة النص على هذا اللون ({ratio}:1، والمطلوب 4.5:1 على الأقل). اختر لونًا أغمق أو أفتح.",
   "builder.panel.clear": "مسح البحث",
   "builder.panel.find": "ابحث عن إعداد",
   "builder.panel.more": "المزيد",

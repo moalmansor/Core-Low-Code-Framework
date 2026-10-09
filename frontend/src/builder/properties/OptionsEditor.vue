@@ -17,7 +17,7 @@ import type { FieldDef, FieldTypeInfo, OptionsDef, OptionSource, StaticOption } 
 import { useBuilder } from '../useBuilder'
 import { newUuid } from '../uuid'
 import RelationEditor from './RelationEditor.vue'
-import { PICKER_FALLBACK } from '@/theme/color'
+import { AA_TEXT, labelContrast, PICKER_FALLBACK } from '@/theme/color'
 
 /** Options of a choice field (specification §4.6 "Options", architecture §14.5). */
 const props = defineProps<{ info: FieldTypeInfo }>()
@@ -173,6 +173,10 @@ const defaultsText = computed({
           <Button size="small" text icon="pi pi-arrow-down" :disabled="i === statics.length - 1" :aria-label="t('builder.move_down')" @click="moveOption(i, 1)" />
           <Button size="small" text severity="danger" icon="pi pi-trash" :aria-label="t('builder.options.remove')" @click="removeOption(i)" />
         </div>
+        <!-- Pills take the admin's colour; their label is white or dark, whichever reads better (docs/design-system.md §5.2). -->
+        <p v-if="o.color && labelContrast(o.color) < AA_TEXT" class="text-xs text-warning flex items-center gap-1" :data-testid="`option-${i}-contrast`">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true" />{{ t('builder.options.color_low_contrast', { ratio: labelContrast(o.color).toFixed(1) }) }}
+        </p>
         <div v-for="l in builder.locales" :key="l.code" class="flex items-center gap-1">
           <span class="text-xs text-muted-color w-8 uppercase ltr-value">{{ l.code }}</span>
           <InputText

@@ -4,6 +4,7 @@
   "builder.custom": "Custom",
   "builder.i18n.hide_other": "Hide other languages",
   "builder.i18n.other": "Other languages: {names} ({set} of {total} filled)",
+  "builder.options.color_low_contrast": "The label on this colour is hard to read ({ratio}:1, at least 4.5:1 is needed). Choose a darker or lighter colour.",
   "builder.panel.clear": "Clear search",
   "builder.panel.find": "Find a setting",
   "builder.panel.more": "More",
