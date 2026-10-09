@@ -304,12 +304,20 @@ items fixed or moved; item 3 withdrawn; the republish fix of 2026-10-09).
 Backend: 620 tests pass; frontend: 488 unit tests pass. The owner reviews and
 merges.
 
-Next: the interface pull request (owner-approved, before Phase 3) on branch
-`phase-2-interface`. Built and pushed: theme tokens with contrast fixes A–G,
-IBM Plex fonts, primary colour in Appearance & Branding, page frame, records
-table standard, properties panel. Remaining: `docs/design-system.md`, ADR-0030,
-specification additions, the pull request with its report, and the
-before/after page with Arabic. Do not start Phase 2.5 or 3.
+Interface pull request (owner-approved, before Phase 3): branch
+`phase-2-interface`, PR #12, based on `phase-2-form-builder`. Complete: theme
+tokens with contrast fixes A–G, IBM Plex fonts, primary colour in Appearance &
+Branding, page frame, records table standard, properties panel,
+`docs/design-system.md`, ADR-0030, specification additions, before/after page
+(https://claude.ai/artifact/57K92EsBeWmhznA5WFheMs). Pest 624 on MySQL and
+SQL Server, Vitest 532, Playwright 14 on MySQL, all run locally.
+
+Blocked on CI: since 2026-10-09 05:38 UTC GitHub Actions starts no runner for
+this repository (jobs end in about 2 seconds with `runner_id: 0`). When it
+runs again, cite the CI runs on the heads of PR #11 and PR #12 in their
+reports. After PR #11 merges, retarget PR #12 to `main`.
+
+Do not start Phase 2.5 or 3.
 
 ### Local development notes
 
