@@ -103,7 +103,7 @@ const errors = computed(() => ctx.errorsAt(key.value))
 </script>
 
 <template>
-  <section class="rounded-lg border border-surface-200 dark:border-surface-700 p-3" :data-group="group.key" :data-testid="`repeater-${group.key}`">
+  <section class="rounded-lg border border-line p-3" :data-group="group.key" :data-testid="`repeater-${group.key}`">
     <header class="flex items-center gap-2 mb-2">
       <h3 class="text-base font-semibold flex-1">{{ title ?? group.key }}</h3>
       <span class="text-sm text-muted-color">{{ t('runtime.rows_count', { count: rows.length }) }}</span>
@@ -113,10 +113,10 @@ const errors = computed(() => ctx.errorsAt(key.value))
     <div v-if="cfg.display !== 'cards'" class="overflow-x-auto">
       <table class="w-full text-sm border-collapse">
         <thead>
-          <tr class="border-b border-surface-200 dark:border-surface-700">
+          <tr class="border-b border-line">
             <th class="p-2 text-start w-10">#</th>
             <th v-for="f in columns" :key="f.uuid" class="p-2 text-start font-medium whitespace-nowrap">
-              {{ pickText(f.i18n.label, ctx.locale.value) ?? f.key }}<span v-if="required(f)" class="text-red-500 ms-1" aria-hidden="true">*</span>
+              {{ pickText(f.i18n.label, ctx.locale.value) ?? f.key }}<span v-if="required(f)" class="text-danger ms-1" aria-hidden="true">*</span>
             </th>
             <th v-if="editable" class="p-2 w-28 lcf-no-print">
               <span class="sr-only">{{ t('common.actions') }}</span>
@@ -124,7 +124,7 @@ const errors = computed(() => ctx.errorsAt(key.value))
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(r, i) in rows" :key="(r.uuid as string | undefined) ?? i" class="border-b border-surface-100 dark:border-surface-800 align-top" :data-testid="`row-${i}`">
+          <tr v-for="(r, i) in rows" :key="(r.uuid as string | undefined) ?? i" class="border-b border-line align-top" :data-testid="`row-${i}`">
             <td class="p-2 text-muted-color">{{ i + 1 }}</td>
             <td v-for="f in columns" :key="f.uuid" class="p-1 min-w-40">
               <FieldNode :field="f" :row="[key, i]" compact />
@@ -160,7 +160,7 @@ const errors = computed(() => ctx.errorsAt(key.value))
     </div>
 
     <div v-else class="flex flex-col gap-3">
-      <div v-for="(r, i) in rows" :key="(r.uuid as string | undefined) ?? i" class="rounded-lg border border-surface-200 dark:border-surface-700 p-3" :data-testid="`row-${i}`">
+      <div v-for="(r, i) in rows" :key="(r.uuid as string | undefined) ?? i" class="rounded-lg border border-line p-3" :data-testid="`row-${i}`">
         <div class="flex items-center gap-1 mb-2">
           <span class="font-semibold flex-1">{{ t('runtime.row_number', { n: i + 1 }) }}</span>
           <template v-if="editable">

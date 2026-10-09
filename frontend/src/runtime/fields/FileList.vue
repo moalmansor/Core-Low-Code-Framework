@@ -46,7 +46,7 @@ async function open(u: string): Promise<void> {
 
 <template>
   <ul class="flex flex-col gap-2">
-    <li v-for="f in items" :key="f.uuid" class="flex items-center gap-3 rounded-md border border-surface-200 dark:border-surface-700 p-2" :data-testid="`file-${f.uuid}`">
+    <li v-for="f in items" :key="f.uuid" class="flex items-center gap-3 rounded-md border border-line p-2" :data-testid="`file-${f.uuid}`">
       <img v-if="thumbs[f.uuid]" :src="thumbs[f.uuid]" :alt="f.meta?.name ?? t('runtime.file')" class="w-14 h-14 object-cover rounded" />
       <i v-else class="pi pi-file text-2xl text-muted-color" />
       <div class="flex-1 min-w-0">

@@ -41,18 +41,18 @@ const link = computed(() => {
 <template>
   <div class="min-h-9 flex items-center py-1" :data-testid="`value-${field.key}`">
     <div v-if="!known" class="flex flex-col gap-1">
-      <span class="text-sm text-orange-600"><i class="pi pi-exclamation-triangle me-1" />{{ t('runtime.unsupported_type', { type: field.type }) }}</span>
+      <span class="text-sm text-warning"><i class="pi pi-exclamation-triangle me-1" />{{ t('runtime.unsupported_type', { type: field.type }) }}</span>
       <span v-if="!empty" class="ltr-value text-sm">{{ typeof value === 'object' ? JSON.stringify(value) : String(value) }}</span>
     </div>
     <span v-else-if="empty" class="text-muted-color">—</span>
     <FileList v-else-if="storage === 'file' || storage === 'files'" :uuids="uuids" :images="['image_upload', 'camera', 'signature'].includes(field.type)" class="w-full" />
     <SafeHtml v-else-if="field.type === 'rich_text'" :html="String(value)" class="w-full" />
     <SafeHtml v-else-if="field.type === 'markdown'" :html="String(value)" markdown class="w-full" />
-    <pre v-else-if="field.type === 'code' || field.type === 'json'" class="ltr-value text-sm whitespace-pre-wrap w-full bg-surface-50 dark:bg-surface-800 rounded p-2">{{
+    <pre v-else-if="field.type === 'code' || field.type === 'json'" class="ltr-value text-sm whitespace-pre-wrap w-full bg-subtle rounded p-2">{{
       field.type === 'json' ? JSON.stringify(value, null, 2) : String(value)
     }}</pre>
     <span v-else-if="field.type === 'color' || field.type === 'color_palette'" class="flex items-center gap-2">
-      <span class="inline-block w-5 h-5 rounded border border-surface-300" :style="{ background: String(value) }" />
+      <span class="inline-block w-5 h-5 rounded border border-line-strong" :style="{ background: String(value) }" />
       <span class="ltr-value">{{ text }}</span>
     </span>
     <Rating v-else-if="field.type === 'rating'" :model-value="Number(value)" :stars="Number(field.validation.number?.max ?? field.ui.props?.stars ?? 5) || 5" readonly />

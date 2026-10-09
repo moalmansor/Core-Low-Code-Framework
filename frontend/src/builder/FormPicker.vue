@@ -51,7 +51,7 @@ watch(
         <i :class="option.kind === 'collection' ? 'pi pi-table' : 'pi pi-file'" />
         <span>{{ option.name }}</span>
         <span class="text-xs text-muted-color ltr-value">{{ option.key }}</span>
-        <span v-if="option.version === null" class="text-xs text-orange-600">{{ t('builder.unpublished') }}</span>
+        <span v-if="option.version === null" class="text-xs text-warning">{{ t('builder.unpublished') }}</span>
       </div>
     </template>
   </Select>

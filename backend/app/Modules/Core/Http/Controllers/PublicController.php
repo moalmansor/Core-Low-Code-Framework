@@ -39,6 +39,8 @@ final class PublicController extends Controller
             'branding' => [
                 'logo' => $branding['logo_file'] ? url('/api/v1/branding/logo') : null,
                 'favicon' => $branding['favicon_file'] ? url('/api/v1/branding/favicon') : null,
+                'primary_color' => $branding['primary_color'] ?? null,
+                'primary_color_dark' => $branding['primary_color_dark'] ?? null,
             ],
         ]]);
     }

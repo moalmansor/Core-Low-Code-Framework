@@ -44,7 +44,7 @@ function onKeydown(e: KeyboardEvent): void {
     <div v-if="field.type === 'markdown'" class="mb-2">
       <SelectButton v-model="tab" :options="tabs" option-label="label" option-value="value" :allow-empty="false" size="small" :aria-label="t('runtime.markdown_mode')" />
     </div>
-    <SafeHtml v-if="field.type === 'markdown' && tab === 'preview'" :html="text" markdown class="min-h-24 rounded border border-surface-200 dark:border-surface-700 p-3" />
+    <SafeHtml v-if="field.type === 'markdown' && tab === 'preview'" :html="text" markdown class="min-h-24 rounded border border-line p-3" />
     <Textarea
       v-else
       :id="inputId"

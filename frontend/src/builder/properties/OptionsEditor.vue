@@ -17,6 +17,7 @@ import type { FieldDef, FieldTypeInfo, OptionsDef, OptionSource, StaticOption } 
 import { useBuilder } from '../useBuilder'
 import { newUuid } from '../uuid'
 import RelationEditor from './RelationEditor.vue'
+import { AA_TEXT, labelContrast, PICKER_FALLBACK } from '@/theme/color'
 
 /** Options of a choice field (specification §4.6 "Options", architecture §14.5). */
 const props = defineProps<{ info: FieldTypeInfo }>()
@@ -149,12 +150,12 @@ const defaultsText = computed({
 
     <!-- Static list -->
     <div v-if="options.source === 'static'" class="flex flex-col gap-2">
-      <div v-for="(o, i) in statics" :key="o.uuid" class="rounded border border-surface-200 dark:border-surface-700 p-2 flex flex-col gap-1" :data-testid="`option-${i}`">
+      <div v-for="(o, i) in statics" :key="o.uuid" class="min-w-0 rounded border border-line p-2 flex flex-col gap-1" :data-testid="`option-${i}`">
         <div class="flex items-center gap-1">
           <InputText
             v-model="o.value"
             size="small"
-            class="flex-1 ltr-value font-mono"
+            class="flex-1 min-w-0 ltr-value font-mono"
             :invalid="!o.value || duplicateValues.has(o.value)"
             maxlength="255"
             :aria-label="t('builder.options.value')"
@@ -162,8 +163,8 @@ const defaultsText = computed({
           />
           <input
             type="color"
-            :value="o.color || '#888888'"
-            class="w-8 h-8 rounded border border-surface-300"
+            :value="o.color || PICKER_FALLBACK"
+            class="w-8 h-8 shrink-0 rounded border border-line-input"
             :aria-label="t('builder.options.color')"
             @input="(e) => (o.color = (e.target as HTMLInputElement).value)"
           />
@@ -172,6 +173,10 @@ const defaultsText = computed({
           <Button size="small" text icon="pi pi-arrow-down" :disabled="i === statics.length - 1" :aria-label="t('builder.move_down')" @click="moveOption(i, 1)" />
           <Button size="small" text severity="danger" icon="pi pi-trash" :aria-label="t('builder.options.remove')" @click="removeOption(i)" />
         </div>
+        <!-- Pills take the admin's colour; their label is white or dark, whichever reads better (docs/design-system.md §5.2). -->
+        <p v-if="o.color && labelContrast(o.color) < AA_TEXT" class="text-xs text-warning flex items-center gap-1" :data-testid="`option-${i}-contrast`">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true" />{{ t('builder.options.color_low_contrast', { ratio: labelContrast(o.color).toFixed(1) }) }}
+        </p>
         <div v-for="l in builder.locales" :key="l.code" class="flex items-center gap-1">
           <span class="text-xs text-muted-color w-8 uppercase ltr-value">{{ l.code }}</span>
           <InputText
@@ -289,7 +294,7 @@ const defaultsText = computed({
     <p v-else class="text-xs text-muted-color">{{ t(`builder.options.source_${options.source}_hint`) }}</p>
 
     <!-- Cascading -->
-    <fieldset class="flex flex-col gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
+    <fieldset class="flex flex-col gap-2 rounded border border-line p-2">
       <legend class="text-sm font-medium px-1">{{ t('builder.options.cascading') }}</legend>
       <label class="field"
         ><span>{{ t('builder.options.depends_on') }}</span>

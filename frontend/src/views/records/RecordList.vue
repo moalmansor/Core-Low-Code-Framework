@@ -2,15 +2,15 @@
 import AutoComplete from 'primevue/autocomplete'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
-import DataTable, { type DataTablePageEvent, type DataTableSortEvent } from 'primevue/datatable'
+import DataTable, { type DataTablePageEvent, type DataTableRowClickEvent, type DataTableSortEvent } from 'primevue/datatable'
 import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
 import Menu from 'primevue/menu'
 import Message from 'primevue/message'
+import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
-import ToggleSwitch from 'primevue/toggleswitch'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { computed, reactive, ref, watch } from 'vue'
@@ -24,13 +24,16 @@ import { formatDatetime, formatValue } from '@/runtime/format'
 import { pickText } from '@/runtime/i18nText'
 import type { ClientDefinition, ClientField, RecordPayload } from '@/runtime/types'
 import { useSession } from '@/stores/session'
+import { labelColor, parseHex } from '@/theme/color'
 import ImportDialog from './ImportDialog.vue'
+import { decodeQuery, DEFAULT_STATE, emptyRow, encodeQuery, isActive, operatorsFor, PER_PAGE, toApiFilter, type FilterOp, type FilterRow, type ListState } from './listState'
 
 /**
- * Records table of a published form or collection: columns the admin marked
- * visible, search, simple filters on filterable fields, sorting, paging,
- * the trash with restore, export to Excel/CSV with the current filters, and
- * import with a validation report.
+ * Records table of a published form or collection (design system: data
+ * tables): a filter card with typed filters, search, page size, Reset and
+ * Apply; the record count; selection with bulk actions; a per-row menu;
+ * choice and yes/no values as pills; linked records as links. The list's
+ * state lives in the URL.
  */
 const route = useRoute()
 const router = useRouter()
@@ -45,10 +48,10 @@ const loadError = ref('')
 const rows = ref<RecordPayload[]>([])
 const total = ref(0)
 const loading = ref(false)
-const query = reactive({ search: '', sort: 'updated_at', direction: 'desc' as 'asc' | 'desc', page: 1, per_page: 25, trashed: false })
-const filters = reactive<Record<string, unknown>>({})
-const showFilters = ref(false)
+const state = reactive<ListState>({ ...DEFAULT_STATE, filters: [] })
+const filtersOpen = ref(true)
 const importOpen = ref(false)
+const selected = ref<RecordPayload[]>([])
 
 const index = computed(() => (definition.value ? new FormIndex(definition.value) : null))
 const title = computed(() =>
@@ -66,6 +69,10 @@ const listable = (f: ClientField) => index.value !== null && index.value.isStore
 const columns = computed(() => (definition.value?.fields ?? []).filter((f) => listable(f) && f.table?.visible === true).sort((a, b) => a.order - b.order))
 const filterable = computed(() => (definition.value?.fields ?? []).filter((f) => listable(f) && f.table?.filterable === true && (fieldType(f.type)?.filter ?? 'none') !== 'none'))
 const columnLabel = (f: ClientField) => pickText(f.i18n.columnLabel, locale.value) ?? pickText(f.i18n.label, locale.value) ?? f.key
+const fieldByKey = (key: string) => filterable.value.find((f) => f.key === key) ?? null
+// Number and title columns only when the form produces them.
+const showNumber = computed(() => rows.value.some((r) => r.system.record_number))
+const showTitle = computed(() => rows.value.some((r) => r.title))
 
 async function loadDefinition(): Promise<void> {
   definition.value = null
@@ -78,32 +85,13 @@ async function loadDefinition(): Promise<void> {
   }
 }
 
-function activeFilters(): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(filters)) {
-    if (v === null || v === undefined || v === '') continue
-    if (typeof v === 'object' && !Array.isArray(v)) {
-      const r = v as { from?: string | null; to?: string | null; value?: string }
-      if ('value' in r) {
-        if (r.value) out[k] = r.value
-        continue
-      }
-      const range: Record<string, string> = {}
-      if (r.from) range.from = r.from
-      if (r.to) range.to = r.to
-      if (Object.keys(range).length) out[k] = range
-    } else out[k] = v
-  }
-  return out
-}
-
 function params(): Record<string, unknown> {
   return {
-    search: query.search.trim() || undefined,
-    sort: query.sort,
-    direction: query.direction,
-    trashed: query.trashed ? 1 : undefined,
-    filter: activeFilters(),
+    search: state.search.trim() || undefined,
+    sort: state.sort,
+    direction: state.direction,
+    trashed: state.trashed ? 1 : undefined,
+    filter: toApiFilter(state.filters),
   }
 }
 
@@ -113,7 +101,7 @@ async function load(): Promise<void> {
   const mine = ++seq
   loading.value = true
   try {
-    const res = await get<{ data: RecordPayload[]; meta: { total: number } }>(`/r/${formUuid.value}`, { ...params(), page: query.page, per_page: query.per_page })
+    const res = await get<{ data: RecordPayload[]; meta: { total: number } }>(`/r/${formUuid.value}`, { ...params(), page: state.page, per_page: state.perPage })
     if (mine !== seq) return
     rows.value = res.data
     total.value = res.meta.total
@@ -124,65 +112,104 @@ async function load(): Promise<void> {
   }
 }
 
+/** Puts the state in the URL (bookmarkable) and reloads. */
+function commit(resetPage = true): void {
+  if (resetPage) state.page = 1
+  void router.replace({ query: encodeQuery(state) })
+  void load()
+}
+
 watch(
   formUuid,
   async () => {
-    query.page = 1
-    query.search = ''
-    query.trashed = false
-    query.sort = 'updated_at'
-    query.direction = 'desc'
+    selected.value = []
     await loadDefinition()
-    resetFilters()
+    Object.assign(
+      state,
+      decodeQuery(
+        route.query,
+        filterable.value.map((f) => f.key),
+      ),
+    )
+    filtersOpen.value = true
     await load()
   },
   { immediate: true },
 )
 
 function onPage(e: DataTablePageEvent): void {
-  query.page = e.page + 1
-  query.per_page = e.rows
-  void load()
+  state.page = e.page + 1
+  commit(false)
 }
 function onSort(e: DataTableSortEvent): void {
-  query.sort = typeof e.sortField === 'string' ? e.sortField : 'updated_at'
-  query.direction = e.sortOrder === 1 ? 'asc' : 'desc'
-  query.page = 1
-  void load()
+  state.sort = typeof e.sortField === 'string' ? e.sortField : 'updated_at'
+  state.direction = e.sortOrder === 1 ? 'asc' : 'desc'
+  commit()
 }
 let searchTimer: number | undefined
 function onSearch(): void {
   window.clearTimeout(searchTimer)
-  searchTimer = window.setTimeout(() => {
-    query.page = 1
-    void load()
-  }, 350)
+  searchTimer = window.setTimeout(() => commit(), 350)
 }
-function applyFilters(): void {
-  query.page = 1
-  void load()
+function setPerPage(n: number): void {
+  state.perPage = n
+  commit()
 }
-function clearFilters(): void {
-  resetFilters()
-  applyFilters()
+function reset(): void {
+  state.filters = []
+  state.search = ''
+  commit()
 }
-function toggleTrash(on: boolean): void {
-  query.trashed = on
-  query.page = 1
-  void load()
+function toggleTrash(): void {
+  state.trashed = !state.trashed
+  selected.value = []
+  commit()
 }
 
-// Filter inputs per filter type.
-const RANGE_FILTERS = ['number', 'date', 'datetime', 'time']
-function resetFilters(): void {
-  for (const k of Object.keys(filters)) delete filters[k]
-  for (const f of filterable.value) if (RANGE_FILTERS.includes(fieldType(f.type)?.filter ?? '')) filters[f.key] = { from: null, to: null }
+// ---------------------------------------------------------------- filters
+
+const activeCount = computed(() => state.filters.filter(isActive).length)
+const kindOf = (f: ClientField) => fieldType(f.type)?.filter ?? 'text'
+const isStaticChoice = (f: ClientField) => (f.options?.source ?? 'static') === 'static' && !index.value?.isReference(f)
+const addable = computed(() => filterable.value.filter((f) => !state.filters.some((r) => r.key === f.key)).map((f) => ({ value: f.key, label: columnLabel(f) })))
+function addFilter(key: string | null): void {
+  const f = key ? fieldByKey(key) : null
+  if (!f) return
+  state.filters.push(emptyRow(f.key, operatorsFor(kindOf(f), isStaticChoice(f))[0]!))
 }
-function rangeOf(key: string): { from: string | null; to: string | null } {
-  return (filters[key] as { from: string | null; to: string | null } | undefined) ?? { from: null, to: null }
+function removeFilter(i: number): void {
+  const wasActive = isActive(state.filters[i]!)
+  state.filters.splice(i, 1)
+  if (wasActive) commit()
+}
+const operatorOptions = (r: FilterRow) => {
+  const f = fieldByKey(r.key)
+  return f ? operatorsFor(kindOf(f), isStaticChoice(f)).map((op) => ({ value: op, label: t(`records.op.${op}`) })) : []
+}
+function setOperator(r: FilterRow, op: FilterOp): void {
+  const carry = op === 'in' && r.value ? { values: [r.value] } : op === 'equals' && r.values[0] ? { value: r.values[0] } : {}
+  Object.assign(r, emptyRow(r.key, op), carry)
+}
+const staticOptions = (f: ClientField) => (f.options?.static ?? []).filter((o) => o.active !== false).map((o) => ({ value: o.value, label: pickText(o.i18n?.label, locale.value) ?? o.value }))
+const booleanOptions = computed(() => [
+  { value: 'true', label: t('runtime.yes') },
+  { value: 'false', label: t('runtime.no') },
+])
+const remoteOptions = reactive<Record<string, OptionItem[]>>({})
+async function completeFilter(f: ClientField, q: string): Promise<void> {
+  try {
+    remoteOptions[f.key] = (await fetchOptions(formUuid.value, f.key, { q })).items
+  } catch {
+    remoteOptions[f.key] = []
+  }
+}
+function pickRecord(r: FilterRow, v: unknown): void {
+  const o = v && typeof v === 'object' ? (v as OptionItem) : null
+  r.value = o ? String(o.value) : null
+  r.label = o ? o.label : null
 }
 function inputType(f: ClientField): string {
-  const kind = fieldType(f.type)?.filter
+  const kind = kindOf(f)
   return kind === 'date' || kind === 'datetime' ? 'date' : kind === 'time' ? 'time' : 'text'
 }
 function shownRange(f: ClientField, v: string | null): string {
@@ -192,50 +219,77 @@ function shownRange(f: ClientField, v: string | null): string {
 /** Range bound as the server compares it: whole days for date-times, seconds for times. */
 function rangeValue(f: ClientField, raw: string, end: boolean): string | null {
   if (!raw) return null
-  const kind = fieldType(f.type)?.filter
+  const kind = kindOf(f)
   if (kind === 'datetime') return `${raw} ${end ? '23:59:59' : '00:00:00'}`
   if (kind === 'time') return raw.length === 5 ? `${raw}:${end ? '59' : '00'}` : raw
   if (kind === 'number') return raw.replace(/[^\d.-]/g, '') || null
   return raw
 }
-const staticOptions = (f: ClientField) => (f.options?.static ?? []).filter((o) => o.active !== false).map((o) => ({ value: o.value, label: pickText(o.i18n?.label, locale.value) ?? o.value }))
-const remoteOptions = reactive<Record<string, OptionItem[]>>({})
-async function completeFilter(f: ClientField, q: string): Promise<void> {
-  try {
-    remoteOptions[f.key] = (await fetchOptions(formUuid.value, f.key, { q })).items
-  } catch {
-    remoteOptions[f.key] = []
+
+// ---------------------------------------------------------------- cells
+
+const number = (n: number) => new Intl.NumberFormat(locale.value).format(n)
+const range = computed(() => {
+  if (total.value === 0) return t('records.count_none')
+  const from = (state.page - 1) * state.perPage + 1
+  return t('records.count', { from: number(from), to: number(Math.min(total.value, from + rows.value.length - 1)), total: number(total.value) })
+})
+
+type Pill = { text: string; class?: string; style?: Record<string, string> }
+type Link = { text: string; to: { name: string; params: Record<string, string> } }
+type Cell = { kind: 'pills'; pills: Pill[] } | { kind: 'links'; links: Link[] } | { kind: 'text'; text: string }
+
+function optionPill(f: ClientField, value: string): Pill {
+  const o = (f.options?.static ?? []).find((x) => x.value === value)
+  const text = pickText(o?.i18n?.label, locale.value) ?? value
+  // The option's colour comes from the builder; the label colour is chosen to stay readable on it.
+  const bg = o?.color && parseHex(o.color) ? o.color : null
+  return bg ? { text, style: { background: bg, color: labelColor(bg) } } : { text, class: 'pill-neutral' }
+}
+
+function cell(r: RecordPayload, f: ClientField): Cell {
+  const value = r.values[f.key]
+  const empty = value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)
+  if (empty) return { kind: 'text', text: '—' }
+  const storage = index.value?.storage(f)
+  const relation = index.value?.relationOf(f)
+  if (index.value?.isReference(f) && relation?.kind === 'reference' && storage === 'lookup') {
+    const ids = (Array.isArray(value) ? value : [value]).map(String)
+    return { kind: 'links', links: ids.map((id) => ({ text: r.references?.[f.key]?.[id] ?? id, to: { name: 'records.view', params: { form: relation.target, record: id } } })) }
   }
-}
-const lookupFilter = (key: string) => (filters[key] as OptionItem | null | undefined) ?? null
-const isStaticChoice = (f: ClientField) => (f.options?.source ?? 'static') === 'static' && !index.value?.isReference(f)
-const booleanOptions = computed(() => [
-  { value: 'true', label: t('runtime.yes') },
-  { value: 'false', label: t('runtime.no') },
-])
-
-// Cells
-function cell(r: RecordPayload, f: ClientField): string {
-  return formatValue(index.value, f, r.values[f.key], { locale: locale.value, references: r.references, files: r.files, yes: t('runtime.yes'), no: t('runtime.no') }) || '—'
+  if ((storage === 'bool' || storage === 'consent') && typeof value === 'boolean') {
+    return { kind: 'pills', pills: [{ text: value ? t('runtime.yes') : t('runtime.no'), class: value ? 'pill-yes' : 'pill-no' }] }
+  }
+  if ((storage === 'choice' || storage === 'multi_choice') && !index.value?.isReference(f)) {
+    return { kind: 'pills', pills: (Array.isArray(value) ? value : [value]).map((v) => optionPill(f, String(v))) }
+  }
+  return { kind: 'text', text: formatValue(index.value, f, value, { locale: locale.value, references: r.references, files: r.files, yes: t('runtime.yes'), no: t('runtime.no') }) || '—' }
 }
 
-// Row actions
-const actionsMenu = ref<InstanceType<typeof Menu> | null>(null)
+function onRowClick(e: DataTableRowClickEvent): void {
+  // Clicks on the checkbox, the menu or a link do their own thing.
+  if ((e.originalEvent.target as HTMLElement | null)?.closest('button, a, input, .p-checkbox')) return
+  if (!state.trashed) void router.push({ name: 'records.view', params: { form: formUuid.value, record: (e.data as RecordPayload).uuid } })
+}
+
+// ---------------------------------------------------------------- row and bulk actions
+
+const rowMenu = ref<InstanceType<typeof Menu> | null>(null)
 const actionsFor = ref<RecordPayload | null>(null)
-const menuItems = computed(() => {
+const rowItems = computed(() => {
   const r = actionsFor.value
   if (!r) return []
-  if (query.trashed) return [{ label: t('records.restore'), icon: 'pi pi-replay', visible: canRestore.value, command: () => restore(r) }]
+  if (state.trashed) return [{ label: t('records.restore'), icon: 'pi pi-replay', visible: canRestore.value, command: () => restore(r) }]
   return [
     { label: t('records.view'), icon: 'pi pi-eye', command: () => router.push({ name: 'records.view', params: { form: formUuid.value, record: r.uuid } }) },
     { label: t('common.edit'), icon: 'pi pi-pencil', visible: canEdit.value, command: () => router.push({ name: 'records.edit', params: { form: formUuid.value, record: r.uuid } }) },
     { separator: true, visible: canDelete.value },
-    { label: t('common.delete'), icon: 'pi pi-trash', class: 'text-red-600', visible: canDelete.value, command: () => remove(r) },
+    { label: t('common.delete'), icon: 'pi pi-trash', class: 'text-danger', visible: canDelete.value, command: () => remove(r) },
   ]
 })
-function openActions(e: Event, r: RecordPayload): void {
+function openRowMenu(e: Event, r: RecordPayload): void {
   actionsFor.value = r
-  actionsMenu.value?.toggle(e)
+  rowMenu.value?.toggle(e)
 }
 
 function remove(r: RecordPayload): void {
@@ -248,17 +302,46 @@ function remove(r: RecordPayload): void {
       try {
         await deleteRecord(r)
         toast.add({ severity: 'success', summary: t('records.deleted'), life: 4000 })
-        await load()
       } catch (e) {
         if (e instanceof ApiError) toast.add({ severity: 'error', summary: e.code === 'conflict' ? t('records.delete_conflict') : e.message, life: 8000 })
-        await load()
       }
+      await load()
     },
   })
 }
 async function deleteRecord(r: RecordPayload): Promise<void> {
   await ensureCsrf()
   await http.delete(`/r/${formUuid.value}/${r.uuid}`, { data: { row_version: r.row_version }, headers: { 'Idempotency-Key': newUuid() } })
+}
+/** Deletes the selected records one by one; each delete is authorised and version-checked by the server. */
+function removeSelected(): void {
+  const list = [...selected.value]
+  confirm.require({
+    message: t('records.delete_selected_confirm', { n: number(list.length) }),
+    header: t('common.confirm'),
+    acceptProps: { label: t('common.delete'), severity: 'danger' },
+    rejectProps: { label: t('common.cancel'), severity: 'secondary' },
+    accept: async () => {
+      let done = 0
+      let failed = 0
+      for (const r of list) {
+        try {
+          await deleteRecord(r)
+          done++
+        } catch {
+          failed++
+        }
+      }
+      selected.value = []
+      toast.add({
+        severity: failed ? 'warn' : 'success',
+        summary: t('records.deleted_n', { n: number(done) }),
+        detail: failed ? t('records.not_deleted_n', { n: number(failed) }) : undefined,
+        life: 8000,
+      })
+      await load()
+    },
+  })
 }
 async function restore(r: RecordPayload): Promise<void> {
   try {
@@ -270,184 +353,318 @@ async function restore(r: RecordPayload): Promise<void> {
   }
 }
 
-// Export
-const exportMenu = ref<InstanceType<typeof Menu> | null>(null)
 const exporting = ref(false)
-async function exportAs(format: 'xlsx' | 'csv'): Promise<void> {
+async function exportAs(format: 'xlsx' | 'csv', onlySelected = false): Promise<void> {
   exporting.value = true
   try {
-    await downloadBlob(`/r/${formUuid.value}/export`, { ...params(), format }, `${definition.value?.form.key ?? 'records'}.${format}`)
+    const extra = onlySelected ? { uuids: selected.value.map((r) => r.uuid) } : {}
+    await downloadBlob(`/r/${formUuid.value}/export`, { ...params(), ...extra, format }, `${definition.value?.form.key ?? 'records'}.${format}`)
   } catch (e) {
     toast.add({ severity: 'error', summary: e instanceof ApiError && e.status === 429 ? t('records.export_throttled') : t('records.export_failed'), life: 6000 })
   } finally {
     exporting.value = false
   }
 }
-const exportItems = computed(() => [
-  { label: t('records.export_xlsx'), icon: 'pi pi-file-excel', command: () => exportAs('xlsx') },
-  { label: t('records.export_csv'), icon: 'pi pi-file', command: () => exportAs('csv') },
-])
+
+const actionsMenu = ref<InstanceType<typeof Menu> | null>(null)
+const actionItems = computed(() => {
+  const n = selected.value.length
+  return [
+    { label: t('records.import'), icon: 'pi pi-upload', visible: canImport.value && !state.trashed, command: () => (importOpen.value = true) },
+    { label: t('records.export_xlsx'), icon: 'pi pi-file-excel', visible: canExport.value, command: () => exportAs('xlsx') },
+    { label: t('records.export_csv'), icon: 'pi pi-file', visible: canExport.value, command: () => exportAs('csv') },
+    { separator: true, visible: n > 0 && (canExport.value || canDelete.value) },
+    { label: t('records.export_selected', { n: number(n) }), icon: 'pi pi-file-excel', visible: n > 0 && canExport.value, command: () => exportAs('xlsx', true) },
+    { label: t('records.delete_selected', { n: number(n) }), icon: 'pi pi-trash', class: 'text-danger', visible: n > 0 && canDelete.value && !state.trashed, command: removeSelected },
+    { separator: true, visible: canRestore.value },
+    { label: state.trashed ? t('records.leave_trash') : t('records.show_trash'), icon: state.trashed ? 'pi pi-arrow-left' : 'pi pi-trash', visible: canRestore.value, command: toggleTrash },
+  ]
+})
+const hasActions = computed(() => actionItems.value.some((i) => i.visible !== false && !('separator' in i)))
+const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t('records.per_page', { n: number(n) }) })))
 </script>
 
 <template>
   <Message v-if="loadError" severity="error" data-testid="records-error">{{ loadError }}</Message>
-  <template v-else-if="definition">
-    <div class="flex flex-wrap items-center gap-3 mb-4">
-      <h1 class="page-title !mb-0 flex-1 flex items-center gap-2" data-testid="records-title">
-        <i v-if="definition.form.icon" :class="definition.form.icon" />{{ title }}
-        <Tag v-if="query.trashed" severity="warn" :value="t('records.trash')" />
-      </h1>
-      <Button v-if="canImport && !query.trashed" icon="pi pi-upload" :label="t('records.import')" severity="secondary" outlined data-testid="records-import" @click="importOpen = true" />
-      <Button
-        v-if="canExport"
-        icon="pi pi-download"
-        :label="t('records.export')"
-        severity="secondary"
-        outlined
-        :loading="exporting"
-        aria-haspopup="true"
-        data-testid="records-export"
-        @click="(e: Event) => exportMenu?.toggle(e)"
-      />
-      <Menu ref="exportMenu" :model="exportItems" popup />
-      <RouterLink v-if="canCreate && !query.trashed" v-slot="{ navigate }" :to="{ name: 'records.create', params: { form: formUuid } }" custom>
-        <Button icon="pi pi-plus" :label="t('records.new')" data-testid="records-new" @click="navigate" />
-      </RouterLink>
-    </div>
-
-    <div class="flex flex-wrap items-center gap-2 mb-3">
-      <IconField>
-        <InputIcon class="pi pi-search" />
-        <InputText v-model="query.search" :placeholder="t('common.search')" :aria-label="t('common.search')" data-testid="records-search" @input="onSearch" @keyup.enter="applyFilters" />
-      </IconField>
-      <Button v-if="filterable.length" icon="pi pi-filter" :label="t('records.filters')" severity="secondary" text :aria-expanded="showFilters" @click="showFilters = !showFilters" />
-      <div class="flex-1" />
-      <label v-if="canRestore" class="flex items-center gap-2 text-sm">
-        <ToggleSwitch :model-value="query.trashed" data-testid="records-trash" @update:model-value="toggleTrash" />{{ t('records.show_trash') }}
-      </label>
-    </div>
-
-    <div v-if="showFilters && filterable.length" class="rounded-lg border border-surface-200 dark:border-surface-700 p-3 mb-3" data-testid="records-filters">
-      <div class="form-grid">
-        <div v-for="f in filterable" :key="f.uuid" class="field">
-          <label :for="`flt-${f.key}`">{{ columnLabel(f) }}</label>
-          <template v-if="['number', 'date', 'datetime', 'time'].includes(fieldType(f.type)?.filter ?? '')">
-            <div class="flex gap-2">
-              <InputText
-                :id="`flt-${f.key}`"
-                :type="inputType(f)"
-                :model-value="shownRange(f, rangeOf(f.key).from)"
-                class="flex-1 min-w-0 ltr-value"
-                :placeholder="t('runtime.range_from')"
-                :aria-label="`${columnLabel(f)} ${t('runtime.range_from')}`"
-                @update:model-value="(v) => (rangeOf(f.key).from = rangeValue(f, v ?? '', false))"
-              />
-              <InputText
-                :type="inputType(f)"
-                :model-value="shownRange(f, rangeOf(f.key).to)"
-                class="flex-1 min-w-0 ltr-value"
-                :placeholder="t('runtime.range_to')"
-                :aria-label="`${columnLabel(f)} ${t('runtime.range_to')}`"
-                @update:model-value="(v) => (rangeOf(f.key).to = rangeValue(f, v ?? '', true))"
-              />
-            </div>
-          </template>
-          <Select
-            v-else-if="fieldType(f.type)?.filter === 'boolean'"
-            :id="`flt-${f.key}`"
-            v-model="filters[f.key] as string"
-            :options="booleanOptions"
-            option-label="label"
-            option-value="value"
-            show-clear
-            :placeholder="t('records.any')"
-          />
-          <Select
-            v-else-if="fieldType(f.type)?.filter === 'choice' && isStaticChoice(f)"
-            :id="`flt-${f.key}`"
-            v-model="filters[f.key] as string"
-            :options="staticOptions(f)"
-            option-label="label"
-            option-value="value"
-            show-clear
-            filter
-            :placeholder="t('records.any')"
-          />
-          <AutoComplete
-            v-else-if="fieldType(f.type)?.filter === 'lookup' || fieldType(f.type)?.filter === 'choice'"
-            :input-id="`flt-${f.key}`"
-            :model-value="lookupFilter(f.key)"
-            :suggestions="remoteOptions[f.key] ?? []"
-            option-label="label"
-            dropdown
-            force-selection
-            :placeholder="t('records.any')"
-            @complete="(e: { query: string }) => completeFilter(f, e.query)"
-            @update:model-value="(v: unknown) => (filters[f.key] = v && typeof v === 'object' ? { value: (v as OptionItem).value, label: (v as OptionItem).label } : null)"
-          />
-          <InputText v-else :id="`flt-${f.key}`" v-model="filters[f.key] as string" @keyup.enter="applyFilters" />
+  <div v-else-if="definition" class="flex flex-col gap-4">
+    <header class="flex flex-wrap items-start gap-3">
+      <div class="flex items-center gap-3 flex-1 min-w-0">
+        <span class="records-icon shrink-0" aria-hidden="true"><i :class="definition.form.icon || 'pi pi-list'" /></span>
+        <div class="min-w-0">
+          <h1 class="page-title !mb-0 flex items-center gap-2" data-testid="records-title">
+            <span class="truncate">{{ title }}</span>
+            <Tag v-if="state.trashed" severity="warn" :value="t('records.trash')" />
+          </h1>
+          <p class="text-sm text-muted-color tabular-nums" data-testid="records-count">{{ range }}</p>
         </div>
       </div>
-      <div class="flex gap-2 mt-3">
-        <Button :label="t('records.apply_filters')" icon="pi pi-check" size="small" data-testid="records-apply-filters" @click="applyFilters" />
-        <Button :label="t('records.clear_filters')" icon="pi pi-times" size="small" severity="secondary" text @click="clearFilters" />
+      <div class="flex flex-wrap items-center gap-2">
+        <RouterLink v-if="canCreate && !state.trashed" v-slot="{ navigate }" :to="{ name: 'records.create', params: { form: formUuid } }" custom>
+          <Button icon="pi pi-plus" :label="t('records.new')" data-testid="records-new" @click="navigate" />
+        </RouterLink>
+        <template v-if="hasActions">
+          <Button
+            :label="t('common.actions')"
+            icon="pi pi-chevron-down"
+            icon-pos="right"
+            severity="secondary"
+            outlined
+            :loading="exporting"
+            aria-haspopup="true"
+            data-testid="records-actions"
+            @click="(e: Event) => actionsMenu?.toggle(e)"
+          />
+          <Menu ref="actionsMenu" :model="actionItems" popup />
+        </template>
       </div>
-    </div>
+    </header>
+
+    <section class="rounded-xl border border-line bg-card" data-testid="records-filters" :aria-label="t('records.filters')">
+      <div class="flex flex-wrap items-center gap-2 px-3 py-2.5">
+        <button type="button" class="flex items-center gap-2 font-medium" :aria-expanded="filtersOpen" data-testid="records-filters-toggle" @click="filtersOpen = !filtersOpen">
+          <i class="pi pi-filter text-muted-color" aria-hidden="true" />{{ t('records.filters') }}
+          <span v-if="activeCount" class="rounded-full px-2 text-xs bg-primary-subtle text-on-primary-subtle" data-testid="records-filter-count">{{ number(activeCount) }}</span>
+          <i :class="filtersOpen ? 'pi pi-chevron-up' : 'pi pi-chevron-down'" class="text-xs text-muted-color" aria-hidden="true" />
+        </button>
+        <IconField class="ms-2 grow max-w-80">
+          <InputIcon class="pi pi-search" />
+          <InputText
+            v-model="state.search"
+            class="w-full"
+            size="small"
+            :placeholder="t('common.search')"
+            :aria-label="t('common.search')"
+            data-testid="records-search"
+            @input="onSearch"
+            @keyup.enter="commit()"
+          />
+        </IconField>
+        <span class="flex-1" />
+        <Select
+          :model-value="state.perPage"
+          :options="perPageOptions"
+          option-label="label"
+          option-value="value"
+          size="small"
+          :aria-label="t('records.per_page_label')"
+          data-testid="records-per-page"
+          @update:model-value="setPerPage"
+        />
+        <Button :label="t('records.reset')" icon="pi pi-refresh" size="small" severity="secondary" outlined data-testid="records-reset" @click="reset" />
+        <Button :label="t('records.apply_refresh')" icon="pi pi-search" size="small" data-testid="records-apply-filters" @click="commit()" />
+      </div>
+      <div v-if="filtersOpen && filterable.length" class="border-t border-line px-3 py-3 flex flex-col gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <Select
+            :model-value="null"
+            :options="addable"
+            option-label="label"
+            option-value="value"
+            size="small"
+            class="w-64 max-w-full"
+            :placeholder="t('records.add_filter')"
+            :disabled="addable.length === 0"
+            data-testid="records-add-filter"
+            @update:model-value="addFilter"
+          />
+          <span v-if="state.filters.length === 0" class="text-sm text-muted-color">{{ t('records.add_filter_hint') }}</span>
+        </div>
+        <div v-for="(r, i) in state.filters" :key="r.key" class="filter-row" :data-testid="`records-filter-${r.key}`">
+          <span class="text-sm font-medium truncate">{{ fieldByKey(r.key) ? columnLabel(fieldByKey(r.key)!) : r.key }}</span>
+          <Select
+            :model-value="r.op"
+            :options="operatorOptions(r)"
+            option-label="label"
+            option-value="value"
+            size="small"
+            :disabled="operatorOptions(r).length < 2"
+            :aria-label="t('records.operator')"
+            @update:model-value="(op: FilterOp) => setOperator(r, op)"
+          />
+          <template v-if="fieldByKey(r.key)">
+            <div v-if="r.op === 'between'" class="flex gap-2 min-w-0">
+              <InputText
+                :type="inputType(fieldByKey(r.key)!)"
+                :model-value="shownRange(fieldByKey(r.key)!, r.from)"
+                size="small"
+                class="flex-1 min-w-0 ltr-value"
+                :placeholder="t('runtime.range_from')"
+                :aria-label="t('runtime.range_from')"
+                @update:model-value="(v) => (r.from = rangeValue(fieldByKey(r.key)!, v ?? '', false))"
+              />
+              <InputText
+                :type="inputType(fieldByKey(r.key)!)"
+                :model-value="shownRange(fieldByKey(r.key)!, r.to)"
+                size="small"
+                class="flex-1 min-w-0 ltr-value"
+                :placeholder="t('runtime.range_to')"
+                :aria-label="t('runtime.range_to')"
+                @update:model-value="(v) => (r.to = rangeValue(fieldByKey(r.key)!, v ?? '', true))"
+              />
+            </div>
+            <Select
+              v-else-if="r.op === 'is'"
+              v-model="r.value"
+              :options="booleanOptions"
+              option-label="label"
+              option-value="value"
+              size="small"
+              show-clear
+              :placeholder="t('records.any')"
+              :aria-label="t('records.value')"
+            />
+            <MultiSelect
+              v-else-if="r.op === 'in'"
+              v-model="r.values"
+              :options="staticOptions(fieldByKey(r.key)!)"
+              option-label="label"
+              option-value="value"
+              size="small"
+              filter
+              display="chip"
+              :placeholder="t('records.any')"
+              :aria-label="t('records.value')"
+            />
+            <Select
+              v-else-if="r.op === 'equals' && kindOf(fieldByKey(r.key)!) === 'choice' && isStaticChoice(fieldByKey(r.key)!)"
+              v-model="r.value"
+              :options="staticOptions(fieldByKey(r.key)!)"
+              option-label="label"
+              option-value="value"
+              size="small"
+              show-clear
+              filter
+              :placeholder="t('records.any')"
+              :aria-label="t('records.value')"
+            />
+            <AutoComplete
+              v-else-if="['lookup', 'choice'].includes(kindOf(fieldByKey(r.key)!))"
+              :model-value="r.value ? { value: r.value, label: r.label ?? r.value } : null"
+              :suggestions="remoteOptions[r.key] ?? []"
+              option-label="label"
+              dropdown
+              force-selection
+              size="small"
+              :placeholder="t('records.any')"
+              :aria-label="t('records.value')"
+              @complete="(e: { query: string }) => completeFilter(fieldByKey(r.key)!, e.query)"
+              @update:model-value="(v: unknown) => pickRecord(r, v)"
+            />
+            <InputText v-else v-model="r.value" size="small" :placeholder="t('records.value_placeholder')" :aria-label="t('records.value')" @keyup.enter="commit()" />
+          </template>
+          <Button icon="pi pi-times" text rounded size="small" severity="secondary" :aria-label="t('records.remove_filter')" @click="removeFilter(i)" />
+        </div>
+      </div>
+    </section>
 
     <DataTable
+      v-model:selection="selected"
       :value="rows"
       lazy
       paginator
-      :rows="query.per_page"
-      :rows-per-page-options="[10, 25, 50, 100]"
+      :rows="state.perPage"
+      :first="(state.page - 1) * state.perPage"
       :total-records="total"
       :loading="loading"
       data-key="uuid"
-      size="small"
-      striped-rows
       removable-sort
-      :sort-field="query.sort"
-      :sort-order="query.direction === 'asc' ? 1 : -1"
+      :sort-field="state.sort"
+      :sort-order="state.direction === 'asc' ? 1 : -1"
       scrollable
-      class="cursor-pointer"
+      class="records-table rounded-xl border border-line overflow-hidden cursor-pointer"
       data-testid="records-table"
       @page="onPage"
       @sort="onSort"
-      @row-click="(e) => !query.trashed && router.push({ name: 'records.view', params: { form: formUuid, record: (e.data as RecordPayload).uuid } })"
+      @row-click="onRowClick"
     >
-      <template #empty>{{ query.trashed ? t('records.trash_empty') : t('common.no_results') }}</template>
-      <Column field="record_number" :header="t('records.record_number')" sortable>
-        <template #body="{ data }">
-          <span class="ltr-value font-medium">{{ (data as RecordPayload).system.record_number ?? '—' }}</span>
-        </template>
-      </Column>
-      <Column :header="t('records.record_title')">
-        <template #body="{ data }">{{ (data as RecordPayload).title ?? '—' }}</template>
-      </Column>
-      <Column v-for="f in columns" :key="f.uuid" :field="f.key" :header="columnLabel(f)" :sortable="f.table?.sortable === true">
-        <template #body="{ data }">
-          <span class="line-clamp-2" dir="auto">{{ cell(data as RecordPayload, f) }}</span>
-        </template>
-      </Column>
-      <Column field="updated_at" :header="t('records.updated_at')" sortable>
-        <template #body="{ data }">
-          <span class="text-sm whitespace-nowrap">{{ (data as RecordPayload).system.updated_at ? formatDatetime((data as RecordPayload).system.updated_at!, locale) : '—' }}</span>
-        </template>
-      </Column>
-      <Column style="width: 3.5rem">
+      <template #empty>{{ state.trashed ? t('records.trash_empty') : t('common.no_results') }}</template>
+      <Column selection-mode="multiple" style="width: 2.75rem" />
+      <Column style="width: 3rem">
         <template #body="{ data }">
           <Button
             icon="pi pi-ellipsis-v"
             text
             rounded
+            size="small"
+            severity="secondary"
             :aria-label="t('common.actions')"
             :data-testid="`record-actions-${(data as RecordPayload).uuid}`"
-            @click.stop="(e: Event) => openActions(e, data as RecordPayload)"
+            @click.stop="(e: Event) => openRowMenu(e, data as RecordPayload)"
           />
         </template>
       </Column>
+      <Column v-if="showNumber" field="record_number" :header="t('records.record_number')" sortable>
+        <template #body="{ data }">
+          <span class="ltr-value font-mono text-sm">{{ (data as RecordPayload).system.record_number ?? '—' }}</span>
+        </template>
+      </Column>
+      <Column v-if="showTitle" :header="t('records.record_title')">
+        <template #body="{ data }">{{ (data as RecordPayload).title ?? '—' }}</template>
+      </Column>
+      <Column v-for="f in columns" :key="f.uuid" :field="f.key" :header="columnLabel(f)" :sortable="f.table?.sortable === true">
+        <template #body="{ data }">
+          <template v-for="c in [cell(data as RecordPayload, f)]" :key="c.kind">
+            <span v-if="c.kind === 'pills'" class="flex flex-wrap gap-1">
+              <span v-for="(p, n) in c.pills" :key="n" :class="['pill', p.class]" :style="p.style" data-testid="cell-pill">{{ p.text }}</span>
+            </span>
+            <span v-else-if="c.kind === 'links'" class="flex flex-wrap gap-x-3 gap-y-1">
+              <RouterLink v-for="(l, n) in c.links" :key="n" :to="l.to" class="record-link" data-testid="cell-link" @click.stop>
+                <span dir="auto">{{ l.text }}</span
+                ><i class="pi pi-external-link" aria-hidden="true" />
+              </RouterLink>
+            </span>
+            <!-- A single token (a code, a number) never breaks; longer text wraps to two lines. -->
+            <span v-else :class="/\s/.test(c.text) ? 'line-clamp-2' : 'whitespace-nowrap'">{{ c.text }}</span>
+          </template>
+        </template>
+      </Column>
+      <Column field="updated_at" :header="t('records.updated_at')" sortable>
+        <template #body="{ data }">
+          <span class="text-sm whitespace-nowrap text-muted-color">{{ (data as RecordPayload).system.updated_at ? formatDatetime((data as RecordPayload).system.updated_at!, locale) : '—' }}</span>
+        </template>
+      </Column>
     </DataTable>
-    <Menu ref="actionsMenu" :model="menuItems" popup />
+    <Menu ref="rowMenu" :model="rowItems" popup />
     <ImportDialog v-if="importOpen" :form="formUuid" :form-key="definition.form.key" @close="importOpen = false" @imported="load" />
-  </template>
+  </div>
 </template>
+
+<style scoped>
+.records-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-card);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 1.125rem;
+}
+.filter-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 10rem) minmax(8rem, 11rem) minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .filter-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+  .filter-row > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+.record-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--link);
+  text-decoration: none;
+}
+.record-link:hover {
+  text-decoration: underline;
+}
+.record-link .pi {
+  font-size: 0.6875rem;
+}
+</style>

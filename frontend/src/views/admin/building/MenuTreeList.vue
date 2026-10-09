@@ -18,12 +18,8 @@ const typeIcon: Record<string, string> = { form: 'pi pi-file-edit', collection: 
     <template #item="{ element }">
       <li :data-testid="`menu-node-${element.id}`">
         <div
-          class="flex items-center gap-2 rounded-lg border px-2 py-1.5 bg-surface-0 dark:bg-surface-900 cursor-pointer"
-          :class="[
-            ctx.selected() === element.id ? 'border-primary' : 'border-surface-200 dark:border-surface-700',
-            ctx.hasProblem(element.id) ? 'border-red-500' : '',
-            element.is_active ? '' : 'opacity-60',
-          ]"
+          class="flex items-center gap-2 rounded-lg border px-2 py-1.5 bg-card cursor-pointer"
+          :class="[ctx.selected() === element.id ? 'border-primary' : 'border-line', ctx.hasProblem(element.id) ? 'border-danger' : '', element.is_active ? '' : 'opacity-60']"
           role="button"
           tabindex="0"
           @click="ctx.select(element.id)"
@@ -39,7 +35,7 @@ const typeIcon: Record<string, string> = { form: 'pi pi-file-edit', collection: 
             <span v-if="ctx.targetOf(element)" class="text-xs text-muted-color ms-2">{{ ctx.targetOf(element) }}</span>
           </span>
           <Tag :value="t(`building.menu.type.${element.type}`)" severity="secondary" class="hidden sm:inline-flex" />
-          <i v-if="ctx.hasProblem(element.id)" class="pi pi-exclamation-triangle text-red-500" :title="t('building.menu.has_problem')" />
+          <i v-if="ctx.hasProblem(element.id)" class="pi pi-exclamation-triangle text-danger" :title="t('building.menu.has_problem')" />
           <div class="flex items-center" @click.stop>
             <Button icon="pi pi-arrow-up" text rounded size="small" :aria-label="t('building.menu.move_up')" @click="ctx.move(element.id, 'up')" />
             <Button icon="pi pi-arrow-down" text rounded size="small" :aria-label="t('building.menu.move_down')" @click="ctx.move(element.id, 'down')" />

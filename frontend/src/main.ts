@@ -1,4 +1,3 @@
-import Aura from '@primeuix/themes/aura'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 import ConfirmationService from 'primevue/confirmationservice'
@@ -10,6 +9,7 @@ import App from './App.vue'
 import { i18n } from './i18n'
 import { router } from './router'
 import './style.css'
+import { ProductPreset } from './theme/preset'
 
 // Styles PrimeVue injects at runtime carry the per-request CSP nonce that the
 // server renders into the page (no 'unsafe-inline' needed).
@@ -20,7 +20,7 @@ createApp(App)
   .use(i18n)
   .use(router)
   .use(PrimeVue, {
-    theme: { preset: Aura, options: { darkModeSelector: '.app-dark', cssLayer: false } },
+    theme: { preset: ProductPreset, options: { darkModeSelector: '.app-dark', cssLayer: false } },
     csp: nonce ? { nonce } : undefined,
     ripple: false,
   })

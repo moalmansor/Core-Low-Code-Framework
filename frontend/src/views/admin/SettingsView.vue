@@ -14,6 +14,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ApiError, ensureCsrf, get, http, send } from '@/api/http'
 import SettingsForm from '@/components/SettingsForm.vue'
 import { useSession } from '@/stores/session'
+import BrandColourEditor from './BrandColourEditor.vue'
 import EgressAllowlist from './EgressAllowlist.vue'
 import LocalesManager from './LocalesManager.vue'
 import { settingsSchema } from './settingsSchema'
@@ -72,7 +73,8 @@ async function save(): Promise<void> {
   if (tab.value === 'sso') {
     body = { providers: ssoProviders.value, ...(Object.values(ssoSecrets.value).some(Boolean) ? { client_secrets: ssoSecrets.value } : {}) }
   } else if (tab.value === 'branding') {
-    body = { system_name: values.value.system_name }
+    const colour = (v: unknown) => (typeof v === 'string' && v.trim() !== '' ? v.trim().toLowerCase() : null)
+    body = { system_name: values.value.system_name, primary_color: colour(values.value.primary_color), primary_color_dark: colour(values.value.primary_color_dark) }
   } else {
     body = Object.fromEntries(Object.entries(values.value).filter(([k]) => !k.startsWith('__') && settingsSchema[tab.value]?.some((f) => f.key === k)))
   }
@@ -143,6 +145,13 @@ async function sendTest(): Promise<void> {
                   ><input id="bf" type="file" accept=".png,.ico" @change="(e) => upload('favicon', e)" />
                 </div>
               </div>
+              <BrandColourEditor
+                :primary="(values.primary_color as string | null) ?? null"
+                :primary-dark="(values.primary_color_dark as string | null) ?? null"
+                :errors="errors"
+                @update:primary="(v) => (values.primary_color = v)"
+                @update:primary-dark="(v) => (values.primary_color_dark = v)"
+              />
             </template>
             <SsoProvidersEditor v-else-if="g === 'sso'" v-model="ssoProviders" v-model:secrets="ssoSecrets" :errors="errors" />
             <SettingsForm v-else v-model="values" :group="g" :fields="settingsSchema[g] ?? []" :errors="errors" />

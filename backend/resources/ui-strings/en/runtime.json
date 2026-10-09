@@ -96,7 +96,7 @@
   "records.save_failed": "The record could not be saved.",
   "records.save_retry": "The server did not confirm the save. Press save again: the same submission is sent and is never applied twice.",
   "records.saved": "Changes saved",
-  "records.show_trash": "Trash",
+  "records.show_trash": "Show deleted records",
   "records.submit_blocked": "This form cannot be submitted yet. See the messages on the form.",
   "records.system_actor": "System",
   "records.tab_attachments": "Attachments",

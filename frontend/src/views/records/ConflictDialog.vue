@@ -58,7 +58,7 @@ const overwriting = computed(() => Object.values(choices).filter((c) => c === 'm
       <div class="overflow-x-auto mb-4">
         <table class="w-full text-sm border-collapse">
           <thead>
-            <tr class="border-b border-surface-200 dark:border-surface-700 text-start">
+            <tr class="border-b border-line text-start">
               <th class="p-2 text-start">{{ t('records.conflict_field') }}</th>
               <th class="p-2 text-start">{{ t('records.conflict_base') }}</th>
               <th class="p-2 text-start">{{ t('records.conflict_theirs', { name: who }) }}</th>
@@ -66,7 +66,7 @@ const overwriting = computed(() => Object.values(choices).filter((c) => c === 'm
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in conflicting" :key="r.field" class="border-b border-surface-100 dark:border-surface-800 align-top" :data-testid="`conflict-${r.field}`">
+            <tr v-for="r in conflicting" :key="r.field" class="border-b border-line align-top" :data-testid="`conflict-${r.field}`">
               <td class="p-2 font-medium">{{ label(r.field) }}</td>
               <td class="p-2 text-muted-color" dir="auto">{{ show(r.field, r.base) }}</td>
               <td class="p-2">

@@ -342,8 +342,8 @@ onBeforeRouteLeave(() => (!pendingCount.value && !grantChanges.value.length) || 
 function cellClass(target: Target, subject: Subject): string {
   const v = viewOf(target, subject)
   const parts = ['w-full rounded-md px-2 py-1 text-sm flex items-center gap-1 border']
-  if (v.source === 'pending') parts.push('border-dashed border-amber-500 bg-amber-50 dark:bg-amber-950')
-  else if (v.source === 'explicit') parts.push('font-semibold border-primary bg-primary-50 dark:bg-primary-950')
+  if (v.source === 'pending') parts.push('border-dashed border-warning bg-warning-subtle')
+  else if (v.source === 'explicit') parts.push('font-semibold border-primary bg-primary-subtle')
   else parts.push('border-transparent text-muted-color italic')
   if (selection.value.has(cellKey(target.uuid, subjectKey(subject)))) parts.push('ring-2 ring-primary')
   return parts.join(' ')
@@ -435,7 +435,7 @@ const decided = computed(() => {
             <Message v-if="!grantSubject" severity="info">{{ t('access.pick_subject') }}</Message>
             <template v-else>
               <p class="text-sm text-muted-color mb-3">{{ t('building.access.form_level_hint') }}</p>
-              <div class="rounded-lg border border-surface-200 dark:border-surface-700 divide-y divide-surface-200 dark:divide-surface-700">
+              <div class="rounded-lg border border-line divide-y divide-line">
                 <div v-for="p in catalog" :key="p.key" class="flex flex-wrap items-center gap-3 p-2" :data-testid="`grant-${p.key.split('.').pop()}`">
                   <div class="flex-1 min-w-48">
                     <div>{{ p.label }} <Tag v-if="p.is_dangerous" severity="danger" :value="t('access.dangerous')" /></div>
@@ -456,7 +456,7 @@ const decided = computed(() => {
                 </div>
                 <p v-if="!catalog.length" class="p-3 text-muted-color">{{ t('building.access.no_form_permissions') }}</p>
               </div>
-              <div class="sticky bottom-0 py-3 bg-surface-50 dark:bg-surface-950 flex justify-end gap-2">
+              <div class="sticky bottom-0 py-3 bg-subtle flex justify-end gap-2">
                 <span v-if="grantChanges.length" class="self-center text-sm">{{ t('access.pending_changes', { n: grantChanges.length }) }}</span>
                 <Button severity="secondary" :label="t('common.reset')" :disabled="!grantChanges.length" @click="loadGrants" />
                 <Button :label="t('common.save')" icon="pi pi-check" :disabled="!grantChanges.length" data-testid="grant-save" @click="saveGrants" />
@@ -539,13 +539,13 @@ const decided = computed(() => {
           <div class="flex flex-wrap items-center gap-3 text-xs ms-auto">
             <span class="italic text-muted-color">{{ t('building.access.legend_inherited') }}</span>
             <span class="font-semibold px-1 border border-primary rounded">{{ t('building.access.legend_explicit') }}</span>
-            <span class="px-1 border border-dashed border-amber-500 rounded">{{ t('building.access.legend_pending') }}</span>
-            <span><i class="pi pi-lock text-red-600" /> {{ t('access.effect.hard_deny') }}</span>
-            <span><i class="pi pi-minus-circle text-orange-500" /> {{ t('access.effect.deny') }}</span>
+            <span class="px-1 border border-dashed border-warning rounded">{{ t('building.access.legend_pending') }}</span>
+            <span><i class="pi pi-lock text-danger" /> {{ t('access.effect.hard_deny') }}</span>
+            <span><i class="pi pi-minus-circle text-warning" /> {{ t('access.effect.deny') }}</span>
           </div>
         </div>
         <Message v-if="pendingCount > 0" severity="secondary" size="small" class="mb-3">{{ t('building.access.filters_locked') }}</Message>
-        <div v-if="bulk && selection.size" class="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-lg bg-surface-100 dark:bg-surface-800" data-testid="bulk-bar">
+        <div v-if="bulk && selection.size" class="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-lg bg-subtle" data-testid="bulk-bar">
           <span class="text-sm">{{ t('building.access.selected', { n: selection.size }) }}</span>
           <Select v-model="bulkEdit.access" :options="levelOptions" option-label="label" option-value="value" class="w-48" />
           <Select v-model="bulkEdit.effect" :options="effectOptions" option-label="label" option-value="value" :disabled="bulkEdit.access === null" class="w-40" />
@@ -553,17 +553,17 @@ const decided = computed(() => {
           <Button size="small" severity="secondary" :label="t('building.access.clear_selection')" @click="selection = new Set()" />
         </div>
 
-        <div v-if="matrix" class="overflow-auto rounded-lg border border-surface-200 dark:border-surface-700" data-testid="access-matrix">
+        <div v-if="matrix" class="overflow-auto rounded-lg border border-line" data-testid="access-matrix">
           <table class="min-w-full text-sm">
-            <thead class="bg-surface-100 dark:bg-surface-800">
+            <thead class="bg-subtle">
               <tr>
-                <th class="p-2 text-start sticky start-0 bg-surface-100 dark:bg-surface-800 min-w-56">{{ t('building.access.element') }}</th>
+                <th class="p-2 text-start sticky start-0 bg-subtle min-w-56">{{ t('building.access.element') }}</th>
                 <th v-for="s in matrix.subjects" :key="subjectKey(s)" class="p-2 text-start min-w-40">{{ s.name }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="tg in matrix.targets" :key="tg.uuid" class="border-t border-surface-200 dark:border-surface-700">
-                <th class="p-2 text-start font-normal sticky start-0 bg-surface-0 dark:bg-surface-900" :style="{ paddingInlineStart: `${0.5 + tg.depth * 1.25}rem` }">
+              <tr v-for="tg in matrix.targets" :key="tg.uuid" class="border-t border-line">
+                <th class="p-2 text-start font-normal sticky start-0 bg-card" :style="{ paddingInlineStart: `${0.5 + tg.depth * 1.25}rem` }">
                   <div class="flex items-center gap-2">
                     <i :class="tg.type === 'form' ? 'pi pi-file' : tg.type === 'group' ? 'pi pi-folder' : 'pi pi-minus'" class="text-muted-color text-xs" />
                     <span :class="tg.type !== 'field' ? 'font-medium' : ''">{{ targetName(tg) }}</span>
@@ -575,8 +575,8 @@ const decided = computed(() => {
                   <button type="button" :class="cellClass(tg, s)" :title="explicitBadges(tg, s).join('\n')" :data-testid="`cell-${tg.key}-${s.uuid ?? 'everyone'}`" @click="clickCell($event, tg, s)">
                     <i v-if="viewOf(tg, s).level" :class="levelIcon[viewOf(tg, s).level!]" class="text-xs" />
                     <span class="flex-1 text-start">{{ levelLabel(viewOf(tg, s).level) }}</span>
-                    <i v-if="viewOf(tg, s).effect === 'hard_deny'" class="pi pi-lock text-red-600" />
-                    <i v-else-if="viewOf(tg, s).effect === 'deny'" class="pi pi-minus-circle text-orange-500" />
+                    <i v-if="viewOf(tg, s).effect === 'hard_deny'" class="pi pi-lock text-danger" />
+                    <i v-else-if="viewOf(tg, s).effect === 'deny'" class="pi pi-minus-circle text-warning" />
                   </button>
                 </td>
               </tr>
@@ -592,8 +592,8 @@ const decided = computed(() => {
         <Paginator v-if="totalSubjects > view.perPage" :rows="view.perPage" :total-records="totalSubjects" :first="(view.page - 1) * view.perPage" class="mt-2" @page="onSubjectPage" />
         <p v-if="loadingMatrix" class="text-sm text-muted-color mt-2"><i class="pi pi-spin pi-spinner me-1" />{{ t('building.loading') }}</p>
 
-        <div class="sticky bottom-0 py-3 bg-surface-50 dark:bg-surface-950 flex flex-wrap justify-end items-center gap-2">
-          <span v-if="willNeedStepUp" class="text-sm text-red-600"><i class="pi pi-shield me-1" />{{ t('building.access.stepup_needed') }}</span>
+        <div class="sticky bottom-0 py-3 bg-subtle flex flex-wrap justify-end items-center gap-2">
+          <span v-if="willNeedStepUp" class="text-sm text-danger"><i class="pi pi-shield me-1" />{{ t('building.access.stepup_needed') }}</span>
           <span v-if="pendingCount" class="text-sm">{{ t('access.pending_changes', { n: pendingCount }) }}</span>
           <Button severity="secondary" :label="t('common.reset')" :disabled="!pendingCount" @click="discardMatrix" />
           <Button :label="t('common.save')" icon="pi pi-check" :disabled="!pendingCount" data-testid="matrix-save" @click="saveMatrix" />
@@ -660,19 +660,19 @@ const decided = computed(() => {
             <div class="text-sm">{{ decided }}</div>
           </Message>
           <div class="grid gap-3 md:grid-cols-3">
-            <div class="rounded-lg border border-surface-200 dark:border-surface-700 p-3">
+            <div class="rounded-lg border border-line p-3">
               <div class="text-xs text-muted-color">{{ t('building.access.default_level') }}</div>
               <div class="font-medium">{{ levelLabel(explanation.default) }}</div>
             </div>
-            <div class="rounded-lg border border-surface-200 dark:border-surface-700 p-3">
+            <div class="rounded-lg border border-line p-3">
               <div class="text-xs text-muted-color">{{ t('building.access.after_rules') }}</div>
               <div class="font-medium">{{ levelLabel(explanation.resolved) }}</div>
             </div>
-            <div class="rounded-lg border border-surface-200 dark:border-surface-700 p-3">
+            <div class="rounded-lg border border-line p-3">
               <div class="text-xs text-muted-color mb-1">{{ t('building.access.form_gate') }}</div>
               <div class="flex flex-wrap gap-2 text-sm">
                 <span v-for="(ok, ability) in explanation.gate" :key="ability"
-                  ><i :class="ok ? 'pi pi-check-circle text-green-600' : 'pi pi-times-circle text-red-500'" class="me-1" />{{ t(`building.access.ability.${ability}`) }}</span
+                  ><i :class="ok ? 'pi pi-check-circle text-success' : 'pi pi-times-circle text-danger'" class="me-1" />{{ t(`building.access.ability.${ability}`) }}</span
                 >
               </div>
             </div>
@@ -681,7 +681,7 @@ const decided = computed(() => {
             <h3 class="font-semibold mb-2">{{ t('building.access.tiers') }}</h3>
             <ol class="list-decimal ps-5 text-sm">
               <li v-for="(tier, i) in explanation.tiers" :key="i">{{ tierText(tier.vector) }} → {{ levelLabel(tier.value_after) }}</li>
-              <li v-for="h in explanation.hard_denies" :key="h.uuid" class="text-red-600">{{ t('access.effect.hard_deny') }}: {{ h.subject_name }} → {{ levelLabel(h.access) }}</li>
+              <li v-for="h in explanation.hard_denies" :key="h.uuid" class="text-danger">{{ t('access.effect.hard_deny') }}: {{ h.subject_name }} → {{ levelLabel(h.access) }}</li>
               <li v-if="!explanation.tiers.length && !explanation.hard_denies.length">{{ t('building.access.no_rules') }}</li>
             </ol>
           </div>
@@ -699,7 +699,7 @@ const decided = computed(() => {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="c in explanation.candidates" :key="`${c.uuid}-${c.vector.join('.')}`" class="border-t border-surface-200 dark:border-surface-700">
+                <tr v-for="c in explanation.candidates" :key="`${c.uuid}-${c.vector.join('.')}`" class="border-t border-line">
                   <td class="p-1">
                     {{ t(`building.access.target.${c.target_type}`) }} <span class="ltr-value text-muted-color">{{ c.target_key }}</span>
                   </td>

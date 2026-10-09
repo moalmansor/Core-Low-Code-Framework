@@ -2,6 +2,32 @@
 
 All notable changes to this project are documented here, one section per phase.
 
+## [Unreleased] — Interface (before Phase 3)
+
+### Added
+- Design system (`docs/design-system.md`, ADR-0030): semantic colour tokens
+  with light and dark values, a PrimeVue preset built on them, IBM Plex Sans
+  and IBM Plex Sans Arabic bundled, a visible focus ring, and reduced motion.
+- Contrast of every pairing tested against WCAG 2.1 AA in both modes; a colour
+  lint fails the build on colours written outside the theme.
+- Primary colour in Appearance & Branding (light and optional dark), refused
+  when unreadable, with the nearest readable shade offered.
+- Records table: header with count and Actions menu, filter card with typed
+  filters, list state in the URL, choice pills, bulk delete, mixed-script
+  cells.
+- Properties panel: four tabs plus More, collapsible sections, "Find a
+  setting", folded translations, one row per screen size.
+- Options editor warns when an option colour makes its pill label hard to
+  read.
+
+### Changed
+- The application frame fills the window at every size and zoom; the menu
+  and content scroll separately.
+- Placeholders use the muted text colour; inputs have a darker outline.
+- The container image sets `opcache.jit = disable` explicitly, and the
+  end-to-end CI jobs run with the JIT off as production does: PHP 8.3.35's
+  JIT segfaulted on the form publish analysis.
+
 ## [Unreleased] — Phase 2: Form Builder, Collections & Data Engine
 
 ### Added

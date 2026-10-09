@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { ensureCsrf, get, resetCsrf, send } from '@/api/http'
 import { useLocale, type LocaleInfo } from '@/i18n'
+import { applyBrand } from '@/theme/brand'
 
 export interface Bootstrap {
   setup_completed: boolean
@@ -10,7 +11,7 @@ export interface Bootstrap {
   locales: (LocaleInfo & Record<string, unknown>)[]
   formats: Record<string, unknown>
   calendar: string
-  branding: { logo: string | null; favicon: string | null }
+  branding: { logo: string | null; favicon: string | null; primary_color?: string | null; primary_color_dark?: string | null }
 }
 
 export interface Me {
@@ -60,6 +61,7 @@ export const useSession = defineStore('session', () => {
 
   async function loadBootstrap(): Promise<void> {
     boot.value = (await get<{ data: Bootstrap }>('/bootstrap')).data
+    applyBrand(boot.value.branding.primary_color, boot.value.branding.primary_color_dark)
     const preferred = storedLocale()
     const browser = navigator.language.slice(0, 2)
     const enabled = boot.value.locales.map((l) => l.code)
@@ -103,16 +105,28 @@ export const useSession = defineStore('session', () => {
     }
   }
 
+  /**
+   * Light, dark, or the system preference (the default, also before sign-in);
+   * with "system" the page follows the operating system when it changes.
+   */
+  let themeMode = 'system'
+  const systemDark = typeof window !== 'undefined' ? window.matchMedia?.('(prefers-color-scheme: dark)') : undefined
+  systemDark?.addEventListener?.('change', () => {
+    if (themeMode === 'system') applyTheme('system')
+  })
   function applyTheme(mode: string): void {
-    const dark = mode === 'dark' || (mode === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches)
-    document.documentElement.classList.toggle('app-dark', !!dark)
+    themeMode = mode
+    const dark = mode === 'dark' || (mode === 'system' && !!systemDark?.matches)
+    document.documentElement.classList.toggle('app-dark', dark)
   }
+  applyTheme('system')
 
   async function logout(): Promise<void> {
     try {
       await send('post', '/auth/logout')
     } finally {
       me.value = null
+      applyTheme('system')
       resetCsrf()
       await ensureCsrf()
     }

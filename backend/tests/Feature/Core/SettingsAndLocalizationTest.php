@@ -7,6 +7,7 @@ use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Core\Mail\TestMail;
 use App\Modules\Core\Models\Setting;
 use App\Modules\Core\Settings\SettingsService;
+use App\Support\Color\Contrast;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -129,4 +130,28 @@ it('translates permission labels, which are addressed by key', function () {
     expect($rows[0]['key'])->toBe('system.manage_users');
     $this->putJson('/api/v1/translations', ['locale' => 'ar', 'items' => [['type' => 'permission', 'key' => 'system.manage_users', 'field' => 'label', 'value' => 'إدارة الحسابات']]])->assertOk();
     $this->withHeader('X-Locale', 'ar')->getJson('/api/v1/permissions')->assertJsonFragment(['key' => 'system.manage_users', 'label' => 'إدارة الحسابات']);
+});
+
+it('stores a readable brand colour, refuses an unreadable one with the nearest passing shade, and publishes it', function () {
+    $this->patchJson('/api/v1/settings/branding', ['primary_color' => '#7c3aed'])->assertOk()->assertJsonPath('data.primary_color', '#7c3aed');
+    $this->getJson('/api/v1/bootstrap')->assertOk()->assertJsonPath('data.branding.primary_color', '#7c3aed')->assertJsonPath('data.branding.primary_color_dark', null);
+
+    // Too light to read as text on white (1.7:1): refused, with a shade that works.
+    $error = $this->patchJson('/api/v1/settings/branding', ['primary_color' => '#7dd3fc'])->assertUnprocessable()->json('errors.primary_color.0');
+    preg_match('/#[0-9a-f]{6}/', (string) $error, $m);
+    expect($m[0] ?? null)->not->toBeNull()
+        ->and(Contrast::onSurfaces($m[0], 'light'))->toBeGreaterThanOrEqual(4.5);
+    // A dark-mode shade must read on the dark surfaces; a format other than #RRGGBB is refused.
+    $this->patchJson('/api/v1/settings/branding', ['primary_color_dark' => '#1a3a6a'])->assertUnprocessable()->assertJsonValidationErrors('primary_color_dark');
+    $this->patchJson('/api/v1/settings/branding', ['primary_color' => 'blue'])->assertUnprocessable();
+    $this->patchJson('/api/v1/settings/branding', ['primary_color' => null])->assertOk();
+    $entry = AuditLog::query()->where('event', 'config.changed')->latest('id')->first();
+    expect(collect($entry->changes)->firstWhere('field_key', 'branding.primary_color'))->toMatchArray(['old' => '#7c3aed', 'new' => null]);
+});
+
+it('matches the contrast arithmetic of the interface', function () {
+    // Values also asserted by frontend/src/theme/contrast.spec.ts.
+    expect(round(Contrast::ratio('#ffffff', '#1a6fd4'), 2))->toBe(4.92)
+        ->and(round(Contrast::ratio('#e6edf3', '#171e26'), 2))->toBe(14.22)
+        ->and(Contrast::onSurfaces('#1a6fd4', 'light'))->toBeGreaterThanOrEqual(4.5);
 });

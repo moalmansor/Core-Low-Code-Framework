@@ -121,11 +121,10 @@ function removeCustom(i: number): void {
 
 <template>
   <div class="flex flex-col gap-3">
-    <section v-if="allows('required')" class="rule">
-      <label class="flex items-center gap-2 text-sm font-medium"
-        ><ToggleSwitch :model-value="v.required ?? false" data-testid="prop-required" @update:model-value="(x: boolean) => (v.required = x)" />{{ t('builder.validation.required') }}</label
-      >
-      <I18nInput v-if="v.required" :model-value="message('required')" :label="t('builder.validation.message')" @update:model-value="(m) => setMessage('required', m)" />
+    <!-- Whether the field is required is set under General > Basics; its message is set here. -->
+    <section v-if="allows('required') && v.required" class="rule">
+      <h4>{{ t('builder.validation.required') }}</h4>
+      <I18nInput :model-value="message('required')" :label="t('builder.validation.message')" @update:model-value="(m) => setMessage('required', m)" />
     </section>
 
     <section v-if="allows('length')" class="rule">
@@ -314,7 +313,7 @@ function removeCustom(i: number): void {
     <section v-if="allows('custom')" class="rule">
       <h4>{{ t('builder.validation.custom') }}</h4>
       <p class="text-xs text-muted-color">{{ t('builder.validation.custom_hint') }}</p>
-      <div v-for="(c, i) in v.custom ?? []" :key="c.messageKey" class="rounded border border-surface-200 dark:border-surface-700 p-2 flex flex-col gap-2">
+      <div v-for="(c, i) in v.custom ?? []" :key="c.messageKey" class="rounded border border-line p-2 flex flex-col gap-2">
         <div class="flex items-center gap-2">
           <span class="text-xs font-mono ltr-value flex-1">{{ c.messageKey }}</span>
           <Button size="small" text severity="danger" icon="pi pi-trash" :aria-label="t('builder.remove')" @click="removeCustom(i)" />
@@ -333,7 +332,7 @@ function removeCustom(i: number): void {
   flex-direction: column;
   gap: 0.5rem;
   padding-block-end: 0.75rem;
-  border-block-end: 1px solid var(--p-content-border-color);
+  border-block-end: 1px solid var(--border);
 }
 .rule h4 {
   font-size: 0.875rem;

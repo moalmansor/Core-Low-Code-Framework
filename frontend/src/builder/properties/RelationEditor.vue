@@ -86,7 +86,7 @@ const inverseInvalid = computed(() => !!relation.value?.inverse && !/^[a-z][a-z0
 </script>
 
 <template>
-  <fieldset class="flex flex-col gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
+  <fieldset class="flex flex-col gap-2 rounded border border-line p-2">
     <legend class="text-sm font-medium px-1">{{ t('builder.relation.title') }}</legend>
     <label class="field"
       ><span>{{ t('builder.relation.target') }}</span>

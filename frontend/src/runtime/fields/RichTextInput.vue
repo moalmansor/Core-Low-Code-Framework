@@ -66,8 +66,8 @@ const tools = [
 </script>
 
 <template>
-  <div class="rounded-md border" :class="invalid ? 'border-red-500' : 'border-surface-300 dark:border-surface-600'">
-    <div class="flex flex-wrap gap-1 border-b border-surface-200 dark:border-surface-700 p-1" role="toolbar" :aria-label="t('runtime.rich_toolbar')">
+  <div class="rounded-md border" :class="invalid ? 'border-danger' : 'border-line-strong'">
+    <div class="flex flex-wrap gap-1 border-b border-line p-1" role="toolbar" :aria-label="t('runtime.rich_toolbar')">
       <Button v-for="tool in tools" :key="tool.cmd" type="button" :icon="tool.icon" text size="small" :disabled="disabled" :aria-label="t(tool.label)" @mousedown.prevent @click="run(tool.cmd)" />
       <Button type="button" icon="pi pi-link" text size="small" :disabled="disabled" :aria-label="t('runtime.rich_link')" @mousedown.prevent @click="link" />
       <Button type="button" label="H" text size="small" :disabled="disabled" :aria-label="t('runtime.rich_heading')" @mousedown.prevent @click="run('formatBlock', 'h3')" />

@@ -133,7 +133,7 @@ function onFilter(e: { value: string }): void {
         :title="o.label"
         :disabled="disabled"
         class="w-9 h-9 rounded-full border-2"
-        :class="selected[0] === o.value ? 'border-primary ring-2 ring-primary' : 'border-surface-300 dark:border-surface-600'"
+        :class="selected[0] === o.value ? 'border-primary ring-2 ring-primary' : 'border-line-strong'"
         :style="{ background: o.color ?? o.value }"
         @click="setSingle(selected[0] === o.value && !required ? null : o.value)"
       />

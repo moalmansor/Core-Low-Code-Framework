@@ -93,7 +93,7 @@ async function saveAdd(): Promise<void> {
 </script>
 
 <template>
-  <section class="rounded-lg border border-dashed border-surface-300 dark:border-surface-600 p-4" :data-group="group.key">
+  <section class="rounded-lg border border-dashed border-line-strong p-4" :data-group="group.key">
     <header class="flex flex-wrap items-center gap-2 mb-2">
       <i class="pi pi-clone" />
       <h3 class="text-base font-semibold flex-1">{{ title }}</h3>

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Core\Settings;
 
 use App\Modules\Records\FileStore;
+use App\Support\Color\ReadableBrandColour;
 use Illuminate\Validation\Rule;
 
 /**
@@ -57,6 +58,10 @@ final class SettingsRegistry
         // organization's translatable name.
         $d('branding', 'logo_file', null, ['nullable', 'uuid']);
         $d('branding', 'favicon_file', null, ['nullable', 'uuid']);
+        // The brand colour (docs/design-system.md): unset means the theme's default.
+        // The dark-mode shade is optional; without it one is derived.
+        $d('branding', 'primary_color', null, ['nullable', 'string', new ReadableBrandColour('light')]);
+        $d('branding', 'primary_color_dark', null, ['nullable', 'string', new ReadableBrandColour('dark')]);
 
         // Schema changes (§4.9, architecture §12.3, §12.5, §12.6)
         $d('schema', 'snapshot_retention_days', 30, ['required', 'integer', 'between:1,3650']);

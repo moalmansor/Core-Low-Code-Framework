@@ -339,12 +339,12 @@ defineExpose({
   list-style: decimal;
 }
 .lcf-rich blockquote {
-  border-inline-start: 3px solid var(--p-surface-300);
+  border-inline-start: 3px solid var(--border-strong);
   padding-inline-start: 0.75rem;
-  color: var(--p-text-muted-color);
+  color: var(--text-muted);
 }
 .lcf-rich a {
-  color: var(--p-primary-color);
+  color: var(--primary);
   text-decoration: underline;
 }
 .lcf-rich h1 {
@@ -362,13 +362,13 @@ defineExpose({
 .lcf-rich pre {
   direction: ltr;
   overflow-x: auto;
-  background: var(--p-surface-100);
+  background: var(--bg-subtle);
   padding: 0.5rem;
   border-radius: 0.375rem;
 }
 .lcf-rich td,
 .lcf-rich th {
-  border: 1px solid var(--p-surface-200);
+  border: 1px solid var(--border);
   padding: 0.25rem 0.5rem;
 }
 @media print {

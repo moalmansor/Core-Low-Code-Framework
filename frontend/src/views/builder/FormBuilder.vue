@@ -152,8 +152,8 @@ function onPublished(version: number): void {
 </script>
 
 <template>
-  <div class="-m-4 lg:-m-6 flex flex-col h-[calc(100vh-4rem)] min-h-[32rem]" data-testid="form-builder">
-    <header class="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900">
+  <div class="-m-4 lg:-m-6 flex flex-col h-[calc(100%+2rem)] lg:h-[calc(100%+3rem)] min-h-[32rem]" data-testid="form-builder">
+    <header class="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-line bg-card">
       <RouterLink to="/admin/forms" class="p-button p-button-text p-button-sm" :aria-label="t('builder.back_to_forms')"><i class="pi pi-arrow-left rtl:rotate-180" /></RouterLink>
       <div class="min-w-0">
         <h1 class="font-semibold truncate">{{ title || t('builder.title') }}</h1>
@@ -165,7 +165,7 @@ function onPublished(version: number): void {
       </div>
       <span class="flex-1" />
       <span
-        :class="['text-xs flex items-center gap-1', saveLabel.severity === 'danger' ? 'text-red-600' : saveLabel.severity === 'warn' ? 'text-orange-600' : 'text-muted-color']"
+        :class="['text-xs flex items-center gap-1', saveLabel.severity === 'danger' ? 'text-danger' : saveLabel.severity === 'warn' ? 'text-warning' : 'text-muted-color']"
         role="status"
         aria-live="polite"
         data-testid="save-state"
@@ -197,26 +197,23 @@ function onPublished(version: number): void {
 
     <div v-if="!builder.doc && !builder.loadError" class="flex-1 flex items-center justify-center"><ProgressSpinner /></div>
     <template v-else-if="builder.doc">
-      <div class="lg:hidden p-2 border-b border-surface-200 dark:border-surface-700">
+      <div class="lg:hidden p-2 border-b border-line">
         <SelectButton v-model="panel" :options="panels" option-label="label" option-value="value" :allow-empty="false" size="small" class="w-full" />
       </div>
       <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)_24rem]">
-        <aside :class="['min-h-0 border-e border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900', panel === 'palette' ? 'block' : 'hidden lg:block']">
+        <aside :class="['min-h-0 border-e border-line bg-card', panel === 'palette' ? 'block' : 'hidden lg:block']">
           <Palette @save-template="templateOpen = true" />
         </aside>
         <main :class="['min-h-0 flex flex-col', panel === 'canvas' ? 'flex' : 'hidden lg:flex']">
           <div class="flex-1 min-h-0"><Canvas /></div>
-          <div class="border-t border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900" :class="problemsOpen ? 'h-48' : ''">
+          <div class="border-t border-line bg-card" :class="problemsOpen ? 'h-48' : ''">
             <button type="button" class="w-full text-start px-3 py-1 text-xs text-muted-color flex items-center gap-1" :aria-expanded="problemsOpen" @click="problemsOpen = !problemsOpen">
               <i :class="problemsOpen ? 'pi pi-chevron-down' : 'pi pi-chevron-up'" />{{ t('builder.problems.toggle', { n: builder.errors.length + builder.problems.length }) }}
             </button>
             <div v-if="problemsOpen" class="h-[calc(100%-1.75rem)]"><ProblemsPanel /></div>
           </div>
         </main>
-        <aside
-          :class="['min-h-0 overflow-auto border-s border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900', panel === 'properties' ? 'block' : 'hidden lg:block']"
-          :aria-label="t('builder.properties')"
-        >
+        <aside :class="['min-h-0 overflow-auto border-s border-line bg-card', panel === 'properties' ? 'block' : 'hidden lg:block']" :aria-label="t('builder.properties')">
           <PropertyPanel />
         </aside>
       </div>

@@ -2,11 +2,6 @@
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
-import Tab from 'primevue/tab'
-import TabList from 'primevue/tablist'
-import TabPanel from 'primevue/tabpanel'
-import TabPanels from 'primevue/tabpanels'
-import Tabs from 'primevue/tabs'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -16,6 +11,9 @@ import FormulaEditor from '../conditions/FormulaEditor.vue'
 import { buildScope } from '../conditions/scope'
 import FieldSelect from '../FieldSelect.vue'
 import I18nInput from '../I18nInput.vue'
+import PanelSection from '../panel/PanelSection.vue'
+import PanelTabs from '../panel/PanelTabs.vue'
+import { providePanel } from '../panel/panel'
 import type { CollectionSettings, FormSettings } from '../types'
 import { useBuilder } from '../useBuilder'
 import IssueList from './IssueList.vue'
@@ -23,7 +21,6 @@ import IssueList from './IssueList.vue'
 /** Form-level settings (architecture §14.2) and, for collections, the collection settings. */
 const { t } = useI18n()
 const builder = useBuilder()
-const tab = ref('general')
 
 const form = computed(() => builder.doc!.form)
 const i18n = computed(() => form.value.i18n!)
@@ -31,6 +28,9 @@ const settings = computed<FormSettings>(() => form.value.settings!)
 const scope = computed(() => buildScope(builder.doc!, builder.catalog.fields))
 const isCollection = computed(() => form.value.kind === 'collection')
 const collection = computed<CollectionSettings>(() => builder.doc!.collection!)
+const tabs = computed(() => ['general', 'behavior', isCollection.value ? 'collection' : '', 'rules'].filter(Boolean).map((value) => ({ value, label: t(`builder.tab.${value}`) })))
+providePanel('form', 'general', () => tabs.value.map((x) => x.value))
+const terms = (...keys: string[]) => keys.map((k) => t(k))
 
 const applications = ref<{ value: string; label: string }[]>([])
 const sequences = ref<{ value: string; label: string }[]>([])
@@ -76,182 +76,194 @@ const iconInvalid = computed(() => !!form.value.icon && !/^[a-z0-9 -]{0,64}$/.te
       <h2 class="font-semibold flex-1">{{ isCollection ? t('builder.form_props.collection_title') : t('builder.form_props.title') }}</h2>
     </header>
     <IssueList :uuid="null" />
-    <Tabs v-model:value="tab" scrollable>
-      <TabList>
-        <Tab value="general">{{ t('builder.tab.general') }}</Tab>
-        <Tab value="behavior">{{ t('builder.tab.behavior') }}</Tab>
-        <Tab v-if="isCollection" value="collection">{{ t('builder.tab.collection') }}</Tab>
-        <Tab value="rules">{{ t('builder.tab.rules') }}</Tab>
-      </TabList>
-      <TabPanels class="!px-0">
-        <TabPanel value="general" class="flex flex-col gap-3">
-          <div class="field">
-            <span class="text-sm font-medium">{{ t('builder.key.label') }}</span>
-            <span class="ltr-value font-mono text-sm">{{ form.key }}</span>
-            <span class="text-xs text-muted-color">{{ t('builder.form_props.key_hint') }}</span>
-          </div>
-          <I18nInput v-model="i18n.name" :label="t('builder.form_props.name')" />
-          <I18nInput v-model="i18n.description" :label="t('builder.form_props.description')" multiline :rows="2" />
-          <I18nInput v-model="i18n.submitButtonLabel" :label="t('builder.form_props.submit_label')" />
-          <div class="grid grid-cols-2 gap-2">
-            <label class="field"
-              ><span>{{ t('builder.icon') }}</span>
-              <InputText
-                :model-value="form.icon ?? ''"
-                size="small"
-                class="ltr-value"
-                :invalid="iconInvalid"
-                placeholder="pi pi-file"
-                @update:model-value="(v: string | undefined) => (form.icon = v ? v : null)"
-              />
-            </label>
-            <label class="field"
-              ><span>{{ t('builder.form_props.application') }}</span>
-              <Select :model-value="form.application ?? null" :options="applications" option-label="label" option-value="value" size="small" @update:model-value="(v) => (form.application = v)" />
-            </label>
-            <label class="field"
-              ><span>{{ t('builder.form_props.data_sharing') }}</span>
-              <Select
-                :model-value="form.dataSharing ?? 'shared'"
-                :options="[
-                  { value: 'shared', label: t('builder.form_props.shared') },
-                  { value: 'isolated', label: t('builder.form_props.isolated') },
-                ]"
-                option-label="label"
-                option-value="value"
-                size="small"
-                @update:model-value="(v) => (form.dataSharing = v)"
-              />
-            </label>
-            <label class="field"
-              ><span>{{ t('builder.form_props.numbering') }}</span>
-              <Select
-                :model-value="form.numbering ?? null"
-                :options="sequences"
-                option-label="label"
-                option-value="value"
-                show-clear
-                size="small"
-                @update:model-value="(v) => (form.numbering = v ?? null)"
-              />
-            </label>
-            <label class="field col-span-2"
-              ><span>{{ t('builder.form_props.calendar') }}</span>
-              <Select
-                :model-value="form.calendar ?? null"
-                :options="calendars"
-                option-label="label"
-                option-value="value"
-                show-clear
-                size="small"
-                @update:model-value="(v) => (form.calendar = v ?? null)"
-              />
-              <span class="text-xs text-muted-color">{{ t('builder.form_props.calendar_hint') }}</span>
-            </label>
-          </div>
-          <FormulaEditor :model-value="form.titleTemplate ?? null" :scope="scope" :label="t('builder.form_props.title_template')" @update:model-value="(a) => (form.titleTemplate = a ?? null)" />
-          <p class="text-xs text-muted-color">{{ t('builder.form_props.title_template_hint') }}</p>
-        </TabPanel>
+    <PanelTabs :tabs="tabs" />
+    <PanelSection
+      id="form-basics"
+      tab="general"
+      :title="t('builder.section.basics')"
+      :terms="terms('builder.key.label', 'builder.form_props.name', 'builder.form_props.description', 'builder.form_props.submit_label')"
+    >
+      <div class="field">
+        <span class="text-sm font-medium">{{ t('builder.key.label') }}</span>
+        <span class="ltr-value font-mono text-sm">{{ form.key }}</span>
+        <span class="text-xs text-muted-color">{{ t('builder.form_props.key_hint') }}</span>
+      </div>
+      <I18nInput v-model="i18n.name" :label="t('builder.form_props.name')" />
+      <I18nInput v-model="i18n.description" :label="t('builder.form_props.description')" multiline :rows="2" />
+      <I18nInput v-model="i18n.submitButtonLabel" :label="t('builder.form_props.submit_label')" />
+    </PanelSection>
+    <PanelSection
+      id="form-records"
+      tab="general"
+      :title="t('builder.section.records')"
+      :terms="
+        terms('builder.icon', 'builder.form_props.application', 'builder.form_props.data_sharing', 'builder.form_props.numbering', 'builder.form_props.calendar', 'builder.form_props.title_template')
+      "
+    >
+      <div class="grid grid-cols-2 gap-2">
+        <label class="field"
+          ><span>{{ t('builder.icon') }}</span>
+          <InputText
+            :model-value="form.icon ?? ''"
+            size="small"
+            class="ltr-value"
+            :invalid="iconInvalid"
+            placeholder="pi pi-file"
+            @update:model-value="(v: string | undefined) => (form.icon = v ? v : null)"
+          />
+        </label>
+        <label class="field"
+          ><span>{{ t('builder.form_props.application') }}</span>
+          <Select :model-value="form.application ?? null" :options="applications" option-label="label" option-value="value" size="small" @update:model-value="(v) => (form.application = v)" />
+        </label>
+        <label class="field"
+          ><span>{{ t('builder.form_props.data_sharing') }}</span>
+          <Select
+            :model-value="form.dataSharing ?? 'shared'"
+            :options="[
+              { value: 'shared', label: t('builder.form_props.shared') },
+              { value: 'isolated', label: t('builder.form_props.isolated') },
+            ]"
+            option-label="label"
+            option-value="value"
+            size="small"
+            @update:model-value="(v) => (form.dataSharing = v)"
+          />
+        </label>
+        <label class="field"
+          ><span>{{ t('builder.form_props.numbering') }}</span>
+          <Select
+            :model-value="form.numbering ?? null"
+            :options="sequences"
+            option-label="label"
+            option-value="value"
+            show-clear
+            size="small"
+            @update:model-value="(v) => (form.numbering = v ?? null)"
+          />
+        </label>
+        <label class="field col-span-2"
+          ><span>{{ t('builder.form_props.calendar') }}</span>
+          <Select
+            :model-value="form.calendar ?? null"
+            :options="calendars"
+            option-label="label"
+            option-value="value"
+            show-clear
+            size="small"
+            @update:model-value="(v) => (form.calendar = v ?? null)"
+          />
+          <span class="text-xs text-muted-color">{{ t('builder.form_props.calendar_hint') }}</span>
+        </label>
+      </div>
+      <FormulaEditor :model-value="form.titleTemplate ?? null" :scope="scope" :label="t('builder.form_props.title_template')" @update:model-value="(a) => (form.titleTemplate = a ?? null)" />
+      <p class="text-xs text-muted-color">{{ t('builder.form_props.title_template_hint') }}</p>
+    </PanelSection>
 
-        <TabPanel value="behavior" class="flex flex-col gap-3">
-          <fieldset class="flex flex-col gap-2">
-            <legend class="text-sm font-medium mb-1">{{ t('builder.form_props.modes') }}</legend>
-            <label v-for="m in ['create', 'edit', 'view', 'print'] as const" :key="m" class="flex items-center gap-2 text-sm"
-              ><ToggleSwitch :model-value="settings.modes?.[m] ?? true" @update:model-value="(v: boolean) => setMode(m, v)" />{{ t(`builder.mode.${m}`) }}</label
-            >
-          </fieldset>
-          <label class="field"
-            ><span>{{ t('builder.form_props.after_submit') }}</span>
-            <Select
-              :model-value="settings.afterSubmit?.redirect ?? 'view'"
-              :options="(['view', 'list', 'new'] as const).map((v) => ({ value: v, label: t(`builder.form_props.after_${v}`) }))"
-              option-label="label"
-              option-value="value"
-              size="small"
-              @update:model-value="(v) => setSetting('afterSubmit', { redirect: v })"
-            />
-          </label>
-          <label class="flex items-center gap-2 text-sm"
-            ><ToggleSwitch :model-value="settings.autosaveDrafts ?? false" @update:model-value="(v: boolean) => setSetting('autosaveDrafts', v)" />{{ t('builder.form_props.autosave_drafts') }}</label
-          >
-          <label class="flex items-center gap-2 text-sm"
-            ><ToggleSwitch :model-value="settings.allowComments ?? false" @update:model-value="(v: boolean) => setSetting('allowComments', v)" />{{ t('builder.form_props.allow_comments') }}</label
-          >
-          <label class="flex items-center gap-2 text-sm"
-            ><ToggleSwitch :model-value="settings.allowAttachments ?? false" @update:model-value="(v: boolean) => setSetting('allowAttachments', v)" />{{
-              t('builder.form_props.allow_attachments')
-            }}</label
-          >
-          <div v-if="settings.allowAttachments" class="grid grid-cols-2 gap-2">
-            <label class="field"
-              ><span>{{ t('builder.validation.max_count') }}</span>
-              <InputNumber :model-value="settings.attachmentRules?.maxCount ?? null" :min="0" :max="100" size="small" @update:model-value="(v) => setAttachment('maxCount', v ?? null)" />
-            </label>
-            <label class="field"
-              ><span>{{ t('builder.validation.max_size_kb') }}</span>
-              <InputNumber :model-value="settings.attachmentRules?.maxSizeKb ?? null" :min="1" :max="1048576" size="small" @update:model-value="(v) => setAttachment('maxSizeKb', v ?? null)" />
-            </label>
-            <label class="field col-span-2"
-              ><span>{{ t('builder.validation.file_types') }}</span>
-              <InputText v-model.lazy="attachmentTypes" size="small" class="ltr-value" placeholder="pdf, png" />
-            </label>
-          </div>
-          <div class="field">
-            <span class="text-sm font-medium">{{ t('builder.form_props.search_fields') }}</span>
-            <FieldSelect v-model:values="settings.searchFields" multiple />
-          </div>
-          <p class="text-xs text-muted-color">{{ t('builder.form_props.conflict_resolution') }}</p>
-        </TabPanel>
+    <PanelSection id="form-modes" tab="behavior" :title="t('builder.form_props.modes')" :terms="terms('builder.form_props.after_submit')">
+      <label v-for="m in ['create', 'edit', 'view', 'print'] as const" :key="m" class="flex items-center gap-2 text-sm"
+        ><ToggleSwitch :model-value="settings.modes?.[m] ?? true" @update:model-value="(v: boolean) => setMode(m, v)" />{{ t(`builder.mode.${m}`) }}</label
+      >
+      <label class="field"
+        ><span>{{ t('builder.form_props.after_submit') }}</span>
+        <Select
+          :model-value="settings.afterSubmit?.redirect ?? 'view'"
+          :options="(['view', 'list', 'new'] as const).map((v) => ({ value: v, label: t(`builder.form_props.after_${v}`) }))"
+          option-label="label"
+          option-value="value"
+          size="small"
+          @update:model-value="(v) => setSetting('afterSubmit', { redirect: v })"
+        />
+      </label>
+    </PanelSection>
+    <PanelSection
+      id="form-collaboration"
+      tab="behavior"
+      :title="t('builder.section.collaboration')"
+      :terms="terms('builder.form_props.autosave_drafts', 'builder.form_props.allow_comments', 'builder.form_props.allow_attachments', 'builder.validation.file_types')"
+    >
+      <label class="flex items-center gap-2 text-sm"
+        ><ToggleSwitch :model-value="settings.autosaveDrafts ?? false" @update:model-value="(v: boolean) => setSetting('autosaveDrafts', v)" />{{ t('builder.form_props.autosave_drafts') }}</label
+      >
+      <label class="flex items-center gap-2 text-sm"
+        ><ToggleSwitch :model-value="settings.allowComments ?? false" @update:model-value="(v: boolean) => setSetting('allowComments', v)" />{{ t('builder.form_props.allow_comments') }}</label
+      >
+      <label class="flex items-center gap-2 text-sm"
+        ><ToggleSwitch :model-value="settings.allowAttachments ?? false" @update:model-value="(v: boolean) => setSetting('allowAttachments', v)" />{{
+          t('builder.form_props.allow_attachments')
+        }}</label
+      >
+      <div v-if="settings.allowAttachments" class="grid grid-cols-2 gap-2">
+        <label class="field"
+          ><span>{{ t('builder.validation.max_count') }}</span>
+          <InputNumber :model-value="settings.attachmentRules?.maxCount ?? null" :min="0" :max="100" size="small" @update:model-value="(v) => setAttachment('maxCount', v ?? null)" />
+        </label>
+        <label class="field"
+          ><span>{{ t('builder.validation.max_size_kb') }}</span>
+          <InputNumber :model-value="settings.attachmentRules?.maxSizeKb ?? null" :min="1" :max="1048576" size="small" @update:model-value="(v) => setAttachment('maxSizeKb', v ?? null)" />
+        </label>
+        <label class="field col-span-2"
+          ><span>{{ t('builder.validation.file_types') }}</span>
+          <InputText v-model.lazy="attachmentTypes" size="small" class="ltr-value" placeholder="pdf, png" />
+        </label>
+      </div>
+    </PanelSection>
+    <PanelSection id="form-search" tab="behavior" :title="t('builder.form_props.search_fields')">
+      <FieldSelect v-model:values="settings.searchFields" multiple :aria-label="t('builder.form_props.search_fields')" />
+      <p class="text-xs text-muted-color">{{ t('builder.form_props.conflict_resolution') }}</p>
+    </PanelSection>
 
-        <TabPanel v-if="isCollection" value="collection" class="flex flex-col gap-3">
-          <label class="field"
-            ><span>{{ t('builder.collection.type') }}</span>
-            <Select
-              v-model="collection.type"
-              :options="[
-                { value: 'key_value', label: t('builder.collection.key_value') },
-                { value: 'table', label: t('builder.collection.table') },
-              ]"
-              option-label="label"
-              option-value="value"
-              size="small"
-            />
-          </label>
-          <label class="flex items-center gap-2 text-sm"
-            ><ToggleSwitch :model-value="collection.sharedReference ?? false" @update:model-value="(v: boolean) => (collection.sharedReference = v)" />{{
-              t('builder.collection.shared_reference')
-            }}</label
-          >
-          <label class="field"
-            ><span>{{ t('builder.collection.owner_application') }}</span>
-            <Select
-              :model-value="collection.ownerApplication ?? null"
-              :options="applications"
-              option-label="label"
-              option-value="value"
-              show-clear
-              size="small"
-              @update:model-value="(v) => (collection.ownerApplication = v ?? null)"
-            />
-          </label>
-          <label class="field"
-            ><span>{{ t('builder.collection.value_field') }}</span
-            ><FieldSelect v-model="collection.valueField"
-          /></label>
-          <label class="field"
-            ><span>{{ t('builder.collection.label_field') }}</span
-            ><FieldSelect v-model="collection.labelField"
-          /></label>
-          <label class="field"
-            ><span>{{ t('builder.collection.parent_field') }}</span
-            ><FieldSelect v-model="collection.parentField"
-          /></label>
-        </TabPanel>
+    <PanelSection
+      v-if="isCollection"
+      id="form-collection"
+      tab="collection"
+      :title="t('builder.tab.collection')"
+      :terms="terms('builder.collection.type', 'builder.collection.shared_reference', 'builder.collection.value_field', 'builder.collection.label_field')"
+    >
+      <label class="field"
+        ><span>{{ t('builder.collection.type') }}</span>
+        <Select
+          v-model="collection.type"
+          :options="[
+            { value: 'key_value', label: t('builder.collection.key_value') },
+            { value: 'table', label: t('builder.collection.table') },
+          ]"
+          option-label="label"
+          option-value="value"
+          size="small"
+        />
+      </label>
+      <label class="flex items-center gap-2 text-sm"
+        ><ToggleSwitch :model-value="collection.sharedReference ?? false" @update:model-value="(v: boolean) => (collection.sharedReference = v)" />{{ t('builder.collection.shared_reference') }}</label
+      >
+      <label class="field"
+        ><span>{{ t('builder.collection.owner_application') }}</span>
+        <Select
+          :model-value="collection.ownerApplication ?? null"
+          :options="applications"
+          option-label="label"
+          option-value="value"
+          show-clear
+          size="small"
+          @update:model-value="(v) => (collection.ownerApplication = v ?? null)"
+        />
+      </label>
+      <label class="field"
+        ><span>{{ t('builder.collection.value_field') }}</span
+        ><FieldSelect v-model="collection.valueField"
+      /></label>
+      <label class="field"
+        ><span>{{ t('builder.collection.label_field') }}</span
+        ><FieldSelect v-model="collection.labelField"
+      /></label>
+      <label class="field"
+        ><span>{{ t('builder.collection.parent_field') }}</span
+        ><FieldSelect v-model="collection.parentField"
+      /></label>
+    </PanelSection>
 
-        <TabPanel value="rules">
-          <ConditionsEditor :owner="{ type: 'form', uuid: form.uuid }" :scope="scope" />
-        </TabPanel>
-      </TabPanels>
-    </Tabs>
+    <PanelSection id="form-rules" tab="rules" :title="t('builder.tab.rules')">
+      <ConditionsEditor :owner="{ type: 'form', uuid: form.uuid }" :scope="scope" />
+    </PanelSection>
   </div>
 </template>

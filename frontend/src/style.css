@@ -1,9 +1,61 @@
 @import 'tailwindcss';
+/* IBM Plex Sans (Latin) and IBM Plex Sans Arabic, bundled with the app (no external font host; the CSP stays strict). */
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans-arabic/400.css';
+@import '@fontsource/ibm-plex-sans-arabic/500.css';
+@import '@fontsource/ibm-plex-sans-arabic/600.css';
+@import './theme/tokens.css';
+
 @plugin 'tailwindcss-primeui';
 @custom-variant dark (&:where(.app-dark, .app-dark *));
 
+/*
+ * Semantic colour utilities (docs/design-system.md). Components use these, or
+ * the tailwindcss-primeui utilities that resolve to the same tokens
+ * (text-color, text-muted-color, bg-primary, text-primary, border-primary).
+ * The PrimeVue surface scale (surface-0 … surface-950) and Tailwind's default
+ * palette are not used in components; `npm run lint:colors` enforces it.
+ */
+@theme inline {
+  --color-page: var(--bg-page);
+  --color-card: var(--bg-surface);
+  --color-subtle: var(--bg-subtle);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-line-input: var(--border-input);
+  --color-fg: var(--text);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-on-primary-subtle: var(--on-primary-subtle);
+  --color-on-primary: var(--on-primary);
+  --color-link: var(--link);
+  --color-danger: var(--danger);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-neutral-pill: var(--neutral-pill);
+  --color-overlay: var(--overlay);
+  --color-paper: var(--paper);
+  --color-paper-ink: var(--paper-ink);
+  --color-media: var(--media-backdrop);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
+}
+
 :root {
-  font-family: 'Segoe UI', 'Noto Sans Arabic', 'Noto Sans', system-ui, sans-serif;
+  color-scheme: light;
+  font-family: var(--font-ui);
+  font-size: 16px;
+}
+
+/* In Arabic the Arabic face leads, so Latin inside Arabic text uses its matching Latin glyphs. */
+:root:lang(ar) {
+  font-family: var(--font-ui-arabic);
 }
 
 html,
@@ -14,17 +66,33 @@ body,
 
 body {
   margin: 0;
-  background: var(--p-surface-50);
-  color: var(--p-text-color);
+  background: var(--bg-page);
+  color: var(--text);
+  font-size: var(--text-size-base);
+  line-height: 1.5;
 }
 
-.app-dark body {
-  background: var(--p-surface-950);
+/* One visible focus ring everywhere (design system: focus). */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Reduced motion (design system: motion): no animation or smooth scrolling for people who ask for less. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Logical properties keep layouts correct in both directions. */
 .page-title {
-  font-size: 1.375rem;
+  font-size: var(--text-size-title);
   font-weight: 600;
   margin-block-end: 1rem;
 }
@@ -42,16 +110,115 @@ body {
 }
 
 .field > label {
-  font-size: 0.875rem;
+  font-size: var(--text-size-base);
   font-weight: 500;
 }
 
 .field-error {
-  color: var(--p-red-500);
-  font-size: 0.8125rem;
+  color: var(--danger);
+  font-size: var(--text-size-sm);
 }
 
 .ltr-value {
   direction: ltr;
   unicode-bidi: isolate;
+}
+
+/*
+ * Data tables (design system: tables). Headers: 12px uppercase, muted, light
+ * weight; Arabic has no letter case and its joined script must not be
+ * letter-spaced, so Arabic headers are 13px, not uppercased, not spaced.
+ * Text cells take their direction from their own content and align to the
+ * interface's start edge, so mixed Arabic and Latin values line up.
+ */
+.p-datatable .p-datatable-column-title {
+  white-space: nowrap;
+  font-size: var(--table-header-size);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+:lang(ar) .p-datatable .p-datatable-column-title {
+  font-size: var(--table-header-size-arabic);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.p-datatable .p-datatable-tbody > tr > td {
+  unicode-bidi: plaintext;
+}
+/* plaintext makes "start" follow each value's own script; align to the interface's edge instead. */
+[dir='ltr'] .p-datatable .p-datatable-tbody > tr > td {
+  text-align: left;
+}
+[dir='rtl'] .p-datatable .p-datatable-tbody > tr > td {
+  text-align: right;
+}
+.p-datatable .p-datatable-tbody > tr > td.num,
+.p-datatable .p-datatable-tbody > tr > td .num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Section labels in navigation and panels: same rule as table headers. */
+.eyebrow {
+  font-size: var(--text-size-xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+:lang(ar) .eyebrow {
+  font-size: var(--text-size-sm);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Banners: text in the body colour; the tone marks the icon and the edge. */
+.p-message-error .p-message-icon,
+.p-toast-message-error .p-toast-message-icon {
+  color: var(--danger);
+}
+.p-message-warn .p-message-icon,
+.p-toast-message-warn .p-toast-message-icon {
+  color: var(--warning);
+}
+.p-message-success .p-message-icon,
+.p-toast-message-success .p-toast-message-icon {
+  color: var(--success);
+}
+.p-message-info .p-message-icon,
+.p-toast-message-info .p-toast-message-icon {
+  color: var(--primary);
+}
+.p-message,
+.p-toast-message {
+  border-inline-start-width: 4px;
+}
+
+/* Pills (design system: pills): status and boolean values. A pill with an
+   admin-chosen colour sets background and label inline (labelColor()). */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  font-size: var(--text-size-xs);
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+:lang(ar) .pill {
+  font-size: var(--text-size-sm);
+}
+.pill-neutral {
+  background: var(--neutral-pill);
+  color: var(--on-neutral-pill);
+}
+.pill-yes {
+  background: var(--success);
+  color: var(--on-success);
+}
+.pill-no {
+  background: var(--danger);
+  color: var(--on-danger);
 }

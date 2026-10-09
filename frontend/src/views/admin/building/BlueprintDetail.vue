@@ -346,7 +346,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
           <Button icon="pi pi-plus" :label="t('building.blueprints.new_version')" data-testid="bp-new-version" @click="openNewVersion" />
         </div>
         <ol class="flex flex-col gap-2">
-          <li v-for="v in bp.versions" :key="v.uuid" class="rounded-lg border border-surface-200 dark:border-surface-700 p-3">
+          <li v-for="v in bp.versions" :key="v.uuid" class="rounded-lg border border-line p-3">
             <div class="flex flex-wrap items-center gap-2">
               <span class="font-semibold">v{{ v.version }}</span>
               <Tag v-if="v.version === bp.version" severity="success" :value="t('building.blueprints.current')" />
@@ -360,7 +360,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
 
       <TabPanel value="instances">
         <p v-if="!bp.instances.length" class="text-muted-color">{{ t('building.blueprints.no_instances') }}</p>
-        <div v-else class="rounded-lg border border-surface-200 dark:border-surface-700 divide-y divide-surface-200 dark:divide-surface-700">
+        <div v-else class="rounded-lg border border-line divide-y divide-line">
           <div v-for="i in bp.instances" :key="i.uuid" class="flex flex-wrap items-center gap-3 p-2" :data-testid="`bp-instance-${i.form?.key}`">
             <div class="flex-1 min-w-48">
               <div class="font-medium">{{ i.form?.name ?? i.form?.key ?? t('building.blueprints.form_removed') }}</div>
@@ -406,7 +406,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
           </ul>
         </Message>
         <p v-if="preview && !preview.length" class="text-muted-color">{{ t('building.blueprints.up_to_date') }}</p>
-        <div v-for="p in preview ?? []" :key="p.instance" class="rounded-xl border border-surface-200 dark:border-surface-700 p-3 mb-3" :data-testid="`bp-preview-${p.form.key}`">
+        <div v-for="p in preview ?? []" :key="p.instance" class="rounded-xl border border-line p-3 mb-3" :data-testid="`bp-preview-${p.form.key}`">
           <div class="flex flex-wrap items-center gap-2 mb-2">
             <span class="font-semibold">{{ p.form.name ?? p.form.key }}</span>
             <span class="text-xs text-muted-color ltr-value">{{ p.form.key }}</span>
@@ -427,7 +427,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(c, i) in p.changes" :key="i" class="border-t border-surface-200 dark:border-surface-700">
+              <tr v-for="(c, i) in p.changes" :key="i" class="border-t border-line">
                 <td class="p-1">
                   {{ t(`building.blueprints.element.${c.kind}`) }} <span class="ltr-value text-muted-color">{{ c.label }}</span>
                 </td>

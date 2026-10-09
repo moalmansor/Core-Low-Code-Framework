@@ -46,7 +46,7 @@ function setRoleMap(p: Provider, text: string): void {
 
 <template>
   <p class="text-muted-color mb-3">{{ t('sso.hint') }}</p>
-  <div v-for="(p, i) in providers" :key="i" class="rounded-lg border border-surface-200 dark:border-surface-700 p-4 mb-4">
+  <div v-for="(p, i) in providers" :key="i" class="rounded-lg border border-line p-4 mb-4">
     <div class="form-grid">
       <div class="field">
         <label :for="`sk-${i}`">{{ t('sso.key') }}</label

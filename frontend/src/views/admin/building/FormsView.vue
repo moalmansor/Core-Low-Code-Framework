@@ -297,7 +297,7 @@ const menuItems = computed(() => {
   if (f.state === 'published') items.push({ label: t('building.forms.action_unpublish'), icon: 'pi pi-eye-slash', command: () => changeState(f, 'unpublish') })
   if (f.state === 'published' || f.state === 'unpublished') items.push({ label: t('building.forms.action_archive'), icon: 'pi pi-inbox', command: () => changeState(f, 'archive') })
   if (f.state === 'unpublished' || f.state === 'archived') items.push({ label: t('building.forms.action_republish'), icon: 'pi pi-eye', command: () => changeState(f, 'republish') })
-  if (f.version === null) items.push({ label: t('building.forms.delete_draft'), icon: 'pi pi-trash', class: 'text-red-600', command: () => destroy(f) })
+  if (f.version === null) items.push({ label: t('building.forms.delete_draft'), icon: 'pi pi-trash', class: 'text-danger', command: () => destroy(f) })
   return items
 })
 function openMenu(event: Event, f: FormSummary): void {
@@ -441,7 +441,7 @@ function openMenu(event: Event, f: FormSummary): void {
           <span v-if="createErrors.bound_table" class="field-error">{{ createErrors.bound_table }}</span>
           <small v-if="bindable && !bindable.length" class="text-muted-color">{{ t('building.forms.no_bindable') }}</small>
         </div>
-        <div v-if="boundColumns.length" class="rounded border border-surface-200 dark:border-surface-700 max-h-48 overflow-auto text-sm">
+        <div v-if="boundColumns.length" class="rounded border border-line max-h-48 overflow-auto text-sm">
           <table class="w-full">
             <thead>
               <tr class="text-start">
@@ -451,7 +451,7 @@ function openMenu(event: Event, f: FormSummary): void {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="c in boundColumns" :key="c.name" class="border-t border-surface-200 dark:border-surface-700">
+              <tr v-for="c in boundColumns" :key="c.name" class="border-t border-line">
                 <td class="p-1 ltr-value">{{ c.name }}</td>
                 <td class="p-1 ltr-value">{{ c.type }}{{ c.nullable ? ' NULL' : '' }}</td>
                 <td class="p-1">{{ c.logical ?? t('building.forms.unsupported_type') }}</td>

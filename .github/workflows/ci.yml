@@ -116,6 +116,7 @@ jobs:
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm, cache-dependency-path: frontend/package-lock.json }
       - run: npm ci --no-audit --no-fund
       - run: npx eslint .
+      - run: node scripts/check-colors.mjs
       - run: npx prettier --check src e2e tests
       - run: npx vue-tsc -b
       - run: npx vitest run
@@ -179,8 +180,10 @@ jobs:
             sudo ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive apt-get install -y msodbcsql18 unixodbc-dev
           fi
           odbcinst -q -d || true
+      # PHP's built-in server runs with OPcache; keep the JIT off as the production image does
+      # (setup-php enables it, and PHP 8.3.35's JIT segfaults on the publish analysis).
       - uses: shivammathur/setup-php@v2
-        with: { php-version: '${{ env.PHP_VERSION }}', extensions: '${{ env.PHP_EXTENSIONS }}', coverage: none, tools: composer:v2 }
+        with: { php-version: '${{ env.PHP_VERSION }}', extensions: '${{ env.PHP_EXTENSIONS }}', coverage: none, tools: composer:v2, ini-values: 'opcache.jit=disable, opcache.jit_buffer_size=0' }
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm, cache-dependency-path: frontend/package-lock.json }
       - run: composer install --no-interaction --no-progress --prefer-dist
@@ -200,6 +203,31 @@ jobs:
       - name: Playwright on ${{ matrix.db }}
         working-directory: frontend
         run: npx playwright test
+      - name: Server logs (on failure)
+        if: failure()
+        run: |
+          tail -n 150 serve.log || true
+          tail -n 150 backend/storage/logs/*.log 2>/dev/null || true
+          echo "--- server still answering?"; curl -s -o /dev/null -w '%{http_code}\n' --max-time 5 http://127.0.0.1:8000/up || true
+          echo "--- server processes"; ps -eo pid,etime,args | grep -E 'artisan serve|php -S' | grep -v grep || true
+          echo "--- crashes"; sudo dmesg 2>/dev/null | grep -iE 'segfault|killed process|oom' | tail -n 20 || true
+          php -v; php -m | tr '\n' ' '; echo
+          # Replay each form's publish analysis from the CLI against this run's database,
+          # with and without the garbage collector, OPcache and the Redis cache, to locate a crash.
+          cd backend
+          printf '%s\n' '<?php' \
+            'require "vendor/autoload.php"; $app = require "bootstrap/app.php";' \
+            '$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();' \
+            'foreach (App\Modules\Forms\Models\Form::query()->get() as $form) {' \
+            '  fwrite(STDERR, "analysing {$form->key}\n");' \
+            '  try { $p = $app->make(App\Modules\Forms\Publishing\PublishService::class)->prepare($form); echo "{$form->key}: {$p["impact"]["schema"]["steps"]} steps\n"; }' \
+            '  catch (Throwable $e) { echo "{$form->key}: ", get_class($e), " ", $e->getMessage(), "\n"; }' \
+            '}' > /tmp/impact-probe.php
+          for opts in "" "-d opcache.enable_cli=1" "-d opcache.enable_cli=1 -d opcache.jit=tracing -d opcache.jit_buffer_size=64M"; do
+            echo "--- probe php $opts"; rc=0; php $opts /tmp/impact-probe.php || rc=$?; echo "exit=$rc"
+          done
+          php artisan config:clear >/dev/null || true
+          echo "--- probe with CACHE_STORE=file"; rc=0; CACHE_STORE=file php /tmp/impact-probe.php || rc=$?; echo "exit=$rc"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

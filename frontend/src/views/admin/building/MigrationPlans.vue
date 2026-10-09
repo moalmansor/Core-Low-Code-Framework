@@ -253,7 +253,7 @@ function repair(action: RepairAction, step?: number): void {
         >
         <Message v-if="detail.form?.state === 'schema_inconsistent'" severity="warn">{{ t('building.plans.inconsistent_hint') }}</Message>
 
-        <div v-if="canRepair" class="rounded-xl border border-amber-400 p-4 flex flex-col gap-3" data-testid="repair-panel">
+        <div v-if="canRepair" class="rounded-xl border border-warning p-4 flex flex-col gap-3" data-testid="repair-panel">
           <h3 class="font-semibold"><i class="pi pi-wrench me-1" />{{ t('building.plans.repair_title') }}</h3>
           <p class="text-sm">{{ t('building.plans.repair_hint') }}</p>
           <div class="flex flex-wrap gap-2">
@@ -276,7 +276,7 @@ function repair(action: RepairAction, step?: number): void {
         <section>
           <h3 class="font-semibold mb-2">{{ t('building.plans.steps') }}</h3>
           <ol class="flex flex-col gap-2">
-            <li v-for="s in detail.steps" :key="s.sequence" class="rounded-lg border border-surface-200 dark:border-surface-700 p-2" :data-testid="`step-${s.sequence}`">
+            <li v-for="s in detail.steps" :key="s.sequence" class="rounded-lg border border-line p-2" :data-testid="`step-${s.sequence}`">
               <div class="flex flex-wrap items-center gap-2">
                 <span class="font-mono text-xs w-6 text-center">{{ s.sequence }}</span>
                 <span class="font-medium">{{ t(`building.plans.op.${s.operation}`) }}</span>
@@ -304,8 +304,8 @@ function repair(action: RepairAction, step?: number): void {
                   @click="repair('reconcile-step', s.sequence)"
                 />
               </div>
-              <p v-if="s.error" class="text-sm text-red-600 mt-1 ltr-value whitespace-pre-wrap">{{ s.error }}</p>
-              <pre v-if="sqlOpen[s.sequence] && s.sql_preview" class="ltr-value text-xs mt-2 p-2 rounded bg-surface-100 dark:bg-surface-800 overflow-auto whitespace-pre-wrap">{{ s.sql_preview }}</pre>
+              <p v-if="s.error" class="text-sm text-danger mt-1 ltr-value whitespace-pre-wrap">{{ s.error }}</p>
+              <pre v-if="sqlOpen[s.sequence] && s.sql_preview" class="ltr-value text-xs mt-2 p-2 rounded bg-subtle overflow-auto whitespace-pre-wrap">{{ s.sql_preview }}</pre>
             </li>
             <li v-if="!detail.steps.length" class="text-muted-color">{{ t('building.plans.no_steps') }}</li>
           </ol>
@@ -314,7 +314,7 @@ function repair(action: RepairAction, step?: number): void {
         <section>
           <h3 class="font-semibold mb-2">{{ t('building.plans.snapshots') }}</h3>
           <p v-if="!detail.snapshots.length" class="text-sm text-muted-color">{{ t('building.plans.no_snapshots') }}</p>
-          <div v-for="s in detail.snapshots" :key="s.uuid" class="rounded-lg border border-surface-200 dark:border-surface-700 p-2 mb-2 text-sm">
+          <div v-for="s in detail.snapshots" :key="s.uuid" class="rounded-lg border border-line p-2 mb-2 text-sm">
             <div class="flex flex-wrap items-center gap-2">
               <span class="font-medium">{{ t(`building.plans.snapshot_kind.${s.kind}`) }}</span>
               <span class="text-muted-color">{{ formatBytes(s.size_bytes) }}</span>

@@ -9,7 +9,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
       <BrandMark size="lg" />
       <LanguageSwitcher />
     </div>
-    <main class="w-full max-w-md bg-surface-0 dark:bg-surface-900 rounded-xl shadow p-6">
+    <main class="w-full max-w-md bg-card rounded-xl shadow p-6">
       <RouterView />
     </main>
   </div>

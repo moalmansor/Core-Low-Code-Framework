@@ -24,7 +24,7 @@ const mod = isMac ? '⌘' : 'Ctrl'
 
 <template>
   <div class="flex flex-col h-full min-h-0">
-    <div class="flex flex-wrap items-center gap-1 p-2 border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900" role="toolbar" :aria-label="t('builder.canvas.toolbar')">
+    <div class="flex flex-wrap items-center gap-1 p-2 border-b border-line bg-card" role="toolbar" :aria-label="t('builder.canvas.toolbar')">
       <Button
         size="small"
         text
@@ -45,7 +45,7 @@ const mod = isMac ? '⌘' : 'Ctrl'
         data-testid="redo"
         @click="builder.redo()"
       />
-      <span class="w-px h-5 bg-surface-200 dark:bg-surface-700 mx-1" aria-hidden="true" />
+      <span class="w-px h-5 bg-subtle mx-1" aria-hidden="true" />
       <Button
         size="small"
         text
@@ -110,8 +110,8 @@ const mod = isMac ? '⌘' : 'Ctrl'
         >
       </SelectButton>
     </div>
-    <div class="flex-1 overflow-auto p-4 bg-surface-100 dark:bg-surface-950" data-testid="canvas" @click="builder.select(null)">
-      <div :class="['mx-auto bg-surface-0 dark:bg-surface-900 rounded-lg shadow-sm p-3 min-h-64', widthClass]">
+    <div class="flex-1 overflow-auto p-4 bg-page" data-testid="canvas" @click="builder.select(null)">
+      <div :class="['mx-auto bg-card rounded-lg shadow-sm p-3 min-h-64', widthClass]">
         <CanvasList :parent="null" />
       </div>
       <p class="text-xs text-muted-color text-center mt-3">{{ t('builder.canvas.shortcuts', { mod }) }}</p>

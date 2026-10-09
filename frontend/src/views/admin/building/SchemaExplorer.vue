@@ -291,7 +291,7 @@ const showValue = (v: unknown) => (v === null || v === undefined ? '—' : Array
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(d, i) in data.differences as Difference[]" :key="i" class="border-t border-surface-200 dark:border-surface-700">
+                <tr v-for="(d, i) in data.differences as Difference[]" :key="i" class="border-t border-line">
                   <td class="p-1 ltr-value">{{ d.form_key ?? formKeyOf(d.form) }}</td>
                   <td class="p-1 ltr-value">
                     <button v-if="d.table" type="button" class="underline cursor-pointer" @click="openTable(d.table)">{{ d.table }}</button><span v-else>—</span>
@@ -340,7 +340,7 @@ const showValue = (v: unknown) => (v === null || v === undefined ? '—' : Array
             </tr>
           </thead>
           <tbody>
-            <tr v-for="c in detail.columns" :key="c.name" class="border-t border-surface-200 dark:border-surface-700" :class="c.archived ? 'opacity-60' : ''">
+            <tr v-for="c in detail.columns" :key="c.name" class="border-t border-line" :class="c.archived ? 'opacity-60' : ''">
               <td class="p-1 ltr-value">
                 {{ c.name }} <Tag v-if="c.system" severity="secondary" :value="t('building.schema.system')" /><Tag v-if="c.archived" severity="warn" :value="t('building.schema.archived')" />
               </td>

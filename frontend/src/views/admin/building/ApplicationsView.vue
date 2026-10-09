@@ -18,6 +18,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { get, send } from '@/api/http'
 import { useSession } from '@/stores/session'
+import { labelColor, PICKER_FALLBACK } from '@/theme/color'
 import LocaleFields from './LocaleFields.vue'
 import { errorText, fieldErrors, filledLocales, formatDateTime } from './shared'
 
@@ -211,10 +212,7 @@ function openMenu(event: Event, a: AppRow): void {
     <Column :header="t('building.name')">
       <template #body="{ data }">
         <div class="flex items-center gap-2">
-          <span
-            class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-surface-200 dark:border-surface-700"
-            :style="data.color ? { background: data.color, color: '#fff' } : undefined"
-          >
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-line" :style="data.color ? { background: data.color, color: labelColor(data.color) } : undefined">
             <i :class="data.icon || 'pi pi-th-large'" />
           </span>
           <div>
@@ -278,12 +276,12 @@ function openMenu(event: Event, a: AppRow): void {
             <input
               id="app-color-picker"
               type="color"
-              :value="editing.color || '#3b82f6'"
-              class="w-10 h-9 rounded border border-surface-300"
+              :value="editing.color || PICKER_FALLBACK"
+              class="w-10 h-9 rounded border border-line-input"
               :aria-label="t('building.color')"
               @input="editing.color = ($event.target as HTMLInputElement).value"
             />
-            <InputText id="app-color" v-model="editing.color" class="ltr-value flex-1" placeholder="#1e88e5" />
+            <InputText id="app-color" v-model="editing.color" class="ltr-value flex-1" placeholder="#RRGGBB" />
             <Button type="button" icon="pi pi-times" text :aria-label="t('building.clear')" @click="editing.color = ''" />
           </div>
           <span v-if="errors.color" class="field-error">{{ errors.color }}</span>
