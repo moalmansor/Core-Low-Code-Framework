@@ -1,0 +1,20 @@
+{
+  "settings.brand.default": "Not set: the theme's default colour is used.",
+  "settings.brand.derived": "Not set: {colour} is derived from the primary colour.",
+  "settings.brand.fails": "Too hard to read: {ratio}:1 on the page background; at least {min}:1 is needed.",
+  "settings.brand.hint": "The primary colour of buttons, links to actions, the selected tab and badges, on every screen. The other shades are derived from it. Each colour must read as text on the page background (at least 4.5:1).",
+  "settings.brand.passes": "Readable: {ratio}:1 on the page background.",
+  "settings.brand.preview": "Preview",
+  "settings.brand.preview_dark": "Dark mode",
+  "settings.brand.preview_light": "Light mode",
+  "settings.brand.primary": "Primary colour",
+  "settings.brand.primary_dark": "Primary colour in dark mode (optional)",
+  "settings.brand.primary_dark_picker": "Choose the dark-mode primary colour",
+  "settings.brand.primary_picker": "Choose the primary colour",
+  "settings.brand.reset": "Use the default",
+  "settings.brand.sample_badge": "Selected",
+  "settings.brand.sample_button": "Save",
+  "settings.brand.sample_tab": "Active tab",
+  "settings.brand.title": "Brand colour",
+  "settings.brand.use": "Use {colour}"
+}

@@ -11,8 +11,12 @@
  * The brand colour is an Appearance & Branding setting: the --brand-* custom
  * properties are set on the document root at runtime (src/theme/brand.ts) and
  * win over the defaults written here.
+ *
+ * .app-light and .app-dark also apply to a single element (the brand colour
+ * previews show both modes side by side).
  */
-:root {
+:root,
+.app-light {
   --bg-page: #f4f6f9;
   --bg-surface: #ffffff;
   --bg-subtle: #f8fafc;
@@ -47,6 +51,7 @@
   /* Behind photos and video. */
   --media-backdrop: #000000;
   --shadow-color: rgb(15 20 25 / 0.08);
+  color-scheme: light;
 }
 
 .app-dark {
@@ -76,7 +81,9 @@
   color-scheme: dark;
 }
 
-:root {
+:root,
+.app-light,
+.app-dark {
   /* Derived tints for warning and success banners (no new colour values). */
   --warning-subtle: color-mix(in srgb, var(--warning) 12%, var(--bg-surface));
   --success-subtle: color-mix(in srgb, var(--success) 12%, var(--bg-surface));

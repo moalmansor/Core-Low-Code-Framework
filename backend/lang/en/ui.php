@@ -69,6 +69,8 @@ return [
         'cannot_revoke_current' => 'Use sign out to end the current session.',
     ],
     'settings' => [
+        'colour_format' => 'The colour must be written as #RRGGBB.',
+        'colour_contrast' => 'This colour gives only :ratio:1 as text on the page background; at least 4.5:1 is needed. The nearest shade that works is :suggestion.',
         'immutable_after_setup' => 'This setting is fixed after setup.',
         'mail_not_configured' => 'Outgoing e-mail is not configured yet.',
         'mail_test_failed' => 'The test e-mail could not be sent. Check the SMTP settings.',

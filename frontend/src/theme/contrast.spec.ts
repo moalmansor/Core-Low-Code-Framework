@@ -10,7 +10,7 @@ import { AA_NON_TEXT, AA_TEXT, brandShades, checkBrand, contrast, darkVariant, l
 const css = readFileSync(join(__dirname, 'tokens.css'), 'utf8')
 
 function block(selector: string): Record<string, string> {
-  const start = css.indexOf(`${selector} {`)
+  const start = css.indexOf(selector)
   const body = css.slice(start, css.indexOf('}', start))
   const out: Record<string, string> = {}
   for (const m of body.matchAll(/--([a-z-]+):\s*([^;]+);/g)) {
@@ -21,8 +21,8 @@ function block(selector: string): Record<string, string> {
   return out
 }
 
-const light = block(':root')
-const dark = { ...light, ...block('.app-dark') }
+const light = block(':root,\n.app-light {')
+const dark = { ...light, ...block('.app-dark {') }
 const modes = { light, dark }
 
 // [what, foreground token, background tokens, minimum ratio]
@@ -63,6 +63,11 @@ describe('theme contrast (WCAG 2.1 AA)', () => {
 })
 
 describe('admin-chosen colours', () => {
+  it('matches the server arithmetic (App\\Support\\Color\\Contrast asserts the same values)', () => {
+    expect(contrast('#ffffff', '#1a6fd4').toFixed(2)).toBe('4.92')
+    expect(contrast('#e6edf3', '#171e26').toFixed(2)).toBe('14.22')
+  })
+
   it('picks the more readable label for a pill background', () => {
     expect(labelColor('#3f4c5a')).toBe(ON_COLOR_LIGHT)
     expect(labelColor('#f6d860')).toBe(ON_COLOR_DARK)

@@ -61,3 +61,32 @@ test('the page frame fills the window at every size and zoom, in both directions
   await setLanguage(page, 'en')
   expect(problems).toEqual([])
 })
+
+test('a brand colour set in Appearance & Branding reaches every screen, and an unreadable one is corrected', async ({ page }) => {
+  const problems = watchConsole(page)
+  await page.goto('/admin/settings/branding')
+  const editor = page.getByTestId('brand-colour')
+  await expect(editor).toBeVisible()
+  // Too light to read as text: the editor offers the nearest readable shade.
+  await page.getByTestId('brand-primary').fill('#7dd3fc')
+  await expect(page.getByTestId('brand-primary-fails')).toBeVisible()
+  await page.getByTestId('brand-primary-use').click()
+  await expect(page.getByTestId('brand-primary-ok')).toBeVisible()
+  const chosen = (await page.getByTestId('brand-primary').inputValue()).toLowerCase()
+  await page.getByTestId('settings-save-branding').click()
+  await expect(page.getByTestId('brand-primary')).toHaveValue(chosen)
+
+  // After a reload, every screen uses it: the root token and a primary button.
+  await page.goto('/admin/forms')
+  await expect(page.getByTestId('forms-table')).toBeVisible()
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--primary').trim().toLowerCase())).toBe(chosen)
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(chosen.slice(i, i + 2), 16))
+  await expect.poll(() => page.getByTestId('form-new').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(`rgb(${r}, ${g}, ${b})`)
+
+  // Back to the theme default for the other tests.
+  await page.goto('/admin/settings/branding')
+  await page.getByTestId('brand-primary').fill('')
+  await page.getByTestId('settings-save-branding').click()
+  await expect(page.getByTestId('brand-primary')).toHaveValue('')
+  expect(problems).toEqual([])
+})
