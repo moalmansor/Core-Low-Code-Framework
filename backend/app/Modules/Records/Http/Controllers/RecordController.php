@@ -23,6 +23,7 @@ use App\Modules\Records\Runtime\RecordQuery;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\RecordValidator;
 use App\Modules\Records\Runtime\References;
+use App\Modules\Views\ViewRuntime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -75,18 +76,43 @@ final class RecordController extends Controller
         $data = $request->validate(RecordQuery::rules() + [
             'page' => ['sometimes', 'integer', 'min:1', 'max:100000'],
             'per_page' => ['sometimes', 'integer', 'between:1,100'],
+            'view' => ['sometimes', 'nullable', 'uuid'],
+            'vf' => ['sometimes', 'array', 'max:30'],
         ]);
-        $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'view');
-        $q = $query->build($rt, $this->user(), $levels['fields'], $data);
+        $user = $this->user();
+        $levels = $this->fieldAccess->resolve($user, $form->id, $form->uuid, $rt->definition, 'view');
+        $q = $query->build($rt, $user, $levels['fields'], $data);
+        $views = app(ViewRuntime::class);
+        $view = $views->pick($rt, $user, isset($data['view']) ? strtolower($data['view']) : null);
+        $presented = $view === null ? null : $views->present($rt, $user, $view);
+        if ($view !== null) {
+            $views->filter($q, $rt, $user, $view, $data['vf'] ?? []);
+        }
         $total = (clone $q)->count();
-        $perPage = $data['per_page'] ?? 25;
+        $perPage = $data['per_page'] ?? ($presented['page_size'] ?? 25);
         $page = $data['page'] ?? 1;
-        $rows = $query->order($q, $rt, $levels['fields'], $data)->forPage($page, $perPage)->get()->map(static fn ($r) => (array) $r)->all();
+        $totals = $presented === null ? [] : $views->totals($q, $rt, $user, $presented);
+        if ($view !== null) {
+            $sortPath = isset($data['sort']) ? explode('.', (string) $data['sort']) : null;
+            $views->order($q, $rt, $user, $view, $sortPath === null ? null : ['path' => $sortPath, 'dir' => $data['direction'] ?? 'asc']);
+        } else {
+            $query->order($q, $rt, $levels['fields'], $data);
+        }
+        $rows = $q->forPage($page, $perPage)->get()->map(static fn ($r) => (array) $r)->all();
         $records = $this->store->hydrate($rt, $rows, false);
+        $out = $this->presenter->many($rt, $records, $levels['fields']);
+        if ($presented !== null) {
+            $linked = $views->linkedValues($rt, $user, $presented, array_map(static fn ($r) => $r['id'], $records));
+            foreach ($out as $i => &$row) {
+                $row['linked'] = $linked[$records[$i]['id']] ?? (object) [];
+            }
+            unset($row);
+        }
 
         return response()->json([
-            'data' => $this->presenter->many($rt, $records, $levels['fields']),
-            'meta' => ['total' => $total, 'page' => $page, 'per_page' => $perPage],
+            'data' => $out,
+            'meta' => ['total' => $total, 'page' => $page, 'per_page' => $perPage, 'view' => $presented, 'totals' => $totals === [] ? (object) [] : $totals,
+                'views' => array_map(static fn ($v) => ['uuid' => $v['uuid'], 'key' => $v['key'], 'name' => $v['i18n']['name']], $views->available($rt, $user))],
         ]);
     }
 

@@ -37,7 +37,7 @@ it('limits every record query to the user scope and answers 404 outside it', fun
     $bob = $this->makeUser();
     foreach ([$alice, $bob] as $u) {
         foreach (['view', 'create', 'edit', 'delete', 'export'] as $a) {
-            grant($u->id, "form.{$form}.{$a}");
+            grantPermission($u->id, "form.{$form}.{$a}");
         }
     }
     // Everyone sees only their own records; secret ones are excluded even for their owners.
@@ -123,7 +123,7 @@ it('asks for a justification after validation, enforces it on the server and kee
 
     // Without View Justifications the text is not readable.
     $clerk = $this->makeUser();
-    grant($clerk->id, "form.{$form}.view");
+    grantPermission($clerk->id, "form.{$form}.view");
     $this->flushSession();
     $this->actingAs($clerk, 'web');
     $this->getJson("/api/v1/r/{$form}/{$rec}/justifications")->assertForbidden();
@@ -137,7 +137,7 @@ it('assigns by rule, lets queue members claim, guards claimed records and lists 
     $b = $this->makeUser();
     foreach ([$a, $b] as $u) {
         foreach (['view', 'edit'] as $ab) {
-            grant($u->id, "form.{$form}.{$ab}");
+            grantPermission($u->id, "form.{$form}.{$ab}");
         }
     }
     $hash = $this->getJson("/api/v1/forms/{$form}/assignment-rules")->assertOk()->json('data.hash');
@@ -183,10 +183,10 @@ it('lets a delegate act for the delegator and records it on their behalf', funct
     $boss = $this->makeUser();
     $deputy = $this->makeUser();
     foreach (['view', 'edit'] as $ab) {
-        grant($boss->id, "form.{$form}.{$ab}");
+        grantPermission($boss->id, "form.{$form}.{$ab}");
     }
-    grant($boss->id, 'transition.'.$wf['approve']['uuid'].'.perform');
-    grant($boss->id, 'system.delegate_own_work');
+    grantPermission($boss->id, 'transition.'.$wf['approve']['uuid'].'.perform');
+    grantPermission($boss->id, 'system.delegate_own_work');
     $rec = $this->postJson("/api/v1/r/{$form}", ['values' => ['subject' => 'Budget', 'reason' => 'x']])->assertCreated()->json('data.uuid');
     $this->postJson("/api/v1/r/{$form}/{$rec}/transitions/{$wf['submit']['uuid']}", ['row_version' => 1, 'comment' => 'c'])->assertOk();
 

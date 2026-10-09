@@ -74,14 +74,14 @@ it('requires the transition permission and applies field access per status', fun
 
     $clerk = $this->makeUser();
     foreach (['view', 'edit', 'create'] as $ability) {
-        grant($clerk->id, "form.{$form}.{$ability}");
+        grantPermission($clerk->id, "form.{$form}.{$ability}");
     }
     $this->flushSession();
     $this->actingAs($clerk, 'web');
     $this->postJson("/api/v1/r/{$form}/{$rec['uuid']}/transitions/{$wf['submit']['uuid']}", ['row_version' => 1, 'comment' => 'go'])->assertStatus(403);
     $this->getJson("/api/v1/r/{$form}/{$rec['uuid']}/transitions")->assertOk()->assertJsonPath('data', []);
 
-    grant($clerk->id, 'transition.'.$wf['submit']['uuid'].'.perform');
+    grantPermission($clerk->id, 'transition.'.$wf['submit']['uuid'].'.perform');
     $this->postJson("/api/v1/r/{$form}/{$rec['uuid']}/transitions/{$wf['submit']['uuid']}", ['row_version' => 1, 'comment' => 'go'])->assertOk();
     // In "submitted" the subject is read-only; in "draft" it was editable.
     $this->patchJson("/api/v1/r/{$form}/{$rec['uuid']}", ['values' => ['subject' => 'Changed'], 'row_version' => 2])->assertStatus(422)->assertJsonValidationErrors(['subject']);
@@ -144,7 +144,7 @@ it('waits for multi-party approval and moves when the rule is met', function () 
     $a = $this->makeUser();
     $b = $this->makeUser();
     foreach ([$a, $b] as $u) {
-        grant($u->id, "form.{$form}.view");
+        grantPermission($u->id, "form.{$form}.view");
     }
     $new = statusDoc('new', true);
     $ok = statusDoc('ok', false, true);

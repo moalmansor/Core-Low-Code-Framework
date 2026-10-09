@@ -9,6 +9,7 @@ use App\Support\Models\BaseModel;
 use App\Support\Models\BelongsToOrganization;
 use App\Support\Models\HasStableUuid;
 use App\Support\Models\TracksActor;
+use Illuminate\Support\Carbon;
 
 /**
  * A role or department work queue (specification §4.25): which forms appear
@@ -22,7 +23,7 @@ use App\Support\Models\TracksActor;
  * @property int|null $department_id
  * @property int|null $claim_timeout_minutes
  * @property bool $is_active
- * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property Carbon|null $updated_at
  */
 final class Queue extends BaseModel
 {

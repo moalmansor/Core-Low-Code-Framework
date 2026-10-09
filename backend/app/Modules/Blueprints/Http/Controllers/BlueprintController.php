@@ -12,6 +12,7 @@ use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Models\Locale;
 use App\Modules\Forms\Models\Application;
 use App\Modules\Forms\Models\Form;
+use App\Modules\Views\ViewBlueprints;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -67,19 +68,25 @@ final class BlueprintController extends Controller
     {
         Gate::authorize('system.manage_blueprints');
         $instances = BlueprintInstance::query()->where('blueprint_id', $blueprint->id)->orderBy('id')->get();
-        $forms = Form::query()->whereIn('id', $instances->pluck('object_id'))->get()->keyBy('id');
+        $views = $instances->where('object_type', 'view')->isEmpty() ? collect() : DB::table('views')->whereIn('id', $instances->where('object_type', 'view')->pluck('object_id'))->get(['id', 'uuid', 'key', 'form_id'])->keyBy('id');
+        $forms = Form::query()->whereIn('id', [...$instances->where('object_type', 'form')->pluck('object_id'), ...$views->pluck('form_id')])->get()->keyBy('id');
         $versionNumbers = BlueprintVersion::query()->where('blueprint_id', $blueprint->id)->pluck('version', 'id');
 
         return response()->json(['data' => $this->present($blueprint, ['name' => $blueprint->translate('name'), 'description' => $blueprint->translate('description')], $instances->where('is_detached', false)->count()) + [
             'names' => $blueprint->translationsFor('name'),
             'descriptions' => $blueprint->translationsFor('description'),
-            'source' => $blueprint->source_type === 'form' ? Form::query()->whereKey($blueprint->source_id)->first(['uuid', 'key'])?->only(['uuid', 'key']) : null,
+            'source' => match ($blueprint->source_type) {
+                'form' => Form::query()->whereKey($blueprint->source_id)->first(['uuid', 'key'])?->only(['uuid', 'key']),
+                'view' => ($v = DB::table('views')->where('id', $blueprint->source_id)->first(['uuid', 'key'])) === null ? null : ['uuid' => strtolower((string) $v->uuid), 'key' => $v->key, 'type' => 'view'],
+                default => null,
+            },
             'versions' => BlueprintVersion::query()->where('blueprint_id', $blueprint->id)->orderByDesc('version')->get(['id', 'uuid', 'version', 'include_mode', 'changelog', 'content_hash', 'created_at', 'created_by'])
                 ->map(static fn (BlueprintVersion $v) => ['uuid' => $v->uuid, 'version' => $v->version, 'include_mode' => $v->include_mode, 'changelog' => $v->changelog, 'created_at' => $v->created_at?->toIso8601ZuluString()]),
             'instances' => $instances->map(static fn (BlueprintInstance $i) => [
                 'uuid' => $i->uuid, 'detached' => $i->is_detached, 'include_mode' => $i->include_mode,
                 'version' => $versionNumbers[$i->baseVersionId()] ?? null,
-                'form' => ($f = $forms[$i->object_id] ?? null) === null ? null : ['uuid' => $f->uuid, 'key' => $f->key, 'name' => $f->translate('name'), 'state' => $f->state],
+                'form' => ($f = $forms[$i->object_type === 'view' ? ($views[$i->object_id]->form_id ?? 0) : $i->object_id] ?? null) === null ? null : ['uuid' => $f->uuid, 'key' => $f->key, 'name' => $f->translate('name'), 'state' => $f->state],
+                'view' => $i->object_type === 'view' && isset($views[$i->object_id]) ? ['uuid' => strtolower((string) $views[$i->object_id]->uuid), 'key' => $views[$i->object_id]->key] : null,
             ])->values(),
         ]]);
     }
@@ -89,8 +96,15 @@ final class BlueprintController extends Controller
         Gate::authorize('system.manage_blueprints');
         $data = $request->validate($this->metaRules(true) + [
             'source' => ['required', 'uuid'],
-            'include_mode' => ['required', Rule::in(self::INCLUDE)],
+            'source_type' => ['sometimes', Rule::in(['form', 'view'])],
+            'include_mode' => ['required_unless:source_type,view', Rule::in(self::INCLUDE)],
         ]);
+        if (($data['source_type'] ?? 'form') === 'view') {
+            Gate::authorize('system.manage_forms');
+            $bp = app(ViewBlueprints::class)->create(strtolower($data['source']), $data);
+
+            return response()->json(['data' => ['uuid' => $bp->uuid]], 201);
+        }
         $form = Form::query()->where('uuid', $data['source'])->firstOrFail();
         $this->authorizeInclude($data['include_mode']);
         $bp = $this->blueprints->createFromForm($form, $data);
@@ -128,9 +142,14 @@ final class BlueprintController extends Controller
         Gate::authorize('system.manage_blueprints');
         $data = $request->validate([
             'source' => ['sometimes', 'nullable', 'uuid'],
-            'include_mode' => ['required', Rule::in(self::INCLUDE)],
+            'include_mode' => [$blueprint->kind === 'view' ? 'sometimes' : 'required', Rule::in(self::INCLUDE)],
             'changelog' => ['sometimes', 'nullable', 'string', 'max:2000'],
         ]);
+        if ($blueprint->kind === 'view') {
+            $version = app(ViewBlueprints::class)->addVersion($blueprint, isset($data['source']) ? strtolower($data['source']) : null, $data['changelog'] ?? null);
+
+            return response()->json(['data' => ['uuid' => $version->uuid, 'version' => $version->version]], 201);
+        }
         $form = isset($data['source'])
             ? Form::query()->where('uuid', $data['source'])->firstOrFail()
             : ($blueprint->source_type === 'form' ? Form::query()->find($blueprint->source_id) : null);
@@ -148,6 +167,23 @@ final class BlueprintController extends Controller
         Gate::authorize('system.manage_blueprints');
         Gate::authorize('system.manage_forms');
         $default = Locale::query()->where('is_default', true)->value('code') ?? 'en';
+        if ($blueprint->kind === 'view') {
+            $data = $request->validate([
+                'form' => ['required', 'uuid'],
+                'key' => ['required', 'string', 'regex:/^[a-z][a-z0-9_]{0,47}$/'],
+                'name' => ['required', 'array'],
+                'name.'.$default => ['required', 'string', 'max:255'],
+                'name.*' => ['nullable', 'string', 'max:255'],
+                'version' => ['sometimes', 'integer', 'min:1'],
+            ]);
+            $form = Form::query()->where('uuid', strtolower($data['form']))->firstOrFail();
+            $version = isset($data['version'])
+                ? BlueprintVersion::query()->where('blueprint_id', $blueprint->id)->where('version', $data['version'])->firstOrFail()
+                : BlueprintVersion::query()->findOrFail($blueprint->current_version_id);
+            $result = app(ViewBlueprints::class)->instantiate($blueprint, $version, $form, $data['key'], array_filter($data['name'], 'is_string'));
+
+            return response()->json(['data' => $result + ['form' => $form->uuid]], 201);
+        }
         $data = $request->validate([
             'application' => ['required', 'uuid'],
             'key' => ['required', 'string', 'regex:/^[a-z][a-z0-9_]{1,39}$/'],
@@ -175,7 +211,7 @@ final class BlueprintController extends Controller
     {
         Gate::authorize('system.manage_blueprints');
 
-        return response()->json(['data' => $this->blueprints->preview($blueprint)]);
+        return response()->json(['data' => $blueprint->kind === 'view' ? app(ViewBlueprints::class)->preview($blueprint) : $this->blueprints->preview($blueprint)]);
     }
 
     public function propagate(Request $request, Blueprint $blueprint): JsonResponse
@@ -184,7 +220,9 @@ final class BlueprintController extends Controller
         Gate::authorize('system.manage_forms');
         $data = $request->validate(['instances' => ['sometimes', 'array', 'max:500'], 'instances.*' => ['uuid']]);
 
-        return response()->json(['data' => $this->blueprints->propagate($blueprint, isset($data['instances']) ? array_map('strtolower', $data['instances']) : null)]);
+        $instances = isset($data['instances']) ? array_map('strtolower', $data['instances']) : null;
+
+        return response()->json(['data' => $blueprint->kind === 'view' ? app(ViewBlueprints::class)->propagate($blueprint, $instances) : $this->blueprints->propagate($blueprint, $instances)]);
     }
 
     public function detach(BlueprintInstance $instance): JsonResponse

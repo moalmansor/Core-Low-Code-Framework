@@ -19,7 +19,9 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Relation paths (architecture §17): `["employee", "department", "name"]`
- * reads a field of a linked form through reference fields. Each hop must be a
+ * reads a field of a linked form through reference fields; a final
+ * `@status`, `@record_number`, `@created_at` or `@updated_at` reads a system
+ * value. Each hop must be a
  * reference to another form the user may view; the last element is a stored
  * field the user can see in that form. Values are loaded in batches per hop
  * (to-many hops through the pivot table), filters become nested `IN`
@@ -57,8 +59,9 @@ final class RelationPaths
         $toMany = false;
         foreach ($path as $i => $key) {
             $last = $i === count($path) - 1;
-            if ($last && in_array($key, ['record_number', 'created_at', 'updated_at', 'status'], true)) {
-                return ['hops' => $hops, 'rt' => $current, 'field' => null, 'system' => $key, 'toMany' => $toMany];
+            // System values are addressed with an "@" so they never collide with field keys.
+            if ($last && in_array($key, ['@record_number', '@created_at', '@updated_at', '@status'], true)) {
+                return ['hops' => $hops, 'rt' => $current, 'field' => null, 'system' => substr($key, 1), 'toMany' => $toMany];
             }
             $uuid = $current->keys[$key] ?? null;
             $f = $uuid === null ? null : $current->fields[$uuid];

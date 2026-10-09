@@ -155,7 +155,23 @@ final class FormController extends Controller
         abort_if($form->current_version_id !== null, 422, __('forms.delete_published'));
         DB::transaction(function () use ($form): void {
             app(ObjectPermissions::class)->forget('form.'.$form->uuid);
+            // Workflow and record configuration of a never-published form (it has no records).
+            $fieldIds = DB::table('fields')->where('form_id', $form->id)->pluck('id')->all();
+            DB::table('justification_rules')->where('form_id', $form->id)->delete();
+            DB::table('assignment_rules')->where('form_id', $form->id)->delete();
+            DB::table('record_access_rules')->where('form_id', $form->id)->delete();
+            DB::table('reference_previews')->where('target_form_id', $form->id)->orWhereIn('field_id', $fieldIds ?: [0])->delete();
+            DB::table('view_panels')->where('form_id', $form->id)->update(['parent_panel_id' => null]);
+            DB::table('view_panels')->where('form_id', $form->id)->delete();
+            DB::table('print_layouts')->where('form_id', $form->id)->delete();
+            DB::table('status_mappings')->where('form_id', $form->id)->delete();
+            DB::table('sla_rules')->where('form_id', $form->id)->delete();
+            foreach (DB::table('transitions')->where('form_id', $form->id)->pluck('uuid') as $t) {
+                app(ObjectPermissions::class)->forget('transition.'.strtolower((string) $t));
+            }
+            DB::table('transitions')->where('form_id', $form->id)->delete();
             DB::table('field_access_rules')->where('form_id', $form->id)->delete();
+            DB::table('statuses')->where('form_id', $form->id)->delete();
             DB::table('conditions')->where('form_id', $form->id)->delete();
             DB::table('field_options')->whereIn('field_id', DB::table('fields')->where('form_id', $form->id)->select('id'))->delete();
             DB::table('relations')->where('source_form_id', $form->id)->update(['display_field_id' => null, 'value_field_id' => null]);

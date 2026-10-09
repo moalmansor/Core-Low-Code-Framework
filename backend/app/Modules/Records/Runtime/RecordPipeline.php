@@ -366,7 +366,7 @@ final class RecordPipeline
         return $errors;
     }
 
-    public function delete(FormRuntime $rt, User $user, string $uuid, int $expectedVersion, string $key, ?array $justification = null, string $context = 'delete'): void
+    public function delete(FormRuntime $rt, User $user, string $uuid, int $expectedVersion, string $key, ?array $justification = null, string $context = 'delete', ?int $justifiedBy = null): void
     {
         $onBehalf = $this->guardForm($rt, $user, 'delete');
         $current = $this->store->find($rt, $uuid) ?? throw new RecordException(404, 'not_found', __('records.not_found'));
@@ -384,9 +384,10 @@ final class RecordPipeline
                 $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'edit', $current['system']['status_id'] ?? null);
                 throw $this->conflict($rt, $current, $expectedVersion, [], $levels['fields']);
             }
-            $validated = $this->justifications->enforce($rt, $user, 'delete', ['status' => $current['system']['status_id'] ?? null, 'values' => $current['values'], 'old' => $current['values']], $justification);
-            DB::transaction(function () use ($rt, $user, $current, $expectedVersion, $validated, $onBehalf, $context): void {
-                $justificationId = $validated === null ? null : $this->justifications->record($rt, $current['id'], $user, $context, $validated, [], 1, $onBehalf);
+            // A bulk delete asks once: the caller passes the justification it already saved.
+            $validated = $justifiedBy !== null ? null : $this->justifications->enforce($rt, $user, 'delete', ['status' => $current['system']['status_id'] ?? null, 'values' => $current['values'], 'old' => $current['values']], $justification);
+            DB::transaction(function () use ($rt, $user, $current, $expectedVersion, $validated, $onBehalf, $context, $justifiedBy): void {
+                $justificationId = $justifiedBy ?? ($validated === null ? null : $this->justifications->record($rt, $current['id'], $user, $context, $validated, [], 1, $onBehalf));
                 $this->integrity->beforeDelete($rt, $current['id'], $user->id);
                 if (! $this->store->softDelete($rt, $current['id'], $expectedVersion, $user->id)) {
                     $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'edit');
@@ -410,7 +411,7 @@ final class RecordPipeline
         }
     }
 
-    public function restore(FormRuntime $rt, User $user, string $uuid, string $key, ?array $justification = null): void
+    public function restore(FormRuntime $rt, User $user, string $uuid, string $key, ?array $justification = null, ?int $justifiedBy = null): void
     {
         $onBehalf = $this->guardForm($rt, $user, 'restore');
         $current = $this->store->find($rt, $uuid, true) ?? throw new RecordException(404, 'not_found', __('records.not_found'));
@@ -423,9 +424,9 @@ final class RecordPipeline
             return;
         }
         try {
-            $validated = $this->justifications->enforce($rt, $user, 'restore', ['status' => $current['system']['status_id'] ?? null, 'values' => $current['values'], 'old' => $current['values']], $justification);
-            DB::transaction(function () use ($rt, $user, $current, $validated, $onBehalf): void {
-                $justificationId = $validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'restore', $validated, [], 1, $onBehalf);
+            $validated = $justifiedBy !== null ? null : $this->justifications->enforce($rt, $user, 'restore', ['status' => $current['system']['status_id'] ?? null, 'values' => $current['values'], 'old' => $current['values']], $justification);
+            DB::transaction(function () use ($rt, $user, $current, $validated, $onBehalf, $justifiedBy): void {
+                $justificationId = $justifiedBy ?? ($validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'restore', $validated, [], 1, $onBehalf));
                 $this->store->restore($rt, $current['id'], $user->id);
                 $this->audit->record('record.restored', 'data', null, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $current['row_version'] + 1], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
                 $this->outbox->publish('record.restored', ['form' => $rt->form->uuid, 'record' => $current['uuid']]);

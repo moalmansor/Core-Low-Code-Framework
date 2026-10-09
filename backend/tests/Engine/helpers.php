@@ -111,7 +111,7 @@ function saveWorkflow(TestCase $t, string $form, array $statuses, array $transit
     return $t->putJson("/api/v1/forms/{$form}/workflow", ['document' => ['statuses' => $statuses, 'transitions' => $transitions, 'sla' => $sla], 'base_hash' => $hash]);
 }
 
-function grant(int $userId, string $key, string $type = 'user'): void
+function grantPermission(int $userId, string $key, string $type = 'user'): void
 {
     $permission = DB::table('permissions')->where('key', $key)->value('id');
     PermissionAssignment::query()->create(['permission_id' => $permission, 'subject_type' => $type, 'subject_id' => $userId, 'effect' => 'allow', 'include_descendants' => false]);
