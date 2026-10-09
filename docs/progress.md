@@ -315,12 +315,13 @@ tokens with contrast fixes A–G, IBM Plex fonts, primary colour in Appearance &
 Branding, page frame, records table standard, properties panel,
 `docs/design-system.md`, ADR-0030, specification additions, before/after page
 (https://claude.ai/artifact/57K92EsBeWmhznA5WFheMs). Pest 624 on MySQL and
-SQL Server, Vitest 532, Playwright 14 on MySQL, all run locally.
+SQL Server, Vitest 534, Playwright 14 on both engines in CI.
 
-Blocked on CI: since 2026-10-09 05:38 UTC GitHub Actions starts no runner for
-this repository (jobs end in about 2 seconds with `runner_id: 0`). When it
-runs again, cite the CI runs on the heads of PR #11 and PR #12 in their
-reports. After PR #11 merges, retarget PR #12 to `main`.
+CI is green on both pull requests (Actions was down from 05:38 to about 13:10
+UTC on 2026-10-09). PR #12's end-to-end jobs crashed in PHP 8.3.35's OPcache
+JIT, which setup-php turns on; CI now keeps the JIT off as the production
+image does, and `docker/php/php.ini` disables it explicitly. After PR #11
+merges, retarget PR #12 to `main`.
 
 Do not start Phase 2.5 or 3.
 

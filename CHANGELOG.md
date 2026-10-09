@@ -24,6 +24,13 @@ All notable changes to this project are documented here, one section per phase.
 - The application frame fills the window at every size and zoom; the menu
   and content scroll separately.
 - Placeholders use the muted text colour; inputs have a darker outline.
+- The container image sets `opcache.jit = disable` explicitly, and the
+  end-to-end CI jobs run with the JIT off as production does: PHP 8.3.35's
+  JIT segfaulted on the form publish analysis.
+
+### Fixed
+- Opening *Publish* during an autosave no longer stops at "save first" (from
+  the Phase 2 branch, found by this pull request's CI).
 
 ## [Unreleased] — Phase 2: Form Builder, Collections & Data Engine
 
