@@ -31,6 +31,12 @@ export const buildingRoutes: RouteRecordRaw[] = [
     meta: { anyOf: ['system.manage_permissions'], title: 'building.access.page_title' },
   },
   {
+    path: 'admin/forms/:form/configure/:tab?',
+    name: 'admin.forms.configure',
+    component: () => import('@/views/admin/formconfig/FormConfigView.vue'),
+    meta: { anyOf: ['system.manage_forms'], title: 'formconfig.page_title' },
+  },
+  {
     path: 'admin/schema',
     name: 'admin.schema',
     component: () => import('@/views/admin/building/SchemaExplorer.vue'),

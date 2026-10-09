@@ -285,6 +285,7 @@ const menuItems = computed(() => {
   const items: { label: string; icon: string; command: () => void; class?: string }[] = [
     { label: t('building.forms.open_builder'), icon: 'pi pi-pencil', command: () => openBuilder(f) },
     { label: t('building.forms.versions'), icon: 'pi pi-history', command: () => router.push({ name: 'admin.forms.versions', params: { form: f.uuid } }) },
+    { label: t('formconfig.open'), icon: 'pi pi-sitemap', command: () => router.push({ name: 'admin.forms.configure', params: { form: f.uuid } }) },
   ]
   if (f.version !== null && f.state !== 'schema_inconsistent')
     items.push({ label: t('building.forms.open_records'), icon: 'pi pi-list', command: () => router.push({ name: 'records.list', params: { form: f.uuid } }) })
