@@ -206,6 +206,10 @@ jobs:
         run: |
           tail -n 150 serve.log || true
           tail -n 150 backend/storage/logs/*.log 2>/dev/null || true
+          echo "--- server still answering?"; curl -s -o /dev/null -w '%{http_code}\n' --max-time 5 http://127.0.0.1:8000/up || true
+          echo "--- server processes"; ps -eo pid,etime,args | grep -E 'artisan serve|php -S' | grep -v grep || true
+          echo "--- crashes"; sudo dmesg 2>/dev/null | grep -iE 'segfault|killed process|oom' | tail -n 20 || true
+          php -v; php -m | tr '\n' ' '
       - uses: actions/upload-artifact@v4
         if: always()
         with:
