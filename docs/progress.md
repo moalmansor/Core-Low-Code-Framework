@@ -318,6 +318,21 @@ Phase 3 (Workflow, Records & Views) is in progress on branch
 `phase-3-workflow`, issue #6, including the view blueprints moved from
 Phase 2. Do not start Phase 4.
 
+Done and pushed (backend and frontend, unit and engine tests green on MySQL):
+schema; workflow, SLA, status mapping; record-level security and status-based
+field access; justification; assignment, queues, delegation, approvals,
+My Work; table views, saved views, bulk delete/restore, view blueprints;
+View Mode panels, reference previews, print (HTML/PDF); the form
+configuration hub (`/admin/forms/:form/configure`), reason codes, work
+queues/delegations screens, and the runtime screens.
+
+Next, in order:
+1. A Phase 3 end-to-end test (workflow form → transition with justification → My Work).
+2. Documentation: specification additions, architecture API list, ADR-0031 onward,
+   CHANGELOG, this file.
+3. Push, CI on both engines, then the pull request into `main` with
+   "Closes #6" and the §8.2 verification report citing the head commit.
+
 ### Local development notes
 
 - Dev container / Codespaces: everything is prepared by `.devcontainer/post-create.sh`;
