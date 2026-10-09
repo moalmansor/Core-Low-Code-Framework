@@ -201,6 +201,11 @@ jobs:
       - name: Playwright on ${{ matrix.db }}
         working-directory: frontend
         run: npx playwright test
+      - name: Server logs (on failure)
+        if: failure()
+        run: |
+          tail -n 150 serve.log || true
+          tail -n 150 backend/storage/logs/*.log 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
