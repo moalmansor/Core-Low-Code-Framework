@@ -75,6 +75,28 @@ it('publishes a form, creates its tables, and evolves them safely', function () 
     expect($diff['summary'])->toMatchArray(['added' => 1, 'removed' => 1]);
 });
 
+it('republishes without touching the database when the schema did not change', function () {
+    // MySQL returns a stored definition with its object keys reordered; the
+    // planner must still see identical indexes and foreign keys (no rebuild).
+    [, $form] = createForm($this, 'site_visit');
+    $lines = groupDoc('stops', 'repeater');
+    $visitor = fieldDoc('visitor', 'text', null, ['table' => ['filterable' => true]]);
+    $date = fieldDoc('visit_date', 'date');
+    $place = fieldDoc('place', 'text', $lines['uuid']);
+    saveDraft($this, $form, [$lines], [$visitor, $date, $place])->assertOk();
+    expect(publish($this, $form)['status'])->toBe('applied');
+
+    // A label change only: version 2 is published with an empty migration plan.
+    $visitor['i18n']['label'] = ['en' => 'Visitor name', 'ar' => 'اسم الزائر'];
+    saveDraft($this, $form, [$lines], [$visitor, $date, $place])->assertOk();
+    $impact = $this->postJson("/api/v1/forms/{$form}/impact")->assertOk()->json('data');
+    expect($impact['impact']['schema']['steps'])->toBe(0)
+        ->and($impact['impact']['schema']['plan'])->toBe([]);
+    $plan = publish($this, $form);
+    expect($plan['status'])->toBe('applied')->and($plan['steps'])->toBe([]);
+    $this->getJson("/api/v1/forms/{$form}")->assertJsonPath('data.version', 2);
+});
+
 it('changes a column type through a validated copy and blocks conflicting data', function () {
     [, $form] = createForm($this, 'inventory');
     $code = fieldDoc('code', 'text');

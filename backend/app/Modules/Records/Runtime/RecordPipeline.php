@@ -13,6 +13,7 @@ use App\Modules\Identity\Models\User;
 use App\Modules\Records\Models\StoredFile;
 use App\Modules\Reference\Models\NumberSequence;
 use App\Modules\Reference\NumberGenerator;
+use App\Support\Json\Canonical;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -145,7 +146,7 @@ final class RecordPipeline
             }
             $changed = [];
             foreach ($values as $k => $v) {
-                if (json_encode($v) !== json_encode($current['values'][$k] ?? null)) {
+                if (! Canonical::same($v, $current['values'][$k] ?? null)) {
                     $changed[] = (string) $k;
                 }
             }
@@ -410,7 +411,7 @@ final class RecordPipeline
                 $before = $stored[$row['uuid'] ?? ''] ?? [];
                 foreach ($blocked as $f) {
                     $old = $before[$f['key']] ?? null;
-                    if (array_key_exists($f['key'], $row) && json_encode($row[$f['key']]) !== json_encode($old)) {
+                    if (array_key_exists($f['key'], $row) && ! Canonical::same($row[$f['key']], $old)) {
                         $errors["{$key}.{$i}.{$f['key']}"][] = __('records.not_editable');
                     }
                     $normalized[$key][$i][$f['key']] = $old;
@@ -510,7 +511,7 @@ final class RecordPipeline
             } catch (InvalidValue) {
                 continue;
             }
-            if ($blocked && json_encode($submitted) !== json_encode($before) && json_encode($submitted) !== json_encode($final[$f['key']] ?? null)) {
+            if ($blocked && ! Canonical::same($submitted, $before) && ! Canonical::same($submitted, $final[$f['key']] ?? null)) {
                 $errors[(string) $key][] = __('records.not_editable');
             }
         }
@@ -618,7 +619,7 @@ final class RecordPipeline
             }
             $old = $before[$f['key']] ?? null;
             $new = $after[$f['key']] ?? null;
-            if (json_encode($old) === json_encode($new)) {
+            if (Canonical::same($old, $new)) {
                 continue;
             }
             $mask = ($f['flags']['sensitive'] ?? false) || ($f['flags']['encrypted'] ?? false);
@@ -626,7 +627,7 @@ final class RecordPipeline
         }
         foreach ($rt->repeaters as $rep) {
             $k = $rep['group']['key'];
-            if (json_encode($before[$k] ?? []) !== json_encode($after[$k] ?? [])) {
+            if (! Canonical::same($before[$k] ?? [], $after[$k] ?? [])) {
                 $out[] = ['field_key' => $k, 'old' => count($before[$k] ?? []).' rows', 'new' => count($after[$k] ?? []).' rows'];
             }
         }
