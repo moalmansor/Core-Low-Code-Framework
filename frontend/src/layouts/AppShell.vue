@@ -115,6 +115,7 @@ const userItems = computed(() => [
       </div>
       <nav ref="nav" class="flex-1 min-h-0 p-3 flex flex-col gap-1 overflow-y-auto overscroll-contain" data-testid="sidebar">
         <RouterLink class="nav-link" :to="{ name: 'home' }" exact-active-class="nav-active"><i class="pi pi-home" />{{ t('shell.home') }}</RouterLink>
+        <RouterLink class="nav-link" :to="{ name: 'my_work' }" active-class="nav-active" data-testid="nav-my-work"><i class="pi pi-inbox" />{{ t('my_work.title') }}</RouterLink>
         <section v-for="app in apps" :key="app.uuid" class="mt-3" :data-testid="`nav-app-${app.key}`">
           <button
             type="button"

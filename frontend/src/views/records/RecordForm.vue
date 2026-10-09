@@ -16,6 +16,8 @@ import { submissionValues } from '@/runtime/submission'
 import type { ClientDefinition, FileMeta, RecordPayload, References, Values } from '@/runtime/types'
 import { same } from '@/runtime/values'
 import { useSession } from '@/stores/session'
+import JustificationDialog from '@/runtime/JustificationDialog.vue'
+import { useJustification } from '@/runtime/useJustification'
 import ConflictDialog from './ConflictDialog.vue'
 import { scrollBehavior } from '@/theme/motion'
 
@@ -31,6 +33,7 @@ const router = useRouter()
 const session = useSession()
 const { t, locale } = useI18n()
 const toast = useToast()
+const justification = useJustification()
 
 const formUuid = computed(() => String(route.params.form).toLowerCase())
 const recordUuid = computed(() => (route.params.record ? String(route.params.record).toLowerCase() : null))
@@ -64,7 +67,8 @@ async function load(): Promise<void> {
   banner.value = ''
   saved.value = false
   try {
-    const def = (await get<{ data: ClientDefinition }>(`/r/${formUuid.value}/definition`, { mode: mode.value })).data
+    // Field access depends on the status of the record being edited.
+    const def = (await get<{ data: ClientDefinition }>(`/r/${formUuid.value}/definition`, { mode: mode.value, ...(recordUuid.value ? { record: recordUuid.value } : {}) })).data
     if (mode.value === 'edit') {
       const rec = (await get<{ data: RecordPayload }>(`/r/${formUuid.value}/${recordUuid.value}`)).data
       if (rec.permissions && !rec.permissions.edit) {
@@ -156,11 +160,15 @@ async function save(override?: Values): Promise<void> {
   banner.value = ''
   try {
     await ensureCsrf()
-    const headers = { 'Idempotency-Key': keyFor(body) }
-    const res =
-      mode.value === 'create'
-        ? await http.post<{ data: RecordPayload }>(`/r/${formUuid.value}`, body, { headers })
-        : await http.patch<{ data: RecordPayload }>(`/r/${formUuid.value}/${recordUuid.value}`, body, { headers })
+    // A change that needs a justification is answered 422 with the prompt; it is sent again with the user's justification.
+    const res = await justification.run((j) => {
+      const sent = j ? { ...body, justification: j } : body
+      const headers = { 'Idempotency-Key': keyFor(sent) }
+      return mode.value === 'create'
+        ? http.post<{ data: RecordPayload }>(`/r/${formUuid.value}`, sent, { headers })
+        : http.patch<{ data: RecordPayload }>(`/r/${formUuid.value}/${recordUuid.value}`, sent, { headers })
+    })
+    if (res === null) return
     attempt = null
     saved.value = true
     serverErrors.value = {}
@@ -265,6 +273,7 @@ onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('records.leave_unsaved'
       <Button type="button" :label="t('common.cancel')" severity="secondary" outlined @click="cancel" />
       <Button type="submit" :label="submitLabel" icon="pi pi-check" :loading="saving" data-testid="record-save" />
     </div>
+    <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
     <ConflictDialog
       v-if="conflict && definition"
       :payload="conflict"

@@ -257,9 +257,17 @@ final class JustificationGate
         foreach (ReasonCode::query()->whereIn('set_key', array_keys($req['sets']))->where('is_active', true)->orderBy('sort_order')->orderBy('id')->get() as $c) {
             $codes[] = ['uuid' => strtolower($c->uuid), 'code' => $c->code, 'label' => $c->translate('label') ?? $c->code, 'requires_note' => $c->requires_note];
         }
+        // Codes drawn from collections: their active entries, offered like reason codes.
         $collections = [];
         foreach (array_keys($req['collections']) as $uuid) {
             $collections[] = $uuid;
+            $crt = $this->runtimes->forUuid($uuid);
+            if ($crt === null) {
+                continue;
+            }
+            foreach (DB::table($crt->table)->whereNull('deleted_at')->orderBy('id')->limit(500)->get() as $row) {
+                $codes[] = ['uuid' => strtolower((string) $row->uuid), 'code' => null, 'label' => $this->references->recordTitle($crt->definition, $row), 'requires_note' => false];
+            }
         }
         $summary = [];
         if ($req['summary']) {

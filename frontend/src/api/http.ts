@@ -84,7 +84,7 @@ export function resetCsrf(): void {
 export async function get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
   return (await http.get<T>(url, { params })).data
 }
-export async function send<T>(method: 'post' | 'put' | 'patch' | 'delete', url: string, data?: unknown): Promise<T> {
+export async function send<T>(method: 'post' | 'put' | 'patch' | 'delete', url: string, data?: unknown, options?: { headers?: Record<string, string> }): Promise<T> {
   await ensureCsrf()
-  return (await http.request<T>({ method, url, data })).data
+  return (await http.request<T>({ method, url, data, headers: options?.headers })).data
 }

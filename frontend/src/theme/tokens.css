@@ -35,6 +35,8 @@
   --on-primary: var(--brand-on-primary, #ffffff);
   /* Primary-coloured text on --primary-subtle (badges, selected tab). */
   --on-primary-subtle: var(--brand-on-primary-subtle, #1559ae);
+  /* Text on a workflow status badge (status colours are chosen for white text). */
+  --on-status: #ffffff;
   --link: #107c52;
   --danger: #d92d20;
   --danger-subtle: #fdecea;

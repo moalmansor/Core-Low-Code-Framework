@@ -22,6 +22,7 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', name: 'home', component: () => import('@/views/HomeView.vue'), meta: { title: 'shell.home' } },
       { path: 'profile', name: 'profile', component: () => import('@/views/profile/ProfileView.vue'), meta: { title: 'profile.title' } },
+      { path: 'my-work', name: 'my_work', component: () => import('@/views/work/MyWorkView.vue'), meta: { title: 'my_work.title' } },
       { path: 'admin', name: 'admin', component: () => import('@/views/admin/AdminConsole.vue'), meta: { title: 'admin.title' } },
       {
         path: 'admin/health',

@@ -20,12 +20,18 @@ import { ApiError, ensureCsrf, get, http, send } from '@/api/http'
 import { downloadBlob, fetchOptions, newUuid, type OptionItem } from '@/runtime/api'
 import { fieldType } from '@/runtime/fieldTypes'
 import { FormIndex } from '@/runtime/formIndex'
-import { formatDatetime, formatValue } from '@/runtime/format'
+import { formatDatetime, formatLoose, formatValue } from '@/runtime/format'
 import { pickText } from '@/runtime/i18nText'
+import JustificationDialog from '@/runtime/JustificationDialog.vue'
+import { useJustification } from '@/runtime/useJustification'
+import StatusBadge from '@/runtime/workflow/StatusBadge.vue'
 import type { ClientDefinition, ClientField, RecordPayload } from '@/runtime/types'
 import { useSession } from '@/stores/session'
 import { labelColor, parseHex } from '@/theme/color'
 import ImportDialog from './ImportDialog.vue'
+import SavedViewDialog from './SavedViewDialog.vue'
+import ViewFilters from './ViewFilters.vue'
+import { activeConditions, columnValue, decodeConditions, encodeConditions, shownColumns, type ActiveView, type SavedView, type ViewColumn, type ViewCondition } from './viewState'
 import { decodeQuery, DEFAULT_STATE, emptyRow, encodeQuery, isActive, operatorsFor, PER_PAGE, toApiFilter, type FilterOp, type FilterRow, type ListState } from './listState'
 
 /**
@@ -34,6 +40,12 @@ import { decodeQuery, DEFAULT_STATE, emptyRow, encodeQuery, isActive, operatorsF
  * Apply; the record count; selection with bulk actions; a per-row menu;
  * choice and yes/no values as pills; linked records as links. The list's
  * state lives in the URL.
+ *
+ * When the form has table views (specification §4.14), the view the user may
+ * use decides the columns (including linked forms' fields and the status),
+ * the filters, the totals row and the row actions; the user can switch views,
+ * choose columns, and save, share and reopen their own saved views. Bulk
+ * delete and restore ask for one justification for the whole selection.
  */
 const route = useRoute()
 const router = useRouter()
@@ -52,6 +64,22 @@ const state = reactive<ListState>({ ...DEFAULT_STATE, filters: [] })
 const filtersOpen = ref(true)
 const importOpen = ref(false)
 const selected = ref<RecordPayload[]>([])
+const justification = useJustification()
+
+// Table views
+type Row = RecordPayload & { linked?: Record<string, unknown> }
+const activeView = ref<ActiveView | null>(null)
+const views = ref<{ uuid: string; key: string; name: Record<string, string> }[]>([])
+const viewUuid = ref<string | null>(null)
+const conditions = ref<Record<string, ViewCondition>>({})
+const chosenColumns = ref<string[] | null>(null)
+const totals = ref<Record<string, unknown>>({})
+const savedViews = ref<SavedView[]>([])
+const currentSaved = ref<SavedView | null>(null)
+const savingView = ref(false)
+const viewOptions = computed(() => views.value.map((v) => ({ value: v.uuid, label: pickText(v.name, locale.value) ?? v.key })))
+const viewColumns = computed(() => (activeView.value ? shownColumns(activeView.value, chosenColumns.value) : []))
+const rowOptions = computed(() => activeView.value?.row_options ?? { view: true, edit: true, log: true })
 
 const index = computed(() => (definition.value ? new FormIndex(definition.value) : null))
 const title = computed(() =>
@@ -91,7 +119,9 @@ function params(): Record<string, unknown> {
     sort: state.sort,
     direction: state.direction,
     trashed: state.trashed ? 1 : undefined,
-    filter: toApiFilter(state.filters),
+    filter: activeView.value ? undefined : toApiFilter(state.filters),
+    view: viewUuid.value ?? undefined,
+    vf: activeView.value ? activeConditions(conditions.value) : undefined,
   }
 }
 
@@ -101,10 +131,19 @@ async function load(): Promise<void> {
   const mine = ++seq
   loading.value = true
   try {
-    const res = await get<{ data: RecordPayload[]; meta: { total: number } }>(`/r/${formUuid.value}`, { ...params(), page: state.page, per_page: state.perPage })
+    const res = await get<{ data: Row[]; meta: { total: number; per_page: number; view: ActiveView | null; totals: Record<string, unknown>; views: { uuid: string; key: string; name: Record<string, string> }[] } }>(
+      `/r/${formUuid.value}`,
+      { ...params(), page: state.page, per_page: state.perPage },
+    )
     if (mine !== seq) return
     rows.value = res.data
     total.value = res.meta.total
+    views.value = res.meta.views ?? []
+    const firstView = activeView.value === null && res.meta.view !== null
+    activeView.value = res.meta.view ?? null
+    if (activeView.value) viewUuid.value = activeView.value.uuid
+    totals.value = res.meta.totals ?? {}
+    if (firstView && !route.query.per_page && res.meta.per_page !== state.perPage) state.perPage = res.meta.per_page
   } catch (e) {
     if (mine === seq && e instanceof ApiError && e.status < 500) toast.add({ severity: 'error', summary: e.message, life: 6000 })
   } finally {
@@ -115,7 +154,7 @@ async function load(): Promise<void> {
 /** Puts the state in the URL (bookmarkable) and reloads. */
 function commit(resetPage = true): void {
   if (resetPage) state.page = 1
-  void router.replace({ query: encodeQuery(state) })
+  void router.replace({ query: { ...encodeQuery(state), view: viewUuid.value ?? undefined, vf: activeView.value ? encodeConditions(conditions.value) : undefined } })
   void load()
 }
 
@@ -123,6 +162,12 @@ watch(
   formUuid,
   async () => {
     selected.value = []
+    activeView.value = null
+    viewUuid.value = typeof route.query.view === 'string' ? route.query.view : null
+    conditions.value = decodeConditions(route.query.vf)
+    chosenColumns.value = null
+    currentSaved.value = null
+    savedViews.value = []
     await loadDefinition()
     Object.assign(
       state,
@@ -132,7 +177,12 @@ watch(
       ),
     )
     filtersOpen.value = true
+    const fromUrl = !!route.query.view || !!route.query.vf
     await load()
+    await loadSavedViews()
+    // The user's default saved view opens unless the URL already says what to show.
+    const preferred = fromUrl ? null : savedViews.value.find((v) => v.mine && v.is_default)
+    if (preferred) applySaved(preferred)
   },
   { immediate: true },
 )
@@ -142,7 +192,7 @@ function onPage(e: DataTablePageEvent): void {
   commit(false)
 }
 function onSort(e: DataTableSortEvent): void {
-  state.sort = typeof e.sortField === 'string' ? e.sortField : 'updated_at'
+  state.sort = typeof e.sortField === 'string' ? e.sortField : activeView.value ? '' : 'updated_at'
   state.direction = e.sortOrder === 1 ? 'asc' : 'desc'
   commit()
 }
@@ -158,7 +208,69 @@ function setPerPage(n: number): void {
 function reset(): void {
   state.filters = []
   state.search = ''
+  conditions.value = {}
+  chosenColumns.value = null
+  currentSaved.value = null
   commit()
+}
+
+// ---------------------------------------------------------------- views and saved views
+
+function switchView(uuid: string): void {
+  viewUuid.value = uuid
+  activeView.value = null
+  conditions.value = {}
+  chosenColumns.value = null
+  currentSaved.value = null
+  state.sort = ''
+  commit()
+}
+async function loadSavedViews(): Promise<void> {
+  if (!activeView.value && !views.value.length) return
+  try {
+    savedViews.value = (await get<{ data: SavedView[] }>(`/r/${formUuid.value}/saved-views`)).data
+  } catch {
+    savedViews.value = []
+  }
+}
+function applySaved(sv: SavedView): void {
+  currentSaved.value = sv
+  viewUuid.value = sv.view
+  activeView.value = null
+  conditions.value = { ...(sv.state.filters ?? {}) }
+  chosenColumns.value = sv.state.columns?.length ? [...sv.state.columns] : null
+  state.sort = sv.state.sort?.key ?? ''
+  state.direction = sv.state.sort?.dir ?? 'asc'
+  if (sv.state.page_size) state.perPage = sv.state.page_size
+  state.search = sv.state.search ?? ''
+  commit()
+}
+const savedState = computed(() => ({
+  columns: chosenColumns.value ?? undefined,
+  filters: activeConditions(conditions.value),
+  sort: state.sort ? { key: state.sort, dir: state.direction } : null,
+  page_size: state.perPage,
+  search: state.search.trim() || null,
+}))
+async function onSavedView(): Promise<void> {
+  savingView.value = false
+  await loadSavedViews()
+}
+const savedMenu = ref<InstanceType<typeof Menu> | null>(null)
+const savedItems = computed(() => [
+  ...savedViews.value.map((sv) => ({
+    label: sv.mine ? sv.name : `${sv.name} · ${sv.owner ?? ''}`,
+    icon: sv.is_default ? 'pi pi-star-fill' : sv.is_shared ? 'pi pi-users' : 'pi pi-bookmark',
+    command: () => applySaved(sv),
+  })),
+  { separator: true, visible: savedViews.value.length > 0 },
+  { label: t('saved_views.save_current'), icon: 'pi pi-save', command: () => (savingView.value = true) },
+])
+const totalFor = (c: ViewColumn) => (c.key in totals.value ? formatLoose(totals.value[c.key]) || '—' : '')
+const hasTotals = computed(() => !!activeView.value?.show_totals && Object.keys(totals.value).length > 0)
+const columnChoices = computed(() => (activeView.value?.columns ?? []).map((c) => ({ value: c.key, label: c.label })))
+function setColumns(keys: string[]): void {
+  chosenColumns.value = keys
 }
 function toggleTrash(): void {
   state.trashed = !state.trashed
@@ -266,6 +378,18 @@ function cell(r: RecordPayload, f: ClientField): Cell {
   return { kind: 'text', text: formatValue(index.value, f, value, { locale: locale.value, references: r.references, files: r.files, yes: t('runtime.yes'), no: t('runtime.no') }) || '—' }
 }
 
+/** A view column's cell: own fields keep their typed rendering; linked and system paths show their value. */
+function viewCell(r: Row, c: ViewColumn): Cell | { kind: 'status'; status: NonNullable<RecordPayload['system']['status']> } {
+  if (c.key === '@status') return r.system.status ? { kind: 'status', status: r.system.status } : { kind: 'text', text: '—' }
+  if (!c.linked) {
+    const f = index.value?.fieldByKey(c.key)
+    if (f) return cell(r, f)
+  }
+  const v = columnValue(r, c)
+  const text = v !== null && typeof v === 'object' && 'name' in (v as Record<string, unknown>) ? String((v as { name: unknown }).name) : formatLoose(v)
+  return { kind: 'text', text: text || '—' }
+}
+
 function onRowClick(e: DataTableRowClickEvent): void {
   // Clicks on the checkbox, the menu or a link do their own thing.
   if ((e.originalEvent.target as HTMLElement | null)?.closest('button, a, input, .p-checkbox')) return
@@ -281,8 +405,8 @@ const rowItems = computed(() => {
   if (!r) return []
   if (state.trashed) return [{ label: t('records.restore'), icon: 'pi pi-replay', visible: canRestore.value, command: () => restore(r) }]
   return [
-    { label: t('records.view'), icon: 'pi pi-eye', command: () => router.push({ name: 'records.view', params: { form: formUuid.value, record: r.uuid } }) },
-    { label: t('common.edit'), icon: 'pi pi-pencil', visible: canEdit.value, command: () => router.push({ name: 'records.edit', params: { form: formUuid.value, record: r.uuid } }) },
+    { label: t('records.view'), icon: 'pi pi-eye', visible: rowOptions.value.view, command: () => router.push({ name: 'records.view', params: { form: formUuid.value, record: r.uuid } }) },
+    { label: t('common.edit'), icon: 'pi pi-pencil', visible: canEdit.value && rowOptions.value.edit, command: () => router.push({ name: 'records.edit', params: { form: formUuid.value, record: r.uuid } }) },
     { separator: true, visible: canDelete.value },
     { label: t('common.delete'), icon: 'pi pi-trash', class: 'text-danger', visible: canDelete.value, command: () => remove(r) },
   ]
@@ -311,41 +435,47 @@ function remove(r: RecordPayload): void {
 }
 async function deleteRecord(r: RecordPayload): Promise<void> {
   await ensureCsrf()
-  await http.delete(`/r/${formUuid.value}/${r.uuid}`, { data: { row_version: r.row_version }, headers: { 'Idempotency-Key': newUuid() } })
+  const key = newUuid()
+  await justification.run((j) => http.delete(`/r/${formUuid.value}/${r.uuid}`, { data: { row_version: r.row_version, ...(j ? { justification: j } : {}) }, headers: { 'Idempotency-Key': key } }))
 }
-/** Deletes the selected records one by one; each delete is authorised and version-checked by the server. */
-function removeSelected(): void {
+/**
+ * Deletes or restores the selection in one request: the server authorises and
+ * version-checks every record and asks once for a justification covering all
+ * of them; records it refuses are reported, the others go through.
+ */
+function bulk(operation: 'delete' | 'restore'): void {
   const list = [...selected.value]
   confirm.require({
-    message: t('records.delete_selected_confirm', { n: number(list.length) }),
+    message: t(operation === 'delete' ? 'records.delete_selected_confirm' : 'records.restore_selected_confirm', { n: number(list.length) }),
     header: t('common.confirm'),
-    acceptProps: { label: t('common.delete'), severity: 'danger' },
+    acceptProps: { label: operation === 'delete' ? t('common.delete') : t('records.restore'), severity: operation === 'delete' ? 'danger' : 'primary' },
     rejectProps: { label: t('common.cancel'), severity: 'secondary' },
     accept: async () => {
-      let done = 0
-      let failed = 0
-      for (const r of list) {
-        try {
-          await deleteRecord(r)
-          done++
-        } catch {
-          failed++
-        }
+      try {
+        const items = list.map((r) => (operation === 'delete' ? { uuid: r.uuid, row_version: r.row_version } : { uuid: r.uuid }))
+        const res = await justification.run((j) =>
+          send<{ data: { succeeded: number; results: { status: string }[] } }>('post', `/r/${formUuid.value}/bulk-${operation}`, { items, ...(j ? { justification: j } : {}) }),
+        )
+        if (res === null) return
+        const failed = res.data.results.length - res.data.succeeded
+        selected.value = []
+        toast.add({
+          severity: failed ? 'warn' : 'success',
+          summary: t(operation === 'delete' ? 'records.deleted_n' : 'records.restored_n', { n: number(res.data.succeeded) }),
+          detail: failed ? t(operation === 'delete' ? 'records.not_deleted_n' : 'records.not_restored_n', { n: number(failed) }) : undefined,
+          life: 8000,
+        })
+      } catch (e) {
+        if (e instanceof ApiError) toast.add({ severity: 'error', summary: e.message, life: 8000 })
       }
-      selected.value = []
-      toast.add({
-        severity: failed ? 'warn' : 'success',
-        summary: t('records.deleted_n', { n: number(done) }),
-        detail: failed ? t('records.not_deleted_n', { n: number(failed) }) : undefined,
-        life: 8000,
-      })
       await load()
     },
   })
 }
 async function restore(r: RecordPayload): Promise<void> {
   try {
-    await send('post', `/r/${formUuid.value}/${r.uuid}/restore`)
+    const done = await justification.run((j) => send('post', `/r/${formUuid.value}/${r.uuid}/restore`, j ? { justification: j } : {}))
+    if (done === null) return
     toast.add({ severity: 'success', summary: t('records.restored'), life: 4000 })
     await load()
   } catch (e) {
@@ -375,7 +505,8 @@ const actionItems = computed(() => {
     { label: t('records.export_csv'), icon: 'pi pi-file', visible: canExport.value, command: () => exportAs('csv') },
     { separator: true, visible: n > 0 && (canExport.value || canDelete.value) },
     { label: t('records.export_selected', { n: number(n) }), icon: 'pi pi-file-excel', visible: n > 0 && canExport.value, command: () => exportAs('xlsx', true) },
-    { label: t('records.delete_selected', { n: number(n) }), icon: 'pi pi-trash', class: 'text-danger', visible: n > 0 && canDelete.value && !state.trashed, command: removeSelected },
+    { label: t('records.delete_selected', { n: number(n) }), icon: 'pi pi-trash', class: 'text-danger', visible: n > 0 && canDelete.value && !state.trashed, command: () => bulk('delete') },
+    { label: t('records.restore_selected', { n: number(n) }), icon: 'pi pi-replay', visible: n > 0 && canRestore.value && state.trashed, command: () => bulk('restore') },
     { separator: true, visible: canRestore.value },
     { label: state.trashed ? t('records.leave_trash') : t('records.show_trash'), icon: state.trashed ? 'pi pi-arrow-left' : 'pi pi-trash', visible: canRestore.value, command: toggleTrash },
   ]
@@ -399,6 +530,29 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <Select
+          v-if="viewOptions.length > 1"
+          :model-value="viewUuid"
+          :options="viewOptions"
+          option-label="label"
+          option-value="value"
+          size="small"
+          :aria-label="t('saved_views.view')"
+          data-testid="records-view"
+          @update:model-value="switchView"
+        />
+        <template v-if="activeView">
+          <Button
+            :label="currentSaved?.name ?? t('saved_views.title')"
+            icon="pi pi-bookmark"
+            severity="secondary"
+            outlined
+            aria-haspopup="true"
+            data-testid="records-saved-views"
+            @click="(e: Event) => savedMenu?.toggle(e)"
+          />
+          <Menu ref="savedMenu" :model="savedItems" popup />
+        </template>
         <RouterLink v-if="canCreate && !state.trashed" v-slot="{ navigate }" :to="{ name: 'records.create', params: { form: formUuid } }" custom>
           <Button icon="pi pi-plus" :label="t('records.new')" data-testid="records-new" @click="navigate" />
         </RouterLink>
@@ -426,7 +580,7 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
           <span v-if="activeCount" class="rounded-full px-2 text-xs bg-primary-subtle text-on-primary-subtle" data-testid="records-filter-count">{{ number(activeCount) }}</span>
           <i :class="filtersOpen ? 'pi pi-chevron-up' : 'pi pi-chevron-down'" class="text-xs text-muted-color" aria-hidden="true" />
         </button>
-        <IconField class="ms-2 grow max-w-80">
+        <IconField v-if="activeView?.global_search !== false" class="ms-2 grow max-w-80">
           <InputIcon class="pi pi-search" />
           <InputText
             v-model="state.search"
@@ -453,7 +607,25 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
         <Button :label="t('records.reset')" icon="pi pi-refresh" size="small" severity="secondary" outlined data-testid="records-reset" @click="reset" />
         <Button :label="t('records.apply_refresh')" icon="pi pi-search" size="small" data-testid="records-apply-filters" @click="commit()" />
       </div>
-      <div v-if="filtersOpen && filterable.length" class="border-t border-line px-3 py-3 flex flex-col gap-2">
+      <div v-if="filtersOpen && activeView" class="border-t border-line px-3 py-3 flex flex-col gap-3">
+        <ViewFilters v-if="activeView.filters.length" v-model="conditions" :filters="activeView.filters" :form="formUuid" @apply="commit()" />
+        <div v-if="activeView.column_chooser" class="flex flex-wrap items-center gap-2">
+          <label for="records-columns" class="text-sm font-medium">{{ t('saved_views.columns') }}</label>
+          <MultiSelect
+            input-id="records-columns"
+            :model-value="viewColumns.map((c) => c.key)"
+            :options="columnChoices"
+            option-label="label"
+            option-value="value"
+            size="small"
+            :max-selected-labels="3"
+            class="w-72 max-w-full"
+            data-testid="records-columns"
+            @update:model-value="setColumns"
+          />
+        </div>
+      </div>
+      <div v-else-if="filtersOpen && filterable.length" class="border-t border-line px-3 py-3 flex flex-col gap-2">
         <div class="flex flex-wrap items-center gap-2">
           <Select
             :model-value="null"
@@ -593,6 +765,29 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
           />
         </template>
       </Column>
+      <template v-if="activeView">
+        <Column v-for="c in viewColumns" :key="c.key" :field="c.key" :header="c.label" :sortable="c.sortable" :style="c.width ? { minWidth: `${c.width}px` } : undefined" :frozen="c.pinned === 'start'">
+          <template #body="{ data }">
+            <template v-for="vc in [viewCell(data as Row, c)]" :key="vc.kind">
+              <StatusBadge v-if="vc.kind === 'status'" :status="vc.status" size="sm" />
+              <span v-else-if="vc.kind === 'pills'" class="flex flex-wrap gap-1">
+                <span v-for="(p, n) in vc.pills" :key="n" :class="['pill', p.class]" :style="p.style" data-testid="cell-pill">{{ p.text }}</span>
+              </span>
+              <span v-else-if="vc.kind === 'links'" class="flex flex-wrap gap-x-3 gap-y-1">
+                <RouterLink v-for="(l, n) in vc.links" :key="n" :to="l.to" class="record-link" data-testid="cell-link" @click.stop>
+                  <span dir="auto">{{ l.text }}</span
+                  ><i class="pi pi-external-link" aria-hidden="true" />
+                </RouterLink>
+              </span>
+              <span v-else :class="/\s/.test(vc.text) ? 'line-clamp-2' : 'whitespace-nowrap'" dir="auto">{{ vc.text }}</span>
+            </template>
+          </template>
+          <template v-if="hasTotals" #footer>
+            <span class="font-semibold tabular-nums" :data-testid="`total-${c.key}`">{{ totalFor(c) }}</span>
+          </template>
+        </Column>
+      </template>
+      <template v-else>
       <Column v-if="showNumber" field="record_number" :header="t('records.record_number')" sortable>
         <template #body="{ data }">
           <span class="ltr-value font-mono text-sm">{{ (data as RecordPayload).system.record_number ?? '—' }}</span>
@@ -623,8 +818,11 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
           <span class="text-sm whitespace-nowrap text-muted-color">{{ (data as RecordPayload).system.updated_at ? formatDatetime((data as RecordPayload).system.updated_at!, locale) : '—' }}</span>
         </template>
       </Column>
+      </template>
     </DataTable>
     <Menu ref="rowMenu" :model="rowItems" popup />
+    <SavedViewDialog v-if="savingView && activeView" :form="formUuid" :view="activeView.uuid" :state="savedState" :current="currentSaved" @saved="onSavedView" @close="savingView = false" />
+    <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
     <ImportDialog v-if="importOpen" :form="formUuid" :form-key="definition.form.key" @close="importOpen = false" @imported="load" />
   </div>
 </template>

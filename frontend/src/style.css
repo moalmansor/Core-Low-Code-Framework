@@ -31,6 +31,7 @@
   --color-primary-subtle: var(--primary-subtle);
   --color-on-primary-subtle: var(--on-primary-subtle);
   --color-on-primary: var(--on-primary);
+  --color-on-status: var(--on-status);
   --color-link: var(--link);
   --color-danger: var(--danger);
   --color-danger-subtle: var(--danger-subtle);

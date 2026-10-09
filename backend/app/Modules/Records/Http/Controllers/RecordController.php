@@ -9,6 +9,7 @@ use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\RecordScope;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Forms\Definition\ClientDefinition;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
@@ -23,6 +24,7 @@ use App\Modules\Records\Runtime\RecordQuery;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\RecordValidator;
 use App\Modules\Records\Runtime\References;
+use App\Modules\Views\PrintLayouts;
 use App\Modules\Views\ViewRuntime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -67,7 +69,10 @@ final class RecordController extends Controller
         $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, $mode, $status);
         abort_unless($levels['modes'][$mode] ?? false, 403, __('records.forbidden'));
 
-        return response()->json(['data' => $client->build($rt->definition, $levels, $mode) + ['name' => $form->translate('name') ?? $form->key, 'names' => $form->translationsFor('name'), 'user' => app(ExpressionContext::class)->client($this->user())]]);
+        // Print layouts the user can choose from (names only; printing checks the print permission).
+        $layouts = ($levels['modes']['print'] ?? false) ? array_map(static fn (array $l) => ['key' => $l['key'], 'name' => ((array) $l['i18n']['name'])[app()->getLocale()] ?? ((array) $l['i18n']['name'])[app(Translator::class)->defaultLocale()] ?? $l['key'], 'default' => $l['default']], app(PrintLayouts::class)->load($form)) : [];
+
+        return response()->json(['data' => $client->build($rt->definition, $levels, $mode) + ['name' => $form->translate('name') ?? $form->key, 'names' => $form->translationsFor('name'), 'user' => app(ExpressionContext::class)->client($this->user()), 'print_layouts' => $layouts]]);
     }
 
     public function index(Request $request, Form $form, RecordQuery $query): JsonResponse
