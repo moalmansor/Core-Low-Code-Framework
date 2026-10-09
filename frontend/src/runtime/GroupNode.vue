@@ -30,8 +30,8 @@ const icon = computed(() => props.group.layout?.icon ?? null)
 const frame = computed(() => {
   const l = props.group.layout ?? {}
   return [
-    l.border === 'strong' ? 'border-2 border-surface-400 dark:border-surface-500' : l.border === 'subtle' ? 'border border-surface-200 dark:border-surface-700' : '',
-    l.background === 'accent' ? 'bg-primary-50 dark:bg-primary-950' : l.background === 'subtle' ? 'bg-surface-50 dark:bg-surface-800' : '',
+    l.border === 'strong' ? 'border-2 border-line-input' : l.border === 'subtle' ? 'border border-line' : '',
+    l.background === 'accent' ? 'bg-primary-subtle' : l.background === 'subtle' ? 'bg-subtle' : '',
     l.border && l.border !== 'none' ? 'rounded-lg p-4' : l.background && l.background !== 'none' ? 'rounded-lg p-4' : '',
     l.cssClass ?? '',
   ]
@@ -105,7 +105,7 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
       <TabList>
         <Tab v-for="tab in children" :key="tab.uuid" :value="tab.uuid" :data-testid="`tab-${tab.key}`">
           <i v-if="tab.layout?.icon" :class="`${tab.layout.icon} me-2`" />{{ pickText(tab.i18n?.title, ctx.locale.value) ?? tab.key }}
-          <span v-if="hasErrors(tab)" class="ms-2 inline-block w-2 h-2 rounded-full bg-red-500" :aria-label="t('runtime.has_errors')" />
+          <span v-if="hasErrors(tab)" class="ms-2 inline-block w-2 h-2 rounded-full bg-danger" :aria-label="t('runtime.has_errors')" />
         </Tab>
       </TabList>
       <TabPanels>
@@ -131,7 +131,7 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
           <button
             type="button"
             class="flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm"
-            :class="i === step ? 'border-primary bg-primary text-primary-contrast' : 'border-surface-300 dark:border-surface-600'"
+            :class="i === step ? 'border-primary bg-primary text-primary-contrast' : 'border-line-strong'"
             :aria-current="i === step ? 'step' : undefined"
             :disabled="!(allowJump || visited.has(i) || i === step + 1)"
             :data-testid="`step-${s.key}`"
@@ -139,7 +139,7 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
           >
             <span class="font-semibold">{{ i + 1 }}</span>
             <span>{{ pickText(s.i18n?.title, ctx.locale.value) ?? s.key }}</span>
-            <span v-if="hasErrors(s)" class="inline-block w-2 h-2 rounded-full bg-red-500" :aria-label="t('runtime.has_errors')" />
+            <span v-if="hasErrors(s)" class="inline-block w-2 h-2 rounded-full bg-danger" :aria-label="t('runtime.has_errors')" />
           </button>
         </li>
       </ol>
@@ -166,7 +166,7 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
 
   <GroupBody v-else-if="group.type === 'row' || group.type === 'column'" :group="group" :row="row" :class="frame" />
 
-  <fieldset v-else-if="group.type === 'fieldset'" class="border border-surface-200 dark:border-surface-700 rounded-lg p-4" :class="frame" :data-group="group.key">
+  <fieldset v-else-if="group.type === 'fieldset'" class="border border-line rounded-lg p-4" :class="frame" :data-group="group.key">
     <legend v-if="title" class="px-2 font-semibold">
       <i v-if="icon" :class="`${icon} me-2`" />{{ title }}
       <button v-if="collapsible" type="button" class="ms-2 text-muted-color" :aria-expanded="open" :aria-label="t('runtime.toggle_section')" @click="open = !open">
@@ -180,18 +180,10 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
 
   <section
     v-else
-    :class="[
-      group.type === 'card' ? 'rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm p-4' : '',
-      group.type === 'panel' || group.type === 'accordion' ? 'rounded-lg border border-surface-200 dark:border-surface-700' : '',
-      frame,
-    ]"
+    :class="[group.type === 'card' ? 'rounded-xl border border-line bg-card shadow-sm p-4' : '', group.type === 'panel' || group.type === 'accordion' ? 'rounded-lg border border-line' : '', frame]"
     :data-group="group.key"
   >
-    <header
-      v-if="title || collapsible"
-      class="flex items-center gap-2"
-      :class="group.type === 'panel' || group.type === 'accordion' ? 'px-4 py-3 bg-surface-50 dark:bg-surface-800 rounded-t-lg' : 'mb-3'"
-    >
+    <header v-if="title || collapsible" class="flex items-center gap-2" :class="group.type === 'panel' || group.type === 'accordion' ? 'px-4 py-3 bg-subtle rounded-t-lg' : 'mb-3'">
       <i v-if="icon" :class="icon" />
       <h3 class="text-base font-semibold flex-1">{{ title }}</h3>
       <Button

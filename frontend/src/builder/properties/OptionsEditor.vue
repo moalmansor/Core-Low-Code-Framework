@@ -17,6 +17,7 @@ import type { FieldDef, FieldTypeInfo, OptionsDef, OptionSource, StaticOption } 
 import { useBuilder } from '../useBuilder'
 import { newUuid } from '../uuid'
 import RelationEditor from './RelationEditor.vue'
+import { PICKER_FALLBACK } from '@/theme/color'
 
 /** Options of a choice field (specification §4.6 "Options", architecture §14.5). */
 const props = defineProps<{ info: FieldTypeInfo }>()
@@ -149,7 +150,7 @@ const defaultsText = computed({
 
     <!-- Static list -->
     <div v-if="options.source === 'static'" class="flex flex-col gap-2">
-      <div v-for="(o, i) in statics" :key="o.uuid" class="rounded border border-surface-200 dark:border-surface-700 p-2 flex flex-col gap-1" :data-testid="`option-${i}`">
+      <div v-for="(o, i) in statics" :key="o.uuid" class="rounded border border-line p-2 flex flex-col gap-1" :data-testid="`option-${i}`">
         <div class="flex items-center gap-1">
           <InputText
             v-model="o.value"
@@ -162,8 +163,8 @@ const defaultsText = computed({
           />
           <input
             type="color"
-            :value="o.color || '#888888'"
-            class="w-8 h-8 rounded border border-surface-300"
+            :value="o.color || PICKER_FALLBACK"
+            class="w-8 h-8 rounded border border-line-input"
             :aria-label="t('builder.options.color')"
             @input="(e) => (o.color = (e.target as HTMLInputElement).value)"
           />
@@ -289,7 +290,7 @@ const defaultsText = computed({
     <p v-else class="text-xs text-muted-color">{{ t(`builder.options.source_${options.source}_hint`) }}</p>
 
     <!-- Cascading -->
-    <fieldset class="flex flex-col gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
+    <fieldset class="flex flex-col gap-2 rounded border border-line p-2">
       <legend class="text-sm font-medium px-1">{{ t('builder.options.cascading') }}</legend>
       <label class="field"
         ><span>{{ t('builder.options.depends_on') }}</span>

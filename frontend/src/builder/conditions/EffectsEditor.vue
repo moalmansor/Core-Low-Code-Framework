@@ -70,7 +70,7 @@ function add(): void {
 <template>
   <div class="flex flex-col gap-2">
     <div class="text-sm font-medium">{{ label }}</div>
-    <div v-for="(e, i) in effects" :key="i" class="flex flex-col gap-1 rounded border border-surface-200 dark:border-surface-700 p-2">
+    <div v-for="(e, i) in effects" :key="i" class="flex flex-col gap-1 rounded border border-line p-2">
       <div class="flex flex-wrap items-center gap-1">
         <Select
           :model-value="e.effect"

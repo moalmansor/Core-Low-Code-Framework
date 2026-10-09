@@ -6,6 +6,7 @@ import Password from 'primevue/password'
 import QRCode from 'qrcode'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { PICKER_FALLBACK } from '@/theme/color'
 import { useRenderer } from '../context'
 import { pickText } from '../i18nText'
 import { applyMask } from './mask'
@@ -91,8 +92,8 @@ onBeforeUnmount(stopScan)
     <input
       :id="inputId"
       type="color"
-      class="h-10 w-14 rounded border border-surface-300 dark:border-surface-600 bg-transparent"
-      :value="text || '#000000'"
+      class="h-10 w-14 rounded border border-line-strong bg-transparent"
+      :value="text || PICKER_FALLBACK"
       :disabled="disabled"
       :aria-invalid="invalid"
       @input="set(($event.target as HTMLInputElement).value)"

@@ -105,7 +105,7 @@ function nullableNumber(v: number | null | undefined, key: 'length' | 'precision
           ><ToggleSwitch :model-value="storage.multiCurrency ?? false" @update:model-value="(v: boolean) => (storage.multiCurrency = v)" />{{ t('builder.storage.multi_currency') }}</label
         >
       </div>
-      <fieldset class="flex flex-col gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
+      <fieldset class="flex flex-col gap-2 rounded border border-line p-2">
         <legend class="text-sm font-medium px-1">{{ t('builder.flags.title') }}</legend>
         <label v-if="encryptable" class="flex items-center gap-2 text-sm"
           ><ToggleSwitch :model-value="flags.encrypted ?? false" @update:model-value="(v: boolean) => (flags.encrypted = v)" />{{ t('builder.flags.encrypted') }}</label

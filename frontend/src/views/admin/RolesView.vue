@@ -269,7 +269,7 @@ async function explain(key: string): Promise<void> {
               </div>
               <div v-for="[category, perms] in grouped" :key="category" class="mb-4">
                 <h3 class="font-semibold mb-2">{{ t(`access.category.${category}`) }}</h3>
-                <div class="rounded-lg border border-surface-200 dark:border-surface-700 divide-y divide-surface-200 dark:divide-surface-700">
+                <div class="rounded-lg border border-line divide-y divide-line">
                   <div v-for="p in perms" :key="p.key" class="flex flex-wrap items-center gap-3 p-2" :data-testid="`perm-${p.key}`">
                     <div class="flex-1 min-w-48">
                       <div>{{ p.label }} <Tag v-if="p.is_dangerous" severity="danger" :value="t('access.dangerous')" /></div>
@@ -290,7 +290,7 @@ async function explain(key: string): Promise<void> {
                   </div>
                 </div>
               </div>
-              <div class="sticky bottom-0 py-3 bg-surface-50 dark:bg-surface-950 flex justify-end gap-2">
+              <div class="sticky bottom-0 py-3 bg-subtle flex justify-end gap-2">
                 <span v-if="changes.length" class="self-center text-sm">{{ t('access.pending_changes', { n: changes.length }) }}</span>
                 <Button severity="secondary" :label="t('common.reset')" :disabled="!changes.length" @click="loadGrants" />
                 <Button :label="t('common.save')" icon="pi pi-check" :disabled="!changes.length" data-testid="save-grants" @click="saveGrants" />
@@ -302,9 +302,9 @@ async function explain(key: string): Promise<void> {
       <TabPanel value="view_as">
         <p class="text-muted-color mb-3">{{ t('access.view_as_hint') }}</p>
         <UserPicker v-model="viewAsUser" />
-        <div v-if="viewAs" class="mt-4 rounded-lg border border-surface-200 dark:border-surface-700 divide-y divide-surface-200 dark:divide-surface-700" data-testid="view-as-result">
+        <div v-if="viewAs" class="mt-4 rounded-lg border border-line divide-y divide-line" data-testid="view-as-result">
           <div v-for="p in viewAs.permissions" :key="p.key" class="flex items-center gap-3 p-2">
-            <i :class="p.granted ? 'pi pi-check-circle text-green-600' : 'pi pi-times-circle text-muted-color'" />
+            <i :class="p.granted ? 'pi pi-check-circle text-success' : 'pi pi-times-circle text-muted-color'" />
             <span class="flex-1">{{ p.label }}</span>
             <span class="text-xs text-muted-color">{{ t(`access.decided_by.${p.decided_by}`) }}</span>
             <Button size="small" text :label="t('access.explain')" @click="explain(p.key)" />

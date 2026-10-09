@@ -171,7 +171,7 @@ const canCode = computed(() => session.can('system.manage_code'))
         <TabPanel value="data" class="flex flex-col gap-3">
           <StorageEditor v-model:field="field" :info="info" />
           <RelationEditor v-if="isLookup" v-model:field="field" :info="info" />
-          <fieldset v-if="field.hook || canCode" class="flex flex-col gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
+          <fieldset v-if="field.hook || canCode" class="flex flex-col gap-2 rounded border border-line p-2">
             <legend class="text-sm font-medium px-1">{{ t('builder.hook.title') }}</legend>
             <p class="text-xs text-muted-color">{{ t('builder.hook.hint') }}</p>
             <template v-if="canCode">

@@ -103,16 +103,28 @@ export const useSession = defineStore('session', () => {
     }
   }
 
+  /**
+   * Light, dark, or the system preference (the default, also before sign-in);
+   * with "system" the page follows the operating system when it changes.
+   */
+  let themeMode = 'system'
+  const systemDark = typeof window !== 'undefined' ? window.matchMedia?.('(prefers-color-scheme: dark)') : undefined
+  systemDark?.addEventListener?.('change', () => {
+    if (themeMode === 'system') applyTheme('system')
+  })
   function applyTheme(mode: string): void {
-    const dark = mode === 'dark' || (mode === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches)
-    document.documentElement.classList.toggle('app-dark', !!dark)
+    themeMode = mode
+    const dark = mode === 'dark' || (mode === 'system' && !!systemDark?.matches)
+    document.documentElement.classList.toggle('app-dark', dark)
   }
+  applyTheme('system')
 
   async function logout(): Promise<void> {
     try {
       await send('post', '/auth/logout')
     } finally {
       me.value = null
+      applyTheme('system')
       resetCsrf()
       await ensureCsrf()
     }

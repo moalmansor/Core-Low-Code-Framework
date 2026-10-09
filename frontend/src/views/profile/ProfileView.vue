@@ -235,7 +235,7 @@ async function revokeOthers(): Promise<void> {
           <Message v-if="twoFactorError" severity="error">{{ twoFactorError }}</Message>
           <template v-if="enrolling">
             <p>{{ t('profile.scan_qr') }}</p>
-            <img :src="qr" :alt="t('profile.qr_alt')" class="w-48 h-48 bg-white p-2 rounded" />
+            <img :src="qr" :alt="t('profile.qr_alt')" class="w-48 h-48 bg-paper p-2 rounded" />
             <p class="text-sm">
               {{ t('profile.manual_key') }} <code class="ltr-value">{{ secretKey }}</code>
             </p>
@@ -265,7 +265,7 @@ async function revokeOthers(): Promise<void> {
           <template v-if="recoveryCodes.length">
             <Message severity="info">{{ t('profile.recovery_codes_hint') }}</Message>
             <ul class="grid grid-cols-2 gap-2 ltr-value font-mono" data-testid="profile-recovery-codes">
-              <li v-for="c in recoveryCodes" :key="c" class="p-2 rounded bg-surface-100 dark:bg-surface-800">{{ c }}</li>
+              <li v-for="c in recoveryCodes" :key="c" class="p-2 rounded bg-subtle">{{ c }}</li>
             </ul>
           </template>
         </div>

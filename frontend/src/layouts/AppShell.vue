@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
 import Menu from 'primevue/menu'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { get } from '@/api/http'
@@ -36,6 +36,7 @@ const apps = ref<NavApp[]>([])
 const collapsedApps = ref<Record<string, boolean>>({})
 const sidebarOpen = ref(false)
 const userMenu = ref<InstanceType<typeof Menu> | null>(null)
+const nav = ref<HTMLElement | null>(null)
 
 async function loadAreas(): Promise<void> {
   if (session.gate !== 'none') {
@@ -65,6 +66,8 @@ watch(
   () => route.fullPath,
   () => {
     sidebarOpen.value = false
+    // A long menu keeps the active item in view (instant: no motion).
+    void nextTick(() => nav.value?.querySelector('.nav-active, .router-link-active')?.scrollIntoView({ block: 'nearest' }))
     document.title = [route.meta.title ? t(route.meta.title) : '', session.systemName].filter(Boolean).join(' · ')
   },
   { immediate: true },
@@ -99,16 +102,18 @@ const userItems = computed(() => [
 </script>
 
 <template>
-  <div class="h-full flex">
+  <!-- The frame is the window's height: the menu and the content scroll inside it; the page never does (design system: frame). -->
+  <div class="h-dvh flex overflow-hidden" data-testid="app-frame">
     <aside
-      class="fixed inset-y-0 start-0 z-30 w-64 shrink-0 bg-surface-0 dark:bg-surface-900 border-e border-surface-200 dark:border-surface-700 transition-transform lg:static"
+      class="fixed inset-y-0 start-0 z-30 w-64 shrink-0 flex flex-col bg-card border-e border-line transition-transform lg:static lg:h-dvh"
+      data-testid="app-sidebar"
       :class="sidebarOpen ? '' : 'max-lg:ltr:-translate-x-full max-lg:rtl:translate-x-full'"
       :aria-label="t('shell.navigation')"
     >
-      <div class="h-14 px-4 flex items-center border-b border-surface-200 dark:border-surface-700">
+      <div class="h-14 shrink-0 px-4 flex items-center border-b border-line">
         <RouterLink :to="{ name: 'home' }"><BrandMark /></RouterLink>
       </div>
-      <nav class="p-3 flex flex-col gap-1 overflow-y-auto" data-testid="sidebar">
+      <nav ref="nav" class="flex-1 min-h-0 p-3 flex flex-col gap-1 overflow-y-auto overscroll-contain" data-testid="sidebar">
         <RouterLink class="nav-link" :to="{ name: 'home' }" exact-active-class="nav-active"><i class="pi pi-home" />{{ t('shell.home') }}</RouterLink>
         <section v-for="app in apps" :key="app.uuid" class="mt-3" :data-testid="`nav-app-${app.key}`">
           <button
@@ -119,12 +124,12 @@ const userItems = computed(() => [
           >
             <i v-if="app.icon" :class="app.icon" :style="app.color ? { color: app.color } : undefined" />
             <span class="flex-1 text-start">{{ app.name }}</span>
-            <i v-if="app.maintenance" v-tooltip="t('records.app_maintenance')" class="pi pi-wrench text-orange-500" />
+            <i v-if="app.maintenance" v-tooltip="t('records.app_maintenance')" class="pi pi-wrench text-warning" />
             <i :class="collapsedApps[app.uuid] ? 'pi pi-chevron-right rtl:rotate-180' : 'pi pi-chevron-down'" class="text-[0.625rem]" />
           </button>
           <NavTree v-if="!collapsedApps[app.uuid]" :items="app.items" />
         </section>
-        <div v-if="apps.length && areas.length" class="mt-3 border-t border-surface-200 dark:border-surface-700" />
+        <div v-if="apps.length && areas.length" class="mt-3 border-t border-line" />
         <RouterLink v-if="areas.length" class="nav-link" :to="{ name: 'admin' }" exact-active-class="nav-active"><i class="pi pi-cog" />{{ t('admin.title') }}</RouterLink>
         <template v-for="[section, items] in sections" :key="section">
           <div class="mt-3 mb-1 px-3 text-xs uppercase tracking-wide text-muted-color">{{ t(`admin.section.${section}`) }}</div>
@@ -134,16 +139,16 @@ const userItems = computed(() => [
         </template>
       </nav>
     </aside>
-    <div v-if="sidebarOpen" class="fixed inset-0 z-20 bg-black/30 lg:hidden" @click="sidebarOpen = false" />
-    <div class="flex-1 min-w-0 flex flex-col">
-      <header class="h-14 px-4 flex items-center gap-3 bg-surface-0 dark:bg-surface-900 border-b border-surface-200 dark:border-surface-700">
+    <div v-if="sidebarOpen" class="fixed inset-0 z-20 bg-overlay lg:hidden" @click="sidebarOpen = false" />
+    <div class="flex-1 min-w-0 min-h-0 flex flex-col">
+      <header class="h-14 shrink-0 px-4 flex items-center gap-3 bg-card border-b border-line">
         <Button class="lg:hidden" icon="pi pi-bars" text rounded :aria-label="t('shell.menu')" @click="sidebarOpen = true" />
         <div class="flex-1" />
         <LanguageSwitcher />
         <Button :label="session.me?.name" icon="pi pi-user" text aria-haspopup="true" data-testid="user-menu" @click="(e: Event) => userMenu?.toggle(e)" />
         <Menu ref="userMenu" :model="userItems" popup />
       </header>
-      <main class="flex-1 overflow-auto p-4 lg:p-6">
+      <main class="flex-1 min-h-0 overflow-auto p-4 lg:p-6" data-testid="app-content">
         <RouterView />
       </main>
     </div>
@@ -176,18 +181,15 @@ export const icons: Record<string, string> = {
   gap: 0.625rem;
   padding: 0.5rem 0.75rem;
   border-radius: 0.5rem;
-  color: var(--p-text-color);
+  color: var(--text);
   text-decoration: none;
 }
 .nav-link:hover {
-  background: var(--p-surface-100);
+  background: var(--bg-subtle);
 }
 .nav-active {
-  background: var(--p-primary-50);
-  color: var(--p-primary-700);
+  background: var(--primary-subtle);
+  color: var(--on-primary-subtle);
   font-weight: 600;
-}
-:global(.app-dark) .nav-link:hover {
-  background: var(--p-surface-800);
 }
 </style>

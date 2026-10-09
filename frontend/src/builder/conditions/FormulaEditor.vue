@@ -252,19 +252,13 @@ const status = computed(() => {
         @click="updateSuggestions"
         @blur="suggestions = []"
       />
-      <ul
-        v-if="suggestions.length"
-        :id="`${uid}-list`"
-        role="listbox"
-        class="absolute z-20 inset-x-0 top-full mt-1 rounded-md border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-lg max-h-60 overflow-auto"
-        dir="ltr"
-      >
+      <ul v-if="suggestions.length" :id="`${uid}-list`" role="listbox" class="absolute z-20 inset-x-0 top-full mt-1 rounded-md border border-line bg-card shadow-lg max-h-60 overflow-auto" dir="ltr">
         <li
           v-for="(s, i) in suggestions"
           :key="s.insert + i"
           role="option"
           :aria-selected="i === active"
-          :class="['px-2 py-1 cursor-pointer flex justify-between gap-3 text-sm', i === active ? 'bg-primary-100 dark:bg-primary-900' : '']"
+          :class="['px-2 py-1 cursor-pointer flex justify-between gap-3 text-sm', i === active ? 'bg-primary-subtle' : '']"
           @mousedown.prevent="accept(i)"
         >
           <span class="font-mono">{{ s.label }}</span
@@ -275,7 +269,7 @@ const status = computed(() => {
     <div class="flex flex-wrap items-center gap-2">
       <span
         :id="`${uid}-status`"
-        :class="['text-xs flex-1 min-w-0', status.severity === 'error' ? 'text-red-600' : status.severity === 'ok' ? 'text-green-700 dark:text-green-400' : 'text-muted-color']"
+        :class="['text-xs flex-1 min-w-0', status.severity === 'error' ? 'text-danger' : status.severity === 'ok' ? 'text-success' : 'text-muted-color']"
         aria-live="polite"
         >{{ status.text }}</span
       >
@@ -289,7 +283,7 @@ const status = computed(() => {
           <h4 class="text-sm font-semibold mb-1" :dir="builder.locales.find((l) => l.code === builder.locale)?.direction">{{ t(`builder.fn_group.${group}`) }}</h4>
           <ul class="flex flex-col">
             <li v-for="fn in fns" :key="fn">
-              <button type="button" class="w-full text-start px-1 py-0.5 rounded hover:bg-surface-100 dark:hover:bg-surface-800 font-mono text-xs" @click="insertText(`${fn}(`)">
+              <button type="button" class="w-full text-start px-1 py-0.5 rounded hover:bg-subtle font-mono text-xs" @click="insertText(`${fn}(`)">
                 {{ signature(fn) }}
               </button>
             </li>

@@ -180,7 +180,7 @@ async function submitCreate(): Promise<void> {
       v-for="b in rows"
       :key="b.uuid"
       :to="{ name: 'admin.blueprints.detail', params: { blueprint: b.uuid } }"
-      class="p-4 rounded-xl bg-surface-0 dark:bg-surface-900 shadow-sm hover:shadow flex flex-col gap-2 no-underline text-color"
+      class="p-4 rounded-xl bg-card shadow-sm hover:shadow flex flex-col gap-2 no-underline text-color"
     >
       <div class="flex items-center gap-2">
         <i :class="b.kind === 'collection' ? 'pi pi-table' : 'pi pi-clone'" class="text-primary text-xl" />

@@ -120,13 +120,7 @@ const dir = computed(() => builder.locales.find((l) => l.code === locale.value)?
 </script>
 
 <template>
-  <div
-    :class="['grid grid-cols-12 gap-2 min-h-12 rounded p-1', items.length === 0 ? 'border border-dashed border-surface-300 dark:border-surface-600' : '']"
-    :dir="dir"
-    role="list"
-    @dragover="onListDragOver"
-    @drop="onDrop"
-  >
+  <div :class="['grid grid-cols-12 gap-2 min-h-12 rounded p-1', items.length === 0 ? 'border border-dashed border-line-strong' : '']" :dir="dir" role="list" @dragover="onListDragOver" @drop="onDrop">
     <template v-for="(item, index) in items" :key="uuidOf(item)">
       <div role="listitem" :style="{ gridColumn: `span ${span(item)} / span ${span(item)}` }" class="relative min-w-0" @dragover="(e) => onItemDragOver(e, index)" @drop="onDrop">
         <div v-if="showLine(index)" :class="['absolute bg-primary rounded z-10', horizontal ? 'inset-y-0 -start-1.5 w-1' : 'inset-x-0 -top-1.5 h-1']" aria-hidden="true" />
@@ -145,16 +139,16 @@ const dir = computed(() => builder.locales.find((l) => l.code === locale.value)?
           :aria-label="`${t(`builder.group.${item.group.type}`)}: ${groupTitle(item.group)}`"
           :data-testid="`canvas-${item.group.key}`"
           :class="[
-            'rounded-md border bg-surface-0 dark:bg-surface-900 outline-none focus-visible:ring-2 focus-visible:ring-primary',
-            builder.selection.includes(item.group.uuid) ? 'border-primary ring-1 ring-primary' : 'border-surface-300 dark:border-surface-600',
-            issues.get(item.group.uuid) === 'error' ? '!border-red-500' : issues.get(item.group.uuid) === 'problem' ? '!border-orange-400' : '',
+            'rounded-md border bg-card outline-none focus-visible:ring-2 focus-visible:ring-primary',
+            builder.selection.includes(item.group.uuid) ? 'border-primary ring-1 ring-primary' : 'border-line-strong',
+            issues.get(item.group.uuid) === 'error' ? '!border-danger' : issues.get(item.group.uuid) === 'problem' ? '!border-warning' : '',
           ]"
           @click="(e) => onClick(e, item.group.uuid)"
           @keydown="(e) => onKey(e, item.group.uuid)"
           @dragstart="(e) => onDragStart(e, item.group.uuid)"
           @dragend="onDragEnd"
         >
-          <header class="flex items-center gap-2 px-2 py-1 border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800 rounded-t-md cursor-grab">
+          <header class="flex items-center gap-2 px-2 py-1 border-b border-line bg-subtle rounded-t-md cursor-grab">
             <i class="pi pi-objects-column text-xs text-muted-color" aria-hidden="true" />
             <span class="font-medium text-sm truncate">{{ groupTitle(item.group) }}</span>
             <span class="text-xs text-muted-color">{{ t(`builder.group.${item.group.type}`) }}</span>
@@ -164,7 +158,7 @@ const dir = computed(() => builder.locales.find((l) => l.code === locale.value)?
             >
             <i
               v-if="issues.get(item.group.uuid)"
-              :class="issues.get(item.group.uuid) === 'error' ? 'pi pi-times-circle text-red-500' : 'pi pi-exclamation-triangle text-orange-500'"
+              :class="issues.get(item.group.uuid) === 'error' ? 'pi pi-times-circle text-danger' : 'pi pi-exclamation-triangle text-warning'"
               :title="t('builder.problems.title')"
             />
             <span class="flex-1" />
@@ -189,9 +183,9 @@ const dir = computed(() => builder.locales.find((l) => l.code === locale.value)?
           :aria-label="`${t(`builder.type.${item.field.type}`)}: ${fieldLabel(item.field)}`"
           :data-testid="`canvas-${item.field.key}`"
           :class="[
-            'rounded-md border px-2 py-1.5 bg-surface-0 dark:bg-surface-900 cursor-grab outline-none focus-visible:ring-2 focus-visible:ring-primary',
-            builder.selection.includes(item.field.uuid) ? 'border-primary ring-1 ring-primary' : 'border-transparent hover:border-surface-300 dark:hover:border-surface-600',
-            issues.get(item.field.uuid) === 'error' ? '!border-red-500' : issues.get(item.field.uuid) === 'problem' ? '!border-orange-400' : '',
+            'rounded-md border px-2 py-1.5 bg-card cursor-grab outline-none focus-visible:ring-2 focus-visible:ring-primary',
+            builder.selection.includes(item.field.uuid) ? 'border-primary ring-1 ring-primary' : 'border-transparent hover:border-line-strong',
+            issues.get(item.field.uuid) === 'error' ? '!border-danger' : issues.get(item.field.uuid) === 'problem' ? '!border-warning' : '',
           ]"
           @click="(e) => onClick(e, item.field.uuid)"
           @keydown="(e) => onKey(e, item.field.uuid)"
@@ -201,14 +195,14 @@ const dir = computed(() => builder.locales.find((l) => l.code === locale.value)?
           <div class="flex items-center gap-1.5 text-sm">
             <i :class="fieldIcon(item.field)" class="text-xs text-muted-color" aria-hidden="true" />
             <span class="font-medium truncate">{{ fieldLabel(item.field) }}</span>
-            <span v-if="item.field.validation?.required" class="text-red-500" :title="t('builder.validation.required')">*</span>
+            <span v-if="item.field.validation?.required" class="text-danger" :title="t('builder.validation.required')">*</span>
             <span v-if="ruleCounts.get(item.field.uuid)" class="text-xs text-primary" :title="t('builder.canvas.rules', { n: ruleCounts.get(item.field.uuid) })"
               ><i class="pi pi-bolt" aria-hidden="true" />{{ ruleCounts.get(item.field.uuid) }}</span
             >
             <i v-if="item.field.behavior?.formula" class="pi pi-calculator text-xs text-primary" :title="t('builder.behavior.formula')" />
             <i
               v-if="issues.get(item.field.uuid)"
-              :class="issues.get(item.field.uuid) === 'error' ? 'pi pi-times-circle text-red-500' : 'pi pi-exclamation-triangle text-orange-500'"
+              :class="issues.get(item.field.uuid) === 'error' ? 'pi pi-times-circle text-danger' : 'pi pi-exclamation-triangle text-warning'"
               :title="t('builder.problems.title')"
             />
             <span class="flex-1" />
@@ -222,7 +216,7 @@ const dir = computed(() => builder.locales.find((l) => l.code === locale.value)?
           </div>
           <div
             v-if="builder.typeInfo(item.field.type)?.storage !== 'none'"
-            class="mt-1 h-7 rounded border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800 px-2 text-xs text-muted-color flex items-center truncate"
+            class="mt-1 h-7 rounded border border-line bg-subtle px-2 text-xs text-muted-color flex items-center truncate"
             aria-hidden="true"
           >
             {{ pick(item.field.i18n?.placeholder, locale, t(`builder.type.${item.field.type}`)) }}

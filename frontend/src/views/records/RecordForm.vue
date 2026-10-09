@@ -257,10 +257,10 @@ onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('records.leave_unsaved'
     </div>
     <h1 class="page-title">{{ heading }}</h1>
     <Message v-if="banner" severity="error" class="mb-4" data-testid="record-form-banner">{{ banner }}</Message>
-    <div class="rounded-xl bg-surface-0 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 p-4 lg:p-6">
+    <div class="rounded-xl bg-card border border-line p-4 lg:p-6">
       <FormRenderer :key="renderKey" ref="renderer" v-model="values" :definition="definition" :mode="mode" :errors="serverErrors" :form-uuid="formUuid" :references="references" />
     </div>
-    <div class="sticky bottom-0 z-10 flex flex-wrap gap-2 justify-end py-3 mt-4 bg-surface-50/90 dark:bg-surface-950/90 backdrop-blur">
+    <div class="sticky bottom-0 z-10 flex flex-wrap gap-2 justify-end py-3 mt-4 bg-page/90 backdrop-blur">
       <Button type="button" :label="t('common.cancel')" severity="secondary" outlined @click="cancel" />
       <Button type="submit" :label="submitLabel" icon="pi pi-check" :loading="saving" data-testid="record-save" />
     </div>

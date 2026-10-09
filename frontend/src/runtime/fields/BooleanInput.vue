@@ -45,7 +45,7 @@ function accept(): void {
     <Checkbox v-else :input-id="inputId" :model-value="checked" binary :disabled="disabled" :invalid="invalid" @update:model-value="set" @focus="emit('focus')" @blur="emit('blur')" />
     <div class="flex flex-col">
       <label :for="inputId" class="cursor-pointer">
-        {{ label }}<span v-if="required" class="text-red-500 ms-1" :aria-label="t('runtime.required')">*</span>
+        {{ label }}<span v-if="required" class="text-danger ms-1" :aria-label="t('runtime.required')">*</span>
         <i v-if="tooltip" v-tooltip.top="tooltip" class="pi pi-info-circle ms-1 text-muted-color" tabindex="0" :aria-label="tooltip" />
       </label>
       <Button v-if="field.type === 'consent' && terms" type="button" :label="t('runtime.consent_read_terms')" link size="small" class="!p-0 self-start" @click="showTerms = true" />

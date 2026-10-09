@@ -49,19 +49,19 @@ async function validateNow(): Promise<void> {
 
 <template>
   <section class="flex flex-col min-h-0 h-full" :aria-label="t('builder.problems.title')" data-testid="problems-panel">
-    <header class="flex items-center gap-2 px-3 py-1.5 border-b border-surface-200 dark:border-surface-700">
+    <header class="flex items-center gap-2 px-3 py-1.5 border-b border-line">
       <h2 class="text-sm font-semibold flex-1">
         {{ t('builder.problems.title') }}
         <span class="text-xs font-normal text-muted-color">{{ t('builder.problems.counts', { errors: builder.errors.length, problems: builder.problems.length }) }}</span>
       </h2>
       <Button size="small" text icon="pi pi-check-circle" :label="t('builder.problems.check')" :loading="checking" @click="validateNow" />
     </header>
-    <p v-if="failure" class="px-3 py-1 text-xs text-red-600">{{ failure }}</p>
+    <p v-if="failure" class="px-3 py-1 text-xs text-danger">{{ failure }}</p>
     <p v-if="!all.length" class="px-3 py-2 text-sm text-muted-color">{{ t('builder.problems.none') }}</p>
-    <ul v-else class="flex-1 overflow-auto divide-y divide-surface-200 dark:divide-surface-700">
+    <ul v-else class="flex-1 overflow-auto divide-y divide-line">
       <li v-for="(i, n) in all" :key="n">
-        <button type="button" class="w-full text-start px-3 py-1.5 flex items-start gap-2 text-sm hover:bg-surface-100 dark:hover:bg-surface-800" @click="builder.select(i.uuid)">
-          <i :class="i.severity === 'error' ? 'pi pi-times-circle text-red-500 mt-0.5' : 'pi pi-exclamation-triangle text-orange-500 mt-0.5'" aria-hidden="true" />
+        <button type="button" class="w-full text-start px-3 py-1.5 flex items-start gap-2 text-sm hover:bg-subtle" @click="builder.select(i.uuid)">
+          <i :class="i.severity === 'error' ? 'pi pi-times-circle text-danger mt-0.5' : 'pi pi-exclamation-triangle text-warning mt-0.5'" aria-hidden="true" />
           <span class="flex-1 min-w-0">
             <span class="font-medium">{{ elementName(i.uuid) }}</span>
             <span class="text-xs text-muted-color ms-1">{{ i.severity === 'error' ? t('builder.problems.blocks_save') : t('builder.problems.blocks_publish') }}</span>

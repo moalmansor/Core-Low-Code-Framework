@@ -136,9 +136,9 @@ function formatDate(iso: string): string {
     <div v-if="loading" class="flex justify-center p-6"><ProgressSpinner /></div>
     <template v-else>
       <Message v-if="!versions.length" severity="info">{{ t('builder.versions_page.none') }}</Message>
-      <div v-else class="overflow-auto rounded-lg border border-surface-200 dark:border-surface-700">
+      <div v-else class="overflow-auto rounded-lg border border-line">
         <table class="w-full text-sm">
-          <thead class="bg-surface-50 dark:bg-surface-800 text-start">
+          <thead class="bg-subtle text-start">
             <tr>
               <th class="p-2 text-start">{{ t('builder.versions_page.version') }}</th>
               <th class="p-2 text-start">{{ t('builder.versions_page.state') }}</th>
@@ -152,7 +152,7 @@ function formatDate(iso: string): string {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="v in versions" :key="v.uuid" class="border-t border-surface-200 dark:border-surface-700" :data-testid="`version-${v.version}`">
+            <tr v-for="v in versions" :key="v.uuid" class="border-t border-line" :data-testid="`version-${v.version}`">
               <td class="p-2 font-semibold">
                 {{ v.version }}
                 <span v-if="v.rollback_of" class="text-xs text-muted-color">{{ t('builder.versions_page.rollback_of', { n: v.rollback_of }) }}</span>

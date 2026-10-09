@@ -135,12 +135,7 @@ function setLeafAst(leaf: RuleLeaf, ast: Ast | null): void {
 </script>
 
 <template>
-  <div
-    :class="[
-      'rounded-md border p-2 flex flex-col gap-2',
-      depth % 2 === 0 ? 'border-surface-300 dark:border-surface-600' : 'border-primary-200 dark:border-primary-800 bg-surface-50 dark:bg-surface-900',
-    ]"
-  >
+  <div :class="['rounded-md border p-2 flex flex-col gap-2', depth % 2 === 0 ? 'border-line-strong' : 'border-primary bg-subtle']">
     <div class="flex flex-wrap items-center gap-2">
       <label class="flex items-center gap-1 text-sm"><Checkbox v-model="group.negate" binary />{{ t('builder.rule.not') }}</label>
       <SelectButton v-model="group.op" :options="joinOptions" option-label="label" option-value="value" :allow-empty="false" size="small" :aria-label="t('builder.rule.join')" />
@@ -151,7 +146,7 @@ function setLeafAst(leaf: RuleLeaf, ast: Ast | null): void {
     <p v-if="group.children.length === 0" class="text-xs text-muted-color">{{ t('builder.rule.always') }}</p>
     <template v-for="(child, i) in group.children" :key="child.id">
       <RuleGroupEditor v-if="child.kind === 'group'" :group="child" :scope="scope" :depth="depth + 1" @remove="removeAt(i)" />
-      <div v-else class="flex flex-wrap items-start gap-1 rounded bg-surface-0 dark:bg-surface-950 p-1">
+      <div v-else class="flex flex-wrap items-start gap-1 rounded bg-card p-1">
         <span v-if="i > 0" class="text-xs font-semibold uppercase text-primary w-10 pt-2">{{ group.op === 'and' ? t('builder.rule.and') : t('builder.rule.or') }}</span>
         <OperandInput
           v-if="!SUBJECTLESS.includes(child.operator)"
@@ -199,7 +194,7 @@ function setLeafAst(leaf: RuleLeaf, ast: Ast | null): void {
         </template>
         <span class="flex-1" />
         <Button size="small" text severity="danger" icon="pi pi-times" :aria-label="t('builder.rule.remove_rule')" @click="removeAt(i)" />
-        <p v-if="leafProblem(child)" class="w-full text-xs text-orange-700 dark:text-orange-300" data-testid="rule-row-hint">
+        <p v-if="leafProblem(child)" class="w-full text-xs text-color" data-testid="rule-row-hint">
           {{ t(`builder.rule.needs_${leafProblem(child)!.problem}`) }}
         </p>
       </div>

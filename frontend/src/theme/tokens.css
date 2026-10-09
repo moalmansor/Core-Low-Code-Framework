@@ -1,0 +1,103 @@
+/*
+ * The product theme (docs/design-system.md). This file is the only place in the
+ * interface where colour values are written; components use the semantic
+ * tokens below (directly, through the Tailwind utilities in style.css, or
+ * through the PrimeVue preset in preset.ts). `npm run lint:colors` enforces it.
+ *
+ * Light values are the owner's palette; dark values are designed separately,
+ * not inverted. Contrast is checked against WCAG 2.1 AA by
+ * src/theme/contrast.spec.ts, which reads this file.
+ *
+ * The brand colour is an Appearance & Branding setting: the --brand-* custom
+ * properties are set on the document root at runtime (src/theme/brand.ts) and
+ * win over the defaults written here.
+ */
+:root {
+  --bg-page: #f4f6f9;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f8fafc;
+  --border: #e3e8ef;
+  --border-strong: #cbd5e1;
+  /* Inputs: their outline is their only visible edge, so it needs 3:1 (WCAG 1.4.11). */
+  --border-input: #7993b2;
+  --text: #1f2937;
+  /* #627289 rather than #64748b: 4.5:1 on the page background as well as on surfaces. */
+  --text-muted: #627289;
+  /* Disabled controls only (exempt from 1.4.3); placeholders use --text-muted. */
+  --text-faint: #94a3b8;
+  --primary: var(--brand-primary, #1a6fd4);
+  --primary-hover: var(--brand-primary-hover, #1559ae);
+  --primary-subtle: var(--brand-primary-subtle, #e8f1fc);
+  --on-primary: var(--brand-on-primary, #ffffff);
+  /* Primary-coloured text on --primary-subtle (badges, selected tab). */
+  --on-primary-subtle: var(--brand-on-primary-subtle, #1559ae);
+  --link: #107c52;
+  --danger: #d92d20;
+  --danger-subtle: #fdecea;
+  --warning: #b45309;
+  --success: #107c52;
+  --neutral-pill: #3f4c5a;
+  /* The two label colours a pill chooses from, whichever contrasts more with its background. */
+  --on-color-light: #ffffff;
+  --on-color-dark: #0f1419;
+  --overlay: rgb(15 20 25 / 0.45);
+  /* Content that stays light in both themes: QR codes, signature pads, the printed page. */
+  --paper: #ffffff;
+  --paper-ink: #0f1419;
+  /* Behind photos and video. */
+  --media-backdrop: #000000;
+  --shadow-color: rgb(15 20 25 / 0.08);
+}
+
+.app-dark {
+  --bg-page: #0f1419;
+  --bg-surface: #171e26;
+  --bg-subtle: #1e2733;
+  --border: #2a3441;
+  --border-strong: #3c4858;
+  --border-input: #5e718a;
+  --text: #e6edf3;
+  --text-muted: #93a1b1;
+  --text-faint: #6b7a8c;
+  --primary: var(--brand-primary-dark, #4d96e8);
+  --primary-hover: var(--brand-primary-hover-dark, #6ba9ee);
+  /* #162d48 rather than #17304d: links and primary text reach 4.5:1 on selected rows. */
+  --primary-subtle: var(--brand-primary-subtle-dark, #162d48);
+  --on-primary: var(--brand-on-primary-dark, #0f1419);
+  --on-primary-subtle: var(--brand-on-primary-subtle-dark, #6ba9ee);
+  --link: #35a775;
+  --danger: #f2635c;
+  --danger-subtle: #3a1f1e;
+  --warning: #d9941f;
+  --success: #35a775;
+  --neutral-pill: #46535f;
+  --overlay: rgb(0 0 0 / 0.6);
+  --shadow-color: rgb(0 0 0 / 0.4);
+  color-scheme: dark;
+}
+
+:root {
+  /* Derived tints for warning and success banners (no new colour values). */
+  --warning-subtle: color-mix(in srgb, var(--warning) 12%, var(--bg-surface));
+  --success-subtle: color-mix(in srgb, var(--success) 12%, var(--bg-surface));
+  --focus-ring: var(--primary);
+
+  --font-ui: 'IBM Plex Sans', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font-ui-arabic: 'IBM Plex Sans Arabic', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-code: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  /* Type scale (px): 12 small/labels, 13 help, 14 body and controls, 16 section, 22 page title. */
+  --text-size-xs: 0.75rem;
+  --text-size-sm: 0.8125rem;
+  --text-size-base: 0.875rem;
+  --text-size-md: 1rem;
+  --text-size-title: 1.375rem;
+  /* Table headers: 12px floor; the Arabic face is set one step larger (see style.css). */
+  --table-header-size: 0.75rem;
+  --table-header-size-arabic: 0.8125rem;
+
+  --radius-control: 6px;
+  --radius-card: 12px;
+  --control-height: 2.25rem;
+  --control-height-compact: 2rem;
+}

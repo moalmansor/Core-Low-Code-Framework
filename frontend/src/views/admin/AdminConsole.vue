@@ -27,13 +27,7 @@ const sections = computed(() => {
   <section v-for="[section, items] in sections" :key="section" class="mb-6">
     <h2 class="font-semibold mb-3">{{ t(`admin.section.${section}`) }}</h2>
     <div class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]">
-      <RouterLink
-        v-for="a in items"
-        :key="a.key"
-        :to="a.route"
-        class="p-4 rounded-xl bg-surface-0 dark:bg-surface-900 shadow-sm hover:shadow flex gap-3 items-start no-underline text-color"
-        :data-testid="`area-${a.key}`"
-      >
+      <RouterLink v-for="a in items" :key="a.key" :to="a.route" class="p-4 rounded-xl bg-card shadow-sm hover:shadow flex gap-3 items-start no-underline text-color" :data-testid="`area-${a.key}`">
         <i :class="`pi ${icons[a.key] ?? 'pi-circle'} text-primary text-xl`" />
         <div>
           <div class="font-medium">{{ t(`admin.area.${a.key}`) }}</div>

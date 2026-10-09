@@ -142,7 +142,7 @@ const pending = computed(() => Object.keys(edits.value).length)
       </template>
     </Column>
   </DataTable>
-  <div class="sticky bottom-0 py-3 bg-surface-50 dark:bg-surface-950 flex justify-end gap-2">
+  <div class="sticky bottom-0 py-3 bg-subtle flex justify-end gap-2">
     <span v-if="pending" class="self-center text-sm">{{ t('access.pending_changes', { n: pending }) }}</span>
     <Button :label="t('common.save')" icon="pi pi-check" :disabled="!pending" data-testid="save-translations" @click="save" />
   </div>

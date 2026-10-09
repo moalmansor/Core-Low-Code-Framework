@@ -146,7 +146,7 @@ const cssInvalid = computed(() => !!layout.value.cssClass && !/^[A-Za-z0-9 _-]{0
           <I18nInput v-model="i18n.description" :label="t('builder.group_props.description')" multiline :rows="2" />
 
           <template v-if="group.type === 'repeater'">
-            <fieldset class="flex flex-col gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
+            <fieldset class="flex flex-col gap-2 rounded border border-line p-2">
               <legend class="text-sm font-medium px-1">{{ t('builder.repeater.title') }}</legend>
               <div class="grid grid-cols-3 gap-2">
                 <label class="field"
@@ -177,7 +177,7 @@ const cssInvalid = computed(() => !!layout.value.cssClass && !/^[A-Za-z0-9 _-]{0
                 />
               </label>
               <div class="text-sm font-medium">{{ t('builder.repeater.aggregates') }}</div>
-              <div v-for="(a, i) in repeater.aggregates ?? []" :key="i" class="flex flex-col gap-1 rounded bg-surface-50 dark:bg-surface-900 p-2">
+              <div v-for="(a, i) in repeater.aggregates ?? []" :key="i" class="flex flex-col gap-1 rounded bg-subtle p-2">
                 <div class="flex gap-1">
                   <Select v-model="a.fn" :options="fns" option-label="label" option-value="value" size="small" class="w-32" />
                   <Select v-model="a.field" :options="repeaterFields" option-label="label" option-value="value" size="small" class="flex-1" />
@@ -215,7 +215,7 @@ const cssInvalid = computed(() => !!layout.value.cssClass && !/^[A-Za-z0-9 _-]{0
             </fieldset>
           </template>
 
-          <fieldset v-if="group.type === 'wizard' || group.type === 'step'" class="flex flex-col gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
+          <fieldset v-if="group.type === 'wizard' || group.type === 'step'" class="flex flex-col gap-2 rounded border border-line p-2">
             <legend class="text-sm font-medium px-1">{{ t('builder.wizard.title') }}</legend>
             <label class="flex items-center gap-2 text-sm"
               ><ToggleSwitch :model-value="group.wizard?.validateBeforeNext ?? true" @update:model-value="(v: boolean) => (group.wizard = { ...(group.wizard ?? {}), validateBeforeNext: v })" />{{
@@ -229,7 +229,7 @@ const cssInvalid = computed(() => !!layout.value.cssClass && !/^[A-Za-z0-9 _-]{0
             >
           </fieldset>
 
-          <fieldset v-if="group.type === 'subform'" class="flex flex-col gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
+          <fieldset v-if="group.type === 'subform'" class="flex flex-col gap-2 rounded border border-line p-2">
             <legend class="text-sm font-medium px-1">{{ t('builder.subform.title') }}</legend>
             <p class="text-xs text-muted-color">{{ t('builder.subform.hint') }}</p>
             <label class="field"
@@ -314,7 +314,7 @@ const cssInvalid = computed(() => !!layout.value.cssClass && !/^[A-Za-z0-9 _-]{0
           />
           <div class="text-sm font-medium">{{ t('builder.group_props.rules') }}</div>
           <p class="text-xs text-muted-color">{{ t('builder.group_props.rules_hint') }}</p>
-          <div v-for="(r, i) in group.validation?.rules ?? []" :key="i" class="rounded border border-surface-200 dark:border-surface-700 p-2 flex flex-col gap-2">
+          <div v-for="(r, i) in group.validation?.rules ?? []" :key="i" class="rounded border border-line p-2 flex flex-col gap-2">
             <div class="flex justify-end">
               <Button size="small" text severity="danger" icon="pi pi-trash" :aria-label="t('builder.remove')" @click="group.validation!.rules!.splice(i, 1)" />
             </div>

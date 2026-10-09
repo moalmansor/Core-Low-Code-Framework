@@ -140,11 +140,7 @@ const drawer = ref<string | null>(null)
       </AutoComplete>
       <Button v-if="targetForm && !multiple && selected[0]" type="button" icon="pi pi-window-maximize" outlined :aria-label="t('runtime.open_reference')" @click="drawer = selected[0]!" />
     </div>
-    <dl
-      v-if="preview && preview.length"
-      class="mt-2 rounded-md border border-surface-200 dark:border-surface-700 p-2 text-sm grid grid-cols-[auto_1fr] gap-x-3 gap-y-1"
-      data-testid="reference-preview"
-    >
+    <dl v-if="preview && preview.length" class="mt-2 rounded-md border border-line p-2 text-sm grid grid-cols-[auto_1fr] gap-x-3 gap-y-1" data-testid="reference-preview">
       <template v-for="p in preview" :key="p.key">
         <dt class="text-muted-color">{{ p.key }}</dt>
         <dd>{{ p.value }}</dd>

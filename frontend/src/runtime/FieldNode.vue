@@ -54,7 +54,7 @@ function onFocus(): void {
     <div v-else :class="position === 'side' ? 'grid gap-2 md:grid-cols-[minmax(8rem,30%)_1fr] md:items-start' : 'flex flex-col gap-1.5'">
       <label v-if="!inlineLabel" :for="inputId" :class="position === 'hidden' ? 'sr-only' : 'text-sm font-medium md:pt-2'">
         <i v-if="field.ui.icon" :class="`${field.ui.icon} me-1 text-muted-color`" />{{ label
-        }}<span v-if="s.required && !readOnlyView" class="text-red-500 ms-1" :aria-label="t('runtime.required')">*</span>
+        }}<span v-if="s.required && !readOnlyView" class="text-danger ms-1" :aria-label="t('runtime.required')">*</span>
         <i v-if="tooltip" v-tooltip.top="tooltip" class="pi pi-info-circle ms-1 text-muted-color" tabindex="0" :aria-label="tooltip" />
       </label>
       <div class="min-w-0">

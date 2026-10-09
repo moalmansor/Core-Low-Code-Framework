@@ -105,7 +105,7 @@ const sections = computed(() => [
 
 <template>
   <nav class="flex flex-col h-full min-h-0" :aria-label="t('builder.palette.title')">
-    <div class="p-2 flex flex-col gap-2 border-b border-surface-200 dark:border-surface-700">
+    <div class="p-2 flex flex-col gap-2 border-b border-line">
       <IconField>
         <InputIcon class="pi pi-search" />
         <InputText v-model="search" size="small" class="w-full" :placeholder="t('builder.palette.search')" :aria-label="t('builder.palette.search')" data-testid="palette-search" />
@@ -117,10 +117,7 @@ const sections = computed(() => [
           type="button"
           role="tab"
           :aria-selected="section === s.value"
-          :class="[
-            'rounded px-1 py-1 text-xs flex flex-col items-center gap-0.5',
-            section === s.value ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-200' : 'hover:bg-surface-100 dark:hover:bg-surface-800',
-          ]"
+          :class="['rounded px-1 py-1 text-xs flex flex-col items-center gap-0.5', section === s.value ? 'bg-primary-subtle text-on-primary-subtle' : 'hover:bg-subtle']"
           @click="section = s.value"
         >
           <i :class="s.icon" aria-hidden="true" />{{ s.label }}
@@ -136,7 +133,7 @@ const sections = computed(() => [
               <button
                 type="button"
                 draggable="true"
-                class="w-full flex items-center gap-1.5 rounded border border-surface-200 dark:border-surface-700 px-1.5 py-1 text-xs text-start hover:border-primary hover:bg-primary-50 dark:hover:bg-primary-950 cursor-grab"
+                class="w-full flex items-center gap-1.5 rounded border border-line px-1.5 py-1 text-xs text-start hover:border-primary hover:bg-primary-subtle cursor-grab"
                 :title="t('builder.palette.item_hint')"
                 :data-testid="`palette-${item.key}`"
                 @dragstart="(e) => onDragStart(e, { source: 'palette', kind: 'field', type: item.key })"
@@ -156,7 +153,7 @@ const sections = computed(() => [
           <button
             type="button"
             draggable="true"
-            class="w-full flex items-center gap-1.5 rounded border border-surface-200 dark:border-surface-700 px-1.5 py-1 text-xs text-start hover:border-primary hover:bg-primary-50 dark:hover:bg-primary-950 cursor-grab"
+            class="w-full flex items-center gap-1.5 rounded border border-line px-1.5 py-1 text-xs text-start hover:border-primary hover:bg-primary-subtle cursor-grab"
             :title="t('builder.palette.item_hint')"
             :data-testid="`palette-group-${g.key}`"
             @dragstart="(e) => onDragStart(e, { source: 'palette', kind: 'group', type: g.key })"
@@ -184,7 +181,7 @@ const sections = computed(() => [
             v-for="tpl in templates"
             :key="tpl.uuid"
             draggable="true"
-            class="rounded border border-surface-200 dark:border-surface-700 p-1.5 flex items-start gap-2 cursor-grab"
+            class="rounded border border-line p-1.5 flex items-start gap-2 cursor-grab"
             @dragstart="(e) => onDragStart(e, { source: 'template', uuid: tpl.uuid })"
             @dragend="onDragEnd"
           >

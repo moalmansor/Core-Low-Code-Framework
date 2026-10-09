@@ -16,7 +16,7 @@ const err = (code: string) => props.errors?.[`${props.field}.${code}`] ?? (code 
 
 <template>
   <div v-for="l in session.boot?.locales ?? []" :key="l.code" class="field">
-    <label :for="`${idPrefix}-${l.code}`">{{ label }} ({{ l.native_name }})<span v-if="l.code === session.boot?.default_locale" class="text-red-500 ms-1" aria-hidden="true">*</span></label>
+    <label :for="`${idPrefix}-${l.code}`">{{ label }} ({{ l.native_name }})<span v-if="l.code === session.boot?.default_locale" class="text-danger ms-1" aria-hidden="true">*</span></label>
     <Textarea v-if="multiline" :id="`${idPrefix}-${l.code}`" v-model="model[l.code]" :dir="l.direction" rows="2" auto-resize :data-testid="`${idPrefix}-${l.code}`" />
     <InputText v-else :id="`${idPrefix}-${l.code}`" v-model="model[l.code]" :dir="l.direction" :data-testid="`${idPrefix}-${l.code}`" />
     <span v-if="err(l.code)" class="field-error">{{ err(l.code) }}</span>

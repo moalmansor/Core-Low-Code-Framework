@@ -16,12 +16,9 @@ const issues = computed(() => [...builder.errors, ...builder.problems].filter((i
     <li
       v-for="(i, n) in issues"
       :key="n"
-      :class="[
-        'rounded px-2 py-1 text-xs flex gap-2',
-        i.severity === 'error' ? 'bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200' : 'bg-orange-50 text-orange-800 dark:bg-orange-950 dark:text-orange-200',
-      ]"
+      :class="['rounded px-2 py-1 text-xs flex gap-2', i.severity === 'error' ? 'bg-danger-subtle text-color border-s-4 border-danger' : 'bg-warning-subtle text-color border-s-4 border-warning']"
     >
-      <i :class="i.severity === 'error' ? 'pi pi-times-circle' : 'pi pi-exclamation-triangle'" aria-hidden="true" />
+      <i :class="i.severity === 'error' ? 'pi pi-times-circle text-danger' : 'pi pi-exclamation-triangle text-warning'" aria-hidden="true" />
       <span class="flex-1">{{ issueText(t, te, i) }}</span>
       <span v-if="issueArea(t, i.property)" class="text-muted-color">{{ issueArea(t, i.property) }}</span>
     </li>

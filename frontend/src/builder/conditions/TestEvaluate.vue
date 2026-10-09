@@ -86,7 +86,7 @@ function inputType(type: string): string {
 </script>
 
 <template>
-  <div class="rounded-md border border-surface-200 dark:border-surface-700 p-2 flex flex-col gap-2 text-sm">
+  <div class="rounded-md border border-line p-2 flex flex-col gap-2 text-sm">
     <p class="text-xs text-muted-color">{{ t('builder.test.hint') }}</p>
     <div v-for="i in inputs" :key="`${i.scope}.${i.key}`" class="flex flex-wrap items-center gap-2">
       <label :for="`te-${i.scope}-${i.key}`" class="w-40 truncate">{{ i.scope === 'old' ? t('builder.test.previous', { field: i.label }) : i.label }}</label>
@@ -125,7 +125,7 @@ function inputType(type: string): string {
       <div>
         {{ t('builder.test.result') }}: <span class="font-mono ltr-value">{{ shown }}</span>
       </div>
-      <ul v-if="result.diagnostics.length" class="text-xs text-orange-700 dark:text-orange-400">
+      <ul v-if="result.diagnostics.length" class="text-xs text-warning">
         <li v-for="d in result.diagnostics" :key="d.code + d.node">
           {{ t(`builder.diagnostic.${d.code.toLowerCase()}`) }} <span class="ltr-value text-muted-color">{{ d.node }}</span>
         </li>

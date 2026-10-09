@@ -243,19 +243,19 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
         <div v-if="loading" class="flex justify-center p-6"><ProgressSpinner /></div>
         <template v-else-if="impact && analysis">
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <div class="rounded border border-surface-200 dark:border-surface-700 p-2">
+            <div class="rounded border border-line p-2">
               <div class="text-xs text-muted-color">{{ t('builder.publish.version') }}</div>
               <div class="text-lg font-semibold">{{ analysis.version }}</div>
             </div>
-            <div class="rounded border border-surface-200 dark:border-surface-700 p-2">
+            <div class="rounded border border-line p-2">
               <div class="text-xs text-muted-color">{{ t('builder.publish.records') }}</div>
               <div class="text-lg font-semibold">{{ impact.records.count.toLocaleString(session.locale) }}</div>
             </div>
-            <div class="rounded border border-surface-200 dark:border-surface-700 p-2">
+            <div class="rounded border border-line p-2">
               <div class="text-xs text-muted-color">{{ t('builder.publish.change_class') }}</div>
-              <div :class="['font-semibold', impact.schema.change_class === 'destructive' ? 'text-red-600' : '']">{{ t(`builder.change_class.${impact.schema.change_class}`) }}</div>
+              <div :class="['font-semibold', impact.schema.change_class === 'destructive' ? 'text-danger' : '']">{{ t(`builder.change_class.${impact.schema.change_class}`) }}</div>
             </div>
-            <div class="rounded border border-surface-200 dark:border-surface-700 p-2">
+            <div class="rounded border border-line p-2">
               <div class="text-xs text-muted-color">{{ t('builder.publish.estimated') }}</div>
               <div class="font-semibold">{{ t('builder.publish.seconds', { n: seconds(impact.schema.estimated_ms) }) }}</div>
             </div>
@@ -287,7 +287,7 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
               <li v-if="impact.permissions.orphaned_access_rules">{{ t('builder.publish.orphaned_rules', { n: impact.permissions.orphaned_access_rules }) }}</li>
               <li v-for="l in impact.linked_forms" :key="`${l.form}-${l.relation}`">
                 {{ t('builder.publish.linked_form', { form: l.form_key ?? l.form, relation: l.relation }) }}
-                <span v-if="l.broken" class="text-red-600">{{ t('builder.publish.broken') }}</span>
+                <span v-if="l.broken" class="text-danger">{{ t('builder.publish.broken') }}</span>
               </li>
               <li>{{ t('builder.publish.menus', { n: impact.menus }) }}</li>
               <li v-for="[k, n] in dependents" :key="k">{{ t(`builder.publish.dependent_${k}`) }}: {{ n }}</li>
@@ -328,20 +328,20 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
               @click="showSql = !showSql"
             />
             <ol v-if="showSql" class="flex flex-col gap-2">
-              <li v-for="s in impact.schema.plan" :key="s.sequence" class="rounded border border-surface-200 dark:border-surface-700 p-2">
+              <li v-for="s in impact.schema.plan" :key="s.sequence" class="rounded border border-line p-2">
                 <div class="flex flex-wrap gap-2 text-xs mb-1">
                   <span class="font-semibold ltr-value">{{ s.sequence }}. {{ s.operation }} · {{ s.table_name }}</span>
-                  <span v-if="s.is_destructive" class="text-red-600">{{ t('builder.publish.destructive') }}</span>
+                  <span v-if="s.is_destructive" class="text-danger">{{ t('builder.publish.destructive') }}</span>
                   <span>{{ s.is_online ? t('builder.publish.online') : t('builder.publish.offline') }}</span>
                   <span v-if="s.lock_level">{{ t('builder.publish.lock_level') }}: {{ s.lock_level }}</span>
                   <span v-if="s.rows !== undefined">{{ t('builder.publish.row_count', { n: s.rows }) }}</span>
                 </div>
-                <pre class="text-xs overflow-auto bg-surface-50 dark:bg-surface-900 p-2 rounded max-h-48" dir="ltr">{{ s.sql_preview }}</pre>
+                <pre class="text-xs overflow-auto bg-subtle p-2 rounded max-h-48" dir="ltr">{{ s.sql_preview }}</pre>
               </li>
             </ol>
           </section>
 
-          <section v-if="needsBlockingConfirm || needsTyped" class="flex flex-col gap-2 rounded border border-orange-300 p-2">
+          <section v-if="needsBlockingConfirm || needsTyped" class="flex flex-col gap-2 rounded border border-warning p-2">
             <label v-if="needsBlockingConfirm" class="flex items-start gap-2 text-sm"
               ><Checkbox v-model="confirmBlocking" binary data-testid="confirm-blocking" />{{ t('builder.publish.confirm_blocking') }}</label
             >
@@ -402,7 +402,7 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
             <span class="text-sm font-medium">{{ t('builder.publish.allowed_users') }}</span>
             <UserPicker v-model="pickedUser" />
             <ul class="flex flex-wrap gap-1">
-              <li v-for="u in allowedUsers" :key="u.uuid" class="rounded-full bg-surface-100 dark:bg-surface-800 px-2 py-0.5 text-xs flex items-center gap-1">
+              <li v-for="u in allowedUsers" :key="u.uuid" class="rounded-full bg-subtle px-2 py-0.5 text-xs flex items-center gap-1">
                 {{ u.name }}
                 <button type="button" :aria-label="t('builder.remove')" @click="allowedUsers = allowedUsers.filter((x) => x.uuid !== u.uuid)"><i class="pi pi-times text-xs" /></button>
               </li>
@@ -428,8 +428,8 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
           <ol class="text-xs flex flex-col gap-0.5">
             <li v-for="s in plan.steps" :key="s.sequence" class="flex gap-2">
               <span class="ltr-value">{{ s.sequence }}. {{ s.operation }} · {{ s.table }}</span>
-              <span :class="s.status === 'failed' || s.status === 'reverse_failed' ? 'text-red-600' : 'text-muted-color'">{{ t(`builder.step_status.${s.status}`) }}</span>
-              <span v-if="s.error" class="text-red-600">{{ s.error }}</span>
+              <span :class="s.status === 'failed' || s.status === 'reverse_failed' ? 'text-danger' : 'text-muted-color'">{{ t(`builder.step_status.${s.status}`) }}</span>
+              <span v-if="s.error" class="text-danger">{{ s.error }}</span>
             </li>
           </ol>
           <Message v-if="step === 'done' && plan.status === 'applied'" severity="success">{{ t('builder.publish.applied', { n: plan.to_version }) }}</Message>

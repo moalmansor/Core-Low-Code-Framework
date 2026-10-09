@@ -52,7 +52,7 @@ const optionFields = (f: FieldDef) => !!builder.typeInfo(f.type)?.options
 
 <template>
   <div class="flex flex-col gap-3">
-    <article v-for="(e, i) in events" :key="i" class="rounded-lg border border-surface-200 dark:border-surface-700 p-2 flex flex-col gap-2">
+    <article v-for="(e, i) in events" :key="i" class="rounded-lg border border-line p-2 flex flex-col gap-2">
       <div class="flex items-center gap-2">
         <label class="text-sm">{{ t('builder.events.when_field') }}</label>
         <Select v-model="e.on" :options="triggers" option-label="label" option-value="value" size="small" class="w-36" />
@@ -60,7 +60,7 @@ const optionFields = (f: FieldDef) => !!builder.typeInfo(f.type)?.options
         <Button size="small" text severity="danger" icon="pi pi-trash" :aria-label="t('builder.remove')" @click="events.splice(i, 1)" />
       </div>
       <ExpressionInput :model-value="e.when ?? null" :scope="scope" expected="boolean" :label="t('builder.events.only_if')" @update:model-value="(a) => (e.when = a ?? null)" />
-      <div v-for="(step, j) in e.do" :key="j" class="flex flex-col gap-1 rounded bg-surface-50 dark:bg-surface-900 p-2">
+      <div v-for="(step, j) in e.do" :key="j" class="flex flex-col gap-1 rounded bg-subtle p-2">
         <div class="flex flex-wrap items-center gap-1">
           <Select :model-value="step.type" :options="stepTypes" option-label="label" option-value="value" size="small" class="w-44" @update:model-value="(x: EventStepType) => setType(step, x)" />
           <FieldSelect

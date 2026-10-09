@@ -116,6 +116,7 @@ jobs:
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm, cache-dependency-path: frontend/package-lock.json }
       - run: npm ci --no-audit --no-fund
       - run: npx eslint .
+      - run: node scripts/check-colors.mjs
       - run: npx prettier --check src e2e tests
       - run: npx vue-tsc -b
       - run: npx vitest run

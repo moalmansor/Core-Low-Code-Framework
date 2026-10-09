@@ -230,7 +230,7 @@ const menuItems = computed(() => {
     { label: t('records.view'), icon: 'pi pi-eye', command: () => router.push({ name: 'records.view', params: { form: formUuid.value, record: r.uuid } }) },
     { label: t('common.edit'), icon: 'pi pi-pencil', visible: canEdit.value, command: () => router.push({ name: 'records.edit', params: { form: formUuid.value, record: r.uuid } }) },
     { separator: true, visible: canDelete.value },
-    { label: t('common.delete'), icon: 'pi pi-trash', class: 'text-red-600', visible: canDelete.value, command: () => remove(r) },
+    { label: t('common.delete'), icon: 'pi pi-trash', class: 'text-danger', visible: canDelete.value, command: () => remove(r) },
   ]
 })
 function openActions(e: Event, r: RecordPayload): void {
@@ -327,7 +327,7 @@ const exportItems = computed(() => [
       </label>
     </div>
 
-    <div v-if="showFilters && filterable.length" class="rounded-lg border border-surface-200 dark:border-surface-700 p-3 mb-3" data-testid="records-filters">
+    <div v-if="showFilters && filterable.length" class="rounded-lg border border-line p-3 mb-3" data-testid="records-filters">
       <div class="form-grid">
         <div v-for="f in filterable" :key="f.uuid" class="field">
           <label :for="`flt-${f.key}`">{{ columnLabel(f) }}</label>

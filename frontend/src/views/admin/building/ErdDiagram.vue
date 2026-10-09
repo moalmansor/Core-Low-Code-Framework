@@ -63,7 +63,7 @@ watch([flowNodes, flowEdges], async () => {
 </script>
 
 <template>
-  <div class="relative h-[70vh] min-h-96 rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900" dir="ltr" data-testid="erd">
+  <div class="relative h-[70vh] min-h-96 rounded-lg border border-line bg-card" dir="ltr" data-testid="erd">
     <VueFlow
       id="schema-erd"
       :nodes="flowNodes"
@@ -76,12 +76,12 @@ watch([flowNodes, flowEdges], async () => {
       @node-double-click="({ node }) => emit('open', node.id)"
     >
       <template #node-table="{ data }">
-        <div class="rounded-lg border border-surface-300 dark:border-surface-600 bg-surface-0 dark:bg-surface-900 shadow-sm text-xs overflow-hidden">
+        <div class="rounded-lg border border-line-strong bg-card shadow-sm text-xs overflow-hidden">
           <Handle type="source" :position="fromSide" />
           <Handle type="target" :position="toSide" />
           <div
             class="px-2 py-1.5 font-semibold flex items-center gap-1"
-            :class="data.role === 'external' ? 'bg-surface-200 dark:bg-surface-700' : data.role === 'main' ? 'bg-primary text-primary-contrast' : 'bg-primary-100 dark:bg-primary-900'"
+            :class="data.role === 'external' ? 'bg-subtle' : data.role === 'main' ? 'bg-primary text-primary-contrast' : 'bg-primary-subtle'"
             :dir="session.direction"
           >
             <i :class="data.kind === 'collection' ? 'pi pi-table' : data.role === 'external' ? 'pi pi-external-link' : 'pi pi-database'" />
@@ -89,7 +89,7 @@ watch([flowNodes, flowEdges], async () => {
           </div>
           <div class="px-2 py-0.5 text-[10px] text-muted-color ltr-value truncate">{{ data.id }}</div>
           <ul>
-            <li v-for="c in data.columns" :key="c.name" class="flex items-center gap-2 px-2 h-[22px] border-t border-surface-100 dark:border-surface-800">
+            <li v-for="c in data.columns" :key="c.name" class="flex items-center gap-2 px-2 h-[22px] border-t border-line">
               <span class="flex-1 truncate" :class="c.system ? 'text-muted-color' : ''">{{ c.name }}</span>
               <span class="text-muted-color">{{ c.type }}{{ c.nullable ? '?' : '' }}</span>
             </li>

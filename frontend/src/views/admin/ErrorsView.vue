@@ -162,11 +162,11 @@ const sev = (s: string) => ({ warning: 'warn', error: 'danger', critical: 'dange
         <div><Button size="small" :label="t('common.save')" @click="update({ notes: open.group.notes })" /></div>
       </div>
       <h3 class="font-semibold">{{ t('errors_ui.recent') }}</h3>
-      <details v-for="o in open.occurrences" :key="o.id" class="rounded border border-surface-200 dark:border-surface-700 p-2">
+      <details v-for="o in open.occurrences" :key="o.id" class="rounded border border-line p-2">
         <summary class="cursor-pointer ltr-value">{{ o.reference_code }} · {{ new Date(o.occurred_at).toLocaleString(session.locale) }} · {{ o.file }}:{{ o.line }}</summary>
         <div class="mt-2 ltr-value"><strong>correlation:</strong> {{ o.correlation_id }}</div>
-        <pre class="mt-2 ltr-value text-xs overflow-auto max-h-64 bg-surface-100 dark:bg-surface-800 p-2 rounded">{{ o.trace }}</pre>
-        <pre v-if="o.request" class="mt-2 ltr-value text-xs overflow-auto max-h-48 bg-surface-100 dark:bg-surface-800 p-2 rounded">{{ JSON.stringify(o.request, null, 2) }}</pre>
+        <pre class="mt-2 ltr-value text-xs overflow-auto max-h-64 bg-subtle p-2 rounded">{{ o.trace }}</pre>
+        <pre v-if="o.request" class="mt-2 ltr-value text-xs overflow-auto max-h-48 bg-subtle p-2 rounded">{{ JSON.stringify(o.request, null, 2) }}</pre>
       </details>
     </div>
   </Drawer>

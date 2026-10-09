@@ -164,7 +164,7 @@ const menuItems = computed(() => {
     {
       label: t('common.delete'),
       icon: 'pi pi-trash',
-      class: 'text-red-600',
+      class: 'text-danger',
       command: () =>
         confirm.require({
           message: t('users.delete_confirm', { name: u.name }),
@@ -214,8 +214,8 @@ const statusSeverity = (s: string) => ({ active: 'success', suspended: 'warn', d
     <Column :header="t('users.status_label')">
       <template #body="{ data }">
         <Tag :severity="statusSeverity(data.status)" :value="t(`users.status.${data.status}`)" />
-        <i v-if="data.locked" v-tooltip="t('users.locked')" class="pi pi-lock ms-2 text-orange-500" />
-        <i v-if="data.two_factor_enabled" v-tooltip="t('users.two_factor_on')" class="pi pi-shield ms-2 text-green-600" />
+        <i v-if="data.locked" v-tooltip="t('users.locked')" class="pi pi-lock ms-2 text-warning" />
+        <i v-if="data.two_factor_enabled" v-tooltip="t('users.two_factor_on')" class="pi pi-shield ms-2 text-success" />
       </template>
     </Column>
     <Column style="width: 4rem">

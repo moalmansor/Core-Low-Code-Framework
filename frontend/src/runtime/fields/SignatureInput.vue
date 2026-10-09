@@ -33,7 +33,8 @@ function setup(): void {
   g.lineWidth = 2.2
   g.lineCap = 'round'
   g.lineJoin = 'round'
-  g.strokeStyle = '#111827'
+  // Ink on the always-light pad (token --paper-ink).
+  g.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--paper-ink').trim() || 'black'
 }
 onMounted(setup)
 
@@ -95,8 +96,8 @@ async function save(): Promise<void> {
       <canvas
         :id="inputId"
         ref="canvas"
-        class="w-full h-40 rounded-md border bg-white touch-none"
-        :class="invalid ? 'border-red-500' : 'border-surface-300 dark:border-surface-600'"
+        class="w-full h-40 rounded-md border bg-paper touch-none"
+        :class="invalid ? 'border-danger' : 'border-line-strong'"
         role="img"
         :aria-label="t('runtime.signature_pad')"
         @pointerdown="down"

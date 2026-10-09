@@ -179,7 +179,7 @@ onBeforeUnmount(closeCamera)
     <div
       v-if="canAdd && (multiple || !uuids.length)"
       class="rounded-lg border-2 border-dashed p-4 flex flex-wrap items-center justify-center gap-3 text-center"
-      :class="[dragging ? 'border-primary bg-primary-50 dark:bg-primary-950' : 'border-surface-300 dark:border-surface-600', invalid ? 'border-red-500' : '']"
+      :class="[dragging ? 'border-primary bg-primary-subtle' : 'border-line-strong', invalid ? 'border-danger' : '']"
       data-testid="drop-zone"
       @dragover.prevent="dragging = true"
       @dragleave="dragging = false"
@@ -199,7 +199,7 @@ onBeforeUnmount(closeCamera)
     <p v-for="(p, i) in problems" :key="i" class="field-error text-sm">{{ p }}</p>
     <ImageCropper :file="cropping" :aspect="aspect" @done="cropped" @cancel="cropQueue.shift()" />
     <Dialog :visible="cameraOpen" modal :header="t('runtime.take_photo')" :style="{ width: '32rem' }" @update:visible="(v: boolean) => !v && closeCamera()">
-      <video ref="video" class="w-full rounded bg-black" muted playsinline />
+      <video ref="video" class="w-full rounded bg-media" muted playsinline />
       <p v-if="cameraError" class="field-error mt-2">{{ cameraError }}</p>
       <template #footer>
         <Button :label="t('common.cancel')" severity="secondary" @click="closeCamera" />

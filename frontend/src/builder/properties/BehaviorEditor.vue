@@ -197,7 +197,7 @@ onMounted(async () => {
       </label>
     </section>
 
-    <fieldset v-if="isNumber" class="grid grid-cols-2 gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
+    <fieldset v-if="isNumber" class="grid grid-cols-2 gap-2 rounded border border-line p-2">
       <legend class="text-sm font-medium px-1">{{ t('builder.behavior.number_format') }}</legend>
       <label class="flex items-center gap-2 text-sm col-span-2"
         ><ToggleSwitch :model-value="b.number?.thousandSeparator ?? false" @update:model-value="(x: boolean) => setNumber('thousandSeparator', x)" />{{
@@ -237,7 +237,7 @@ onMounted(async () => {
       /></label>
     </fieldset>
 
-    <fieldset v-if="isDate" class="grid grid-cols-2 gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
+    <fieldset v-if="isDate" class="grid grid-cols-2 gap-2 rounded border border-line p-2">
       <legend class="text-sm font-medium px-1">{{ t('builder.behavior.calendar_settings') }}</legend>
       <label class="field"
         ><span>{{ t('builder.behavior.calendar') }}</span>
@@ -304,7 +304,7 @@ onMounted(async () => {
       <Select :model-value="b.digits ?? 'locale'" :options="digitOptions" option-label="label" option-value="value" size="small" @update:model-value="(x) => (b.digits = x)" />
     </label>
 
-    <fieldset v-if="isFile" class="grid grid-cols-2 gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
+    <fieldset v-if="isFile" class="grid grid-cols-2 gap-2 rounded border border-line p-2">
       <legend class="text-sm font-medium px-1">{{ t('builder.behavior.file_storage') }}</legend>
       <label class="field"
         ><span>{{ t('builder.behavior.disk') }}</span>
@@ -344,7 +344,7 @@ onMounted(async () => {
       /></label>
     </fieldset>
 
-    <fieldset v-if="isLookup" class="flex flex-col gap-2 rounded border border-surface-200 dark:border-surface-700 p-2">
+    <fieldset v-if="isLookup" class="flex flex-col gap-2 rounded border border-line p-2">
       <legend class="text-sm font-medium px-1">{{ t('builder.behavior.autofill') }}</legend>
       <p class="text-xs text-muted-color">{{ t('builder.behavior.autofill_hint') }}</p>
       <div v-for="(a, i) in b.autofill ?? []" :key="i" class="flex flex-wrap items-center gap-1">

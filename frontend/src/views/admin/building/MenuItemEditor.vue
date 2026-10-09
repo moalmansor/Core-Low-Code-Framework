@@ -42,7 +42,7 @@ function pickTarget(uuid: string | null): void {
 </script>
 
 <template>
-  <div class="rounded-xl border border-surface-200 dark:border-surface-700 p-4 flex flex-col gap-3 bg-surface-0 dark:bg-surface-900" data-testid="menu-item-editor">
+  <div class="rounded-xl border border-line p-4 flex flex-col gap-3 bg-card" data-testid="menu-item-editor">
     <h2 class="font-semibold">{{ t('building.menu.item') }}</h2>
     <div class="field">
       <label for="mi-type">{{ t('building.menu.item_type') }}</label>

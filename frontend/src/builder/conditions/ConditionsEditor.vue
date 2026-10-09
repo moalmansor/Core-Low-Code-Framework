@@ -75,7 +75,7 @@ function move(rule: ConditionDef, delta: -1 | 1): void {
 <template>
   <div class="flex flex-col gap-3">
     <p class="text-xs text-muted-color">{{ t('builder.condition.hint') }}</p>
-    <article v-for="(rule, i) in rules" :key="rule.uuid" class="rounded-lg border border-surface-200 dark:border-surface-700 p-2 flex flex-col gap-2" :data-testid="`rule-${i}`">
+    <article v-for="(rule, i) in rules" :key="rule.uuid" class="rounded-lg border border-line p-2 flex flex-col gap-2" :data-testid="`rule-${i}`">
       <div class="flex flex-wrap items-center gap-2">
         <InputText v-model="rule.name" size="small" class="flex-1 min-w-32" :placeholder="t('builder.condition.name')" :aria-label="t('builder.condition.name')" maxlength="255" />
         <label class="flex items-center gap-1 text-sm"

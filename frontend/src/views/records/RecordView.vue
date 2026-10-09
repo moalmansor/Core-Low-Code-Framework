@@ -275,7 +275,7 @@ async function open(uuid: string): Promise<void> {
       </div>
     </header>
 
-    <div v-if="printing && printDefinition" class="rounded-xl bg-surface-0 p-4">
+    <div v-if="printing && printDefinition" class="rounded-xl bg-paper text-paper-ink p-4">
       <FormRenderer :definition="printDefinition" :model-value="record.values" mode="print" :form-uuid="formUuid" :references="record.references" />
     </div>
     <Tabs v-else v-model:value="tab">
@@ -295,7 +295,7 @@ async function open(uuid: string): Promise<void> {
           <p v-else-if="history === null" class="text-muted-color">{{ t('records.loading') }}</p>
           <p v-else-if="history.length === 0" class="text-muted-color">{{ t('records.history_empty') }}</p>
           <ol v-else class="flex flex-col gap-3" data-testid="history">
-            <li v-for="(h, i) in history" :key="i" class="rounded-lg border border-surface-200 dark:border-surface-700 p-3">
+            <li v-for="(h, i) in history" :key="i" class="rounded-lg border border-line p-3">
               <div class="flex flex-wrap items-center gap-2 mb-1">
                 <Tag :value="eventLabel(h.event)" severity="secondary" />
                 <span class="text-sm">{{ h.by ?? t('records.system_actor') }}</span>
@@ -319,7 +319,7 @@ async function open(uuid: string): Promise<void> {
           <p v-if="comments === null && !commentError" class="text-muted-color">{{ t('records.loading') }}</p>
           <ul v-else-if="comments" class="flex flex-col gap-3 mb-4" data-testid="comments">
             <li v-if="comments.length === 0" class="text-muted-color">{{ t('records.comments_empty') }}</li>
-            <li v-for="c in comments" :key="c.uuid" class="rounded-lg border border-surface-200 dark:border-surface-700 p-3" :class="{ 'ms-8': c.parent }">
+            <li v-for="c in comments" :key="c.uuid" class="rounded-lg border border-line p-3" :class="{ 'ms-8': c.parent }">
               <div class="flex items-center gap-2 mb-1">
                 <span class="font-medium">{{ c.author.name ?? '—' }}</span>
                 <span class="text-sm text-muted-color flex-1">{{ when(c.created_at) }}</span>
@@ -340,7 +340,7 @@ async function open(uuid: string): Promise<void> {
         <TabPanel value="attachments">
           <p v-if="attachments.length === 0" class="text-muted-color">{{ t('records.attachments_empty') }}</p>
           <ul v-else class="flex flex-col gap-2" data-testid="attachments">
-            <li v-for="f in attachments" :key="f.uuid" class="flex items-center gap-3 rounded-md border border-surface-200 dark:border-surface-700 p-2">
+            <li v-for="f in attachments" :key="f.uuid" class="flex items-center gap-3 rounded-md border border-line p-2">
               <i :class="f.mime.startsWith('image/') ? 'pi pi-image' : 'pi pi-file'" class="text-xl text-muted-color" />
               <span class="flex-1 truncate" dir="auto">{{ f.name }}</span>
               <span class="text-xs text-muted-color ltr-value">{{ size(f.size) }}</span>

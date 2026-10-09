@@ -23,7 +23,7 @@ const isOpen = (uuid: string) => open.value[uuid] ?? true
 
 <template>
   <template v-for="item in items" :key="item.uuid">
-    <hr v-if="item.type === 'separator'" class="my-2 border-surface-200 dark:border-surface-700" />
+    <hr v-if="item.type === 'separator'" class="my-2 border-line" />
     <template v-else-if="item.type === 'header'">
       <button type="button" class="nav-header" :style="{ paddingInlineStart: `${0.75 + (depth ?? 0) * 0.75}rem` }" :aria-expanded="isOpen(item.uuid)" @click="toggle(item.uuid)">
         <i v-if="item.icon" :class="item.icon" />
@@ -69,29 +69,25 @@ const isOpen = (uuid: string) => open.value[uuid] ?? true
   gap: 0.625rem;
   padding: 0.5rem 0.75rem;
   border-radius: 0.5rem;
-  color: var(--p-text-color);
+  color: var(--text);
   text-decoration: none;
   width: 100%;
 }
 .nav-header {
   font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--p-text-muted-color);
+  color: var(--text-muted);
   background: none;
   border: 0;
   cursor: pointer;
 }
 .nav-link:hover,
 .nav-header:hover {
-  background: var(--p-surface-100);
+  background: var(--bg-subtle);
 }
 .nav-active {
-  background: var(--p-primary-50);
-  color: var(--p-primary-700);
+  background: var(--primary-subtle);
+  color: var(--on-primary-subtle);
   font-weight: 600;
-}
-:global(.app-dark) .nav-link:hover,
-:global(.app-dark) .nav-header:hover {
-  background: var(--p-surface-800);
 }
 </style>

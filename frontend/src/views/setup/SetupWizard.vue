@@ -168,14 +168,14 @@ async function finish(): Promise<void> {
       <BrandMark size="lg" />
       <LanguageSwitcher />
     </div>
-    <main class="w-full max-w-3xl bg-surface-0 dark:bg-surface-900 rounded-xl shadow p-6" data-testid="setup-wizard">
+    <main class="w-full max-w-3xl bg-card rounded-xl shadow p-6" data-testid="setup-wizard">
       <h1 class="page-title">{{ t('setup.title') }}</h1>
       <ol class="flex flex-wrap gap-2 mb-6 text-sm" :aria-label="t('setup.progress')">
         <li
           v-for="(s, i) in steps"
           :key="s"
           class="px-3 py-1 rounded-full"
-          :class="i === stepIndex ? 'bg-primary text-primary-contrast' : i < stepIndex ? 'bg-primary-100 text-primary-700' : 'bg-surface-100 dark:bg-surface-800'"
+          :class="i === stepIndex ? 'bg-primary text-primary-contrast' : i < stepIndex ? 'bg-primary-subtle text-on-primary-subtle' : 'bg-subtle'"
           :aria-current="i === stepIndex ? 'step' : undefined"
         >
           {{ i + 1 }}. {{ t(`setup.step.${s}`) }}
@@ -185,7 +185,7 @@ async function finish(): Promise<void> {
 
       <section v-if="step === 'token'" class="flex flex-col gap-4">
         <p>{{ t('setup.token_hint') }}</p>
-        <code class="ltr-value block p-3 rounded bg-surface-100 dark:bg-surface-800">php artisan setup:token</code>
+        <code class="ltr-value block p-3 rounded bg-subtle">php artisan setup:token</code>
         <div class="field">
           <label for="token">{{ t('setup.token') }}</label>
           <InputText id="token" v-model="token" autocomplete="off" class="ltr-value" data-testid="setup-token" />
@@ -204,12 +204,12 @@ async function finish(): Promise<void> {
           <div class="field">
             <label for="logo">{{ t('setup.logo') }}</label>
             <input id="logo" type="file" accept=".png,.jpg,.jpeg,.webp" @change="(e) => upload('logo', e)" />
-            <small v-if="form.logo_file" class="text-green-600">{{ t('setup.uploaded') }}</small>
+            <small v-if="form.logo_file" class="text-success">{{ t('setup.uploaded') }}</small>
           </div>
           <div class="field">
             <label for="favicon">{{ t('setup.favicon') }}</label>
             <input id="favicon" type="file" accept=".png,.ico" @change="(e) => upload('favicon', e)" />
-            <small v-if="form.favicon_file" class="text-green-600">{{ t('setup.uploaded') }}</small>
+            <small v-if="form.favicon_file" class="text-success">{{ t('setup.uploaded') }}</small>
           </div>
         </div>
         <div class="flex justify-between">
@@ -338,12 +338,12 @@ async function finish(): Promise<void> {
           </div>
         </div>
         <PasswordFields v-model:password="form.admin.password" v-model:confirmation="form.admin.password_confirmation" :errors="errors" />
-        <div class="border-t border-surface-200 dark:border-surface-700 pt-4 flex flex-col gap-3">
+        <div class="border-t border-line pt-4 flex flex-col gap-3">
           <h2 class="font-semibold">{{ t('profile.two_factor') }}</h2>
           <p class="text-sm text-muted-color">{{ t('setup.two_factor_hint') }}</p>
           <Button v-if="!qr" severity="secondary" icon="pi pi-qrcode" :label="t('setup.show_qr')" :disabled="!form.admin.email" :loading="busy" data-testid="show-qr" @click="startTwoFactor" />
           <template v-else>
-            <img :src="qr" :alt="t('profile.qr_alt')" class="w-48 h-48 bg-white p-2 rounded" />
+            <img :src="qr" :alt="t('profile.qr_alt')" class="w-48 h-48 bg-paper p-2 rounded" />
             <p class="text-sm">
               {{ t('profile.manual_key') }} <code class="ltr-value" data-testid="totp-secret">{{ secret }}</code>
             </p>
@@ -370,7 +370,7 @@ async function finish(): Promise<void> {
         <Message severity="success">{{ t('setup.done') }}</Message>
         <p>{{ t('profile.recovery_codes_hint') }}</p>
         <ul class="grid grid-cols-2 gap-2 ltr-value font-mono" data-testid="recovery-codes">
-          <li v-for="c in recoveryCodes" :key="c" class="p-2 rounded bg-surface-100 dark:bg-surface-800">{{ c }}</li>
+          <li v-for="c in recoveryCodes" :key="c" class="p-2 rounded bg-subtle">{{ c }}</li>
         </ul>
         <div class="flex justify-end"><Button :label="t('setup.open_console')" icon="pi pi-arrow-right" data-testid="open-console" @click="finish" /></div>
       </section>

@@ -143,8 +143,8 @@ async function setLocale(code: string): Promise<void> {
       </ul>
     </Message>
     <Message v-if="failure" severity="error">{{ failure }}</Message>
-    <div class="flex-1 overflow-auto bg-surface-100 dark:bg-surface-950 rounded p-3">
-      <div :class="['mx-auto bg-surface-0 dark:bg-surface-900 rounded-lg shadow-sm p-4', frameClass]" data-testid="preview-frame">
+    <div class="flex-1 overflow-auto bg-page rounded p-3">
+      <div :class="['mx-auto bg-card rounded-lg shadow-sm p-4', frameClass]" data-testid="preview-frame">
         <div v-if="loading && !definition" class="flex justify-center p-6"><ProgressSpinner /></div>
         <FormRenderer v-else-if="definition" :key="`${mode}-${asRole}-${asUser?.uuid}`" v-model="values" :definition="definition" :mode="mode" />
       </div>
