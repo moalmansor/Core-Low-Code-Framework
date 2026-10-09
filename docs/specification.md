@@ -310,6 +310,12 @@ Clicking any group (section, fieldset, card, tab, step, row, panel, repeater) sh
 ### 4.6 Form Builder: Field Properties
 Clicking any field shows a complete properties panel. It is organized in tabs and exposes **every option a developer would normally code**.
 
+**Panel structure** (fields, groups, and the form share it; `docs/design-system.md` §5.4):
+- At most four tabs, which never scroll; less-used tabs sit under a *More* menu.
+- Each tab is made of collapsible sections; rarely used sections start folded.
+- A *Find a setting* search covers every tab, in Arabic (ignoring diacritics and letter variants) and English, and opens the matching sections.
+- Translatable text shows the interface language first; the other languages fold under one line showing how many are filled.
+
 **General**
 - Identity: field key (auto-generated, editable, validated as unique), label (AR/EN), placeholder (AR/EN).
 - Help: help text, tooltip, description.
@@ -573,6 +579,8 @@ All access control lives in **one** interface.
 - **Bulk selection** with bulk actions.
 - **Download menu** with the download profiles available to the user (4.23).
 - **Admin control:** record counts per form, full edit, soft delete + restore.
+- **Shareable state:** search, filters, sort, page, and page size are kept in the page address, so a filtered list can be bookmarked and shared. The server ignores filters on fields that are unknown, hidden from the user, encrypted, or not marked filterable.
+- **Mixed scripts:** each cell takes its reading direction from its own content, so Arabic text in the English interface and Latin codes in the Arabic interface both read correctly.
 
 **View Mode (record details page)**
 - The admin can add:
@@ -867,6 +875,10 @@ A status alone does not say who is expected to act, so records carry assignment 
 - Login page content, welcome text, legal links, and support contact, all translatable.
 - Admin-managed custom CSS, scoped and sanitized, applied after the theme so it cannot break layout primitives or hide security controls.
 - Theme import and export, preset themes, and reset to default. Accessibility contrast is checked and warned on before a theme is saved.
+- **Design tokens:** the interface uses semantic colour tokens defined in one place, with separately designed light and dark values. Every text and control pairing is tested against WCAG 2.1 AA in both modes; a build with a failing pairing or a colour written outside the theme does not pass (`docs/design-system.md`, ADR-0030).
+- **Primary colour:** set in Appearance & Branding, with an optional separate dark-mode value. A colour that is not readable as text (4.5:1) on the theme's surfaces is refused by the server and the editor, which offers the nearest readable shade. Hover and tint shades are derived from it.
+- **Fonts:** IBM Plex Sans and IBM Plex Sans Arabic, served by the application itself (no third-party font host).
+- **Option colours:** status pills use the colour the admin gives an option, with a white or dark label chosen for contrast; the options editor warns when the label would read below 4.5:1.
 
 ### 4.29 Pages, Home Screens & Navigation
 - **Custom pages** built by admins: rich content pages, link pages, dashboard pages, embedded report pages, and pages that host a form directly. Pages are placed in the menu like any form and carry their own permissions.
@@ -983,6 +995,9 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Data integrity:** transactions, constraints, idempotent retries, and optimistic concurrency on every record write (4.9).
 - **Performance budgets**, verified by load tests in Phase 6: a form renders and a record list returns within a defined target at a stated record count; permission resolution is cached; a defined number of concurrent users is supported. The targets are written into `docs/architecture.md` in Phase 0 and tested against, not left implicit.
 - **UI:** fully responsive, accessible (WCAG 2.1 AA), and consistent in design across RTL and LTR.
+  - The application frame fills the window at every size and zoom level; the menu and the content scroll separately, never the page.
+  - A visible focus ring on every focusable element; motion is removed when the operating system asks for reduced motion.
+  - Table headers are at least 12px (13px for Arabic text).
 - **Code quality:**
   - modular, strictly typed, documented;
   - automated tests covering every module on both database engines.
