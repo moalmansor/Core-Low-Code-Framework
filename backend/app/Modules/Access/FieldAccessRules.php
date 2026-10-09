@@ -27,9 +27,9 @@ final class FieldAccessRules
     }
 
     /** Upserts a rule; `access === null` resets the coordinate to inherited. Returns the previous access/effect. */
-    public function put(Form $form, string $targetType, ?int $groupId, ?int $fieldId, string $subjectType, ?int $subjectId, ?string $mode, ?string $access, ?string $effect): ?array
+    public function put(Form $form, string $targetType, ?int $groupId, ?int $fieldId, string $subjectType, ?int $subjectId, ?string $mode, ?string $access, ?string $effect, ?int $statusId = null): ?array
     {
-        $hash = self::hash($form->id, $targetType, $groupId, $fieldId, $subjectType, $subjectId, null, $mode);
+        $hash = self::hash($form->id, $targetType, $groupId, $fieldId, $subjectType, $subjectId, $statusId, $mode);
         $existing = DB::table('field_access_rules')->where('rule_hash', $hash)->first();
         $before = $existing === null ? null : ['access' => $existing->access, 'effect' => $existing->effect];
         $now = Carbon::now('UTC')->format('Y-m-d H:i:s.u');
@@ -44,11 +44,11 @@ final class FieldAccessRules
                 'uuid' => (string) Str::uuid7(), 'organization_id' => $form->organization_id, 'created_at' => $now, 'updated_at' => $now,
                 'created_by' => Auth::id(), 'updated_by' => Auth::id(), 'form_id' => $form->id, 'target_type' => $targetType,
                 'group_id' => $groupId, 'field_id' => $fieldId, 'subject_type' => $subjectType, 'subject_id' => $subjectId,
-                'mode' => $mode, 'access' => $access, 'effect' => $effect ?? 'allow', 'rule_hash' => $hash,
+                'mode' => $mode, 'status_id' => $statusId, 'access' => $access, 'effect' => $effect ?? 'allow', 'rule_hash' => $hash,
             ]);
         }
         if ($before !== ($access === null ? null : ['access' => $access, 'effect' => $effect ?? 'allow'])) {
-            $this->audit->record('access.field_rule_changed', 'access', [['field_key' => $targetType.':'.($fieldId ?? $groupId ?? $form->id).':'.$subjectType.':'.($subjectId ?? '*').':'.($mode ?? '*'), 'old' => $before, 'new' => $access === null ? null : ['access' => $access, 'effect' => $effect ?? 'allow']]], 'form', $form->id);
+            $this->audit->record('access.field_rule_changed', 'access', [['field_key' => $targetType.':'.($fieldId ?? $groupId ?? $form->id).':'.$subjectType.':'.($subjectId ?? '*').':'.($mode ?? '*').':'.($statusId ?? '*'), 'old' => $before, 'new' => $access === null ? null : ['access' => $access, 'effect' => $effect ?? 'allow']]], 'form', $form->id);
             $this->cache->bump();
         }
 

@@ -15,6 +15,7 @@
         "laravel/sanctum": "*",
         "laravel/socialite": "^5.31",
         "laravel/tinker": "^2.10.1",
+        "mpdf/mpdf": "^8.2",
         "openspout/openspout": "^4.28",
         "opis/json-schema": "^2.6"
     },

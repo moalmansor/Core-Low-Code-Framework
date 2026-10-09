@@ -67,6 +67,7 @@ return new class extends Migration
             Columns::json($t, 'escalations');
             Columns::fk($t, 'condition_id', 'conditions');
             $t->boolean('is_active')->default(true);
+            Columns::dt($t, 'archived_at', nullable: true);
             Columns::index($t, ['form_id', 'status_id']);
         });
 

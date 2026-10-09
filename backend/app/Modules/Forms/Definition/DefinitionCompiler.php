@@ -7,6 +7,7 @@ namespace App\Modules\Forms\Definition;
 use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Forms\Draft\DraftRepository;
 use App\Modules\Forms\Models\Form;
+use App\Modules\Workflow\WorkflowDocument;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -23,6 +24,7 @@ final class DefinitionCompiler
         private readonly TargetSchemaBuilder $schemaBuilder,
         private readonly PublishedDefinitions $definitions,
         private readonly DatabaseDriver $driver,
+        private readonly WorkflowDocument $workflow,
     ) {}
 
     /**
@@ -39,6 +41,10 @@ final class DefinitionCompiler
         unset($doc['form']['state']);
         $doc['targets'] = $targets;
         $doc['access'] = $this->accessRules($form);
+        $doc['workflow'] = $this->workflow->compile($form);
+        foreach ($this->workflow->problems($doc['workflow'])['problems'] as $p) {
+            $problems[] = ['path' => 'workflow.'.$p['path'], 'code' => $p['code'], 'message' => $p['message']];
+        }
         $doc['schema'] = $this->schemaBuilder->build($doc, $form->table_name, $targets, $this->boundColumns($form));
 
         return ['definition' => ['$schema' => 'https://schemas.core-lcf/form-definition/v1'] + $doc, 'problems' => $problems];
@@ -98,6 +104,7 @@ final class DefinitionCompiler
         $groups = DB::table('field_groups')->where('form_id', $form->id)->pluck('uuid', 'id')->all();
         $fields = DB::table('fields')->where('form_id', $form->id)->pluck('uuid', 'id')->all();
         $rows = DB::table('field_access_rules')->where('form_id', $form->id)->orderBy('id')->get();
+        $statuses = DB::table('statuses')->where('form_id', $form->id)->pluck('uuid', 'id')->all();
         $subjects = [
             'role' => DB::table('roles')->whereIn('id', $rows->where('subject_type', 'role')->pluck('subject_id'))->pluck('uuid', 'id')->all(),
             'user' => DB::table('users')->whereIn('id', $rows->where('subject_type', 'user')->pluck('subject_id'))->pluck('uuid', 'id')->all(),
@@ -112,7 +119,7 @@ final class DefinitionCompiler
                 default => $fields[$r->field_id] ?? null,
             }],
             'subject' => ['type' => $r->subject_type, 'uuid' => $r->subject_type === 'everyone' ? null : strtolower((string) ($subjects[$r->subject_type][$r->subject_id] ?? ''))],
-            'status' => null,
+            'status' => $r->status_id === null ? null : strtolower((string) ($statuses[$r->status_id] ?? '')),
             'mode' => $r->mode,
             'access' => $r->access,
             'effect' => $r->effect,

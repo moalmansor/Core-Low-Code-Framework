@@ -2382,6 +2382,7 @@ erDiagram
 | `button_style` | JSON | NVARCHAR(MAX) | NULL | — | color/icon/placement |
 | `sort_order` | INT | INT | NOT NULL | 0 |  |
 | `diagram_edge` | JSON | NVARCHAR(MAX) | NULL | — | Vue Flow edge data |
+| `archived_at` | DATETIME(6) | DATETIME2(6) | NULL | — | removed from the workflow after a version that used it was published; history keeps pointing at it (ADR-0031) |
 
 - **Primary key:** `pk_transitions` (`id`); SQL Server clustered.
 - **Unique:** `uq_transitions_uuid` (`uuid`)
@@ -2517,6 +2518,7 @@ erDiagram
 | `escalations` | JSON | NVARCHAR(MAX) | NOT NULL | — | `[{after_minutes, action: notify\|reassign\|transition, params}]` |
 | `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION |
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `archived_at` | DATETIME(6) | DATETIME2(6) | NULL | — | removed after a version that used it was published; timers keep pointing at it (ADR-0031) |
 
 - **Primary key:** `pk_sla_rules` (`id`); SQL Server clustered.
 - **Unique:** `uq_sla_rules_uuid` (`uuid`)

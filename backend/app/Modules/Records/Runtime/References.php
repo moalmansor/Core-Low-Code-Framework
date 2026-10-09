@@ -87,6 +87,41 @@ final class References
         return $out;
     }
 
+    /**
+     * The title of a record of a form (its label field for collections, else
+     * its first text field, else its record number or uuid).
+     *
+     * @param  array<string, mixed>  $definition  the form's published definition
+     */
+    public function recordTitle(array $definition, object $row): string
+    {
+        $column = $this->titleColumn($definition);
+        $title = $column !== null ? ($row->{$column} ?? null) : null;
+
+        return (string) ($title ?? $row->record_number ?? $row->uuid);
+    }
+
+    /** @param  array<string, mixed>  $definition */
+    public function titleColumn(array $definition, ?string $display = null): ?string
+    {
+        $display ??= $definition['collection']['labelField'] ?? null;
+        if ($display === null) {
+            foreach ($definition['fields'] as $f) {
+                if (in_array($f['type'], ['text', 'search', 'email', 'tel'], true)) {
+                    $display = $f['uuid'];
+                    break;
+                }
+            }
+        }
+        foreach ($definition['schema']['tables'][0]['columns'] ?? [] as $c) {
+            if (($c['field'] ?? null) === $display && ! isset($c['part']) && ! ($c['encrypted'] ?? false)) {
+                return $c['name'];
+            }
+        }
+
+        return null;
+    }
+
     /** Physical column of the relation's display field in the target table. */
     public function displayColumn(FormRuntime $rt, array $field): ?string
     {
@@ -98,22 +133,8 @@ final class References
         if ($target === null) {
             return null;
         }
-        $display = $relation['display'] ?? ($target['collection']['labelField'] ?? null);
-        if ($display === null) {
-            // Collections declare a label field; otherwise the first text field.
-            foreach ($target['fields'] as $f) {
-                if (in_array($f['type'], ['text', 'search', 'email', 'tel'], true)) {
-                    $display = $f['uuid'];
-                    break;
-                }
-            }
-        }
-        foreach ($target['schema']['tables'][0]['columns'] ?? [] as $c) {
-            if (($c['field'] ?? null) === $display && ! isset($c['part']) && ! ($c['encrypted'] ?? false)) {
-                return $c['name'];
-            }
-        }
 
-        return null;
+        // Collections declare a label field; otherwise the first text field.
+        return $this->titleColumn($target, $relation['display'] ?? null);
     }
 }

@@ -9,6 +9,7 @@ use App\Expressions\Evaluation\Context;
 use App\Expressions\Evaluation\Evaluator;
 use App\Expressions\Values\Value;
 use App\Modules\Records\Models\StoredFile;
+use App\Modules\Workflow\Runtime\WorkflowRuntime;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -68,6 +69,7 @@ final class RecordPresenter
         $users = DB::table('users')->whereIn('id', array_filter($userIds))->pluck('name', 'id')->all();
         $versions = DB::table('form_versions')->whereIn('id', array_unique(array_map(static fn ($r) => $r['system']['form_version_id'], $records)))->pluck('version_number', 'id')->all();
         $template = $rt->definition['form']['titleTemplate'] ?? null;
+        $wf = WorkflowRuntime::for($rt);
         $titlesByKey = [];
         foreach ($titles as $fieldUuid => $map) {
             $titlesByKey[$rt->fields[$fieldUuid]['key']] = $map;
@@ -114,11 +116,21 @@ final class RecordPresenter
                     'updated_at' => $r['system']['updated_at'],
                     'updated_by' => $users[$r['system']['updated_by']] ?? null,
                     'deleted_at' => $r['system']['deleted_at'],
+                    'status' => self::status($wf, $r['system']['status_id'] ?? null),
+                    'status_changed_at' => $r['system']['status_changed_at'] ?? null,
                 ],
             ];
         }
 
         return $out;
+    }
+
+    /** @return array<string, mixed>|null */
+    public static function status(WorkflowRuntime $wf, ?int $statusId): ?array
+    {
+        $s = $wf->status($statusId);
+
+        return $s === null ? null : ['uuid' => $s['uuid'], 'key' => $s['key'], 'name' => WorkflowRuntime::label($s), 'color' => $s['color'], 'icon' => $s['icon'] ?? null, 'final' => (bool) ($s['final'] ?? false)];
     }
 
     public static function text(Value $v): ?string

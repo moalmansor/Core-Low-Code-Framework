@@ -49,6 +49,16 @@ final class ObjectPermissions
         $this->register("menu.{$uuid}.view", 'menu_item', $id, 'view', 'menu', 'See menu item', 'رؤية عنصر القائمة', false);
     }
 
+    public function registerTransition(int $id, string $uuid): void
+    {
+        $this->register('transition.'.strtolower($uuid).'.perform', 'transition', $id, 'perform', 'transition', 'Perform transition', 'تنفيذ الانتقال', false);
+    }
+
+    public function registerView(int $id, string $uuid): void
+    {
+        $this->register('view.'.strtolower($uuid).'.use', 'view', $id, 'use', 'view', 'Use view', 'استخدام العرض', false);
+    }
+
     /** Removes an object's permissions and their grants (the object itself was deleted). */
     public function forget(string $prefix): void
     {

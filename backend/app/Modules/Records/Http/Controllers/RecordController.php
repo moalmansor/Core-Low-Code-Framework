@@ -8,9 +8,11 @@ use App\Expressions\Text\Unicode;
 use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
+use App\Modules\Access\RecordScope;
 use App\Modules\Forms\Definition\ClientDefinition;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
+use App\Modules\Justification\JustificationPresenter;
 use App\Modules\Records\Runtime\ExpressionContext;
 use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
@@ -46,14 +48,22 @@ final class RecordController extends Controller
         private readonly RecordPresenter $presenter,
         private readonly FieldAccessResolver $fieldAccess,
         private readonly AccessResolver $access,
+        private readonly RecordScope $scope,
     ) {}
 
     public function definition(Request $request, Form $form, ClientDefinition $client): JsonResponse
     {
-        $data = $request->validate(['mode' => ['sometimes', Rule::in(['create', 'edit', 'view', 'print'])]]);
+        $data = $request->validate(['mode' => ['sometimes', Rule::in(['create', 'edit', 'view', 'print'])], 'record' => ['sometimes', 'nullable', 'uuid']]);
         $rt = $this->runtime($form, 'view');
         $mode = $data['mode'] ?? 'view';
-        $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, $mode);
+        // Field access depends on the status of the record being viewed or edited.
+        $status = null;
+        if (($data['record'] ?? null) !== null) {
+            $row = DB::table($rt->table)->where('uuid', strtolower($data['record']))->first(['id', 'status_id']);
+            abort_if($row === null || ! $this->scope->allows($rt, $this->user(), 'view', (int) $row->id), 404, __('records.not_found'));
+            $status = $row->status_id === null ? null : (int) $row->status_id;
+        }
+        $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, $mode, $status);
         abort_unless($levels['modes'][$mode] ?? false, 403, __('records.forbidden'));
 
         return response()->json(['data' => $client->build($rt->definition, $levels, $mode) + ['name' => $form->translate('name') ?? $form->key, 'names' => $form->translationsFor('name'), 'user' => app(ExpressionContext::class)->client($this->user())]]);
@@ -84,18 +94,21 @@ final class RecordController extends Controller
     {
         $rt = $this->runtime($form, 'view');
         $found = $this->store->find($rt, strtolower($record), $this->access->allows($this->user(), "form.{$form->uuid}.restore"));
-        abort_if($found === null, 404, __('records.not_found'));
-        $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'edit');
-        $viewLevels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'view');
+        abort_if($found === null || ! $this->scope->allows($rt, $this->user(), 'view', $found['id']), 404, __('records.not_found'));
+        $status = $found['system']['status_id'] ?? null;
+        $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'edit', $status);
+        $viewLevels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'view', $status);
+        $mayEdit = $this->scope->allows($rt, $this->user(), 'edit', $found['id']);
+        $mayDelete = $this->scope->allows($rt, $this->user(), 'delete', $found['id']);
         $merged = [];
         foreach ($viewLevels['fields'] as $uuid => $l) {
             $merged[$uuid] = $l === 'hidden' && ($levels['fields'][$uuid] ?? 'hidden') === 'hidden' ? 'hidden' : $l;
         }
 
         return response()->json(['data' => $this->presenter->present($rt, $found, $merged) + ['permissions' => [
-            'edit' => $levels['modes']['edit'] && $found['system']['deleted_at'] === null,
-            'delete' => $levels['modes']['delete'] && $found['system']['deleted_at'] === null,
-            'restore' => $found['system']['deleted_at'] !== null && $this->access->allows($this->user(), "form.{$form->uuid}.restore"),
+            'edit' => $levels['modes']['edit'] && $mayEdit && $found['system']['deleted_at'] === null,
+            'delete' => $levels['modes']['delete'] && $mayDelete && $found['system']['deleted_at'] === null,
+            'restore' => $found['system']['deleted_at'] !== null && $mayDelete && $this->access->allows($this->user(), "form.{$form->uuid}.restore"),
             'print' => $levels['modes']['print'],
             'view_log' => $this->access->allows($this->user(), "form.{$form->uuid}.view_log"),
         ]]]);
@@ -118,12 +131,12 @@ final class RecordController extends Controller
     public function update(Request $request, Form $form, string $record): JsonResponse
     {
         $rt = $this->runtime($form, 'edit');
-        $data = $request->validate(['values' => ['present', 'array'], 'row_version' => ['required_without:If-Match', 'nullable', 'integer', 'min:1']]);
+        $data = $request->validate(['values' => ['present', 'array'], 'row_version' => ['required_without:If-Match', 'nullable', 'integer', 'min:1']] + self::justificationRules());
         $expected = (int) ($data['row_version'] ?? $request->header('If-Match'));
         abort_if($expected < 1, 428, __('records.row_version_required'));
 
         return $this->run(function () use ($rt, $data, $request, $form, $record, $expected): JsonResponse {
-            $result = $this->pipeline->update($rt, $this->user(), strtolower($record), $expected, $data['values'], $this->key($request));
+            $result = $this->pipeline->update($rt, $this->user(), strtolower($record), $expected, $data['values'], $this->key($request), 'ui', $data['justification'] ?? null);
             $found = $this->store->findById($rt, $result['id']);
             $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'view');
 
@@ -136,9 +149,10 @@ final class RecordController extends Controller
         $rt = $this->runtime($form, 'delete');
         $expected = (int) ($request->input('row_version') ?? $request->header('If-Match'));
         abort_if($expected < 1, 428, __('records.row_version_required'));
+        $data = $request->validate(self::justificationRules());
 
-        return $this->run(function () use ($rt, $request, $record, $expected): JsonResponse {
-            $this->pipeline->delete($rt, $this->user(), strtolower($record), $expected, $this->key($request));
+        return $this->run(function () use ($rt, $request, $record, $expected, $data): JsonResponse {
+            $this->pipeline->delete($rt, $this->user(), strtolower($record), $expected, $this->key($request), $data['justification'] ?? null);
 
             return response()->json(null, 204);
         });
@@ -147,9 +161,10 @@ final class RecordController extends Controller
     public function restore(Request $request, Form $form, string $record): JsonResponse
     {
         $rt = $this->runtime($form, 'restore');
+        $data = $request->validate(self::justificationRules());
 
-        return $this->run(function () use ($rt, $request, $record): JsonResponse {
-            $this->pipeline->restore($rt, $this->user(), strtolower($record), $this->key($request));
+        return $this->run(function () use ($rt, $request, $record, $data): JsonResponse {
+            $this->pipeline->restore($rt, $this->user(), strtolower($record), $this->key($request), $data['justification'] ?? null);
 
             return response()->json(null, 204);
         });
@@ -222,6 +237,7 @@ final class RecordController extends Controller
         abort_unless($this->access->allows($this->user(), "form.{$target->form->uuid}.view") || $target->form->kind === 'collection', 403, __('records.forbidden'));
         $display = $refs->displayColumn($rt, $f);
         $q = DB::table($target->table)->whereNull('deleted_at');
+        $this->scope->apply($q, $target, $this->user(), 'view');
         if ($term !== '') {
             $display !== null
                 ? app(DatabaseDriver::class)->caseInsensitiveLike($q, $display, $term)
@@ -276,8 +292,9 @@ final class RecordController extends Controller
         $rt = $this->runtime($form, 'view');
         abort_unless($this->access->allows($this->user(), "form.{$form->uuid}.view_log"), 403, __('records.forbidden'));
         $found = $this->store->find($rt, strtolower($record), true);
-        abort_if($found === null, 404);
-        $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'view');
+        abort_if($found === null || ! $this->scope->allows($rt, $this->user(), 'view', $found['id']), 404);
+        $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'view', $found['system']['status_id'] ?? null);
+        $seeJustifications = $this->access->allows($this->user(), 'system.view_justifications');
         $hiddenKeys = [];
         foreach ($levels['fields'] as $uuid => $l) {
             if ($l === 'hidden') {
@@ -285,14 +302,30 @@ final class RecordController extends Controller
             }
         }
         $entries = DB::table('audit_logs')->where('form_id', $form->id)->where('record_id', $found['id'])->orderByDesc('id')->limit(200)->get();
-        $users = DB::table('users')->whereIn('id', $entries->pluck('actor_user_id')->filter())->pluck('name', 'id');
+        $users = DB::table('users')->whereIn('id', [...$entries->pluck('actor_user_id')->filter(), ...$entries->pluck('on_behalf_of_user_id')->filter()])->pluck('name', 'id');
+        $justifications = $seeJustifications ? app(JustificationPresenter::class)->many($entries->pluck('justification_id')->filter()->map(static fn ($v) => (int) $v)->all()) : [];
 
         return response()->json(['data' => $entries->map(static fn ($e) => [
             'event' => $e->event,
             'at' => Carbon::parse($e->occurred_at, 'UTC')->toIso8601ZuluString(),
             'by' => $users[$e->actor_user_id] ?? null,
+            'on_behalf_of' => $e->on_behalf_of_user_id === null ? null : ($users[$e->on_behalf_of_user_id] ?? null),
             'changes' => array_values(array_filter(json_decode((string) $e->changes, true) ?: [], static fn ($c) => ! isset($hiddenKeys[$c['field_key']]))),
+            'justification' => $e->justification_id === null ? null : ($justifications[(int) $e->justification_id] ?? ['restricted' => true]),
         ])->values()]);
+    }
+
+    /** @return array<string, list<mixed>> */
+    public static function justificationRules(): array
+    {
+        return [
+            'justification' => ['sometimes', 'nullable', 'array'],
+            'justification.reason_text' => ['sometimes', 'nullable', 'string', 'max:5000'],
+            'justification.reason_code' => ['sometimes', 'nullable', 'uuid'],
+            'justification.note' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'justification.attachments' => ['sometimes', 'array', 'max:20'],
+            'justification.attachments.*' => ['uuid'],
+        ];
     }
 
     private function run(callable $action): JsonResponse
@@ -308,9 +341,10 @@ final class RecordController extends Controller
     {
         $rt = $this->runtimes->forForm($form);
         abort_if($rt === null || ! in_array($form->state, ['published', 'schema_inconsistent'], true), 404, __('records.form_unavailable'));
-        abort_unless($this->access->allows($this->user(), "form.{$form->uuid}.view"), 404, __('records.form_unavailable'));
+        // Delegates hold their delegators' access to the delegated forms (architecture §19.4).
+        abort_if($this->pipeline->permitted($rt, $this->user(), ["form.{$form->uuid}.view"]) === false, 404, __('records.form_unavailable'));
         if ($ability !== 'view') {
-            abort_unless($this->access->allows($this->user(), "form.{$form->uuid}.{$ability}"), 403, __('records.forbidden'));
+            abort_if($this->pipeline->permitted($rt, $this->user(), ["form.{$form->uuid}.{$ability}"]) === false, 403, __('records.forbidden'));
         }
 
         return $rt;

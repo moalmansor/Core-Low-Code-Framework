@@ -7,23 +7,35 @@ namespace App\Modules\Records\Runtime;
 use App\Expressions\Text\Unicode;
 use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
+use App\Modules\Access\RecordScope;
+use App\Modules\Assignment\ApprovalService;
+use App\Modules\Assignment\AssignmentService;
+use App\Modules\Assignment\Claims;
+use App\Modules\Assignment\DelegationResolver;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\Identity\Models\User;
+use App\Modules\Justification\JustificationGate;
 use App\Modules\Records\Models\StoredFile;
 use App\Modules\Reference\Models\NumberSequence;
 use App\Modules\Reference\NumberGenerator;
+use App\Modules\Workflow\Runtime\SlaTimers;
+use App\Modules\Workflow\Runtime\WorkflowEngine;
+use App\Modules\Workflow\Runtime\WorkflowRuntime;
 use App\Support\Json\Canonical;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
- * The one write path for records (architecture §3.3): journal → authorize →
- * load and version check → normalize → rules (defaults, formulas, condition
- * effects) → field access → validate → one transaction (numbers, files, row,
- * child rows, pivots, audit, outbox) → journal processed. Justification
- * (§19.3) and duplicate checks arrive with their modules in Phases 3 and 4.
+ * The one write path for records (architecture §3.3): journal → authorize
+ * (form permission, record scope, claim) → load and version check → normalize
+ * → rules (defaults, formulas, condition effects) → field access (for the
+ * record's status) → validate → justification (§19.3) → one transaction
+ * (numbers, files, row, child rows, pivots, workflow, justification, audit,
+ * outbox) → journal processed. Duplicate checks arrive with their module in
+ * Phase 4. Actions taken only through a delegator's access are recorded as
+ * on behalf of the delegator (§19.4).
  */
 final class RecordPipeline
 {
@@ -40,6 +52,12 @@ final class RecordPipeline
         private readonly NumberGenerator $numbers,
         private readonly References $refs,
         private readonly ReferentialIntegrity $integrity,
+        private readonly RecordScope $scope,
+        private readonly WorkflowEngine $workflow,
+        private readonly JustificationGate $justifications,
+        private readonly Claims $claims,
+        private readonly DelegationResolver $delegations,
+        private readonly SlaTimers $sla,
     ) {}
 
     /**
@@ -50,7 +68,7 @@ final class RecordPipeline
      */
     public function create(FormRuntime $rt, User $user, array $input, array $params, string $key, string $source = 'ui', array $links = []): array
     {
-        $this->guardForm($rt, $user, 'create');
+        $onBehalf = $this->guardForm($rt, $user, 'create');
         $entry = $this->journal->open($key, $rt->form->id, $rt->versionId, 'create', $source, $user->id, $input, null, null);
         if (($done = $this->replay($rt, $entry)) !== null) {
             return $done;
@@ -79,8 +97,10 @@ final class RecordPipeline
 
                 return ['id' => $existing['id'], 'uuid' => $existing['uuid']];
             }
-            $id = DB::transaction(function () use ($rt, $user, $values, $entry, $links): int {
+            $id = DB::transaction(function () use ($rt, $user, $values, $entry, $links, $onBehalf): int {
                 $values = $this->assignNumbers($rt, $values);
+                $wf = WorkflowRuntime::for($rt);
+                $now = SlaTimers::nowUtc()->format('Y-m-d H:i:s.u');
                 $system = [
                     'organization_id' => $rt->form->organization_id,
                     'form_version_id' => $rt->versionId,
@@ -90,10 +110,13 @@ final class RecordPipeline
                     'created_by' => $user->id,
                     'updated_by' => $user->id,
                     'search_text' => $this->searchText($rt, $values),
+                    'status_id' => $wf->initialId(),
+                    'status_changed_at' => $wf->initialId() === null ? null : $now,
                 ] + $links;
                 $id = $this->store->insert($rt, $entry['uuid'], $values, $system);
                 $this->attachFiles($rt, $id, $values, $user);
-                $this->audit->record('record.created', 'data', $this->diff($rt, [], $values), 'record', $id, ['form' => $rt->form->key, 'row_version' => 1], $user->id, null, $rt->form->id, $id);
+                $this->audit->record('record.created', 'data', $this->diff($rt, [], $values), 'record', $id, ['form' => $rt->form->key, 'row_version' => 1], $user->id, null, $rt->form->id, $id, $onBehalf);
+                $this->workflow->enter($rt, $id, $values, $user->id, $onBehalf, $user->department_id === null ? null : (int) $user->department_id);
                 $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $entry['uuid'], 'operation' => 'create']);
 
                 return $id;
@@ -114,17 +137,19 @@ final class RecordPipeline
      * @param  array<string, mixed>  $input  only the submitted keys change
      * @return array{id: int, uuid: string, changed: list<string>}
      */
-    public function update(FormRuntime $rt, User $user, string $uuid, int $expectedVersion, array $input, string $key, string $source = 'ui'): array
+    public function update(FormRuntime $rt, User $user, string $uuid, int $expectedVersion, array $input, string $key, string $source = 'ui', ?array $justification = null): array
     {
-        $this->guardForm($rt, $user, 'edit');
+        $onBehalf = $this->guardForm($rt, $user, 'edit');
         $current = $this->store->find($rt, $uuid) ?? throw new RecordException(404, 'not_found', __('records.not_found'));
         $entry = $this->journal->open($key, $rt->form->id, $rt->versionId, 'update', $source, $user->id, $input, $expectedVersion, $current['id']);
         if (($done = $this->replay($rt, $entry)) !== null) {
             return $done + ['changed' => []];
         }
         try {
-            $this->guardRow($rt, $current['id']);
-            $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'edit');
+            $onBehalf = $this->guardRow($rt, $user, 'edit', $current['id']) ?? $onBehalf;
+            $this->claims->guard($rt, $current['id'], $user);
+            $statusId = $current['system']['status_id'] ?? null;
+            $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'edit', $statusId);
             if ($current['row_version'] !== $expectedVersion) {
                 throw $this->conflict($rt, $current, $expectedVersion, $input, $levels['fields']);
             }
@@ -150,9 +175,14 @@ final class RecordPipeline
                     $changed[] = (string) $k;
                 }
             }
+            $validated = $changed === [] ? null : $this->justifications->enforce($rt, $user, 'edit', [
+                'fields' => $changed, 'status' => $statusId, 'values' => $values, 'old' => $current['values'],
+            ], $justification);
             if ($changed !== []) {
-                DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $input, $levels): void {
+                DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $input, $levels, $validated, $onBehalf): void {
                     $values = $this->assignNumbers($rt, $values, $current['values']);
+                    $diff = $this->diff($rt, $current['values'], $values);
+                    $justificationId = $validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'edit', $validated, $this->justified($diff), 1, $onBehalf);
                     $ok = $this->store->update($rt, $current['id'], $expectedVersion, $values, $changed, [
                         'updated_by' => $user->id, 'form_version_id' => $rt->versionId, 'search_text' => $this->searchText($rt, $values),
                     ], $rt->form->organization_id, $user->id);
@@ -160,13 +190,138 @@ final class RecordPipeline
                         throw $this->conflict($rt, $this->store->find($rt, $current['uuid']) ?? $current, $expectedVersion, $input, $levels['fields']);
                     }
                     $this->attachFiles($rt, $current['id'], $values, $user);
-                    $this->audit->record('record.updated', 'data', $this->diff($rt, $current['values'], $values), 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $expectedVersion + 1], $user->id, null, $rt->form->id, $current['id']);
+                    $this->audit->record('record.updated', 'data', $diff, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $expectedVersion + 1], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
                     $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $current['uuid'], 'operation' => 'update', 'changed' => $changed]);
                 });
             }
             $this->journal->processed($entry['id'], $current['id']);
 
             return ['id' => $current['id'], 'uuid' => $current['uuid'], 'changed' => $changed];
+        } catch (RecordException $e) {
+            $this->journal->rejected($entry['id'], $e->reason);
+            throw $e;
+        } catch (Throwable $e) {
+            $this->journal->failed($entry['id'], $e);
+            throw $e;
+        }
+    }
+
+    /**
+     * Performs a workflow transition (architecture §19.2) with
+     * `operation = transition`: transition permission (directly or through a
+     * delegator), record scope and claim, the record's current status, values
+     * submitted with the transition (through the same rules, access and
+     * validation as an edit), required fields, comment and attachments, then
+     * justification. With approvals the record waits for the decisions;
+     * otherwise it moves now.
+     *
+     * @param  array{values?: array<string, mixed>, comment?: string|null, attachments?: list<string>, justification?: array<string, mixed>|null}  $input
+     * @return array{state: string, approval: string|null, row_version: int, status: array<string, mixed>|null}
+     */
+    public function transition(FormRuntime $rt, User $user, string $uuid, string $transitionUuid, int $expectedVersion, array $input, string $key, string $source = 'ui'): array
+    {
+        $onBehalf = $this->guardForm($rt, $user, 'view');
+        $current = $this->store->find($rt, $uuid) ?? throw new RecordException(404, 'not_found', __('records.not_found'));
+        $entry = $this->journal->open($key, $rt->form->id, $rt->versionId, 'transition', $source, $user->id, ['transition' => $transitionUuid] + $input, $expectedVersion, $current['id']);
+        if ($entry['state'] === 'processed') {
+            $row = DB::table($rt->table)->where('id', $current['id'])->first(['row_version', 'status_id']);
+
+            return ['state' => 'moved', 'approval' => null, 'row_version' => (int) $row->row_version, 'status' => $this->workflow->statusPayload(WorkflowRuntime::for($rt), $row->status_id === null ? null : (int) $row->status_id)];
+        }
+        if ($entry['state'] === 'foreign' || $entry['state'] === 'processing') {
+            $this->replay($rt, $entry);
+        }
+        try {
+            $onBehalf = $this->guardRow($rt, $user, 'edit', $current['id']) ?? $onBehalf;
+            $this->claims->guard($rt, $current['id'], $user);
+            $wf = WorkflowRuntime::for($rt);
+            $t = $wf->transitions[strtolower($transitionUuid)] ?? null;
+            if ($t === null || $t['toId'] === null) {
+                throw new RecordException(404, 'not_found', __('workflow.transition_not_found'));
+            }
+            $via = $this->permitted($rt, $user, ['transition.'.$t['uuid'].'.perform']);
+            if ($via === false) {
+                throw new RecordException(403, 'forbidden', __('workflow.transition_forbidden'));
+            }
+            $onBehalf = $via ?? $onBehalf;
+            $statusId = $current['system']['status_id'] ?? null;
+            if ($t['fromId'] !== null && $t['fromId'] !== $statusId) {
+                throw new RecordException(409, 'status_changed', __('workflow.status_changed'), ['status' => $this->workflow->statusPayload($wf, $statusId)]);
+            }
+            if ($this->workflow->pendingApproval($rt, $current['id']) !== null) {
+                throw new RecordException(409, 'approval_pending', __('workflow.approval_pending'));
+            }
+            $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'edit', $statusId);
+            if ($current['row_version'] !== $expectedVersion) {
+                throw $this->conflict($rt, $current, $expectedVersion, $input['values'] ?? [], $levels['fields']);
+            }
+            $submitted = $input['values'] ?? [];
+            $errors = [];
+            $values = $current['values'];
+            if ($submitted !== []) {
+                if ($this->permitted($rt, $user, ["form.{$rt->form->uuid}.edit"]) === false) {
+                    throw new RecordException(403, 'forbidden', __('records.forbidden'));
+                }
+                [$normalized, $errors] = $this->normalize($rt, $submitted);
+                [$normalized, $rowErrors] = $this->guardRows($rt, $normalized, $current['values'], $levels['fields']);
+                $errors += $rowErrors + $this->rowPermissions($rt, $normalized, $current['values'], $user);
+                $result = $this->rules->run($rt, array_replace($current['values'], $normalized), $current['values'], 'edit', $user, false);
+                $blocked = $this->blocked($rt, $levels['fields'], $result['state']);
+                if (array_intersect_key($normalized, $blocked) !== []) {
+                    $result = $this->rules->run($rt, array_replace($current['values'], array_diff_key($normalized, $blocked)), $current['values'], 'edit', $user, false);
+                }
+                $values = $result['values'];
+                $errors += $this->accessViolations($rt, $submitted, $values, $current['values'], $levels['fields'], $result['state']);
+                $errors += $this->validator->validate($rt, $values, $result['state'], $levels['fields'], $this->rules->context($rt, 'edit', $user), $current['id']);
+            }
+            $attachments = array_values(array_unique(array_filter((array) ($input['attachments'] ?? []), 'is_string')));
+            $comment = isset($input['comment']) && is_string($input['comment']) ? mb_substr($input['comment'], 0, 5000) : null;
+            $errors += $this->workflow->requirements($rt, $t, $values, $user, $comment, $attachments);
+            if ($errors !== []) {
+                throw new RecordException(422, 'invalid', __('records.invalid'), ['errors' => $errors]);
+            }
+            $changed = [];
+            foreach ($values as $k => $v) {
+                if (! Canonical::same($v, $current['values'][$k] ?? null)) {
+                    $changed[] = (string) $k;
+                }
+            }
+            $validated = $this->justifications->enforce($rt, $user, 'transition', [
+                'fields' => $changed, 'status' => $statusId, 'transition' => $t['id'], 'values' => $values, 'old' => $current['values'],
+            ], $input['justification'] ?? null);
+            $result = DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $levels, $t, $validated, $onBehalf, $comment, $attachments, $source): array {
+                $diff = $this->diff($rt, $current['values'], $values);
+                $justificationId = $validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'transition', $validated, $this->justified($diff), 1, $onBehalf);
+                $version = $expectedVersion;
+                if ($changed !== []) {
+                    $values = $this->assignNumbers($rt, $values, $current['values']);
+                    $ok = $this->store->update($rt, $current['id'], $expectedVersion, $values, $changed, [
+                        'updated_by' => $user->id, 'form_version_id' => $rt->versionId, 'search_text' => $this->searchText($rt, $values),
+                    ], $rt->form->organization_id, $user->id);
+                    if (! $ok) {
+                        throw $this->conflict($rt, $this->store->find($rt, $current['uuid']) ?? $current, $expectedVersion, $values, $levels['fields']);
+                    }
+                    $this->attachFiles($rt, $current['id'], $values, $user);
+                    $this->audit->record('record.updated', 'data', $diff, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $expectedVersion + 1, 'transition' => $t['key']], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
+                    $version++;
+                }
+                if (($t['approval']['mode'] ?? 'none') !== 'none') {
+                    $approval = app(ApprovalService::class)->request($rt, $current['id'], $t, $user->id, $version, $comment, $justificationId, $onBehalf);
+                    $this->workflow->attach($rt, $current['id'], 'approval_request', (int) DB::table('approval_requests')->where('uuid', $approval)->value('id'), $attachments, $user->id);
+
+                    return ['state' => 'approval_pending', 'approval' => $approval, 'row_version' => $version];
+                }
+                $this->workflow->move($rt, $current['id'], $t, [
+                    'actor' => $user->id, 'onBehalfOf' => $onBehalf, 'justification' => $justificationId, 'comment' => $comment,
+                    'attachments' => $attachments, 'source' => $source === 'api' ? 'api' : 'user', 'expectedVersion' => $version,
+                ]);
+
+                return ['state' => 'moved', 'approval' => null, 'row_version' => $version + 1];
+            });
+            $this->journal->processed($entry['id'], $current['id']);
+            $status = DB::table($rt->table)->where('id', $current['id'])->value('status_id');
+
+            return $result + ['status' => $this->workflow->statusPayload($wf, $status === null ? null : (int) $status)];
         } catch (RecordException $e) {
             $this->journal->rejected($entry['id'], $e->reason);
             throw $e;
@@ -190,7 +345,10 @@ final class RecordPipeline
     {
         $mode = $current === null ? 'create' : 'edit';
         $this->guardForm($rt, $user, $mode);
-        $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, $mode);
+        if ($current !== null) {
+            $this->guardRow($rt, $user, 'edit', $current['id']);
+        }
+        $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, $mode, $current['system']['status_id'] ?? null);
         [$normalized, $errors] = $this->normalize($rt, $input);
         [$normalized, $rowErrors] = $this->guardRows($rt, $normalized, $current['values'] ?? null, $levels['fields']);
         $errors += $rowErrors + $this->rowPermissions($rt, $normalized, $current['values'] ?? null, $user);
@@ -208,26 +366,38 @@ final class RecordPipeline
         return $errors;
     }
 
-    public function delete(FormRuntime $rt, User $user, string $uuid, int $expectedVersion, string $key): void
+    public function delete(FormRuntime $rt, User $user, string $uuid, int $expectedVersion, string $key, ?array $justification = null, string $context = 'delete'): void
     {
-        $this->guardForm($rt, $user, 'delete');
+        $onBehalf = $this->guardForm($rt, $user, 'delete');
         $current = $this->store->find($rt, $uuid) ?? throw new RecordException(404, 'not_found', __('records.not_found'));
         $entry = $this->journal->open($key, $rt->form->id, $rt->versionId, 'delete', 'ui', $user->id, [], $expectedVersion, $current['id']);
         if ($entry['state'] === 'processed') {
             return;
         }
         try {
-            $this->guardRow($rt, $current['id']);
+            $onBehalf = $this->guardRow($rt, $user, 'delete', $current['id']) ?? $onBehalf;
+            $this->claims->guard($rt, $current['id'], $user);
             if (DB::table($rt->table)->where('id', $current['id'])->value('legal_hold')) {
                 throw new RecordException(423, 'legal_hold', __('records.legal_hold'));
             }
-            DB::transaction(function () use ($rt, $user, $current, $expectedVersion): void {
+            if ($current['row_version'] !== $expectedVersion) {
+                $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'edit', $current['system']['status_id'] ?? null);
+                throw $this->conflict($rt, $current, $expectedVersion, [], $levels['fields']);
+            }
+            $validated = $this->justifications->enforce($rt, $user, 'delete', ['status' => $current['system']['status_id'] ?? null, 'values' => $current['values'], 'old' => $current['values']], $justification);
+            DB::transaction(function () use ($rt, $user, $current, $expectedVersion, $validated, $onBehalf, $context): void {
+                $justificationId = $validated === null ? null : $this->justifications->record($rt, $current['id'], $user, $context, $validated, [], 1, $onBehalf);
                 $this->integrity->beforeDelete($rt, $current['id'], $user->id);
                 if (! $this->store->softDelete($rt, $current['id'], $expectedVersion, $user->id)) {
                     $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'edit');
                     throw $this->conflict($rt, $this->store->find($rt, $current['uuid'], true) ?? $current, $expectedVersion, [], $levels['fields']);
                 }
-                $this->audit->record('record.deleted', 'data', null, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $expectedVersion + 1], $user->id, null, $rt->form->id, $current['id']);
+                // Open work on a deleted record ends: approvals, assignments, claims and SLA timers.
+                app(ApprovalService::class)->cancelFor($rt, $current['id']);
+                app(AssignmentService::class)->close($rt->form->id, $current['id'], 'cancelled', true);
+                $this->claims->releaseAll($rt->form->id, $current['id'], 'admin');
+                $this->sla->complete($rt->form->id, $current['id'], SlaTimers::nowUtc(), 'cancelled');
+                $this->audit->record('record.deleted', 'data', null, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $expectedVersion + 1], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
                 $this->outbox->publish('record.deleted', ['form' => $rt->form->uuid, 'record' => $current['uuid']]);
             });
             $this->journal->processed($entry['id'], $current['id']);
@@ -240,10 +410,11 @@ final class RecordPipeline
         }
     }
 
-    public function restore(FormRuntime $rt, User $user, string $uuid, string $key): void
+    public function restore(FormRuntime $rt, User $user, string $uuid, string $key, ?array $justification = null): void
     {
-        $this->guardForm($rt, $user, 'restore');
+        $onBehalf = $this->guardForm($rt, $user, 'restore');
         $current = $this->store->find($rt, $uuid, true) ?? throw new RecordException(404, 'not_found', __('records.not_found'));
+        $onBehalf = $this->guardRow($rt, $user, 'delete', $current['id']) ?? $onBehalf;
         if ($current['system']['deleted_at'] === null) {
             return;
         }
@@ -251,16 +422,26 @@ final class RecordPipeline
         if ($entry['state'] === 'processed') {
             return;
         }
-        DB::transaction(function () use ($rt, $user, $current): void {
-            $this->store->restore($rt, $current['id'], $user->id);
-            $this->audit->record('record.restored', 'data', null, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $current['row_version'] + 1], $user->id, null, $rt->form->id, $current['id']);
-            $this->outbox->publish('record.restored', ['form' => $rt->form->uuid, 'record' => $current['uuid']]);
-        });
-        $this->journal->processed($entry['id'], $current['id']);
+        try {
+            $validated = $this->justifications->enforce($rt, $user, 'restore', ['status' => $current['system']['status_id'] ?? null, 'values' => $current['values'], 'old' => $current['values']], $justification);
+            DB::transaction(function () use ($rt, $user, $current, $validated, $onBehalf): void {
+                $justificationId = $validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'restore', $validated, [], 1, $onBehalf);
+                $this->store->restore($rt, $current['id'], $user->id);
+                $this->audit->record('record.restored', 'data', null, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $current['row_version'] + 1], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
+                $this->outbox->publish('record.restored', ['form' => $rt->form->uuid, 'record' => $current['uuid']]);
+            });
+            $this->journal->processed($entry['id'], $current['id']);
+        } catch (RecordException $e) {
+            $this->journal->rejected($entry['id'], $e->reason);
+            throw $e;
+        }
     }
 
-    /** Form-level gate: published, application usable, permission and mode allowed. */
-    private function guardForm(FormRuntime $rt, User $user, string $ability): void
+    /**
+     * Form-level gate: published, application usable, permission and mode
+     * allowed. Returns the delegator whose permission was needed, if any.
+     */
+    private function guardForm(FormRuntime $rt, User $user, string $ability): ?int
     {
         $form = $rt->form;
         if ($form->state === 'schema_inconsistent') {
@@ -276,7 +457,8 @@ final class RecordPipeline
         if ($app->maintenance_mode && ($app->maintenance_until === null || Carbon::parse($app->maintenance_until, 'UTC')->isFuture()) && ! $this->access->allows($user, 'system.enable_maintenance_mode')) {
             throw new RecordException(423, 'maintenance', __('records.maintenance'));
         }
-        if (! $this->access->allows($user, "form.{$form->uuid}.view") || ! $this->access->allows($user, "form.{$form->uuid}.{$ability}")) {
+        $onBehalf = $this->permitted($rt, $user, ["form.{$form->uuid}.view", "form.{$form->uuid}.{$ability}"]);
+        if ($onBehalf === false) {
             throw new RecordException(403, 'forbidden', __('records.forbidden'));
         }
         $modes = $rt->definition['form']['settings']['modes'] ?? [];
@@ -286,11 +468,55 @@ final class RecordPipeline
         if (PublishLockedRecords::locked($form->id)) {
             throw new RecordException(423, 'locked', __('forms.locked'));
         }
+
+        return $onBehalf;
     }
 
-    private function guardRow(FormRuntime $rt, int $id): void
+    /**
+     * Whether the user holds the permissions, themselves (null) or through
+     * an active delegator for this form (the delegator's id); false when
+     * neither does.
+     *
+     * @param  list<string>  $keys
+     */
+    public function permitted(FormRuntime $rt, User $user, array $keys): int|false|null
     {
-        // Record-level scopes (own/department/…) arrive with record access rules in Phase 3.
+        $all = fn (User $u): bool => array_reduce($keys, fn (bool $ok, string $k) => $ok && $this->access->allows($u, $k), true);
+        if ($all($user)) {
+            return null;
+        }
+        foreach ($this->delegations->principalsFor($user, $rt->form->id) as $p) {
+            if ($p->id !== $user->id && $all($p)) {
+                return $p->id;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Record-level scope (architecture §16.6): outside it the record does not
+     * exist for the user (404). Returns the delegator whose scope was needed.
+     */
+    private function guardRow(FormRuntime $rt, User $user, string $op, int $id): ?int
+    {
+        if (! $this->scope->allows($rt, $user, $op, $id)) {
+            throw new RecordException(404, 'not_found', __('records.not_found'));
+        }
+
+        return $this->scope->onBehalfOf($rt, $user, $op, $id);
+    }
+
+    /**
+     * Changed fields as kept on a justification: keys with old and new values
+     * (already masked for sensitive fields).
+     *
+     * @param  list<array{field_key: string, old: mixed, new: mixed}>  $diff
+     * @return list<array{field: string, old: mixed, new: mixed}>
+     */
+    private function justified(array $diff): array
+    {
+        return array_map(static fn (array $d) => ['field' => $d['field_key'], 'old' => $d['old'], 'new' => $d['new']], $diff);
     }
 
     /** @return array{id: int, uuid: string}|null */

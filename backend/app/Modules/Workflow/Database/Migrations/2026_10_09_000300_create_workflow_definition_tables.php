@@ -46,6 +46,7 @@ return new class extends Migration
             Columns::json($t, 'button_style', nullable: true);
             $t->integer('sort_order')->default(0);
             Columns::json($t, 'diagram_edge', nullable: true);
+            Columns::dt($t, 'archived_at', nullable: true);
             Columns::unique($t, ['form_id', 'key']);
             Columns::index($t, ['form_id', 'from_status_id']);
         });

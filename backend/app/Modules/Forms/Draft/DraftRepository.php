@@ -38,6 +38,13 @@ final class DraftRepository
         'content' => 'content', 'consentTerms' => 'consent_terms',
     ];
 
+    /**
+     * Owners of the conditions that belong to the draft document. Conditions of
+     * workflow transitions, SLA rules, justification, assignment and record
+     * access rules, views and panels are kept by their own editors.
+     */
+    public const DRAFT_CONDITION_OWNERS = ['form', 'field', 'group', 'option'];
+
     public function __construct(
         private readonly Translator $translator,
         private readonly DraftValidator $validator,
@@ -52,7 +59,7 @@ final class DraftRepository
         $groups = FieldGroup::query()->where('form_id', $form->id)->whereNull('archived_at')->orderBy('sort_order')->orderBy('id')->get();
         $fields = Field::query()->where('form_id', $form->id)->whereNull('archived_at')->orderBy('sort_order')->orderBy('id')->get();
         $relations = Relation::query()->where('source_form_id', $form->id)->orderBy('id')->get();
-        $conditions = Condition::query()->where('form_id', $form->id)->orderBy('sort_order')->orderBy('id')->get();
+        $conditions = Condition::query()->where('form_id', $form->id)->whereIn('owner_type', self::DRAFT_CONDITION_OWNERS)->orderBy('sort_order')->orderBy('id')->get();
         $options = FieldOption::query()->whereIn('field_id', $fields->pluck('id'))->orderBy('sort_order')->orderBy('id')->get()->groupBy('field_id');
 
         $groupUuid = $groups->pluck('uuid', 'id')->all();
@@ -583,7 +590,7 @@ final class DraftRepository
                 $this->translator->forget('field_option', (int) $id);
             }
         }
-        Condition::query()->where('form_id', $form->id)->whereNotIn('id', $keptConditions ?: [0])->delete();
+        Condition::query()->where('form_id', $form->id)->whereIn('owner_type', self::DRAFT_CONDITION_OWNERS)->whereNotIn('id', $keptConditions ?: [0])->delete();
         $relationUuids = array_column($doc['relations'], 'uuid');
         foreach (Relation::query()->where('source_form_id', $form->id)->whereNotIn('uuid', $relationUuids ?: ['00000000-0000-0000-0000-000000000000'])->get() as $removed) {
             Field::query()->where('relation_id', $removed->id)->update(['relation_id' => null]);

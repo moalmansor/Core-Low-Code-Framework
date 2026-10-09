@@ -424,7 +424,8 @@ final class FormController extends Controller
             return true;
         }
         $draft = app(DefinitionCompiler::class)->compile($form, (int) $published['form']['version'])['definition'];
-        $strip = static fn (array $d): array => array_diff_key($d, array_flip(['access', 'targets', 'schema']));
+        // Versions published before workflows existed have no workflow section: the same as an empty one.
+        $strip = static fn (array $d): array => array_diff_key($d, array_flip(['access', 'targets', 'schema'])) + ['workflow' => ['statuses' => [], 'transitions' => [], 'sla' => []]];
 
         return DefinitionCompiler::hash($strip($draft)) !== DefinitionCompiler::hash($strip($published));
     }

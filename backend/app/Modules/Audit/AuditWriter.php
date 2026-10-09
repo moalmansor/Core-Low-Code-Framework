@@ -46,6 +46,8 @@ final class AuditWriter
         ?int $subjectUserId = null,
         ?int $formId = null,
         ?int $recordId = null,
+        ?int $onBehalfOfUserId = null,
+        ?int $justificationId = null,
     ): int {
         $request = app()->bound('request') ? app(Request::class) : null;
         $entry = [
@@ -60,10 +62,10 @@ final class AuditWriter
             'changes' => $changes === null ? null : $this->mask($changes),
             'actor_user_id' => $actorUserId ?? Auth::id(),
             'subject_user_id' => $subjectUserId,
-            'on_behalf_of_user_id' => null,
+            'on_behalf_of_user_id' => $onBehalfOfUserId,
             'external_user_id' => null,
             'impersonation_session_id' => null,
-            'justification_id' => null,
+            'justification_id' => $justificationId,
             'ip_address' => $request?->ip(),
             'user_agent' => $request === null ? null : mb_substr((string) $request->userAgent(), 0, 512),
             'correlation_id' => $this->correlation->get(),

@@ -43,12 +43,14 @@ final class FormAccessController extends Controller
             'subjects' => ['sometimes', 'array', 'max:50'],
             'subjects.*' => ['uuid'],
             'group' => ['sometimes', 'nullable', 'uuid'],
+            'status' => ['sometimes', 'nullable', 'uuid'],
             'deviating_only' => ['sometimes', 'boolean'],
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'between:1,50'],
         ]);
         $mode = $data['mode'] ?? 'edit';
         $type = $data['subject_type'] ?? 'role';
+        $statusId = $this->statusId($form, $data['status'] ?? null);
         $doc = $this->drafts->normalize($this->drafts->load($form));
         $definition = ['form' => $doc['form'] + ['version' => 0], 'groups' => $doc['groups'], 'fields' => $doc['fields']];
 
@@ -74,7 +76,8 @@ final class FormAccessController extends Controller
             'field' => DB::table('fields')->where('form_id', $form->id)->pluck('uuid', 'id')->mapWithKeys(static fn ($u, $id) => [(int) $id => strtolower((string) $u)])->all(),
         ];
         $explicit = [];
-        foreach (DB::table('field_access_rules')->where('form_id', $form->id)->where('subject_type', $type)->where(static fn ($q) => $q->whereNull('mode')->orWhere('mode', $mode))->get() as $r) {
+        foreach (DB::table('field_access_rules')->where('form_id', $form->id)->where('subject_type', $type)->where(static fn ($q) => $q->whereNull('mode')->orWhere('mode', $mode))
+            ->where(static fn ($q) => $statusId === null ? $q->whereNull('status_id') : $q->where('status_id', $statusId))->get() as $r) {
             $targetUuid = match ($r->target_type) {
                 'form' => $form->uuid,
                 'group' => $ids['group'][(int) $r->group_id] ?? null,
@@ -85,8 +88,8 @@ final class FormAccessController extends Controller
         $cells = [];
         foreach ($subjects as $s) {
             $levels = $s['type'] === 'user'
-                ? $this->resolver->resolve($s['model'], $form->id, $form->uuid, $definition, $mode)
-                : $this->resolver->resolveForSubject($s['type'], $s['id'], $form->id, $form->uuid, $definition, $mode);
+                ? $this->resolver->resolve($s['model'], $form->id, $form->uuid, $definition, $mode, $statusId)
+                : $this->resolver->resolveForSubject($s['type'], $s['id'], $form->id, $form->uuid, $definition, $mode, $statusId);
             $col = $s['id'] === null ? '*' : (string) $s['id'];
             foreach ($targets as $t) {
                 $effective = match ($t['type']) {
@@ -111,6 +114,9 @@ final class FormAccessController extends Controller
 
         return response()->json(['data' => [
             'mode' => $mode,
+            'status' => $data['status'] ?? null,
+            'statuses' => DB::table('statuses')->where('form_id', $form->id)->whereNull('archived_at')->orderBy('sort_order')->get(['id', 'uuid', 'key', 'color'])
+                ->map(fn ($st) => ['uuid' => strtolower((string) $st->uuid), 'key' => $st->key, 'color' => $st->color, 'name' => $this->translator->get('status', (int) $st->id, 'name') ?? $st->key])->values(),
             'subject_type' => $type,
             'subjects' => $subjects->map(static fn ($s) => ['type' => $s['type'], 'uuid' => $s['uuid'], 'name' => $s['name']])->values(),
             'targets' => $targets,
@@ -131,6 +137,7 @@ final class FormAccessController extends Controller
             'changes.*.mode' => ['present', 'nullable', Rule::in(FieldAccessResolver::MODES)],
             'changes.*.access' => ['present', 'nullable', Rule::in(array_keys(FieldAccessResolver::LEVELS))],
             'changes.*.effect' => ['sometimes', Rule::in(['allow', 'deny', 'hard_deny'])],
+            'changes.*.status' => ['sometimes', 'nullable', 'uuid'],
             'confirmation_code' => ['sometimes', 'nullable', 'string', 'max:64'],
         ]);
         if (collect($data['changes'])->contains(static fn ($c) => ($c['effect'] ?? 'allow') === 'hard_deny' && $c['access'] !== null)) {
@@ -148,7 +155,9 @@ final class FormAccessController extends Controller
                     default => DB::table('users')->where('uuid', $c['subject']['uuid'])->value('id'),
                 };
                 abort_if($c['subject']['type'] !== 'everyone' && $subjectId === null, 422, __('validation.exists', ['attribute' => "changes.{$i}.subject"]));
-                $rules->put($form, $c['target']['type'], $groupId === null ? null : (int) $groupId, $fieldId === null ? null : (int) $fieldId, $c['subject']['type'], $subjectId === null ? null : (int) $subjectId, $c['mode'], $c['access'], $c['effect'] ?? 'allow');
+                $statusId = $this->statusId($form, $c['status'] ?? null);
+                abort_if(($c['status'] ?? null) !== null && $statusId === null, 422, __('validation.exists', ['attribute' => "changes.{$i}.status"]));
+                $rules->put($form, $c['target']['type'], $groupId === null ? null : (int) $groupId, $fieldId === null ? null : (int) $fieldId, $c['subject']['type'], $subjectId === null ? null : (int) $subjectId, $c['mode'], $c['access'], $c['effect'] ?? 'allow', $statusId);
             }
         });
 
@@ -163,11 +172,12 @@ final class FormAccessController extends Controller
             'field' => ['sometimes', 'nullable', 'uuid'],
             'group' => ['sometimes', 'nullable', 'uuid'],
             'mode' => ['sometimes', Rule::in(FieldAccessResolver::MODES)],
+            'status' => ['sometimes', 'nullable', 'uuid'],
         ]);
         $user = User::query()->where('uuid', $data['user'])->firstOrFail();
         $doc = $this->drafts->normalize($this->drafts->load($form));
         $definition = ['form' => $doc['form'], 'groups' => $doc['groups'], 'fields' => $doc['fields']];
-        $trace = $this->resolver->explain($user, $form->id, $form->uuid, $definition, $data['mode'] ?? 'edit', $data['field'] ?? null, $data['group'] ?? null);
+        $trace = $this->resolver->explain($user, $form->id, $form->uuid, $definition, $data['mode'] ?? 'edit', $data['field'] ?? null, $data['group'] ?? null, $this->statusId($form, $data['status'] ?? null));
         $subjectNames = [];
         foreach ($trace['candidates'] as &$c) {
             $c['subject_name'] = match ($c['subject_type']) {
@@ -185,6 +195,13 @@ final class FormAccessController extends Controller
         unset($c);
 
         return response()->json(['data' => $trace]);
+    }
+
+    private function statusId(Form $form, ?string $uuid): ?int
+    {
+        $id = $uuid === null ? null : DB::table('statuses')->where('form_id', $form->id)->where('uuid', strtolower($uuid))->whereNull('archived_at')->value('id');
+
+        return $id === null ? null : (int) $id;
     }
 
     /** @return list<array{type: string, uuid: string, key: string, label: string|null, depth: int, parent: string|null}> */

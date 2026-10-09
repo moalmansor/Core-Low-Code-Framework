@@ -8,7 +8,7 @@ use App\Infrastructure\Database\Contracts\DatabaseDriver;
 
 /**
  * DDL statements of one step spec for a driver. Data steps (validate_data,
- * copy_data) have no DDL; the executor runs them in PHP.
+ * copy_data, map_status) have no DDL; the executor runs them in PHP.
  */
 final class StepSql
 {
@@ -64,6 +64,7 @@ final class StepSql
             'drop_index' => ['op' => 'add_index', 'table' => $t, 'index' => $op['index']],
             'add_foreign_key' => ['op' => 'drop_foreign_key', 'table' => $t, 'foreignKey' => $op['foreignKey']],
             'drop_foreign_key' => ['op' => 'add_foreign_key', 'table' => $t, 'foreignKey' => $op['foreignKey']],
+            'map_status' => ['op' => 'unmap_status'] + $op,
             default => ['op' => 'noop', 'table' => $t],
         };
     }
