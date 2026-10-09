@@ -138,6 +138,7 @@ export interface Impact {
   requires_confirmation: { blocking_steps: boolean; destructive: boolean; typed: string | null; failing_required: boolean }
   blocking: { code: string; path: string; message: string; detail?: string }[]
   lock_set?: { uuid: string; key: string }[]
+  workflow?: { removed_statuses: { uuid: string; key: string; name: string; records: number; to: string | null }[]; unassigned_records: number }
 }
 
 export interface ImpactResponse {

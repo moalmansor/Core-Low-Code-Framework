@@ -18,6 +18,7 @@ import { useI18n } from 'vue-i18n'
 import { ApiError } from '@/api/http'
 import UserPicker from '@/components/UserPicker.vue'
 import { useSession } from '@/stores/session'
+import { workflowApi } from '@/views/admin/formconfig/api'
 import { builderApi, referenceApi, type DepartmentTreeNode, type ImpactResponse, type MenuNode, type NamedOption, type PlanStatus } from './api'
 import DiffView from './DiffView.vue'
 import I18nInput from './I18nInput.vue'
@@ -106,6 +107,22 @@ async function analyse(): Promise<void> {
     failure.value = e instanceof ApiError ? e.message : String(e)
   } finally {
     loading.value = false
+  }
+}
+
+// Status mapping: records in statuses this version removes move to a chosen status.
+const mappingTargets = ref<{ uuid: string; key: string; name: string }[]>([])
+const removedWithRecords = computed(() => (impact.value?.workflow?.removed_statuses ?? []).filter((s) => s.records > 0))
+watch(removedWithRecords, async (list) => {
+  if (list.length && !mappingTargets.value.length) mappingTargets.value = (await workflowApi.mapping(builder.formUuid).catch(() => null))?.targets ?? []
+})
+async function chooseMapping(from: string, to: string): Promise<void> {
+  const mappings = removedWithRecords.value.map((s) => ({ from: s.uuid, to: s.uuid === from ? to : s.to })).filter((m): m is { from: string; to: string } => !!m.to)
+  try {
+    await workflowApi.chooseMapping(builder.formUuid, mappings)
+    await analyse()
+  } catch (e) {
+    failure.value = e instanceof ApiError ? e.message : String(e)
   }
 }
 
@@ -275,6 +292,26 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
               </li>
             </ul>
           </Message>
+
+          <section v-if="removedWithRecords.length" class="flex flex-col gap-2 text-sm" data-testid="status-mapping">
+            <h3 class="font-semibold">{{ t('builder.publish.status_mapping') }}</h3>
+            <p class="text-muted-color">{{ t('builder.publish.status_mapping_hint') }}</p>
+            <div v-for="s in removedWithRecords" :key="s.uuid" class="flex flex-wrap items-center gap-2">
+              <label :for="`map-${s.uuid}`" class="min-w-40">{{ t('builder.publish.status_records', { status: s.name, n: s.records }) }}</label>
+              <Select
+                :model-value="s.to"
+                :input-id="`map-${s.uuid}`"
+                :options="mappingTargets"
+                option-label="name"
+                option-value="uuid"
+                size="small"
+                :placeholder="t('builder.publish.status_target')"
+                :invalid="!s.to"
+                @update:model-value="(v: string) => chooseMapping(s.uuid, v)"
+              />
+            </div>
+          </section>
+          <p v-if="impact.workflow?.unassigned_records" class="text-sm">{{ t('builder.publish.unassigned_records', { n: impact.workflow.unassigned_records }) }}</p>
 
           <section class="flex flex-col gap-1 text-sm">
             <h3 class="font-semibold">{{ t('builder.publish.affected') }}</h3>

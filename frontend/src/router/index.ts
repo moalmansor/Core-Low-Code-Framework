@@ -44,6 +44,18 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/TranslationsView.vue'),
         meta: { anyOf: ['system.manage_translations'], title: 'admin.area.translations' },
       },
+      {
+        path: 'admin/reason-codes',
+        name: 'admin.reason_codes',
+        component: () => import('@/views/admin/ReasonCodesView.vue'),
+        meta: { anyOf: ['system.manage_justification_rules'], title: 'admin.area.reason_codes' },
+      },
+      {
+        path: 'admin/work',
+        name: 'admin.work',
+        component: () => import('@/views/admin/WorkAdminView.vue'),
+        meta: { anyOf: ['system.manage_forms', 'system.manage_delegation'], title: 'admin.area.assignment_queues' },
+      },
       { path: 'admin/audit', name: 'admin.audit', component: () => import('@/views/admin/AuditLogView.vue'), meta: { anyOf: ['system.view_audit_log'], title: 'admin.area.audit_log' } },
       { path: 'admin/errors', name: 'admin.errors', component: () => import('@/views/admin/ErrorsView.vue'), meta: { anyOf: ['system.view_errors'], title: 'admin.area.error_monitoring' } },
       ...buildingRoutes,

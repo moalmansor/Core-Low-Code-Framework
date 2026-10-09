@@ -19,6 +19,7 @@ use App\Modules\Records\Runtime\FormRuntimes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -100,7 +101,10 @@ final class JustificationController extends Controller
     {
         Gate::authorize('system.manage_justification_rules');
         $row = ReasonCode::query()->where('uuid', strtolower($code))->firstOrFail();
-        $data = $request->validate(array_map(static fn (array $r) => ['sometimes', ...array_diff($r, ['required'])], $this->codeRules()));
+        $data = $request->validate(array_map(static fn (array $r) => ['sometimes', ...array_diff($r, ['required'])], $this->codeRules()) + ['base_updated_at' => ['required', 'string', 'max:40']]);
+        if ($this->code($row)['updated_at'] !== $data['base_updated_at']) {
+            return response()->json(['message' => __('justification.code_changed'), 'code' => 'reason_code_changed', 'data' => $this->code($row)], 409);
+        }
         DB::transaction(function () use ($row, $data, $audit): void {
             $row->fill(array_intersect_key($data, array_flip(['requires_note', 'sort_order', 'is_active'])))->save();
             if (isset($data['label'])) {
@@ -165,6 +169,7 @@ final class JustificationController extends Controller
         return [
             'uuid' => strtolower($c->uuid), 'set_key' => $c->set_key, 'code' => $c->code, 'label' => $c->translate('label') ?? $c->code,
             'labels' => $c->translationsFor('label'), 'requires_note' => $c->requires_note, 'sort_order' => $c->sort_order, 'is_active' => $c->is_active,
+            'updated_at' => $c->updated_at === null ? null : Carbon::parse($c->updated_at)->format('Y-m-d\\TH:i:s.u\\Z'),
         ];
     }
 

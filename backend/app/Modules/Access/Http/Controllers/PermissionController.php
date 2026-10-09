@@ -43,12 +43,14 @@ final class PermissionController extends Controller
             })
             ->orderBy('category')->orderBy('key')->get();
         $labels = $this->translator->many('permission', $permissions->pluck('id')->all(), ['label', 'description']);
+        // Transition and view permissions carry the name of their object.
+        $objects = in_array($scope, ['transition', 'view'], true) ? $this->translator->many($scope, $permissions->pluck('scope_id')->filter()->map(static fn ($v) => (int) $v)->all(), ['name']) : [];
 
         return response()->json(['data' => $permissions->map(static fn (Permission $p): array => [
             'key' => $p->key,
             'category' => $p->category,
             'is_dangerous' => $p->is_dangerous,
-            'label' => $labels[$p->id]['label'] ?? $p->key,
+            'label' => ($labels[$p->id]['label'] ?? $p->key).(isset($objects[(int) $p->scope_id]['name']) ? ': '.$objects[(int) $p->scope_id]['name'] : ''),
             'description' => $labels[$p->id]['description'] ?? null,
         ])->values()]);
     }

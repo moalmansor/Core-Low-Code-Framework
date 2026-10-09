@@ -50,7 +50,11 @@ final class QueueController extends Controller
     {
         Gate::authorize('system.manage_forms');
         $row = Queue::query()->where('uuid', strtolower($queue))->firstOrFail();
-        $data = $request->validate($this->rules(false));
+        $data = $request->validate($this->rules(false) + ['base_updated_at' => ['required', 'string', 'max:40']]);
+        // Saved whole by an editor: a change made elsewhere since it was loaded is never overwritten.
+        if ($this->stamp($row) !== $data['base_updated_at']) {
+            return response()->json(['message' => __('assignment.queue_changed'), 'code' => 'queue_changed', 'data' => $this->present($row)], 409);
+        }
         DB::transaction(fn () => $this->fill($row, $data));
 
         return response()->json(['data' => $this->present($row->refresh())]);
@@ -116,7 +120,12 @@ final class QueueController extends Controller
             'type' => $q->type, 'subject' => $this->members->uuidOf($q->type, (int) ($q->type === 'role' ? $q->role_id : $q->department_id)),
             'claim_timeout_minutes' => $q->claim_timeout_minutes, 'is_active' => $q->is_active,
             'forms' => $forms->map(fn ($f) => ['form' => strtolower((string) $f->uuid), 'key' => $f->key, 'name' => $this->translator->get('form', (int) $f->id, 'name') ?? $f->key, 'columns' => json_decode((string) $f->columns, true) ?: []])->values(),
-            'updated_at' => $q->updated_at === null ? null : Carbon::parse($q->updated_at)->toIso8601ZuluString(),
+            'updated_at' => $this->stamp($q),
         ];
+    }
+
+    private function stamp(Queue $q): ?string
+    {
+        return $q->updated_at === null ? null : Carbon::parse($q->updated_at)->format('Y-m-d\\TH:i:s.u\\Z');
     }
 }

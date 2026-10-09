@@ -171,6 +171,9 @@ export const icons: Record<string, string> = {
   blueprints: 'pi-clone',
   reference_data: 'pi-book',
   schema: 'pi-database',
+  workflows_views: 'pi-sitemap',
+  assignment_queues: 'pi-inbox',
+  reason_codes: 'pi-comment',
 }
 </script>
 

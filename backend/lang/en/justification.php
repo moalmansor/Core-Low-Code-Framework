@@ -28,4 +28,5 @@ return [
     'invalid_attachment_rules' => 'The file rules are not valid.',
     'too_many' => 'A form can have at most 500 justification rules.',
     'changed_elsewhere' => 'The justification rules were changed by someone else. Review the latest version and apply your changes again.',
+    'code_changed' => 'This reason code was changed by someone else. Review the latest version and apply your changes again.',
 ];

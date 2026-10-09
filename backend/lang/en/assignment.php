@@ -22,4 +22,5 @@ return [
     'column_updated_at' => 'Updated',
     'column_status' => 'Status',
     'already_decided' => 'You have already decided on this request.',
+    'queue_changed' => 'This queue was changed by someone else. Review the latest version and apply your changes again.',
 ];

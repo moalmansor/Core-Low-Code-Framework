@@ -91,7 +91,10 @@ it('asks for a justification after validation, enforces it on the server and kee
     saveDraft($this, $form, [], [$amount, $phone])->assertOk();
     expect(publish($this, $form)['status'])->toBe('applied');
     $this->postJson('/api/v1/justification-reason-codes', ['set_key' => 'pay', 'code' => 'RAISE', 'label' => ['en' => 'Raise', 'ar' => 'زيادة']])->assertCreated();
-    $other = $this->postJson('/api/v1/justification-reason-codes', ['set_key' => 'pay', 'code' => 'OTHER', 'label' => ['en' => 'Other'], 'requires_note' => true])->assertCreated()->json('data.uuid');
+    $otherCode = $this->postJson('/api/v1/justification-reason-codes', ['set_key' => 'pay', 'code' => 'OTHER', 'label' => ['en' => 'Other'], 'requires_note' => true])->assertCreated()->json('data');
+    $other = $otherCode['uuid'];
+    $this->patchJson("/api/v1/justification-reason-codes/{$other}", ['sort_order' => 2, 'base_updated_at' => $otherCode['updated_at']])->assertOk();
+    $this->patchJson("/api/v1/justification-reason-codes/{$other}", ['sort_order' => 3, 'base_updated_at' => $otherCode['updated_at']])->assertStatus(409);
     $hash = $this->getJson("/api/v1/forms/{$form}/justification-rules")->assertOk()->json('data.hash');
     $this->putJson("/api/v1/forms/{$form}/justification-rules", ['base_hash' => $hash, 'rules' => [[
         'uuid' => uid(), 'scope' => 'field', 'target' => $amount['uuid'], 'subject' => ['type' => 'everyone'], 'level' => 'mandatory',
@@ -144,7 +147,11 @@ it('assigns by rule, lets queue members claim, guards claimed records and lists 
     $this->putJson("/api/v1/forms/{$form}/assignment-rules", ['base_hash' => $hash, 'rules' => [
         ['uuid' => uid(), 'transition' => $wf['submit']['uuid'], 'strategy' => 'role', 'target' => ['type' => 'role', 'uuid' => $role->uuid], 'field' => null, 'condition' => null, 'dueInMinutes' => 60, 'workingTime' => false, 'priority' => 5],
     ]])->assertOk();
-    $this->postJson('/api/v1/queues', ['key' => 'users', 'name' => ['en' => 'Users'], 'type' => 'role', 'subject' => $role->uuid, 'forms' => [['form' => $form, 'columns' => [['subject']]]]])->assertCreated();
+    $queue = $this->postJson('/api/v1/queues', ['key' => 'users', 'name' => ['en' => 'Users'], 'type' => 'role', 'subject' => $role->uuid, 'forms' => [['form' => $form, 'columns' => [['subject']]]]])->assertCreated()->json('data');
+    // A queue edited elsewhere since it was loaded is never overwritten.
+    $saved = $this->patchJson("/api/v1/queues/{$queue['uuid']}", ['claim_timeout_minutes' => 30, 'base_updated_at' => $queue['updated_at']])->assertOk()->json('data');
+    $this->patchJson("/api/v1/queues/{$queue['uuid']}", ['claim_timeout_minutes' => 45, 'base_updated_at' => $queue['updated_at']])->assertStatus(409)->assertJsonPath('code', 'queue_changed');
+    expect($saved['claim_timeout_minutes'])->toBe(30);
 
     $rec = $this->postJson("/api/v1/r/{$form}", ['values' => ['subject' => 'Help', 'reason' => 'x']])->assertCreated()->json('data.uuid');
     $this->postJson("/api/v1/r/{$form}/{$rec}/transitions/{$wf['submit']['uuid']}", ['row_version' => 1, 'comment' => 'c'])->assertOk();

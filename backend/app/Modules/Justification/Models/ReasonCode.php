@@ -9,6 +9,7 @@ use App\Support\Models\BaseModel;
 use App\Support\Models\BelongsToOrganization;
 use App\Support\Models\HasStableUuid;
 use App\Support\Models\TracksActor;
+use Illuminate\Support\Carbon;
 
 /**
  * An admin-defined reason code (specification §4.24), grouped in sets that
@@ -21,6 +22,7 @@ use App\Support\Models\TracksActor;
  * @property bool $requires_note
  * @property int $sort_order
  * @property bool $is_active
+ * @property Carbon|null $updated_at
  */
 final class ReasonCode extends BaseModel
 {
