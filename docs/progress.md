@@ -277,31 +277,39 @@ Fixed on the pull request, each with regression tests:
    and appears only for record links.
 - Also found and fixed: sidebar names stayed in the previous language after a
   language switch (the preference is now saved before the interface switches).
+- Also found and fixed (2026-10-09, while testing the interface work):
+  republishing a form with no schema change dropped and recreated every index
+  and foreign key of its tables on MySQL — 42 steps and about 40 seconds for a
+  two-field form with records. MySQL's JSON type returns the stored definition
+  with its object keys reordered, and the differ compared specs as encoded
+  strings. Specs and record values are now compared canonically
+  (`App\Support\Json\Canonical`); tests: `SchemaDifferTest`, and a
+  republish-without-change test in `PublishLifecycleTest`.
 
-Waiting on the owner:
+Decided by the owner:
 
 - Item 3 ("field rules are repeated") was withdrawn by the owner: it could not
   be reproduced and was most likely the flat panel layout of item 2.
-- Items 2, 4, 5 and the overall visual system: the owner approved the table,
-  panel and frame proposals, IBM Plex Sans + IBM Plex Sans Arabic, and the
-  primary colour as an Appearance & Branding setting, to be built in a separate
-  pull request before Phase 3. The owner supplied the product palette (light
-  and dark tokens); the WCAG 2.1 AA check found seven failing pairings, and the
-  proposed fixes A–G await the owner's choice (F, a darker input outline, is a
-  visible change). Nothing implemented yet.
+- Items 2, 4, 5 and the overall visual system: approved for a separate pull
+  request before Phase 3 (branch `phase-2-interface`), with the owner's
+  palette, contrast fixes A–G as decided on 2026-10-09, a 12px table-header
+  floor (13px for Arabic), and prefers-reduced-motion respected throughout.
 - Formula-language diagnostics (syntax/type errors in typed formulas) are
   English only; translating them by code is a follow-up.
 
 ## Resume point
 
 Phase 2 is complete and merge-ready on its functional fixes (all walkthrough
-items fixed or moved; item 3 withdrawn). Backend: 617 tests pass; frontend:
-488 unit tests pass; CI green on both engines. The owner reviews and merges.
+items fixed or moved; item 3 withdrawn; the republish fix of 2026-10-09).
+Backend: 620 tests pass; frontend: 488 unit tests pass. The owner reviews and
+merges.
 
 Next: the interface pull request (owner-approved, before Phase 3) on branch
-`phase-2-interface`: theme tokens with contrast fixes A–G, IBM Plex fonts,
-primary colour in Appearance & Branding, page frame, records table standard,
-field properties panel, `docs/design-system.md`. Do not start Phase 2.5 or 3.
+`phase-2-interface`. Built and pushed: theme tokens with contrast fixes A–G,
+IBM Plex fonts, primary colour in Appearance & Branding, page frame, records
+table standard, properties panel. Remaining: `docs/design-system.md`, ADR-0030,
+specification additions, the pull request with its report, and the
+before/after page with Arabic. Do not start Phase 2.5 or 3.
 
 ### Local development notes
 

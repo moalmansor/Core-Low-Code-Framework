@@ -39,6 +39,9 @@ All notable changes to this project are documented here, one section per phase.
 - Opening the root URL directly shows the application shell.
 - The access epoch is mirrored in `settings` as architecture §16.5 describes, so
   a counter lost from the cache never lets an old access snapshot match again.
+- Republishing a form whose schema did not change no longer drops and
+  recreates every index and foreign key of its tables on MySQL (MySQL's JSON
+  type reorders object keys, and specs were compared as encoded strings).
 
 ## Phase 1: Foundation, Security & Administration Core
 
