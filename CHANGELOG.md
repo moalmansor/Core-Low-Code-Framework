@@ -65,6 +65,8 @@ All notable changes to this project are documented here, one section per phase.
 - Republishing a form whose schema did not change no longer drops and
   recreates every index and foreign key of its tables on MySQL (MySQL's JSON
   type reorders object keys, and specs were compared as encoded strings).
+- Opening *Publish* during an autosave no longer stops at "save first" with
+  *Continue* disabled; the builder saves until nothing is pending.
 
 ## Phase 1: Foundation, Security & Administration Core
 
