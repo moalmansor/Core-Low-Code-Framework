@@ -121,11 +121,10 @@ function removeCustom(i: number): void {
 
 <template>
   <div class="flex flex-col gap-3">
-    <section v-if="allows('required')" class="rule">
-      <label class="flex items-center gap-2 text-sm font-medium"
-        ><ToggleSwitch :model-value="v.required ?? false" data-testid="prop-required" @update:model-value="(x: boolean) => (v.required = x)" />{{ t('builder.validation.required') }}</label
-      >
-      <I18nInput v-if="v.required" :model-value="message('required')" :label="t('builder.validation.message')" @update:model-value="(m) => setMessage('required', m)" />
+    <!-- Whether the field is required is set under General > Basics; its message is set here. -->
+    <section v-if="allows('required') && v.required" class="rule">
+      <h4>{{ t('builder.validation.required') }}</h4>
+      <I18nInput :model-value="message('required')" :label="t('builder.validation.message')" @update:model-value="(m) => setMessage('required', m)" />
     </section>
 
     <section v-if="allows('length')" class="rule">

@@ -150,12 +150,12 @@ const defaultsText = computed({
 
     <!-- Static list -->
     <div v-if="options.source === 'static'" class="flex flex-col gap-2">
-      <div v-for="(o, i) in statics" :key="o.uuid" class="rounded border border-line p-2 flex flex-col gap-1" :data-testid="`option-${i}`">
+      <div v-for="(o, i) in statics" :key="o.uuid" class="min-w-0 rounded border border-line p-2 flex flex-col gap-1" :data-testid="`option-${i}`">
         <div class="flex items-center gap-1">
           <InputText
             v-model="o.value"
             size="small"
-            class="flex-1 ltr-value font-mono"
+            class="flex-1 min-w-0 ltr-value font-mono"
             :invalid="!o.value || duplicateValues.has(o.value)"
             maxlength="255"
             :aria-label="t('builder.options.value')"
@@ -164,7 +164,7 @@ const defaultsText = computed({
           <input
             type="color"
             :value="o.color || PICKER_FALLBACK"
-            class="w-8 h-8 rounded border border-line-input"
+            class="w-8 h-8 shrink-0 rounded border border-line-input"
             :aria-label="t('builder.options.color')"
             @input="(e) => (o.color = (e.target as HTMLInputElement).value)"
           />

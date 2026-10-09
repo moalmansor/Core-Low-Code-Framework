@@ -90,3 +90,90 @@ test('a brand colour set in Appearance & Branding reaches every screen, and an u
   await expect(page.getByTestId('brand-primary')).toHaveValue('')
   expect(problems).toEqual([])
 })
+
+test('the properties panel finds a setting across tabs and keeps sections tidy', async ({ page }) => {
+  const problems = watchConsole(page)
+  await page.goto('/')
+  await page.getByTestId('nav-app-operations').getByRole('link', { name: 'Visit requests' }).click()
+  await expect(page.getByTestId('records-table')).toBeVisible()
+  const form = page.url().split('/app/')[1]!.split(/[/?]/)[0]!
+  await page.goto(`/admin/forms/${form}/builder`)
+  await page.getByTestId('canvas-visitor').click()
+  const panel = page.getByTestId('field-properties')
+
+  // A few tabs; the rarely used ones sit under More.
+  await expect(panel.getByTestId('tab-general')).toBeVisible()
+  await expect(panel.getByTestId('tab-table')).toHaveCount(0)
+  await expect(panel.getByTestId('section-field-basics')).toBeVisible()
+  await expect(panel.getByTestId('prop-required')).toBeVisible()
+  // Help text starts folded; opening it shows its settings.
+  await expect(panel.getByTestId('section-field-help')).toHaveAttribute('data-open', 'false')
+  await panel.getByTestId('section-field-help').getByRole('button', { name: 'Help text' }).click()
+  await expect(panel.getByTestId('section-field-help')).toHaveAttribute('data-open', 'true')
+  // Only the interface language is shown; the others fold under one line.
+  await expect(panel.getByTestId('prop-label').locator('input')).toHaveCount(1)
+
+  // "Find a setting" reaches a setting on another tab, opened, and the tabs step aside.
+  await panel.getByTestId('panel-search').fill('filter')
+  await expect(panel.getByTestId('section-field-column')).toHaveAttribute('data-open', 'true')
+  await expect(panel.getByTestId('section-field-basics')).toHaveCount(0)
+  await expect(panel.getByTestId('tab-general')).toHaveCount(0)
+  await panel.getByTestId('section-field-column').getByRole('switch', { name: 'Filterable' }).check()
+  await panel.getByTestId('panel-search').fill('')
+  await expect(panel.getByTestId('tab-general')).toBeVisible()
+
+  // The More menu opens the table tab, where the change is kept.
+  await panel.getByTestId('tab-more').click()
+  await page.getByRole('menuitem', { name: 'Table & export' }).click()
+  await expect(panel.getByTestId('section-field-column').getByRole('switch', { name: 'Filterable' })).toBeChecked()
+
+  // Published, so the records list can filter on the visitor.
+  await page.getByTestId('save-now').click()
+  await expect(page.getByTestId('save-state')).toContainText(/saved/i)
+  await page.getByTestId('open-publish').click()
+  await page.getByTestId('publish-continue').click()
+  await page.getByTestId('publish-confirm').click()
+  await expect(page.getByTestId('publish-dialog')).toContainText(/applied|published/i, { timeout: 60_000 })
+  expect(problems).toEqual([])
+})
+
+test('the records table counts, filters through the URL, and deletes a selection', async ({ page }) => {
+  const problems = watchConsole(page)
+  await page.goto('/')
+  await page.getByTestId('nav-app-operations').getByRole('link', { name: 'Visit requests' }).click()
+  await expect(page.getByTestId('records-table')).toBeVisible()
+  const form = page.url().split('/app/')[1]!.split(/[/?]/)[0]!
+  const xsrf = decodeURIComponent((await page.context().cookies()).find((c) => c.name === 'XSRF-TOKEN')!.value)
+  const headers = { 'X-XSRF-TOKEN': xsrf, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', Origin: new URL(page.url()).origin, Referer: page.url() }
+  for (const visitor of ['Zainab Ali', 'Zaid Omar', 'زينب علي']) expect((await page.request.post(`/api/v1/r/${form}`, { data: { values: { visitor } }, headers })).status()).toBe(201)
+  await page.reload()
+  await expect(page.getByTestId('records-count')).toHaveText(/^1–\d+ of \d+$/)
+
+  // A typed filter: visitor starts with "Zai".
+  await page.getByTestId('records-add-filter').click()
+  await page.getByRole('option', { name: 'Visitor' }).click()
+  const row = page.getByTestId('records-filter-visitor')
+  await row.getByRole('combobox', { name: 'Condition' }).click()
+  await page.getByRole('option', { name: 'Starts with' }).click()
+  await row.getByRole('textbox', { name: 'Value' }).fill('Zai')
+  await page.getByTestId('records-apply-filters').click()
+  await expect(page.getByTestId('records-count')).toHaveText('1–2 of 2')
+  expect(decodeURIComponent(page.url())).toContain('f.visitor=starts_with:Zai')
+
+  // The URL carries the list: a reload (or a shared link) shows the same records.
+  await page.reload()
+  await expect(page.getByTestId('records-count')).toHaveText('1–2 of 2')
+  const rows = page.getByTestId('records-table').locator('tbody tr')
+  await expect(rows).toHaveCount(2)
+  await expect(page.getByTestId('records-table')).not.toContainText('زينب علي')
+
+  // Select both, delete them from the Actions menu; each delete is version-checked by the server.
+  await rows.nth(0).getByRole('checkbox').check()
+  await rows.nth(1).getByRole('checkbox').check()
+  await page.getByTestId('records-actions').click()
+  await page.getByRole('menuitem', { name: 'Delete 2 selected' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
+  await expect(page.getByText('2 records deleted')).toBeVisible()
+  await expect(page.getByTestId('records-count')).toHaveText('No records')
+  expect(problems).toEqual([])
+})

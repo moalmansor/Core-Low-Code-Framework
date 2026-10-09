@@ -1,4 +1,4 @@
-import { inject, provide, reactive, ref, type InjectionKey, type Ref } from 'vue'
+import { inject, provide, reactive, ref, watch, type InjectionKey, type Ref } from 'vue'
 
 /**
  * Shared structure of the builder's properties panels (design system:
@@ -15,6 +15,8 @@ export interface PanelContext {
 
 const KEY: InjectionKey<PanelContext> = Symbol('properties-panel')
 const STORAGE = 'lcf.builder.sections'
+// The last tab per kind of panel, so moving between fields keeps the admin on the same tab.
+const lastTab = new Map<string, string>()
 
 function stored(): Record<string, boolean> {
   try {
@@ -24,10 +26,13 @@ function stored(): Record<string, boolean> {
   }
 }
 
-export function providePanel(initialTab: string): PanelContext {
+export function providePanel(kind: string, initialTab: string, available: () => string[] = () => [initialTab]): PanelContext {
   const open = reactive<Record<string, boolean>>(stored())
+  const remembered = lastTab.get(kind)
+  const tab = ref(remembered && available().includes(remembered) ? remembered : initialTab)
+  watch(tab, (v) => lastTab.set(kind, v))
   const ctx: PanelContext = {
-    tab: ref(initialTab),
+    tab,
     query: ref(''),
     isOpen: (id, defaultOpen) => open[id] ?? defaultOpen,
     toggle(id, defaultOpen) {
