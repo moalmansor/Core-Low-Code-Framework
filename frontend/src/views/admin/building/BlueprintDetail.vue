@@ -19,6 +19,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { get, http, send } from '@/api/http'
+import FormPicker from '@/builder/FormPicker.vue'
 import { useSession } from '@/stores/session'
 import LocaleFields from './LocaleFields.vue'
 import { INCLUDE_MODES, errorText, fieldErrors, filledLocales, formatDateTime, saveBlob, type FormSummary, type IncludeMode } from './shared'
@@ -145,9 +146,10 @@ async function submitVersion(): Promise<void> {
   const v = newVersion.value!
   versionErrors.value = {}
   try {
+    const isView = bp.value?.kind === 'view'
     const res = await send<{ data: { version: number } }>('post', `/blueprints/${uuid.value}/versions`, {
-      source: v.source?.uuid ?? null,
-      include_mode: v.include_mode,
+      source: isView ? null : (v.source?.uuid ?? null),
+      ...(isView ? {} : { include_mode: v.include_mode }),
       changelog: v.changelog.trim() || null,
     })
     newVersion.value = null
@@ -162,14 +164,15 @@ async function submitVersion(): Promise<void> {
 
 // Instantiate
 const apps = ref<{ uuid: string; name: string; status: string }[]>([])
-const inst = ref<{ application: string | null; key: string; names: Record<string, string>; include_mode: IncludeMode; version: number | null } | null>(null)
+const inst = ref<{ application: string | null; form: string | null; key: string; names: Record<string, string>; include_mode: IncludeMode; version: number | null } | null>(null)
 const instErrors = ref<Record<string, string>>({})
 async function openInstantiate(): Promise<void> {
   instErrors.value = {}
-  if (!apps.value.length) apps.value = (await get<{ data: { uuid: string; name: string; status: string }[] }>('/applications')).data
   const b = bp.value!
+  if (b.kind !== 'view' && !apps.value.length) apps.value = (await get<{ data: { uuid: string; name: string; status: string }[] }>('/applications')).data
   inst.value = {
     application: apps.value.find((a) => a.status === 'active')?.uuid ?? null,
+    form: null,
     key: '',
     names: { ...b.names },
     include_mode: b.include_mode && includeOptions.value.find((o) => o.value === b.include_mode && !o.disabled) ? b.include_mode : 'structure',
@@ -180,13 +183,21 @@ async function submitInstantiate(): Promise<void> {
   const i = inst.value!
   instErrors.value = {}
   try {
-    const res = await send<{ data: { uuid: string; key: string; skipped: unknown[] } }>('post', `/blueprints/${uuid.value}/instantiate`, {
-      application: i.application,
+    const isView = bp.value?.kind === 'view'
+    const res = await send<{ data: { uuid: string; key: string; skipped?: unknown[] } }>('post', `/blueprints/${uuid.value}/instantiate`, {
+      ...(isView ? { form: i.form } : { application: i.application, include_mode: i.include_mode }),
       key: i.key,
       name: filledLocales(i.names),
-      include_mode: i.include_mode,
       ...(i.version ? { version: i.version } : {}),
     })
+    if (isView) {
+      inst.value = null
+      toast.add({ severity: 'success', summary: t('building.blueprints.created_view', { key: res.data.key }), life: 6000 })
+      await load()
+      tab.value = 'instances'
+      return
+    }
+    res.data.skipped ??= []
     inst.value = null
     toast.add({
       severity: res.data.skipped.length ? 'warn' : 'success',
@@ -472,7 +483,8 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
 
   <Dialog :visible="!!newVersion" modal :header="t('building.blueprints.new_version')" :style="{ width: '36rem' }" @update:visible="(v: boolean) => !v && (newVersion = null)">
     <form v-if="newVersion" class="flex flex-col gap-3" @submit.prevent="submitVersion">
-      <div class="field">
+      <p v-if="bp?.kind === 'view'" class="text-sm text-muted-color">{{ t('building.blueprints.view_version_hint') }}</p>
+      <div v-else class="field">
         <label for="nv-source">{{ t('building.blueprints.source') }}</label>
         <AutoComplete v-if="canForms" v-model="newVersion.source" input-id="nv-source" :suggestions="formSuggestions" option-label="key" force-selection dropdown @complete="searchForms">
           <template #option="{ option }">
@@ -483,7 +495,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
         <small class="text-muted-color">{{ t('building.blueprints.version_source_hint') }}</small>
         <span v-if="versionErrors.source" class="field-error">{{ versionErrors.source }}</span>
       </div>
-      <div class="field">
+      <div v-if="bp?.kind !== 'view'" class="field">
         <label for="nv-include">{{ t('building.include_label') }}</label>
         <Select v-model="newVersion.include_mode" input-id="nv-include" :options="includeOptions" option-label="label" option-value="value" option-disabled="disabled" />
       </div>
@@ -502,7 +514,12 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
   <Dialog :visible="!!inst" modal :header="t('building.blueprints.instantiate')" :style="{ width: '40rem' }" @update:visible="(v: boolean) => !v && (inst = null)">
     <form v-if="inst && bp" class="flex flex-col gap-3" @submit.prevent="submitInstantiate">
       <div class="form-grid">
-        <div class="field">
+        <div v-if="bp.kind === 'view'" class="field">
+          <label for="in-form">{{ t('building.blueprints.target_form') }}</label>
+          <FormPicker v-model="inst.form" kind="form" input-id="in-form" />
+          <span v-if="instErrors.form" class="field-error">{{ instErrors.form }}</span>
+        </div>
+        <div v-else class="field">
           <label for="in-app">{{ t('building.application') }}</label>
           <Select v-model="inst.application" input-id="in-app" :options="apps" option-label="name" option-value="uuid" data-testid="in-app" />
           <span v-if="instErrors.application" class="field-error">{{ instErrors.application }}</span>
@@ -517,18 +534,18 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
           <label for="in-version">{{ t('building.blueprints.version') }}</label>
           <Select v-model="inst.version" input-id="in-version" :options="bp.versions" :option-label="(v: Version) => `v${v.version}`" option-value="version" />
         </div>
-        <div class="field">
+        <div v-if="bp.kind !== 'view'" class="field">
           <label for="in-include">{{ t('building.include_label') }}</label>
           <Select v-model="inst.include_mode" input-id="in-include" :options="includeOptions" option-label="label" option-value="value" option-disabled="disabled" />
         </div>
       </div>
-      <small class="text-muted-color">{{ t(`building.include_hint.${inst.include_mode}`) }}</small>
+      <small v-if="bp.kind !== 'view'" class="text-muted-color">{{ t(`building.include_hint.${inst.include_mode}`) }}</small>
       <div class="form-grid">
         <LocaleFields v-model="inst.names" :label="t('building.name')" field="name" :errors="instErrors" id-prefix="in-name" />
       </div>
       <div class="flex justify-end gap-2">
         <Button type="button" severity="secondary" :label="t('common.cancel')" @click="inst = null" />
-        <Button type="submit" :label="t('building.blueprints.create_form')" data-testid="in-submit" />
+        <Button type="submit" :label="bp.kind === 'view' ? t('building.blueprints.create_view') : t('building.blueprints.create_form')" data-testid="in-submit" />
       </div>
     </form>
   </Dialog>

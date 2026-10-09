@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
+import Dialog from 'primevue/dialog'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import Select from 'primevue/select'
 import ToggleSwitch from 'primevue/toggleswitch'
+import { useToast } from 'primevue/usetoast'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { send } from '@/api/http'
 import I18nInput from '@/builder/I18nInput.vue'
 import { useSession } from '@/stores/session'
+import LocaleFields from '../building/LocaleFields.vue'
+import { errorText, fieldErrors, filledLocales } from '../building/shared'
 import { labelOf, newUuid, viewsApi, type Path, type PathNode, type ViewColumnDoc, type ViewDoc } from './api'
 import ErrorList from './ErrorList.vue'
 import PathPicker from './PathPicker.vue'
@@ -98,6 +103,29 @@ function move<T>(list: T[], i: number, d: -1 | 1): void {
   if (j < 0 || j >= list.length) return
   ;[list[i], list[j]] = [list[j]!, list[i]!]
 }
+// Save a saved view as a blueprint (specification §4.15): other forms create views from it.
+const toast = useToast()
+const canBlueprint = computed(() => session.can('system.manage_blueprints'))
+const blueprint = ref<{ view: string; names: Record<string, string>; category: string } | null>(null)
+const blueprintErrors = ref<Record<string, string>>({})
+function openBlueprint(): void {
+  if (!view.value) return
+  blueprintErrors.value = {}
+  blueprint.value = { view: view.value.uuid, names: { ...view.value.i18n.name }, category: '' }
+}
+async function saveBlueprint(): Promise<void> {
+  const b = blueprint.value!
+  try {
+    await send('post', '/blueprints', { source: b.view, source_type: 'view', name: filledLocales(b.names), ...(b.category ? { category: b.category } : {}) })
+    blueprint.value = null
+    toast.add({ severity: 'success', summary: t('views.blueprint_saved'), life: 4000 })
+  } catch (e) {
+    blueprintErrors.value = fieldErrors(e)
+    toast.add({ severity: 'error', summary: errorText(e, t('workflow.save_failed')), life: 6000 })
+  }
+}
+const savedUuids = computed(() => new Set(((doc.extra.value.views as ViewDoc[] | undefined) ?? []).map((v) => v.uuid)))
+
 const err = (path: string) => doc.errors.value[`views.${current.value}.${path}`]
 const colInvalid = (c: ViewColumnDoc, j: number) => !c.path.length || !!err(`columns.${j}.path`)
 </script>
@@ -204,11 +232,34 @@ const colInvalid = (c: ViewColumnDoc, j: number) => !c.path.length || !!err(`col
 
         <p class="text-sm text-muted-color">{{ t('views.who_hint') }}</p>
         <p v-if="view.columns.length" class="text-sm text-muted-color">{{ t('views.preview_columns') }}: {{ view.columns.filter((c) => c.path.length).map((c) => pathLabel(c.path)).join(', ') }}</p>
-        <div class="flex justify-end">
+        <div class="flex justify-end gap-2">
+          <Button
+            v-if="canBlueprint"
+            icon="pi pi-clone"
+            :label="t('views.save_blueprint')"
+            text
+            size="small"
+            :disabled="doc.dirty.value || !savedUuids.has(view.uuid)"
+            data-testid="view-save-blueprint"
+            @click="openBlueprint"
+          />
           <Button icon="pi pi-trash" :label="t('views.remove')" text severity="danger" size="small" @click="removeView(current)" />
         </div>
       </section>
     </div>
     <ErrorList :errors="doc.errors.value" />
+    <Dialog :visible="!!blueprint" modal :header="t('views.save_blueprint')" class="w-full max-w-lg" @update:visible="(v) => !v && (blueprint = null)">
+      <form v-if="blueprint" class="flex flex-col gap-3" @submit.prevent="saveBlueprint">
+        <LocaleFields v-model="blueprint.names" :label="t('views.name')" field="name" :errors="blueprintErrors" id-prefix="vbp-name" />
+        <div class="field">
+          <label for="vbp-cat">{{ t('views.blueprint_category') }}</label>
+          <InputText id="vbp-cat" v-model="blueprint.category" class="ltr-value" maxlength="64" :invalid="!!blueprintErrors.category" />
+        </div>
+        <div class="flex justify-end gap-2">
+          <Button type="button" :label="t('workflow.cancel')" text @click="blueprint = null" />
+          <Button type="submit" :label="t('workflow.save')" icon="pi pi-check" data-testid="vbp-save" />
+        </div>
+      </form>
+    </Dialog>
   </div>
 </template>
