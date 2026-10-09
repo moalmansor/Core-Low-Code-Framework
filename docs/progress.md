@@ -8,9 +8,9 @@ Project memory file (specification §8.1). Updated at the end of every run.
 |---|---|---|---|
 | 0 — Architecture & Data Model | `phase-0-architecture` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#1](https://github.com/moalmansor/Core-Low-Code-Framework/pull/1) |
 | 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
-| 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | **In progress** (issue #4) | — |
-| 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | Not started | — |
-| 3 — Workflow, Records & Views | `phase-3-workflow` | Not started | — |
+| 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | **Complete. Merged.** (plus the interface pull request) | [moalmansor/Core-Low-Code-Framework#11](https://github.com/moalmansor/Core-Low-Code-Framework/pull/11), [#12](https://github.com/moalmansor/Core-Low-Code-Framework/pull/12) |
+| 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | **Complete.** Owner confirmed 2026-10-09; no findings, no code changes (`docs/pilot-findings.md`) | — (issue #5 closed) |
+| 3 — Workflow, Records & Views | `phase-3-workflow` | **In progress** (issue #6) | — |
 | 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | Not started | — |
 | 5 — Platform & Extensibility | `phase-5-platform` | Not started | — |
 | 6 — Hardening & Final Delivery | `phase-6-hardening` | Not started | — |
@@ -301,29 +301,22 @@ Decided by the owner:
 - Formula-language diagnostics (syntax/type errors in typed formulas) are
   English only; translating them by code is a follow-up.
 
+## Phase 2.5: pilot (issue #5)
+
+- The owner built pilot forms from their organization in the running system,
+  including linked forms, with their users. Claude created none of them.
+- **Findings:** none. The owner confirmed on 2026-10-09 that the forms work for
+  their users, which ends the phase.
+- **Specification changes:** none were needed (`docs/pilot-findings.md`).
+- No code changed, so the phase has no pull request of its own. The findings
+  report and this entry are the first commit on `phase-3-workflow`, and
+  issue #5 is closed with a link to it.
+
 ## Resume point
 
-Phase 2 is complete and merge-ready on its functional fixes (all walkthrough
-items fixed or moved; item 3 withdrawn; the republish fix of 2026-10-09).
-Backend: 620 tests pass; frontend: 490 unit tests pass; CI green on
-`701c21a`. The owner reviews and
-merges.
-
-Interface pull request (owner-approved, before Phase 3): branch
-`phase-2-interface`, PR #12, based on `phase-2-form-builder`. Complete: theme
-tokens with contrast fixes A–G, IBM Plex fonts, primary colour in Appearance &
-Branding, page frame, records table standard, properties panel,
-`docs/design-system.md`, ADR-0030, specification additions, before/after page
-(https://claude.ai/artifact/57K92EsBeWmhznA5WFheMs). Pest 624 on MySQL and
-SQL Server, Vitest 534, Playwright 14 on both engines in CI.
-
-CI is green on both pull requests (Actions was down from 05:38 to about 13:10
-UTC on 2026-10-09). PR #12's end-to-end jobs crashed in PHP 8.3.35's OPcache
-JIT, which setup-php turns on; CI now keeps the JIT off as the production
-image does, and `docker/php/php.ini` disables it explicitly. After PR #11
-merges, retarget PR #12 to `main`.
-
-Do not start Phase 2.5 or 3.
+Phase 3 (Workflow, Records & Views) is in progress on branch
+`phase-3-workflow`, issue #6, including the view blueprints moved from
+Phase 2. Do not start Phase 4.
 
 ### Local development notes
 
