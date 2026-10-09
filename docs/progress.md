@@ -285,6 +285,10 @@ Fixed on the pull request, each with regression tests:
   strings. Specs and record values are now compared canonically
   (`App\Support\Json\Canonical`); tests: `SchemaDifferTest`, and a
   republish-without-change test in `PublishLifecycleTest`.
+- Also found and fixed (2026-10-09, by CI on the interface pull request):
+  opening *Publish* during an autosave could stop at "save first" with
+  *Continue* disabled, because `flush()` returned before the follow-up save
+  of a newer edit. Test: `useBuilder.spec.ts`.
 
 Decided by the owner:
 
@@ -301,7 +305,8 @@ Decided by the owner:
 
 Phase 2 is complete and merge-ready on its functional fixes (all walkthrough
 items fixed or moved; item 3 withdrawn; the republish fix of 2026-10-09).
-Backend: 620 tests pass; frontend: 488 unit tests pass. The owner reviews and
+Backend: 620 tests pass; frontend: 490 unit tests pass; CI green on
+`701c21a`. The owner reviews and
 merges.
 
 Next: the interface pull request (owner-approved, before Phase 3) on branch
