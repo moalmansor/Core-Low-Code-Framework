@@ -159,8 +159,11 @@ final class WorkflowDocument
                 $problems[] = ['path' => "transitions.{$i}.from", 'code' => 'final_outgoing', 'message' => __('workflow.final_outgoing', ['key' => $t['key']])];
             }
         }
-        if (count($initial) === 1) {
-            $reached = [$initial[0]['uuid'] => true];
+        if ($initial !== []) {
+            $reached = [];
+            foreach ($initial as $s) {
+                $reached[$s['uuid']] = true;
+            }
             do {
                 $grew = false;
                 foreach ($doc['transitions'] ?? [] as $t) {
@@ -189,6 +192,7 @@ final class WorkflowDocument
      */
     public function save(Form $form, array $doc, int $userId): void
     {
+        $doc = $this->restoreArchived($form, $doc);
         $this->validate($form, $doc);
         $published = $this->publishedUuids($form);
         DB::transaction(function () use ($form, $doc, $userId, $published): void {
@@ -314,6 +318,50 @@ final class WorkflowDocument
                 ], $userId);
             }
         });
+    }
+
+    /**
+     * A status or transition added with the key of one the document no
+     * longer contains (removed now or archived earlier) is that same one: the
+     * new uuid is replaced by the existing one throughout the document, so
+     * records, history and timers keep pointing at the same row.
+     *
+     * @param  array<string, mixed>  $doc
+     * @return array<string, mixed>
+     */
+    private function restoreArchived(Form $form, array $doc): array
+    {
+        $map = [];
+        foreach (['statuses' => Status::class, 'transitions' => Transition::class] as $section => $model) {
+            $live = $model::query()->where('form_id', $form->id)->pluck('uuid')->map(static fn ($u) => strtolower((string) $u))->all();
+            // Rows the document drops (archived earlier, or being removed now) can be taken over by key.
+            $archived = $model::query()->where('form_id', $form->id)->pluck('uuid', 'key')->map(static fn ($u) => strtolower((string) $u))->all();
+            $inDoc = array_column(array_filter($doc[$section] ?? [], 'is_array'), 'uuid');
+            foreach ($doc[$section] ?? [] as $o) {
+                if (! is_array($o) || ! is_string($o['uuid'] ?? null) || ! is_string($o['key'] ?? null) || in_array($o['uuid'], $live, true)) {
+                    continue;
+                }
+                $old = $archived[$o['key']] ?? null;
+                if ($old !== null && ! in_array($old, $inDoc, true)) {
+                    $map[$o['uuid']] = $old;
+                }
+            }
+        }
+        if ($map === []) {
+            return $doc;
+        }
+        $walk = static function (mixed $v) use (&$walk, $map): mixed {
+            if (is_string($v)) {
+                return $map[$v] ?? $v;
+            }
+            if (is_array($v)) {
+                return array_map($walk, $v);
+            }
+
+            return $v;
+        };
+
+        return $walk($doc);
     }
 
     /**

@@ -21,4 +21,5 @@ return [
     'column_created_at' => 'Created',
     'column_updated_at' => 'Updated',
     'column_status' => 'Status',
+    'already_decided' => 'You have already decided on this request.',
 ];

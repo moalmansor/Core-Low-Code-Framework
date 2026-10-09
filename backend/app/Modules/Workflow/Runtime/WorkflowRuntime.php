@@ -28,20 +28,19 @@ final class WorkflowRuntime
 
     public ?string $initial = null;
 
-    /** @var array<int, self> */
-    private static array $memo = [];
-
+    /**
+     * The workflow of a runtime, built once per request or job (the cache
+     * lives in a scoped container binding, never across requests).
+     */
     public static function for(FormRuntime $rt): self
     {
-        return self::$memo[$rt->versionId] ??= new self($rt);
+        /** @var WorkflowRuntimes $cache */
+        $cache = app(WorkflowRuntimes::class);
+
+        return $cache->memo[$rt->form->id.':'.$rt->versionId] ??= new self($rt);
     }
 
-    public static function flush(): void
-    {
-        self::$memo = [];
-    }
-
-    private function __construct(FormRuntime $rt)
+    public function __construct(FormRuntime $rt)
     {
         $wf = $rt->definition['workflow'] ?? [];
         $statusIds = DB::table('statuses')->where('form_id', $rt->form->id)->get(['id', 'uuid']);

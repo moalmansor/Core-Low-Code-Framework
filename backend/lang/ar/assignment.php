@@ -21,4 +21,5 @@ return [
     'column_created_at' => 'تاريخ الإنشاء',
     'column_updated_at' => 'تاريخ التحديث',
     'column_status' => 'الحالة',
+    'already_decided' => 'سبق أن أبديت قرارك في هذا الطلب.',
 ];

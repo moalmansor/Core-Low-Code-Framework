@@ -30,6 +30,11 @@ final class FormsServiceProvider extends ServiceProvider
         $this->app->scoped(Definition\PublishedDefinitions::class);
         $this->app->scoped(FormRuntimes::class);
         $this->app->scoped(ExpressionContext::class);
+        // Phase 3 request memos: workflow indexes, record scopes, delegations, justification rules.
+        $this->app->scoped(\App\Modules\Workflow\Runtime\WorkflowRuntimes::class);
+        $this->app->scoped(\App\Modules\Access\RecordScope::class);
+        $this->app->scoped(\App\Modules\Assignment\DelegationResolver::class);
+        $this->app->scoped(\App\Modules\Justification\JustificationGate::class);
         $this->app->singleton(SchemaValidator::class);
     }
 

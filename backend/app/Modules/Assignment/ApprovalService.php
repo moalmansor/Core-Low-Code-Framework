@@ -98,6 +98,9 @@ final class ApprovalService
                 throw new RecordException(409, 'approval_closed', __('assignment.approval_closed'));
             }
             $mine = $this->rowsFor($request, $user);
+            if ($mine === [] && DB::table('approval_decisions')->where('approval_request_id', $request->id)->where('decided_by_user_id', $user->id)->exists()) {
+                throw new RecordException(409, 'already_decided', __('assignment.already_decided'));
+            }
             if ($mine === []) {
                 throw new RecordException(403, 'not_an_approver', __('assignment.not_an_approver'));
             }
