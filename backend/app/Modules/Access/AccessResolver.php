@@ -24,7 +24,7 @@ final class AccessResolver
 {
     public const TIERS = ['department', 'role', 'user'];
 
-    /** @var array<int, array<string, bool>> per-request memo */
+    /** @var array<int, array{epoch: int, map: array<string, bool>}> per-request memo */
     private array $memo = [];
 
     public function __construct(private readonly AccessCache $cache) {}
@@ -41,7 +41,13 @@ final class AccessResolver
             return [];
         }
 
-        return $this->memo[$user->id] ??= $this->cache->remember($user->id, fn (): array => $this->compute($user));
+        // The memo is valid only for the access epoch it was computed in.
+        $epoch = $this->cache->epoch();
+        if (($this->memo[$user->id]['epoch'] ?? null) !== $epoch) {
+            $this->memo[$user->id] = ['epoch' => $epoch, 'map' => $this->cache->remember($user->id, fn (): array => $this->compute($user))];
+        }
+
+        return $this->memo[$user->id]['map'];
     }
 
     public function forget(?int $userId = null): void

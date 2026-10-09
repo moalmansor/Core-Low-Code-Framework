@@ -7,8 +7,11 @@ use App\Modules\Access\AccessResolver;
 use App\Modules\Access\Models\Permission;
 use App\Modules\Access\Models\PermissionAssignment;
 use App\Modules\Access\Models\Role;
+use App\Modules\Core\Settings\SettingsRegistry;
+use App\Modules\Core\Tenancy\TenantContext;
 use App\Modules\Organization\DepartmentTree;
 use App\Modules\Organization\Models\Department;
+use Illuminate\Support\Facades\Cache;
 
 function grant(string $subjectType, int $subjectId, string $effect, string $permission = 'system.manage_reports', bool $descendants = false, $validUntil = null): void
 {
@@ -138,4 +141,19 @@ it('gives the seeded roles their catalog grants through ordinary rows', function
         ->and($resolver->allows($admin, 'system.manage_users'))->toBeTrue()
         ->and($resolver->allows($admin, 'system.manage_code'))->toBeFalse()
         ->and(PermissionAssignment::query()->where('subject_type', 'role')->count())->toBeGreaterThan(90);
+});
+
+it('keeps the access epoch moving forward when the cache loses it (mirrored in settings)', function () {
+    $cache = app(AccessCache::class);
+    $cache->bump();
+    $cache->bump();
+    $before = $cache->epoch();
+    expect($before)->toBeGreaterThan(1);
+
+    Cache::forget('acc:epoch:'.app(TenantContext::class)->organizationId());
+    expect($cache->epoch())->toBe($before);
+    $cache->bump();
+    expect($cache->epoch())->toBe($before + 1);
+    // The mirror is internal: it never appears among the editable settings groups.
+    expect(app(SettingsRegistry::class)->groups())->not->toContain('access');
 });

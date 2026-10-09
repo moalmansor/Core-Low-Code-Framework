@@ -60,10 +60,12 @@ final class CoreServiceProvider extends ServiceProvider
         $this->registerTranslatables();
         $this->registerRateLimiters();
 
-        // Every `system.*` ability is answered by the permission resolver and
-        // nothing else (specification §4.11): no role or flag short-circuits it.
+        // Every catalog ability (`system.*` and the auto-registered `form.*`,
+        // `app.*`, `menu.*` object permissions) is answered by the permission
+        // resolver and nothing else (specification §4.11): no role or flag
+        // short-circuits it.
         Gate::before(static function (?Authenticatable $user, string $ability): ?bool {
-            if (! str_starts_with($ability, 'system.')) {
+            if (preg_match('/^(system|form|app|menu)\./', $ability) !== 1) {
                 return null;
             }
 

@@ -261,15 +261,15 @@ module's models.
 | **Core** | settings, locales, translations, organizations, egress_allowlist, feature_flags, encryption_keys, outbox_events | `Settings`, `Translator`, `TenantContext`, `Clock`, `CorrelationId` | P1 |
 | **Identity** | users, sessions, user_preferences, access_policies, impersonation_sessions, password_histories, login_attempts, trusted_devices | `CurrentUser`, `PasswordPolicy`, `SessionManager` | P1 (impersonation, access policies UI P5) |
 | **Organization** | departments, department_closure | `DepartmentTree` | P1 |
-| **Access** | roles, user_roles, permissions, permission_assignments, field_access_rules, record_access_rules, access_cache_versions | `AccessResolver`, `PermissionCatalog`, `ExplainAccess` | P1 (system), P2 (form/field), P3 (status/record) |
+| **Access** | roles, user_roles, permissions, permission_assignments, field_access_rules, record_access_rules | `AccessResolver`, `PermissionCatalog`, `ExplainAccess` | P1 (system), P2 (form/field), P3 (status/record) |
 | **Audit** | audit_logs, audit_chain_heads | `AuditWriter`, `ChainVerifier` | P1 |
 | **Monitoring** | error_logs, error_groups | `ErrorReporter` | P1 |
 | **Schema** | migration_plans, migration_steps, schema_snapshots, schema_reconciliation_reports, publish_locks | `SchemaManager`, `Introspector`, driver layer | P2 |
 | **Forms** | applications, forms, form_versions, collections, field_groups, fields, field_options, conditions, relations, field_templates, menu_items | `DefinitionRepository`, `DefinitionCompiler` | P2 |
 | **Expressions** | — (pure) | `ExpressionService` | P2 |
-| **Records** | per-form tables, submission_journal, record_comments, record_attachments, files | `RecordPipeline`, `QueryPlanner`, `DynamicRecord` | P2 (P3 views) |
+| **Records** | per-form tables, submission_journal, record_comments, files | `RecordPipeline`, `QueryPlanner`, `DynamicRecord` | P2 (P3 views) |
 | **Reference** | business_calendars, holidays, number_sequences, currencies, exchange_rates, units_of_measure | `WorkingTimeCalculator`, `NumberGenerator`, `FxConverter` | P2 |
-| **Blueprints** | blueprints, blueprint_versions, blueprint_instances | `BlueprintService` | P2 (library completed P5) |
+| **Blueprints** | blueprints, blueprint_versions, blueprint_instances | `BlueprintService` | P2 forms and collections; P3 views; library completed P5 |
 | **Workflow** | statuses, transitions, status_history, status_mappings, sla_rules, sla_timers | `WorkflowEngine` | P3 |
 | **Views** | views, view_columns, filters, saved_views, saved_view_shares, view_panels, reference_previews, print_layouts | `ViewResolver` | P3 |
 | **Justification** | justification_rules, justifications, justification_reason_codes, justification_attachments | `JustificationGate` | P3 |
@@ -649,7 +649,9 @@ and returned in the response header so users can quote it.
 - Tables: `snake_case`, plural (`form_versions`). Columns: `snake_case`.
 - Physical record tables generated per form: `f_{form_key}` (forms),
   `c_{collection_key}` (collections), child tables `f_{form_key}__{group_key}`,
-  pivots `p_{relation_key}`; archived columns renamed `zz_{column}_{yyyymmddhhmm}`.
+  pivots `p_{form_key}__{relation_key}`; archived columns renamed
+  `zz_{column}_v{version}`; organizations other than the platform one add their
+  id (`f{org}_{key}`) (ADR-0028).
   All generated identifiers ≤ 60 chars (hash suffix when truncated). See §11.
 - Constraints and indexes: `pk_{table}`, `uq_{table}_{cols}`, `ix_{table}_{cols}`,
   `fk_{table}_{col}`, `ck_{table}_{col}` (JSON checks `ck_{table}_{col}_json`);
@@ -6226,7 +6228,12 @@ Supporting tables: `organizations`, `encryption_keys`, `environment_drift_report
 | Form (`kind=form`, `binding_mode=managed`) | `f_{form_key}` |
 | Collection (`kind=collection`) | `c_{collection_key}` |
 | Repeater group / inline sub-form group | `f_{form_key}__{group_key}` (child table with real FK `parent_id`) — for an inline sub-form of a *linked* form, the linked form's own table with the relation FK |
-| many-to-many relation | `p_{relation_key}` pivot (`source_id`, `target_id`, `sort_order`, `created_at`, `created_by`) with FKs to both tables and a unique pair |
+| many-to-many relation | `p_{form_key}__{relation_key}` pivot (`source_id`, `target_id`, `sort_order`, `created_at`, `created_by`) with FKs to both tables and a unique pair |
+
+Tables of organizations other than the platform organization carry the
+organization id after the prefix (`f{org}_{key}`, `c{org}_{key}`), because all
+organizations share one database; every name is fitted to 60 characters
+(ADR-0028).
 | Bound form (`binding_mode=bound`) | an existing table found by introspection; the framework adds only its system columns after admin confirmation in the impact analysis, and never drops anything |
 
 ### 11.2 System columns of every record table
@@ -6306,7 +6313,7 @@ compatible types in the field's *Data & Database Binding* tab):
 - **Rename** a field label: metadata only. Rename the *key/column*: `rename_column`
   step (reverse = rename back); dependent views/filters/downloads updated by uuid
   references (they never store column names).
-- **Remove**: the column is **archived** — renamed to `zz_{column}_{timestamp}`,
+- **Remove**: the column is **archived** — renamed to `zz_{column}_v{version}` (the publishing version, so a plan's impact hash is deterministic),
   made nullable, and excluded from the definition; `fields.archived_at`,
   `archived_column_name` recorded; data remains and can be restored with the field.
   Purging archived columns is a separate, explicit, audited admin action that first
@@ -6319,12 +6326,15 @@ compatible types in the field's *Data & Database Binding* tab):
 
 ### 11.6 Relations & integrity
 
-FKs are real (`add_foreign_key`). On-delete per relation: `restrict` → DB
-`NO ACTION`; `cascade` → DB `CASCADE` when the table has no other cascading path,
-otherwise performed by the Record Pipeline inside the delete transaction (soft
-deletes cascade as soft deletes in the pipeline); `set_null` → DB `SET NULL` under
-the same rule. The orphan scan (§19.10) verifies integrity for paths enforced in
-the application.
+FKs are real (`add_foreign_key`) with DB `NO ACTION` for references. Records are
+soft-deleted, so the database never applies on-delete rules; the Record
+Pipeline applies each relation's rule inside the delete transaction
+(`ReferentialIntegrity`, ADR-0028): the whole cascade is planned first and a
+`restrict` anywhere refuses the delete (409 `referenced`); `cascade` soft-deletes
+referencing records (recursively), removes referencing repeater rows and
+many-to-many links; `set_null` clears the reference. Child-row `parent_id` and
+pivot `source_id` use DB `CASCADE` for hard row removal only. The orphan scan
+(§19.10) verifies integrity for paths enforced in the application.
 
 ## 12. Schema change strategy
 
@@ -6831,8 +6841,11 @@ the new value differs from the inherited value. "Show deviating only" is default
   record scopes, and a compact field-access table keyed by (status, mode) — computed
   lazily on first use per request and stored in Redis:
   `acc:{org}:{userId}:{formVersionId}:{accessEpoch}`.
-- `accessEpoch` is a global counter per organization in Redis (mirrored in
-  `settings`), bumped on any `AccessChanged` event: permission assignments, access
+- `accessEpoch` is a global counter per organization in Redis, mirrored in
+  `settings` (group `access`, key `epoch`, internal and never shown in the settings
+  screens) so that a counter lost from the cache resumes from the mirror instead
+  of restarting and matching old snapshots; there is no separate table. Bumped
+  on any `AccessChanged` event: permission assignments, access
   rules, record rules, roles, user roles, departments (tree changes), delegations,
   form publish (new version id changes key anyway), status changes in metadata.
   Old keys expire by TTL (1 h). Per-request memoization prevents repeated
@@ -7472,12 +7485,12 @@ object is configured by administrators.
 | **Errors** | `GET /errors/groups`; `GET /errors/groups/{id}`; `PATCH /errors/groups/{id}` (status, assignee, notes); `GET /errors/logs?…`; `GET /errors/reference/{code}` | | `view_errors` |
 | **Applications** | `GET/POST/PATCH /applications`; `POST /applications/{uuid}/clone|archive|retire|maintenance` | | `manage_applications` (+ `enable_maintenance_mode`) |
 | **Menus** | `GET /applications/{uuid}/menu`; `PUT /applications/{uuid}/menu` (tree); `GET /navigation` (user sidebar, resolved) | tree nodes with type/target/icon/badge/visibility | `manage_pages_menus` / authenticated |
-| **Forms & collections (builder)** | `GET/POST /forms`; `GET/PATCH/DELETE /forms/{uuid}`; `GET /forms/{uuid}/draft`; `PUT /forms/{uuid}/draft` (autosave, `draft_updated_at` precondition); `POST /forms/{uuid}/draft/validate`; `GET /forms/{uuid}/preview?as_user=&as_role=&mode=&locale=`; `POST /forms/{uuid}/impact`; `POST /forms/{uuid}/publish`; `GET /forms/{uuid}/versions`; `GET /forms/{uuid}/versions/{n}/diff/{m}`; `POST /forms/{uuid}/versions/{n}/rollback`; `POST /forms/{uuid}/unpublish|archive|republish`; `POST /forms/{uuid}/duplicate`; `GET /field-types` | draft document (§14.1 minus `schema`), impact report, publish options (menu placement, application, allowed roles) → migration plan id | `manage_forms` |
+| **Forms & collections (builder)** | `GET/POST /forms`; `GET/PATCH/DELETE /forms/{uuid}`; `GET /forms/{uuid}/draft`; `PUT /forms/{uuid}/draft` (autosave, `draft_updated_at` precondition); `POST /forms/{uuid}/draft/validate`; `GET /forms/{uuid}/preview?as_user=&as_role=&mode=&locale=`; `POST /forms/{uuid}/impact`; `POST /forms/{uuid}/publish`; `GET /forms/{uuid}/versions`; `GET /forms/{uuid}/versions/{n}/diff/{m}`; `POST /forms/{uuid}/versions/{n}/rollback`; `POST /forms/{uuid}/unpublish|archive|republish`; `POST /forms/{uuid}/duplicate`; `GET /field-types`; `GET /form-options` (picker list, also for `manage_pages_menus`, `manage_numbering`, `manage_applications`); `GET/POST/PATCH/DELETE /field-templates`; `POST /expressions/parse|check|evaluate`; `GET/POST/PATCH /applications`, `GET/PUT /applications/{uuid}/menu`, `GET /navigation` | draft document (§14.1 minus `schema`), impact report, publish options (menu placement, application, allowed roles) → migration plan id | `manage_forms` |
 | **Field library** | `GET/POST/PATCH/DELETE /field-templates` | §14 subtree | `manage_forms` |
 | **Schema** | `GET /schema/tables`; `GET /schema/tables/{name}`; `GET /schema/erd?forms=`; `GET /migration-plans/{uuid}`; `POST /migration-plans/{uuid}/retry|reverse|reconcile-step|restore-snapshot`; `POST /schema/reconcile`; `GET /schema/reconciliation-reports` | | `manage_forms` |
 | **Expressions** | `POST /expressions/parse`; `POST /expressions/check`; `POST /expressions/evaluate` (sandboxed preview) | text/AST + context form uuid → AST/diagnostics/value | `manage_forms` |
-| **Records (runtime)** | `GET /r/{form}` (list: view, filters, search, sort, page); `POST /r/{form}`; `GET /r/{form}/{uuid}`; `PATCH /r/{form}/{uuid}`; `DELETE /r/{form}/{uuid}`; `POST /r/{form}/{uuid}/restore`; `GET /r/{form}/{uuid}/definition?mode=`; `GET /r/{form}/options/{field}?q=&depends=`; `POST /r/{form}/validate-field` (async rules); `GET /r/{form}/{uuid}/history`; `POST /r/{form}/{uuid}/duplicate`; `GET /r/{form}/{uuid}/print?layout=` | values keyed by field key, `row_version`, `justification?` → record + `row_version` | `form.{uuid}.view/create/edit/delete/restore/print` + record scope + field access |
-| **Comments & attachments** | `GET/POST /r/{form}/{uuid}/comments`; `DELETE …/comments/{id}`; `GET /r/{form}/{uuid}/attachments` | | form view/edit |
+| **Records (runtime)** | `GET /r/{form}` (list: view, filters, search, sort, page); `POST /r/{form}`; `GET /r/{form}/{uuid}`; `PATCH /r/{form}/{uuid}`; `DELETE /r/{form}/{uuid}`; `POST /r/{form}/{uuid}/restore`; `GET /r/{form}/{uuid}/definition?mode=`; `GET /r/{form}/options/{field}?q=&depends=`; `POST /r/{form}/validate-field` (async rules); `GET /r/{form}/{uuid}/history`; `GET/POST /r/{form}/{uuid}/comments`; `GET/POST /r/{form}/{uuid}/subforms/{group}` (inline sub-form records, parent key set at insert); `GET /r/{form}/export?format=xlsx|csv`, `GET /r/{form}/import/template`, `POST /r/{form}/import` (`commit`, `skip_invalid`); `POST /files`, `GET /files/{uuid}/url` (signed, five minutes); `POST /r/{form}/{uuid}/duplicate`; `GET /r/{form}/{uuid}/print?layout=` | values keyed by field key, `row_version`, `justification?` → record + `row_version` | `form.{uuid}.view/create/edit/delete/restore/print` + record scope + field access |
+| **Comments & attachments** | `GET/POST /r/{form}/{uuid}/comments`; `DELETE …/comments/{id}`; `GET /r/{form}/{uuid}/attachments` (P3, the View Mode attachments panel; record attachments are `files` rows with the record's `form_id`/`record_id` and no `field_id`, so they need no table of their own) | | form view/edit |
 | **Files** | `POST /files` (multipart, temp); `GET /files/{uuid}/url` → signed URL; `GET /files/download/{uuid}` (signed) | | owner/record policy |
 | **Workflow** | `GET/PUT /forms/{uuid}/workflow` (statuses, transitions, layout); `POST /forms/{uuid}/workflow/status-mapping`; `GET /r/{form}/{uuid}/transitions`; `POST /r/{form}/{uuid}/transitions/{transition}` | comment, attachments, required fields, justification | `manage_forms` / `transition.{uuid}.perform` |
 | **SLA** | `GET/PUT /forms/{uuid}/sla-rules` | | `manage_forms` |
@@ -7493,7 +7506,7 @@ object is configured by administrators.
 | **Automations & scheduler** | `GET/POST/PATCH/DELETE /automations`; `POST /automations/{uuid}/enable|disable|run|test`; `GET /automations/{uuid}/runs`; `POST /automation-runs/{uuid}/confirm|cancel`; `GET /scheduled-tasks` | | `manage_automations` / `run_automations` |
 | **Operations** | `GET /ops/health`; `GET /ops/emails?status=`; `POST /ops/emails/resend|cancel` (bulk); `PATCH /ops/emails/{uuid}/recipients`; `GET /ops/emails/{uuid}/html`; `GET /ops/submissions`; `POST /ops/submissions/retry` (bulk); `PATCH /ops/submissions/{uuid}/payload`; `POST /ops/submissions/{uuid}/discard`; `GET /ops/jobs`; `POST /ops/jobs/{id}/retry|discard`; `GET/PUT /ops/alert-rules` | | `manage_operations` |
 | **Reference data** | `/business-calendars` (+ holidays), `/number-sequences` (+ `POST …/adjust`), `/currencies`, `/exchange-rates`, `/units` — CRUD | | `manage_calendars`, `manage_numbering`, `manage_currencies`, `manage_reference_data` |
-| **Blueprints** | `GET/POST /blueprints`; `POST /blueprints/{uuid}/instantiate` (include mode); `POST /blueprints/{uuid}/versions`; `GET /blueprints/{uuid}/propagation-preview`; `POST /blueprints/{uuid}/propagate`; `GET /blueprints/{uuid}/export`, `POST /blueprints/import` | | `manage_blueprints` |
+| **Blueprints** | `GET/POST /blueprints`; `POST /blueprints/{uuid}/instantiate` (include mode); `POST /blueprints/{uuid}/versions`; `GET /blueprints/{uuid}/propagation-preview`; `POST /blueprints/{uuid}/propagate`; `GET /blueprints/{uuid}/export`, `POST /blueprints/import`; `GET/PATCH/DELETE /blueprints/{uuid}`; `POST /blueprint-instances/{uuid}/detach` | | `manage_blueprints` |
 | **Reports & dashboards** | `GET/POST/PATCH/DELETE /reports`; `POST /reports/{uuid}/run`; `POST /reports/{uuid}/export`; `GET/POST/PATCH/DELETE /dashboards`; `GET /dashboards/{uuid}/data` | | `manage_reports` / `report.{uuid}.view` |
 | **Pages, home, appearance** | `GET/POST/PATCH/DELETE /pages`; `GET /p/{uuid}` (render); `GET/PUT /home-screens`; `GET /home`; `GET/POST/PATCH /themes`; `POST /themes/{uuid}/contrast-check`; `GET /themes/{uuid}.css`; `POST /themes/import`; `GET/POST/PATCH /announcements`; `POST /announcements/{uuid}/dismiss`; `GET/PUT /search-config`; `GET /search?q=` | | `manage_pages_menus`, `manage_branding`, `publish_announcements` / authenticated |
 | **Help & tours** | `GET/POST/PATCH /help-content`; `GET /help?target=`; `GET/POST/PATCH /tours`; `POST /tours/{uuid}/progress`; `POST /tours/reset` | | `manage_help_content` / authenticated |

@@ -210,6 +210,18 @@ return [
             'timeout' => 60,
             'nice' => 0,
         ],
+        'schema-1' => [
+            'connection' => 'redis_schema',
+            'queue' => ['schema'],
+            'balance' => 'simple',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 0,
+            'timeout' => 3600,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [

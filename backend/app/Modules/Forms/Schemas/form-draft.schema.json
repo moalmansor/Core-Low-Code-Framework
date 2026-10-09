@@ -1,0 +1,2132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.core-lcf/form-draft/v1",
+  "title": "Form draft document (architecture §14.1 without `schema`)",
+  "type": "object",
+  "required": [
+    "form",
+    "groups",
+    "fields",
+    "relations",
+    "conditions"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "form": {
+      "$ref": "#/$defs/form"
+    },
+    "collection": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/collection"
+        }
+      ]
+    },
+    "groups": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "$ref": "#/$defs/group"
+      }
+    },
+    "fields": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "$ref": "#/$defs/field"
+      }
+    },
+    "relations": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "$ref": "#/$defs/relation"
+      }
+    },
+    "conditions": {
+      "type": "array",
+      "maxItems": 2000,
+      "items": {
+        "$ref": "#/$defs/condition"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "uuidOrNull": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/uuid"
+        }
+      ]
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,47}$"
+    },
+    "keyOrNull": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/key"
+        }
+      ]
+    },
+    "ast": {
+      "$ref": "https://schemas.core-lcf/expression-ast/v1"
+    },
+    "astOrNull": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "https://schemas.core-lcf/expression-ast/v1"
+        }
+      ]
+    },
+    "locale": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$"
+    },
+    "i18nText": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/locale"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    },
+    "i18nLong": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/locale"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 100000
+      }
+    },
+    "icon": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-z0-9 -]{0,64}$"
+    },
+    "color": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^#[0-9A-Fa-f]{6}$|^$"
+    },
+    "cssClass": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[A-Za-z0-9 _-]{0,128}$"
+    },
+    "breakpoints": {
+      "type": "object",
+      "properties": {
+        "xs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "sm": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "md": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "lg": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "xl": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        }
+      },
+      "additionalProperties": false
+    },
+    "justificationLevel": {
+      "enum": [
+        "inherit",
+        "not_required",
+        "optional",
+        "mandatory"
+      ]
+    },
+    "scalar": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "form": {
+      "type": "object",
+      "required": [
+        "uuid",
+        "key",
+        "kind"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "#/$defs/uuid"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{1,39}$"
+        },
+        "kind": {
+          "enum": [
+            "form",
+            "collection"
+          ]
+        },
+        "bindingMode": {
+          "enum": [
+            "managed",
+            "bound"
+          ]
+        },
+        "boundTable": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,59}$"
+        },
+        "application": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "icon": {
+          "$ref": "#/$defs/icon"
+        },
+        "dataSharing": {
+          "enum": [
+            "shared",
+            "isolated"
+          ]
+        },
+        "numbering": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "calendar": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "titleTemplate": {
+          "$ref": "#/$defs/astOrNull"
+        },
+        "settings": {
+          "$ref": "#/$defs/formSettings"
+        },
+        "version": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "state": {
+          "type": "string"
+        },
+        "i18n": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/i18nText"
+            },
+            "description": {
+              "$ref": "#/$defs/i18nText"
+            },
+            "submitButtonLabel": {
+              "$ref": "#/$defs/i18nText"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "formSettings": {
+      "type": "object",
+      "properties": {
+        "autosaveDrafts": {
+          "type": "boolean"
+        },
+        "allowComments": {
+          "type": "boolean"
+        },
+        "allowAttachments": {
+          "type": "boolean"
+        },
+        "attachmentRules": {
+          "type": "object",
+          "properties": {
+            "maxCount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "maxSizeKb": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1048576
+            },
+            "types": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9]{1,10}$"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "conflictResolution": {
+          "const": "field_by_field"
+        },
+        "afterSubmit": {
+          "type": "object",
+          "properties": {
+            "redirect": {
+              "enum": [
+                "view",
+                "list",
+                "new"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "modes": {
+          "type": "object",
+          "properties": {
+            "create": {
+              "type": "boolean"
+            },
+            "edit": {
+              "type": "boolean"
+            },
+            "view": {
+              "type": "boolean"
+            },
+            "print": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "searchFields": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/uuid"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "collection": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "key_value",
+            "table"
+          ]
+        },
+        "sharedReference": {
+          "type": "boolean"
+        },
+        "ownerApplication": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "valueField": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "labelField": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "parentField": {
+          "$ref": "#/$defs/uuidOrNull"
+        }
+      },
+      "additionalProperties": false
+    },
+    "group": {
+      "type": "object",
+      "required": [
+        "uuid",
+        "key",
+        "type",
+        "parent",
+        "order"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "#/$defs/uuid"
+        },
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "type": {
+          "enum": [
+            "section",
+            "fieldset",
+            "card",
+            "tabs",
+            "tab",
+            "wizard",
+            "step",
+            "row",
+            "column",
+            "panel",
+            "accordion",
+            "repeater",
+            "subform"
+          ]
+        },
+        "parent": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "layout": {
+          "type": "object",
+          "properties": {
+            "columns": {
+              "$ref": "#/$defs/breakpoints"
+            },
+            "span": {
+              "$ref": "#/$defs/breakpoints"
+            },
+            "spacing": {
+              "enum": [
+                "none",
+                "sm",
+                "md",
+                "lg"
+              ]
+            },
+            "border": {
+              "enum": [
+                "none",
+                "subtle",
+                "strong"
+              ]
+            },
+            "background": {
+              "enum": [
+                "none",
+                "subtle",
+                "accent"
+              ]
+            },
+            "cssClass": {
+              "$ref": "#/$defs/cssClass"
+            },
+            "icon": {
+              "$ref": "#/$defs/icon"
+            }
+          },
+          "additionalProperties": false
+        },
+        "collapsible": {
+          "type": "boolean"
+        },
+        "defaultState": {
+          "enum": [
+            "open",
+            "closed"
+          ]
+        },
+        "validation": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "minFilled": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "rules": {
+                  "type": "array",
+                  "maxItems": 50,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "when"
+                    ],
+                    "properties": {
+                      "when": {
+                        "$ref": "#/$defs/ast"
+                      },
+                      "message": {
+                        "$ref": "#/$defs/i18nText"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "minFilledMessage": {
+                  "$ref": "#/$defs/i18nText"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "repeater": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "minRows": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10000
+                },
+                "maxRows": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1,
+                  "maximum": 10000
+                },
+                "defaultRows": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "display": {
+                  "enum": [
+                    "table",
+                    "cards"
+                  ]
+                },
+                "aggregates": {
+                  "type": "array",
+                  "maxItems": 20,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "field",
+                      "fn"
+                    ],
+                    "properties": {
+                      "field": {
+                        "$ref": "#/$defs/uuid"
+                      },
+                      "fn": {
+                        "enum": [
+                          "sum",
+                          "avg",
+                          "min",
+                          "max",
+                          "count"
+                        ]
+                      },
+                      "label": {
+                        "$ref": "#/$defs/i18nText"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "rowPermissions": {
+                  "type": "object",
+                  "properties": {
+                    "add": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/uuid"
+                      }
+                    },
+                    "remove": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/uuid"
+                      }
+                    },
+                    "reorder": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/uuid"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "wizard": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "validateBeforeNext": {
+                  "type": "boolean"
+                },
+                "allowJump": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "subform": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "form"
+              ],
+              "properties": {
+                "form": {
+                  "$ref": "#/$defs/uuid"
+                },
+                "relation": {
+                  "$ref": "#/$defs/uuidOrNull"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "justification": {
+          "$ref": "#/$defs/justificationLevel"
+        },
+        "i18n": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "$ref": "#/$defs/i18nText"
+            },
+            "description": {
+              "$ref": "#/$defs/i18nText"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "field": {
+      "type": "object",
+      "required": [
+        "uuid",
+        "key",
+        "type",
+        "group",
+        "order"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "#/$defs/uuid"
+        },
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,47}$"
+        },
+        "group": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "storage": {
+          "$ref": "#/$defs/storage"
+        },
+        "options": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/options"
+            }
+          ]
+        },
+        "validation": {
+          "$ref": "#/$defs/validation"
+        },
+        "behavior": {
+          "$ref": "#/$defs/behavior"
+        },
+        "ui": {
+          "$ref": "#/$defs/ui"
+        },
+        "table": {
+          "$ref": "#/$defs/tableSettings"
+        },
+        "export": {
+          "$ref": "#/$defs/exportSettings"
+        },
+        "events": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/event"
+          }
+        },
+        "hook": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "extension",
+                "hook"
+              ],
+              "properties": {
+                "extension": {
+                  "$ref": "#/$defs/uuid"
+                },
+                "hook": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z][a-zA-Z0-9_.]{0,63}$"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "flags": {
+          "type": "object",
+          "properties": {
+            "encrypted": {
+              "type": "boolean"
+            },
+            "blindIndex": {
+              "type": "boolean"
+            },
+            "sensitive": {
+              "type": "boolean"
+            },
+            "personal": {
+              "type": "boolean"
+            },
+            "trackChanges": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "justification": {
+          "$ref": "#/$defs/justificationLevel"
+        },
+        "relation": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "template": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "i18n": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/i18nText"
+            },
+            "placeholder": {
+              "$ref": "#/$defs/i18nText"
+            },
+            "help": {
+              "$ref": "#/$defs/i18nText"
+            },
+            "tooltip": {
+              "$ref": "#/$defs/i18nText"
+            },
+            "description": {
+              "$ref": "#/$defs/i18nText"
+            },
+            "prefix": {
+              "$ref": "#/$defs/i18nText"
+            },
+            "suffix": {
+              "$ref": "#/$defs/i18nText"
+            },
+            "columnLabel": {
+              "$ref": "#/$defs/i18nText"
+            },
+            "content": {
+              "$ref": "#/$defs/i18nLong"
+            },
+            "consentTerms": {
+              "$ref": "#/$defs/i18nLong"
+            },
+            "messages": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[a-z][a-z0-9_]{0,47}$"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/i18nText"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "storage": {
+      "type": "object",
+      "properties": {
+        "column": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z][a-z0-9_]{0,47}$"
+        },
+        "boundColumn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,59}$"
+        },
+        "dbType": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "string",
+            "text",
+            "longtext",
+            "int",
+            "bigint",
+            "decimal",
+            "bool",
+            "date",
+            "time",
+            "datetime",
+            "json"
+          ]
+        },
+        "length": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 4000
+        },
+        "precision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 38
+        },
+        "scale": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 18
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "default": {
+          "$ref": "#/$defs/scalar"
+        },
+        "index": {
+          "enum": [
+            "none",
+            "index",
+            "unique"
+          ]
+        },
+        "uniqueScope": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/uuid"
+          }
+        },
+        "multiCurrency": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "staticOption": {
+      "type": "object",
+      "required": [
+        "uuid",
+        "value"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "#/$defs/uuid"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "group": {
+          "$ref": "#/$defs/keyOrNull"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 255
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "icon": {
+          "$ref": "#/$defs/icon"
+        },
+        "default": {
+          "type": "boolean"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "condition": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "i18n": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/i18nText"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "path": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/key"
+      }
+    },
+    "options": {
+      "type": "object",
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "static",
+            "collection",
+            "form",
+            "query",
+            "users",
+            "roles",
+            "departments"
+          ]
+        },
+        "static": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/staticOption"
+          }
+        },
+        "collection": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "valuePath": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/path"
+            }
+          ]
+        },
+        "labelPath": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/path"
+            }
+          ]
+        },
+        "query": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "from"
+              ],
+              "properties": {
+                "from": {
+                  "$ref": "#/$defs/uuid"
+                },
+                "where": {
+                  "$ref": "#/$defs/astOrNull"
+                },
+                "sort": {
+                  "type": "array",
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "path"
+                    ],
+                    "properties": {
+                      "path": {
+                        "$ref": "#/$defs/path"
+                      },
+                      "dir": {
+                        "enum": [
+                          "asc",
+                          "desc"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "dependsOn": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "dependsPath": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/path"
+            }
+          ]
+        },
+        "allowCustom": {
+          "type": "boolean"
+        },
+        "min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "max": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "defaults": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "searchable": {
+          "type": "boolean"
+        },
+        "lazy": {
+          "type": "boolean"
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 200
+        },
+        "groupBy": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/path"
+            }
+          ]
+        },
+        "preview": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "messageRef": {
+      "$ref": "#/$defs/i18nText"
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "length": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "max": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "number": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^-?[0-9]{1,30}(\\.[0-9]{1,18})?$"
+            },
+            "max": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^-?[0-9]{1,30}(\\.[0-9]{1,18})?$"
+            },
+            "step": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9]{1,30}(\\.[0-9]{1,18})?$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "pattern": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "format": {
+          "enum": [
+            null,
+            "email",
+            "url",
+            "phone",
+            "national_id",
+            "iban",
+            "numeric",
+            "arabic",
+            "english",
+            "alphanumeric"
+          ]
+        },
+        "date": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "$ref": "#/$defs/astOrNull"
+            },
+            "max": {
+              "$ref": "#/$defs/astOrNull"
+            },
+            "disabledWeekdays": {
+              "type": "array",
+              "maxItems": 7,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              }
+            },
+            "disabledDates": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+              }
+            },
+            "noPast": {
+              "type": "boolean"
+            },
+            "noFuture": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "file": {
+          "type": "object",
+          "properties": {
+            "types": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9]{1,10}$"
+              }
+            },
+            "mimes": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9.+-]+/[a-z0-9.+*-]+$"
+              }
+            },
+            "maxSizeKb": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 1048576
+            },
+            "maxCount": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "image": {
+              "type": "object",
+              "properties": {
+                "minWidth": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                },
+                "maxWidth": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                },
+                "minHeight": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                },
+                "maxHeight": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "unique": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "type": "array",
+                  "maxItems": 5,
+                  "items": {
+                    "$ref": "#/$defs/uuid"
+                  }
+                },
+                "includeDeleted": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "compare": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "required": [
+              "op",
+              "field"
+            ],
+            "properties": {
+              "op": {
+                "enum": [
+                  "gt",
+                  "gte",
+                  "lt",
+                  "lte",
+                  "eq",
+                  "neq",
+                  "before",
+                  "after"
+                ]
+              },
+              "field": {
+                "$ref": "#/$defs/uuid"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "async": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "type",
+                "collection",
+                "path"
+              ],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "exists_in",
+                    "not_exists_in"
+                  ]
+                },
+                "collection": {
+                  "$ref": "#/$defs/uuid"
+                },
+                "path": {
+                  "$ref": "#/$defs/path"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "custom": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "required": [
+              "when",
+              "messageKey"
+            ],
+            "properties": {
+              "when": {
+                "$ref": "#/$defs/ast"
+              },
+              "messageKey": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,47}$"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "behavior": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "kind"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "static",
+                    "current_user",
+                    "current_department",
+                    "now",
+                    "today",
+                    "url_param",
+                    "field",
+                    "formula",
+                    "reference"
+                  ]
+                },
+                "value": {},
+                "param": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+                },
+                "field": {
+                  "$ref": "#/$defs/uuidOrNull"
+                },
+                "expr": {
+                  "$ref": "#/$defs/astOrNull"
+                },
+                "reference": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "path"
+                      ],
+                      "properties": {
+                        "path": {
+                          "$ref": "#/$defs/path"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "formula": {
+          "$ref": "#/$defs/astOrNull"
+        },
+        "transforms": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "trim",
+              "uppercase",
+              "lowercase",
+              "collapse_spaces"
+            ]
+          }
+        },
+        "mask": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "pattern": "^[9aA*#()\\-+ ./:]*$"
+        },
+        "number": {
+          "type": "object",
+          "properties": {
+            "thousandSeparator": {
+              "type": "boolean"
+            },
+            "decimals": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 18
+            },
+            "currency": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[A-Z]{3}$"
+            },
+            "symbolPosition": {
+              "enum": [
+                "before",
+                "after"
+              ]
+            },
+            "unit": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[A-Za-z0-9_]{1,16}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "date": {
+          "type": "object",
+          "properties": {
+            "displayFormat": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[dMyHhmsa /.:,-]{0,32}$"
+            },
+            "calendar": {
+              "enum": [
+                "gregorian",
+                "hijri",
+                "dual"
+              ]
+            },
+            "firstDayOfWeek": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6
+            },
+            "timeStep": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 720
+            },
+            "hourCycle": {
+              "enum": [
+                "12h",
+                "24h"
+              ]
+            },
+            "timezone": {
+              "type": "string",
+              "pattern": "^(user|utc|fixed:[A-Za-z_]+(/[A-Za-z_+-]+){0,2})$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "digits": {
+          "enum": [
+            "western",
+            "arabic_indic",
+            "locale"
+          ]
+        },
+        "file": {
+          "type": "object",
+          "properties": {
+            "disk": {
+              "enum": [
+                "private",
+                "public"
+              ]
+            },
+            "folder": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_{}/-]{0,128}$"
+            },
+            "naming": {
+              "enum": [
+                "uuid",
+                "original_sanitized"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "autofill": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "required": [
+              "from",
+              "to"
+            ],
+            "properties": {
+              "from": {
+                "$ref": "#/$defs/path"
+              },
+              "to": {
+                "$ref": "#/$defs/uuid"
+              },
+              "overwrite": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "autoNumber": {
+          "$ref": "#/$defs/uuidOrNull"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ui": {
+      "type": "object",
+      "properties": {
+        "size": {
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ]
+        },
+        "icon": {
+          "$ref": "#/$defs/icon"
+        },
+        "width": {
+          "$ref": "#/$defs/breakpoints"
+        },
+        "labelPosition": {
+          "enum": [
+            "top",
+            "side",
+            "hidden"
+          ]
+        },
+        "autofocus": {
+          "type": "boolean"
+        },
+        "tabIndex": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": -1,
+          "maximum": 32767
+        },
+        "autocomplete": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z -]{0,64}$"
+        },
+        "spellcheck": {
+          "type": "boolean"
+        },
+        "cssClass": {
+          "$ref": "#/$defs/cssClass"
+        },
+        "props": {
+          "type": "object",
+          "maxProperties": 40,
+          "propertyNames": {
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,47}$"
+          },
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/scalar"
+              },
+              {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "$ref": "#/$defs/scalar"
+                }
+              },
+              {
+                "$ref": "#/$defs/i18nLong"
+              }
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "tableSettings": {
+      "type": "object",
+      "properties": {
+        "visible": {
+          "type": "boolean"
+        },
+        "sortable": {
+          "type": "boolean"
+        },
+        "filterable": {
+          "type": "boolean"
+        },
+        "searchable": {
+          "type": "boolean"
+        },
+        "displayFormat": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        }
+      },
+      "additionalProperties": false
+    },
+    "exportSettings": {
+      "type": "object",
+      "properties": {
+        "exportable": {
+          "type": "boolean"
+        },
+        "importable": {
+          "type": "boolean"
+        },
+        "excelColumn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "print": {
+          "type": "boolean"
+        },
+        "pdf": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "event": {
+      "type": "object",
+      "required": [
+        "on",
+        "do"
+      ],
+      "properties": {
+        "on": {
+          "enum": [
+            "change",
+            "focus",
+            "blur"
+          ]
+        },
+        "when": {
+          "$ref": "#/$defs/astOrNull"
+        },
+        "do": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "enum": [
+                  "set_field",
+                  "reload_options",
+                  "run_action",
+                  "call_webhook",
+                  "notify"
+                ]
+              },
+              "target": {
+                "$ref": "#/$defs/uuidOrNull"
+              },
+              "value": {
+                "$ref": "#/$defs/astOrNull"
+              },
+              "action": {
+                "$ref": "#/$defs/uuidOrNull"
+              },
+              "webhook": {
+                "$ref": "#/$defs/uuidOrNull"
+              },
+              "severity": {
+                "enum": [
+                  "info",
+                  "success",
+                  "warning",
+                  "error"
+                ]
+              },
+              "message": {
+                "$ref": "#/$defs/i18nText"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "relation": {
+      "type": "object",
+      "required": [
+        "uuid",
+        "key",
+        "type",
+        "target",
+        "kind",
+        "onDelete"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "#/$defs/uuid"
+        },
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "type": {
+          "enum": [
+            "one_to_one",
+            "one_to_many",
+            "many_to_one",
+            "many_to_many"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/uuid"
+        },
+        "kind": {
+          "enum": [
+            "reference",
+            "child_table",
+            "subform"
+          ]
+        },
+        "onDelete": {
+          "enum": [
+            "restrict",
+            "cascade",
+            "set_null"
+          ]
+        },
+        "display": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "value": {
+          "$ref": "#/$defs/uuidOrNull"
+        },
+        "inverse": {
+          "$ref": "#/$defs/keyOrNull"
+        }
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "type",
+        "uuid"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "field",
+            "group",
+            "option",
+            "action",
+            "transition"
+          ]
+        },
+        "uuid": {
+          "$ref": "#/$defs/uuid"
+        }
+      },
+      "additionalProperties": false
+    },
+    "effect": {
+      "type": "object",
+      "required": [
+        "effect"
+      ],
+      "properties": {
+        "effect": {
+          "enum": [
+            "show",
+            "hide",
+            "enable",
+            "disable",
+            "read_only",
+            "require",
+            "set_value",
+            "clear_value",
+            "reload_options",
+            "show_message",
+            "block_submit",
+            "trigger_action"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/target"
+        },
+        "value": {
+          "$ref": "#/$defs/ast"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "success",
+            "warning",
+            "error"
+          ]
+        },
+        "message": {
+          "$ref": "#/$defs/i18nText"
+        },
+        "action": {
+          "$ref": "#/$defs/uuid"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "effect": {
+                "enum": [
+                  "show",
+                  "hide",
+                  "enable",
+                  "disable",
+                  "read_only",
+                  "require",
+                  "clear_value",
+                  "reload_options"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "target"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "effect": {
+                "const": "set_value"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "target",
+              "value"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "effect": {
+                "enum": [
+                  "show_message",
+                  "block_submit"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "message"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "effect": {
+                "const": "trigger_action"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "action"
+            ]
+          }
+        }
+      ]
+    },
+    "condition": {
+      "type": "object",
+      "required": [
+        "uuid",
+        "owner",
+        "when",
+        "effects"
+      ],
+      "properties": {
+        "uuid": {
+          "$ref": "#/$defs/uuid"
+        },
+        "owner": {
+          "type": "object",
+          "required": [
+            "type",
+            "uuid"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "form",
+                "field",
+                "group",
+                "option"
+              ]
+            },
+            "uuid": {
+              "$ref": "#/$defs/uuid"
+            }
+          },
+          "additionalProperties": false
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 255
+        },
+        "when": {
+          "$ref": "#/$defs/ast"
+        },
+        "effects": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/effect"
+          }
+        },
+        "else": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/effect"
+          }
+        },
+        "evaluateOn": {
+          "enum": [
+            "always",
+            "change"
+          ]
+        },
+        "runtime": {
+          "enum": [
+            "client_and_server",
+            "server_only"
+          ]
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "active": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

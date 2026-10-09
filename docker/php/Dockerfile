@@ -8,6 +8,7 @@ COPY frontend/package.json frontend/package-lock.json frontend/
 RUN cd frontend && npm ci --no-audit --no-fund
 COPY frontend frontend
 COPY backend/resources/ui-strings backend/resources/ui-strings
+COPY backend/resources/calendars backend/resources/calendars
 RUN mkdir -p backend/public && cd frontend && NODE_ENV=production npx vite build
 
 FROM php:8.3-fpm-bookworm AS base

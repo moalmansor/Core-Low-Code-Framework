@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Infrastructure\Database\Contracts\DatabaseDriver;
+use App\Infrastructure\Database\FrameworkTables;
 use Illuminate\Support\Facades\DB;
 
 /*
@@ -15,11 +16,12 @@ use Illuminate\Support\Facades\DB;
 
 const DEFERRED_COLUMNS = [
     'organizations' => ['theme_id'],
-    'departments' => ['business_calendar_id'],
-    'roles' => ['application_id', 'access_policy_id'],
-    'permission_assignments' => ['condition_id'],
+    'roles' => ['access_policy_id'],
     'sessions' => ['external_user_id', 'trusted_device_id', 'impersonation_session_id'],
-    'files' => ['form_id', 'record_id', 'field_id', 'external_user_id'],
+    'files' => ['external_user_id'],
+    'applications' => ['theme_id', 'home_screen_id'],
+    'field_access_rules' => ['status_id'],
+    'submission_journal' => ['external_user_id', 'import_job_id'],
 ];
 
 const FRAMEWORK_TABLES = ['migrations', 'cache', 'cache_locks', 'job_batches', 'failed_jobs'];
@@ -130,9 +132,22 @@ function liveChecks(string $table): array
     return array_map(static fn ($r): string => (string) $r->name, $rows);
 }
 
+/** Metadata tables only: record tables generated from forms are checked by the schema reconciler. */
+function metadataTables(): array
+{
+    return array_values(array_filter(
+        array_diff(app(DatabaseDriver::class)->tables(), FRAMEWORK_TABLES),
+        static fn (string $t): bool => preg_match('/^(f\d*_|c\d*_|p_|zz_)/', $t) !== 1,
+    ));
+}
+
+it('lists every ERD table in the framework table registry', function () {
+    expect(FrameworkTables::ERD)->toEqualCanonicalizing(array_keys(erdTables()));
+});
+
 it('creates only tables that the ERD defines', function () {
     $erd = erdTables();
-    $live = array_diff(app(DatabaseDriver::class)->tables(), FRAMEWORK_TABLES);
+    $live = metadataTables();
     expect(array_values(array_diff($live, array_keys($erd))))->toBe([]);
     expect(count($live))->toBeGreaterThanOrEqual(22);
 });
@@ -142,7 +157,7 @@ it('matches the ERD for every created table', function () {
     $erd = erdTables();
     $problems = [];
     $checked = 0;
-    foreach (array_diff(app(DatabaseDriver::class)->tables(), FRAMEWORK_TABLES) as $table) {
+    foreach (metadataTables() as $table) {
         $spec = $erd[$table];
         $deferred = DEFERRED_COLUMNS[$table] ?? [];
         $live = liveColumns($table);
@@ -174,7 +189,7 @@ it('matches the ERD for every created table', function () {
 
         $want = array_filter($spec['objects'], static function (string $name) use ($deferred): bool {
             foreach ($deferred as $column) {
-                if (str_ends_with($name, '_'.$column)) {
+                if (str_contains($name.'_', '_'.$column.'_')) {
                     return false;
                 }
             }

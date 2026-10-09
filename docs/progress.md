@@ -7,8 +7,8 @@ Project memory file (specification §8.1). Updated at the end of every run.
 | Phase | Branch | Status | Pull request |
 |---|---|---|---|
 | 0 — Architecture & Data Model | `phase-0-architecture` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#1](https://github.com/moalmansor/Core-Low-Code-Framework/pull/1) |
-| 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **In review.** The owner's review found that the stack did not run from a Windows clone; fixed on the branch (see "Phase 1 review" below). Awaiting re-review. | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
-| 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | Not started | — |
+| 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
+| 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | **In progress** (issue #4) | — |
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | Not started | — |
 | 3 — Workflow, Records & Views | `phase-3-workflow` | Not started | — |
 | 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | Not started | — |
@@ -187,22 +187,134 @@ runners cannot run Linux containers; CI reproduces the Windows checkout on Linux
 instead), and a real GitHub Codespace (the same dev container definition is
 started in CI with the devcontainer CLI).
 
+## Phase 2: work so far (branch `phase-2-form-builder`, issue #4)
+
+Done and committed:
+- Expression language: PHP reference parser, type checker and evaluator
+  (`backend/app/Expressions`), TypeScript twin (`frontend/src/expressions`),
+  shared corpus extended to 198 cases, green on both (Pest `Conformance`,
+  Vitest `tests/conformance`). ADR-0027 records the open semantics decided.
+- Metadata tables of every Phase 2 module plus the deferred ADR-0021 columns;
+  schema conformance test updated (`DEFERRED_COLUMNS`, record tables excluded,
+  `FrameworkTables` registry kept equal to the ERD).
+- Forms module: field-type registry, JSON schemas (`form-draft`, expression
+  AST), draft repository over the working tables with optimistic draft locking,
+  draft validator (errors vs problems), target schema builder, definition
+  compiler, client definition, form/application/menu/field-library/expression
+  controllers, publish service with placement, impact analyzer, version diff.
+- Schema module: differ, planner with SQL previews for both engines, executor
+  (reverse on failure, `inconsistent` state, idempotent retries), publish locks,
+  snapshots (encrypted), reconciler, schema explorer/ERD/plans/repair API.
+- Access: auto-registered `form.*`, `app.*`, `menu.*` permissions with Super
+  Admin grants, field/group access resolver (§16.3) with explain, access matrix
+  API.
+- Engine tests (`tests/Engine`, real DDL, truncation): publish, rename,
+  archive, widen, validated type change, reversal on failure.
+- Records runtime (`app/Modules/Records/Runtime`): query-builder record store,
+  value codec, rule runtime (defaults, formulas, conditions), validator,
+  record pipeline with submission journal, idempotency keys, optimistic
+  concurrency with the 409 conflict payload, child tables, pivots, files,
+  numbering, comments, history; records API under `/api/v1/r/{form}`.
+- Reference data (`app/Modules/Reference`): business calendars and holidays
+  (working-time arithmetic), number sequences (tokens, padding, period reset,
+  Hijri), currencies and exchange rates, units of measure, with APIs.
+- Excel/CSV import and export of records (`app/Modules/Records/Exchange`):
+  labels instead of codes, formula-safe cells, validate-then-commit import,
+  updates by record ID with the exported version, idempotent re-import.
+- Blueprints (`app/Modules/Blueprints`): save a form or collection as a
+  versioned blueprint (structure, or structure plus permissions), instantiate
+  with derived uuids, three-way propagation preview/apply, detach, export and
+  import with content hashes.
+- Scheduled maintenance: `files:purge-temporary` (hourly),
+  `schema:reconcile --scheduled` (daily, setting `schema.reconcile_daily`),
+  `schema:purge-snapshots` (daily, retention setting).
+- Relation on-delete rules (restrict, cascade, set null) enforced by the
+  record pipeline (`ReferentialIntegrity`), planned as a unit and audited.
+- Frontend: form builder (palette, canvas with drag and drop and nesting,
+  undo/redo, clipboard, multi-select, autosave, field library, property
+  panels, rule builder, formula editor, preview as role or user, publish
+  dialog with impact analysis and placement, versions/diff/rollback); runtime
+  renderer with every field type; records list, create/edit/view, conflict
+  screen, import/export, inline sub-forms; admin screens for applications and
+  menus, forms and collections, form access matrix and explain, schema
+  explorer with ERD, migration plans and repair, blueprints, reference data;
+  sidebar navigation from published menus. Strings per area in
+  `backend/resources/ui-strings/{en,ar}/*.json`.
+- Playwright `e2e/04-forms.spec.ts`: build a form, publish it into the
+  sidebar, create a record, resolve a concurrent edit on the conflict screen;
+  building screens in Arabic right to left. Passes locally on MySQL and SQL
+  Server.
+- SQL Server parity: the SQL Server connection converts BIGINT and
+  UNIQUEIDENTIFIER results by declared type; all 605 backend tests pass on
+  MySQL 8 and SQL Server 2019 locally.
+
+### Accepted limits (owner decisions on the Phase 2 pull request)
+
+- **Excel/CSV import is synchronous.** One request validates and imports up to
+  `records.import_max_rows` rows (default 5,000; the system setting allows
+  10–50,000) and files up to `files.max_upload_mb`. Larger files must be split.
+  Converting import to background jobs with progress, saved mappings, dry run
+  and upsert (`import_jobs`, `import_mappings`) is scheduled in the Phase 4
+  issue.
+- **Blueprints of views** moved to Phase 3, with the views themselves.
+
+### Browser walkthrough review (2026-10-08)
+
+Fixed on the pull request, each with regression tests:
+
+1. **Comments failed to post** (500). The HTML sanitizer's allowed-scheme list
+   had a `false` entry that HTMLPurifier rejects, so every sanitize call failed
+   (comments, static HTML blocks). Rich-text record values are now sanitised
+   on the server too. The unexpected-error message now includes its
+   reference, so inline banners show it as well as the toast.
+6. **Condition builder showed schema errors.** Root cause: global
+   ConvertEmptyStringsToNull/TrimStrings rewrote text literals inside
+   expressions (`""` became `null`). Document and expression requests now keep
+   expression nodes verbatim (ADR-0029); schema failures become translated
+   issues with a reference (detail in Error Monitoring); the Visual builder
+   saves only complete conditions and marks incomplete rows; issue lists name
+   the panel tab, not a path; the linked-record path box has a readable label
+   and appears only for record links.
+- Also found and fixed: sidebar names stayed in the previous language after a
+  language switch (the preference is now saved before the interface switches).
+- Also found and fixed (2026-10-09, while testing the interface work):
+  republishing a form with no schema change dropped and recreated every index
+  and foreign key of its tables on MySQL — 42 steps and about 40 seconds for a
+  two-field form with records. MySQL's JSON type returns the stored definition
+  with its object keys reordered, and the differ compared specs as encoded
+  strings. Specs and record values are now compared canonically
+  (`App\Support\Json\Canonical`); tests: `SchemaDifferTest`, and a
+  republish-without-change test in `PublishLifecycleTest`.
+- Also found and fixed (2026-10-09, by CI on the interface pull request):
+  opening *Publish* during an autosave could stop at "save first" with
+  *Continue* disabled, because `flush()` returned before the follow-up save
+  of a newer edit. Test: `useBuilder.spec.ts`.
+
+Decided by the owner:
+
+- Item 3 ("field rules are repeated") was withdrawn by the owner: it could not
+  be reproduced and was most likely the flat panel layout of item 2.
+- Items 2, 4, 5 and the overall visual system: approved for a separate pull
+  request before Phase 3 (branch `phase-2-interface`), with the owner's
+  palette, contrast fixes A–G as decided on 2026-10-09, a 12px table-header
+  floor (13px for Arabic), and prefers-reduced-motion respected throughout.
+- Formula-language diagnostics (syntax/type errors in typed formulas) are
+  English only; translating them by code is a follow-up.
+
 ## Resume point
 
-Phase 1 is on `phase-1-foundation`, in review in
-[moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) (→ `main`, closes issue #3). The PR's
-verification report cites the CI run on the PR's head commit (CLAUDE.md); after
-any new commit, wait for CI on it and update the report. Next: the owner re-runs
-the README guide on Windows; address what they report on the same branch.
-**Do not start Phase 2** until the owner
-merges the Phase 1 PR and approves Phase 2. If review comments arrive, push fixes to
-`phase-1-foundation`.
+Phase 2 is complete and merge-ready on its functional fixes (all walkthrough
+items fixed or moved; item 3 withdrawn; the republish fix of 2026-10-09).
+Backend: 620 tests pass; frontend: 490 unit tests pass; CI green on
+`701c21a`. The owner reviews and
+merges.
 
-When Phase 2 begins: create `phase-2-form-builder` from the updated `main`, add the
-deferred columns of ADR-0021 that point at Phase 2 tables (`departments.business_calendar_id`,
-`roles.application_id`, `permission_assignments.condition_id`, `files.form_id|record_id|field_id`)
-in the migrations that create those tables, and follow the Phase 2 row of
-architecture §25.
+Next: the interface pull request (owner-approved, before Phase 3) on branch
+`phase-2-interface`. Built and pushed: theme tokens with contrast fixes A–G,
+IBM Plex fonts, primary colour in Appearance & Branding, page frame, records
+table standard, properties panel. Remaining: `docs/design-system.md`, ADR-0030,
+specification additions, the pull request with its report, and the
+before/after page with Arabic. Do not start Phase 2.5 or 3.
 
 ### Local development notes
 

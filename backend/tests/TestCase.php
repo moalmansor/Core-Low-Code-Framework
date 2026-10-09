@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Access\AccessCache;
 use App\Modules\Access\Models\Role;
 use App\Modules\Core\Settings\SettingsService;
@@ -11,6 +12,8 @@ use App\Modules\Identity\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Fortify\Fortify;
 use PragmaRX\Google2FA\Google2FA;
 
@@ -88,6 +91,34 @@ abstract class TestCase extends BaseTestCase
     protected function superAdmin(): User
     {
         return $this->makeUser(['super_admin']);
+    }
+
+    /**
+     * Drops every physical record table (forms, collections, child tables,
+     * pivots, archives). Engine tests run real DDL, which commits implicitly
+     * on MySQL, so they use truncation instead of transactions and clean up
+     * the generated tables here.
+     */
+    protected function dropRecordTables(): void
+    {
+        $driver = app(DatabaseDriver::class);
+        $tables = array_values(array_filter($driver->tables(), static fn (string $t): bool => preg_match('/^(f\d*_|c\d*_|p_|zz_)/', $t) === 1));
+        if ($tables === []) {
+            return;
+        }
+        $db = DB::connection();
+        foreach ($tables as $t) {
+            foreach ($driver->foreignKeys($t) as $fk) {
+                if ($fk['name'] !== null) {
+                    $db->statement($db->getDriverName() === 'mysql'
+                        ? sprintf('alter table `%s` drop foreign key `%s`', $t, $fk['name'])
+                        : sprintf('alter table [%s] drop constraint [%s]', $t, $fk['name']));
+                }
+            }
+        }
+        foreach ($tables as $t) {
+            Schema::dropIfExists($t);
+        }
     }
 
     protected function totp(string $secret = self::TOTP_SECRET): string

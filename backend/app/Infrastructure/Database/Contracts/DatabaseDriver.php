@@ -36,6 +36,9 @@ interface DatabaseDriver
     public function addColumn(string $table, ColumnSpec $column): array;
 
     /** @return list<string> */
+    public function renameTable(string $from, string $to): array;
+
+    /** @return list<string> */
     public function renameColumn(string $table, string $from, string $to): array;
 
     /** @return list<string> */

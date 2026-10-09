@@ -36,6 +36,6 @@ export default defineConfig({
   base: process.env.NODE_ENV === 'production' ? '/build/' : '/',
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.spec.ts'],
+    include: ['src/**/*.spec.ts', 'tests/**/*.spec.ts'],
   },
 } as never)

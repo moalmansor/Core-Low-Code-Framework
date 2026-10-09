@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\NormalizeDocumentInput;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
 use App\Modules\Core\Correlation\CorrelationId;
@@ -37,8 +38,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', SetLocale::class);
         $middleware->appendToGroup('api', SetLocale::class);
         $middleware->encryptCookies();
+        // Metadata documents and expressions are normalised by NormalizeDocumentInput,
+        // which leaves expression nodes untouched (ADR-0029).
+        $verbatim = static fn (Request $r): bool => NormalizeDocumentInput::applies($r);
+        $middleware->appendToGroup('api', NormalizeDocumentInput::class);
         // Separators may legitimately be a single space.
-        $middleware->trimStrings(except: ['number_format.group', 'number_format.decimal', 'thousands_separator', 'decimal_separator', 'formats.thousands_separator', 'formats.decimal_separator']);
+        $middleware->trimStrings(except: [$verbatim, 'number_format.group', 'number_format.decimal', 'thousands_separator', 'decimal_separator', 'formats.thousands_separator', 'formats.decimal_separator']);
+        $middleware->convertEmptyStringsToNull(except: [$verbatim]);
 
         // Signed-in requests: active account, tenant, idle/absolute timeouts.
         $middleware->group('lcf.session', [
@@ -90,7 +96,8 @@ return Application::configure(basePath: dirname(__DIR__))
             $reference = app()->bound('lcf.error_reference') ? (string) app('lcf.error_reference') : null;
 
             return response()->json([
-                'message' => __('ui.errors.unexpected'),
+                // The reference is part of the message, so every place that shows the message shows it too.
+                'message' => $reference === null || $reference === '' ? __('ui.errors.unexpected') : __('ui.errors.unexpected_with_reference', ['reference' => $reference]),
                 'reference' => $reference,
                 'correlation_id' => app(CorrelationId::class)->get(),
             ], $e instanceof HttpExceptionInterface ? $e->getStatusCode() : 500);

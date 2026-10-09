@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Core\Settings;
 
+use App\Modules\Records\FileStore;
 use Illuminate\Validation\Rule;
 
 /**
@@ -57,6 +58,15 @@ final class SettingsRegistry
         $d('branding', 'logo_file', null, ['nullable', 'uuid']);
         $d('branding', 'favicon_file', null, ['nullable', 'uuid']);
 
+        // Schema changes (§4.9, architecture §12.3, §12.5, §12.6)
+        $d('schema', 'snapshot_retention_days', 30, ['required', 'integer', 'between:1,3650']);
+        $d('schema', 'blocking_confirmation_rows', 100000, ['required', 'integer', 'between:0,1000000000']);
+        $d('schema', 'reconcile_daily', true, ['required', 'boolean']);
+
+        // Records import/export (§4.8)
+        $d('records', 'export_max_rows', 50000, ['required', 'integer', 'between:100,1000000']);
+        $d('records', 'import_max_rows', 5000, ['required', 'integer', 'between:10,50000']);
+
         // Formats and calendar (§2)
         $d('formats', 'timezone', 'UTC', ['required', 'timezone:all']);
         $d('formats', 'date_format', 'yyyy-MM-dd', ['required', 'string', 'max:32', 'regex:/^[yMdHhmsaEG\/\-\.\s,]+$/']);
@@ -78,6 +88,7 @@ final class SettingsRegistry
 
         // Files and virus scanning (§3, §5)
         $d('files', 'max_upload_mb', 10, ['required', 'integer', 'between:1,512']);
+        $d('files', 'allowed_file_types', ['pdf', 'docx', 'xlsx', 'pptx', 'csv', 'txt', 'png', 'jpg', 'jpeg', 'webp'], ['required', 'array', 'min:1', '*' => ['distinct', Rule::in(array_keys(FileStore::MIMES))]]);
         $d('files', 'allowed_image_types', ['png', 'jpg', 'jpeg', 'webp', 'ico'], ['required', 'array', 'min:1', '*' => ['distinct', Rule::in(['png', 'jpg', 'jpeg', 'webp', 'ico'])]]);
         $d('clamav', 'enabled', false, ['required', 'boolean']);
         $d('clamav', 'host', 'clamav', ['required', 'string', 'max:255']);

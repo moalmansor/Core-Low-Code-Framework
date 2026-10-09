@@ -57,6 +57,13 @@ abstract class AbstractDriver implements DatabaseDriver
         return $this->blueprint($table, fn (Blueprint $t) => $this->applyColumn($t, $column));
     }
 
+    public function renameTable(string $from, string $to): array
+    {
+        $this->assertIdentifier($to);
+
+        return $this->blueprint($from, fn (Blueprint $t) => $t->rename($to));
+    }
+
     public function renameColumn(string $table, string $from, string $to): array
     {
         $this->assertIdentifier($from);

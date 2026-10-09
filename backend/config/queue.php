@@ -73,6 +73,16 @@ return [
             'after_commit' => false,
         ],
 
+        // Schema changes may run for a long time on large tables (architecture §12.3).
+        'redis_schema' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'schema',
+            'retry_after' => 3700,
+            'block_for' => null,
+            'after_commit' => true,
+        ],
+
         'deferred' => [
             'driver' => 'deferred',
         ],

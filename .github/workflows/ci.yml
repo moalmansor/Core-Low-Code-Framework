@@ -116,7 +116,7 @@ jobs:
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm, cache-dependency-path: frontend/package-lock.json }
       - run: npm ci --no-audit --no-fund
       - run: npx eslint .
-      - run: npx prettier --check src e2e
+      - run: npx prettier --check src e2e tests
       - run: npx vue-tsc -b
       - run: npx vitest run
       - run: NODE_ENV=production npx vite build
@@ -324,6 +324,12 @@ jobs:
     name: Dev container (Codespaces path)
     runs-on: ubuntu-24.04
     needs: [line-endings]
+    env:
+      # Since runner image 20261004, Compose builds through Buildx Bake, which
+      # refuses to read the Dockerfile the devcontainer CLI writes to /tmp
+      # without an fs.read entitlement the CLI cannot pass. The classic Compose
+      # builder builds the same image.
+      COMPOSE_BAKE: 'false'
     steps:
       - uses: actions/checkout@v4
       # Builds and starts .devcontainer the way Codespaces does (devcontainer CLI,

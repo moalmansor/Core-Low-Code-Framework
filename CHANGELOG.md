@@ -2,7 +2,50 @@
 
 All notable changes to this project are documented here, one section per phase.
 
-## [Unreleased] — Phase 1: Foundation, Security & Administration Core
+## [Unreleased] — Phase 2: Form Builder, Collections & Data Engine
+
+### Added
+- Expression language: PHP reference evaluator and TypeScript twin, parser,
+  type checker; shared conformance corpus (198 cases) green on both in CI.
+- Form builder: three panels, drag and drop with nesting, undo/redo,
+  copy/paste, multi-select, autosave with draft locking, field library, every
+  input type and group, all group and field properties, rule builder and
+  formula editor, preview as any role or user.
+- Data engine: physical tables per form and collection, child tables, pivots,
+  migration plans persisted before execution with reversal, Schema
+  Inconsistent state and guided repair, publish locks, encrypted snapshots,
+  scheduled reconciliation, database binding and introspection.
+- Versioning: draft, impact analysis, diff, rollback; publishing with sidebar
+  placement and the menu editor.
+- Records runtime: record pipeline with submission journal and idempotency,
+  optimistic concurrency with the conflict screen, relation on-delete rules,
+  repeater row permissions, inline sub-form records, files, numbering,
+  comments, history; Excel/CSV import and export.
+- Permission matrix: form-level permissions, group and field access per
+  role, user, department and mode, cached resolution, explain access.
+- Blueprints with versions, propagation preview, export and import; reference
+  data (calendars, holidays, numbering, currencies, exchange rates, units).
+- Admin screens for applications, forms and collections, access, schema
+  explorer with ERD, migration plans, blueprints and reference data.
+- ADR-0027 and ADR-0028.
+
+### Changed
+- Blueprints of views moved to Phase 3; the module overview no longer names
+  `record_attachments` or `access_cache_versions` (neither is needed).
+
+### Fixed
+- SQL Server returns BIGINT and UNIQUEIDENTIFIER values with the same PHP
+  types as MySQL.
+- Opening the root URL directly shows the application shell.
+- The access epoch is mirrored in `settings` as architecture §16.5 describes, so
+  a counter lost from the cache never lets an old access snapshot match again.
+- Republishing a form whose schema did not change no longer drops and
+  recreates every index and foreign key of its tables on MySQL (MySQL's JSON
+  type reorders object keys, and specs were compared as encoded strings).
+- Opening *Publish* during an autosave no longer stops at "save first" with
+  *Continue* disabled; the builder saves until nothing is pending.
+
+## Phase 1: Foundation, Security & Administration Core
 
 ### Added
 - Laravel 12 backend (modular monolith) and Vue 3 SPA; Docker Compose stack, dev

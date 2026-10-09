@@ -1,5 +1,8 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useSession } from '@/stores/session'
+import { builderRoutes } from './builder'
+import { buildingRoutes } from './building'
+import { runtimeRoutes } from './runtime'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -13,16 +16,6 @@ declare module 'vue-router' {
 
 const routes: RouteRecordRaw[] = [
   { path: '/setup', name: 'setup', component: () => import('@/views/setup/SetupWizard.vue'), meta: { public: true, title: 'setup.title' } },
-  {
-    path: '/',
-    component: () => import('@/layouts/AuthLayout.vue'),
-    children: [
-      { path: 'login', name: 'login', component: () => import('@/views/auth/LoginView.vue'), meta: { guest: true, title: 'auth.sign_in' } },
-      { path: 'login/two-factor', name: 'two-factor', component: () => import('@/views/auth/TwoFactorChallenge.vue'), meta: { guest: true, title: 'auth.two_factor_title' } },
-      { path: 'forgot-password', name: 'forgot', component: () => import('@/views/auth/ForgotPassword.vue'), meta: { guest: true, title: 'auth.forgot_title' } },
-      { path: 'reset-password/:token', name: 'reset', component: () => import('@/views/auth/ResetPassword.vue'), meta: { guest: true, title: 'auth.reset_title' } },
-    ],
-  },
   {
     path: '/',
     component: () => import('@/layouts/AppShell.vue'),
@@ -53,6 +46,20 @@ const routes: RouteRecordRaw[] = [
       },
       { path: 'admin/audit', name: 'admin.audit', component: () => import('@/views/admin/AuditLogView.vue'), meta: { anyOf: ['system.view_audit_log'], title: 'admin.area.audit_log' } },
       { path: 'admin/errors', name: 'admin.errors', component: () => import('@/views/admin/ErrorsView.vue'), meta: { anyOf: ['system.view_errors'], title: 'admin.area.error_monitoring' } },
+      ...buildingRoutes,
+      ...builderRoutes,
+      ...runtimeRoutes,
+    ],
+  },
+  // After the shell: both parents have the path '/', and an exact '/' must open the shell's home.
+  {
+    path: '/',
+    component: () => import('@/layouts/AuthLayout.vue'),
+    children: [
+      { path: 'login', name: 'login', component: () => import('@/views/auth/LoginView.vue'), meta: { guest: true, title: 'auth.sign_in' } },
+      { path: 'login/two-factor', name: 'two-factor', component: () => import('@/views/auth/TwoFactorChallenge.vue'), meta: { guest: true, title: 'auth.two_factor_title' } },
+      { path: 'forgot-password', name: 'forgot', component: () => import('@/views/auth/ForgotPassword.vue'), meta: { guest: true, title: 'auth.forgot_title' } },
+      { path: 'reset-password/:token', name: 'reset', component: () => import('@/views/auth/ResetPassword.vue'), meta: { guest: true, title: 'auth.reset_title' } },
     ],
   },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFound.vue'), meta: { public: true } },

@@ -21,10 +21,15 @@ final class ConsoleAreas
         'users' => ['people', ['system.manage_users'], '/admin/users'],
         'departments' => ['people', ['system.manage_users'], '/admin/departments'],
         'roles_permissions' => ['people', ['system.manage_permissions'], '/admin/roles'],
+        'applications' => ['building', ['system.manage_applications'], '/admin/applications'],
+        'forms' => ['building', ['system.manage_forms'], '/admin/forms'],
+        'blueprints' => ['building', ['system.manage_blueprints'], '/admin/blueprints'],
+        'reference_data' => ['building', ['system.manage_reference_data', 'system.manage_calendars', 'system.manage_numbering', 'system.manage_currencies'], '/admin/reference'],
         'appearance_branding' => ['configuration', ['system.manage_branding'], '/admin/settings/branding'],
         'translations' => ['configuration', ['system.manage_translations'], '/admin/translations'],
         'system_settings' => ['configuration', ['system.manage_settings'], '/admin/settings'],
         'audit_log' => ['compliance', ['system.view_audit_log'], '/admin/audit'],
         'error_monitoring' => ['operations', ['system.view_errors'], '/admin/errors'],
+        'schema' => ['operations', ['system.manage_forms'], '/admin/schema'],
     ];
 }

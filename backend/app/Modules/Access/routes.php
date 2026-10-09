@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Access\Http\Controllers\AccessToolsController;
+use App\Modules\Access\Http\Controllers\FormAccessController;
 use App\Modules\Access\Http\Controllers\PermissionController;
 use App\Modules\Access\Http\Controllers\RoleController;
 use Illuminate\Support\Facades\Route;
@@ -24,4 +25,8 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::get('/access/explain', [AccessToolsController::class, 'explain']);
     Route::get('/access/export', [AccessToolsController::class, 'export']);
     Route::post('/access/import', [AccessToolsController::class, 'import']);
+
+    Route::get('/forms/{form}/access-matrix', [FormAccessController::class, 'matrix']);
+    Route::put('/forms/{form}/access-rules', [FormAccessController::class, 'update']);
+    Route::get('/forms/{form}/access-explain', [FormAccessController::class, 'explain']);
 });
