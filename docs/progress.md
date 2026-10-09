@@ -282,9 +282,13 @@ Waiting on the owner:
 
 - Item 3 ("field rules are repeated") arrived without a description or
   screenshot; no duplication was found in the rule editors. Needs details.
-- Items 2, 4, 5 and the overall visual system: proposal with screenshots and
-  mockups published for review (records table, field properties panel, page
-  frame, design tokens). Nothing implemented until approved.
+- Items 2, 4, 5 and the overall visual system: the owner approved the table,
+  panel and frame proposals, IBM Plex Sans + IBM Plex Sans Arabic, and the
+  primary colour as an Appearance & Branding setting, to be built in a separate
+  pull request before Phase 3. The owner supplied the product palette (light
+  and dark tokens); the WCAG 2.1 AA check found seven failing pairings, and the
+  proposed fixes A–G await the owner's choice (F, a darker input outline, is a
+  visible change). Nothing implemented yet.
 - Formula-language diagnostics (syntax/type errors in typed formulas) are
   English only; translating them by code is a follow-up.
 
@@ -292,9 +296,10 @@ Waiting on the owner:
 
 Phase 2 is built and under review. Backend: 617 tests pass on MySQL 8 locally
 (SQL Server in CI); frontend: eslint, prettier, vue-tsc and 488 unit tests
-pass; `04-forms` end-to-end (three tests) passes locally. Next: CI on the head
-commit and the report update, then the owner's answers on item 3 and on the
-interface proposal. Do not start Phase 2.5 (the owner's pilot).
+pass; `04-forms` end-to-end (three tests) passes locally. Next: the owner's
+answer on item 3 (Phase 2 merges once it is settled) and on contrast fixes A–G;
+then the interface pull request (tokens, theme, table, panel, frame,
+docs/design-system.md) before Phase 3. Do not start Phase 2.5 (the owner's pilot).
 
 ### Local development notes
 
