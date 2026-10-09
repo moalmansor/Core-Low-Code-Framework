@@ -20,8 +20,10 @@ const DEFERRED_COLUMNS = [
     'sessions' => ['external_user_id', 'trusted_device_id', 'impersonation_session_id'],
     'files' => ['external_user_id'],
     'applications' => ['theme_id', 'home_screen_id'],
-    'field_access_rules' => ['status_id'],
     'submission_journal' => ['external_user_id', 'import_job_id'],
+    'status_history' => ['external_user_id'],
+    'justification_rules' => ['action_id'],
+    'justifications' => ['bulk_operation_id', 'import_job_id', 'external_user_id'],
 ];
 
 const FRAMEWORK_TABLES = ['migrations', 'cache', 'cache_locks', 'job_batches', 'failed_jobs'];

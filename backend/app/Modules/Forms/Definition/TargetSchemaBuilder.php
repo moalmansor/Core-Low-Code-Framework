@@ -328,6 +328,7 @@ final class TargetSchemaBuilder
         return [
             $this->fk($t, 'organization_id', 'organizations'),
             $this->fk($t, 'form_version_id', 'form_versions'),
+            $this->fk($t, 'status_id', 'statuses'),
             $this->fk($t, 'owner_user_id', 'users'),
             $this->fk($t, 'owner_department_id', 'departments'),
             $this->fk($t, 'created_by', 'users'),
