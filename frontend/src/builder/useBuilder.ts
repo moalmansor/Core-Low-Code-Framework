@@ -255,8 +255,13 @@ export function createBuilder(formUuid: string) {
   /** Saves pending changes before leaving; true when nothing is left unsaved. */
   async function flush(): Promise<boolean> {
     commit()
-    if (history.current === lastSaved) return true
-    await save()
+    // A save already in flight settles before it re-sends newer edits, so keep
+    // saving until nothing is pending or a save fails.
+    for (let attempt = 0; attempt < 3 && history.current !== lastSaved; attempt++) {
+      await save()
+      while (saving) await saving
+      if (saveState.value !== 'saved' && saveState.value !== 'dirty') break
+    }
     return history.current === lastSaved
   }
 
