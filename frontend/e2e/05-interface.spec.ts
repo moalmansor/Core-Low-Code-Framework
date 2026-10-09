@@ -129,8 +129,14 @@ test('the properties panel finds a setting across tabs and keeps sections tidy',
 
   // Published, so the records list can filter on the visitor.
   await page.getByTestId('save-now').click()
-  await expect(page.getByTestId('save-state')).toContainText(/saved/i)
+  await expect(page.getByTestId('save-state')).toHaveText(/^\s*(Saved at|All changes saved)/)
   await page.getByTestId('open-publish').click()
+  // If the impact analysis cannot finish, say what the dialog shows instead of timing out on a disabled button.
+  await expect(page.getByTestId('publish-continue'))
+    .toBeEnabled({ timeout: 30_000 })
+    .catch(async (e: Error) => {
+      throw new Error(`${e.message}\nPublish dialog: ${await page.getByTestId('publish-dialog').innerText()}`)
+    })
   await page.getByTestId('publish-continue').click()
   await page.getByTestId('publish-confirm').click()
   await expect(page.getByTestId('publish-dialog')).toContainText(/applied|published/i, { timeout: 60_000 })
