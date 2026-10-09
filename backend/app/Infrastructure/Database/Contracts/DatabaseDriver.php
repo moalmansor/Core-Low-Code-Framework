@@ -87,7 +87,11 @@ interface DatabaseDriver
     public function jsonColumnCheck(string $column): ?string;
 
     /** Case- and accent-insensitive LIKE predicate (collation-aware). */
-    public function caseInsensitiveLike(Builder $query, string $column, string $term): Builder;
+    /**
+     * Case- and accent-insensitive text match: `contains` (default), `starts`
+     * (prefix) or `equals` (whole value), with LIKE wildcards in the term escaped.
+     */
+    public function caseInsensitiveLike(Builder $query, string $column, string $term, string $mode = 'contains'): Builder;
 
     public function dateTrunc(string $column, string $unit): Expression;
 

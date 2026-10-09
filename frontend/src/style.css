@@ -132,6 +132,7 @@ body {
  * interface's start edge, so mixed Arabic and Latin values line up.
  */
 .p-datatable .p-datatable-column-title {
+  white-space: nowrap;
   font-size: var(--table-header-size);
   font-weight: 500;
   text-transform: uppercase;
@@ -191,4 +192,33 @@ body {
 .p-message,
 .p-toast-message {
   border-inline-start-width: 4px;
+}
+
+/* Pills (design system: pills): status and boolean values. A pill with an
+   admin-chosen colour sets background and label inline (labelColor()). */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  font-size: var(--text-size-xs);
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+:lang(ar) .pill {
+  font-size: var(--text-size-sm);
+}
+.pill-neutral {
+  background: var(--neutral-pill);
+  color: var(--on-neutral-pill);
+}
+.pill-yes {
+  background: var(--success);
+  color: var(--on-success);
+}
+.pill-no {
+  background: var(--danger);
+  color: var(--on-danger);
 }

@@ -32,6 +32,9 @@ final class RecordQuery
             'filter' => ['sometimes', 'array', 'max:20'],
             'filter.*' => ['nullable'],
             'trashed' => ['sometimes', 'boolean'],
+            // Selected records (export selected): narrows the result, never widens it.
+            'uuids' => ['sometimes', 'array', 'max:1000'],
+            'uuids.*' => ['uuid'],
         ];
     }
 
@@ -47,6 +50,9 @@ final class RecordQuery
         } else {
             $q->whereNull('deleted_at');
         }
+        if (isset($data['uuids'])) {
+            $q->whereIn('uuid', array_map('strtolower', $data['uuids']));
+        }
         if (! empty($data['search'])) {
             $term = mb_strtolower(Unicode::normalizeArabic(trim((string) $data['search'])));
             $this->driver->caseInsensitiveLike($q, 'search_text', $term);
@@ -59,6 +65,39 @@ final class RecordQuery
             $f = $rt->fields[$uuid];
             $col = $rt->column($uuid);
             if ($col === null || ($col['encrypted'] ?? false) || ! ($f['table']['filterable'] ?? false)) {
+                continue;
+            }
+            // {op: contains|starts_with|equals, value} for text; {op: in, values: [...]} for choices and links.
+            $op = is_array($value) && is_string($value['op'] ?? null) ? $value['op'] : null;
+            if ($op === 'in') {
+                $values = array_values(array_filter(array_slice((array) ($value['values'] ?? []), 0, 50), static fn ($v) => is_scalar($v) && $v !== ''));
+                if ($values === []) {
+                    continue;
+                }
+                if ($col['type'] === 'bigint' && ($table = $rt->targetTable($f)) !== null) {
+                    $uuids = array_values(array_filter(array_map('strval', $values), static fn (string $v) => preg_match('/^[0-9a-f-]{36}$/i', $v) === 1));
+                    $q->whereIn($col['name'], array_values($this->refs->ids($table, $uuids)) ?: [0]);
+                } else {
+                    $q->whereIn($col['name'], array_map('strval', $values));
+                }
+
+                continue;
+            }
+            if ($op !== null && in_array($op, ['contains', 'starts_with', 'equals'], true)) {
+                $term = is_scalar($value['value'] ?? null) ? (string) $value['value'] : '';
+                if ($term === '') {
+                    continue;
+                }
+                if (in_array($col['type'], ['string', 'code', 'text'], true)) {
+                    $this->driver->caseInsensitiveLike($q, $col['name'], $term, match ($op) {
+                        'starts_with' => 'starts',
+                        'equals' => 'equals',
+                        default => 'contains',
+                    });
+                } elseif ($op === 'equals' && $col['type'] !== 'bigint') {
+                    $q->where($col['name'], $term);
+                }
+
                 continue;
             }
             if ($col['type'] === 'bigint' && is_string($value) && preg_match('/^[0-9a-f-]{36}$/i', $value) === 1 && ($table = $rt->targetTable($f)) !== null) {

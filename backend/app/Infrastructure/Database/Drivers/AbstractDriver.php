@@ -160,7 +160,7 @@ abstract class AbstractDriver implements DatabaseDriver
         return $query->whereJsonContains($column.$this->arrowPath($path), $value);
     }
 
-    public function caseInsensitiveLike(Builder $query, string $column, string $term): Builder
+    public function caseInsensitiveLike(Builder $query, string $column, string $term, string $mode = 'contains'): Builder
     {
         $this->assertIdentifier($column);
         // '!' is the escape character: it needs no quoting in either engine's
@@ -169,7 +169,13 @@ abstract class AbstractDriver implements DatabaseDriver
         $escaped = str_replace(['!', '%', '_', '['], ['!!', '!%', '!_', '!['], $term);
 
         // Both databases are created with case- and accent-insensitive collations.
-        return $query->whereRaw($this->wrap($column)." like ? escape '!'", ['%'.$escaped.'%']);
+        $pattern = match ($mode) {
+            'equals' => $escaped,
+            'starts' => $escaped.'%',
+            default => '%'.$escaped.'%',
+        };
+
+        return $query->whereRaw($this->wrap($column)." like ? escape '!'", [$pattern]);
     }
 
     public function lockForUpdate(Builder $query): Builder

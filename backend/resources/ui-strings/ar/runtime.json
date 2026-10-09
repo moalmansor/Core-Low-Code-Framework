@@ -96,7 +96,7 @@
   "records.save_failed": "تعذّر حفظ السجل.",
   "records.save_retry": "لم يؤكد الخادم الحفظ. اضغط حفظ مرة أخرى: سيُرسل الطلب نفسه ولن يُطبّق مرتين.",
   "records.saved": "تم حفظ التعديلات",
-  "records.show_trash": "سلة المحذوفات",
+  "records.show_trash": "عرض السجلات المحذوفة",
   "records.submit_blocked": "لا يمكن إرسال هذا النموذج بعد. راجع الرسائل في النموذج.",
   "records.system_actor": "النظام",
   "records.tab_attachments": "المرفقات",

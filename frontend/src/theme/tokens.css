@@ -41,6 +41,10 @@
   --warning: #b45309;
   --success: #107c52;
   --neutral-pill: #3f4c5a;
+  /* Labels on the theme's own pill colours (status and boolean pills). */
+  --on-neutral-pill: #ffffff;
+  --on-success: #ffffff;
+  --on-danger: #ffffff;
   /* The two label colours a pill chooses from, whichever contrasts more with its background. */
   --on-color-light: #ffffff;
   --on-color-dark: #0f1419;
@@ -76,6 +80,9 @@
   --warning: #d9941f;
   --success: #35a775;
   --neutral-pill: #46535f;
+  --on-neutral-pill: #ffffff;
+  --on-success: #0f1419;
+  --on-danger: #0f1419;
   --overlay: rgb(0 0 0 / 0.6);
   --shadow-color: rgb(0 0 0 / 0.4);
   color-scheme: dark;

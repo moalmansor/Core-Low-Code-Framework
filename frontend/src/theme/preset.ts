@@ -110,7 +110,14 @@ export const ProductPreset = definePreset(Aura, {
     datatable: {
       root: { borderColor: 'var(--border)' },
       columnTitle: { fontWeight: '500', fontSize: 'var(--table-header-size)' },
-      headerCell: { background: 'var(--bg-subtle)', color: 'var(--text-muted)', borderColor: 'var(--border)', padding: '0.625rem 0.75rem' },
+      headerCell: {
+        background: 'var(--bg-subtle)',
+        color: 'var(--text-muted)',
+        selectedBackground: 'var(--bg-subtle)',
+        selectedColor: 'var(--text)',
+        borderColor: 'var(--border)',
+        padding: '0.625rem 0.75rem',
+      },
       bodyCell: { borderColor: 'var(--border)', padding: '0.8125rem 0.75rem', selectedBorderColor: 'var(--border)' },
       row: { hoverBackground: 'var(--bg-subtle)', stripedBackground: 'var(--bg-subtle)' },
     },

@@ -36,6 +36,9 @@ const pairs: [string, string, string[], number][] = [
   ['danger text', 'danger', ['bg-surface', 'bg-subtle'], AA_TEXT],
   ['warning text', 'warning', ['bg-surface', 'bg-subtle'], AA_TEXT],
   ['success text', 'success', ['bg-surface', 'bg-subtle'], AA_TEXT],
+  ['pill labels', 'on-neutral-pill', ['neutral-pill'], AA_TEXT],
+  ['yes pills', 'on-success', ['success'], AA_TEXT],
+  ['no pills', 'on-danger', ['danger'], AA_TEXT],
   ['input borders', 'border-input', ['bg-surface', 'bg-subtle'], AA_NON_TEXT],
   ['focus ring', 'primary', ['bg-surface', 'bg-subtle', 'bg-page'], AA_NON_TEXT],
 ]
