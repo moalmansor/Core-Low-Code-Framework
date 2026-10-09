@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Schema\Planning;
 
+use App\Support\Json\Canonical;
+
 /**
  * Compares two target schemas (the `schema` sections of the current and the
  * new definition — architecture §11.4) and returns the driver-neutral
@@ -252,6 +254,6 @@ final class SchemaDiffer
      */
     private function differs(array $a, array $b): bool
     {
-        return json_encode($a) !== json_encode($b);
+        return ! Canonical::same($a, $b);
     }
 }
