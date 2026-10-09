@@ -280,8 +280,8 @@ Fixed on the pull request, each with regression tests:
 
 Waiting on the owner:
 
-- Item 3 ("field rules are repeated") arrived without a description or
-  screenshot; no duplication was found in the rule editors. Needs details.
+- Item 3 ("field rules are repeated") was withdrawn by the owner: it could not
+  be reproduced and was most likely the flat panel layout of item 2.
 - Items 2, 4, 5 and the overall visual system: the owner approved the table,
   panel and frame proposals, IBM Plex Sans + IBM Plex Sans Arabic, and the
   primary colour as an Appearance & Branding setting, to be built in a separate
@@ -294,12 +294,14 @@ Waiting on the owner:
 
 ## Resume point
 
-Phase 2 is built and under review. Backend: 617 tests pass on MySQL 8 locally
-(SQL Server in CI); frontend: eslint, prettier, vue-tsc and 488 unit tests
-pass; `04-forms` end-to-end (three tests) passes locally. Next: the owner's
-answer on item 3 (Phase 2 merges once it is settled) and on contrast fixes A–G;
-then the interface pull request (tokens, theme, table, panel, frame,
-docs/design-system.md) before Phase 3. Do not start Phase 2.5 (the owner's pilot).
+Phase 2 is complete and merge-ready on its functional fixes (all walkthrough
+items fixed or moved; item 3 withdrawn). Backend: 617 tests pass; frontend:
+488 unit tests pass; CI green on both engines. The owner reviews and merges.
+
+Next: the interface pull request (owner-approved, before Phase 3) on branch
+`phase-2-interface`: theme tokens with contrast fixes A–G, IBM Plex fonts,
+primary colour in Appearance & Branding, page frame, records table standard,
+field properties panel, `docs/design-system.md`. Do not start Phase 2.5 or 3.
 
 ### Local development notes
 
