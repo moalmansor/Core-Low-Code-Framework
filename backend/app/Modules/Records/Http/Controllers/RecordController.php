@@ -245,7 +245,8 @@ final class RecordController extends Controller
             if ($table === 'users') {
                 $q->addSelect('name')->where('status', 'active');
                 if ($term !== '') {
-                    $q->where(static fn ($w) => $w->where('name', 'like', '%'.str_replace(['%', '_'], ['\\%', '\\_'], $term).'%')->orWhere('email', 'like', '%'.str_replace(['%', '_'], ['\\%', '\\_'], $term).'%'));
+                    $driver = app(DatabaseDriver::class);
+                    $q->where(static fn ($w) => $w->where(static fn ($x) => $driver->caseInsensitiveLike($x, 'name', $term))->orWhere(static fn ($x) => $driver->caseInsensitiveLike($x, 'email', $term)));
                 }
             }
             if (! empty($data['uuids'])) {

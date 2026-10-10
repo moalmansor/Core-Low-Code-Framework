@@ -7,6 +7,7 @@ namespace App\Modules\Access;
 use App\Expressions\Calendars\Civil;
 use App\Expressions\Evaluation\Context;
 use App\Expressions\Evaluation\Evaluator;
+use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\Runtime\ExpressionContext;
 use App\Modules\Records\Runtime\FormRuntime;
@@ -135,8 +136,11 @@ final class ScopePredicate
         if ($k === 'call' && $n['fn'] === 'contains' && count($n['args']) === 2) {
             $column = $this->column($rt, $n['args'][0], $table);
             $term = $this->constant($rt, null, $n['args'][1], $ctx);
-            $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], (string) $term).'%';
-            $negate ? $q->where($column['sql'], 'not like', $like) : $q->where($column['sql'], 'like', $like);
+            // The driver escapes LIKE wildcards the same way on both engines.
+            $driver = app(DatabaseDriver::class);
+            $negate
+                ? $q->whereNot(static fn (Builder $w) => $driver->caseInsensitiveLike($w, $column['sql'], (string) $term))
+                : $driver->caseInsensitiveLike($q, $column['sql'], (string) $term);
 
             return;
         }

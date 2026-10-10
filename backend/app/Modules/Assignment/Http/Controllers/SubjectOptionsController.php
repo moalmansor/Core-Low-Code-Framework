@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Assignment\Http\Controllers;
 
+use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Access\AccessResolver;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Identity\Models\User;
@@ -41,7 +42,6 @@ final class SubjectOptionsController extends Controller
             'uuids.*' => ['uuid'],
         ]);
         $term = trim((string) ($data['search'] ?? ''));
-        $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $term).'%';
         if ($data['type'] === 'user') {
             // Without a configuration permission the directory is searched, never listed: at least 3 characters, 10 names.
             if (! $privileged && mb_strlen($term) < 3 && ! isset($data['uuids'])) {
@@ -49,7 +49,8 @@ final class SubjectOptionsController extends Controller
             }
             $q = DB::table('users')->whereNull('deleted_at')->where('status', 'active');
             if ($term !== '') {
-                $q->where(static fn ($w) => $w->where('name', 'like', $like)->orWhere('email', 'like', $like));
+                $driver = app(DatabaseDriver::class);
+                $q->where(static fn ($w) => $w->where(static fn ($x) => $driver->caseInsensitiveLike($x, 'name', $term))->orWhere(static fn ($x) => $driver->caseInsensitiveLike($x, 'email', $term)));
             }
             if (isset($data['uuids'])) {
                 $q->whereIn('uuid', array_map('strtolower', $data['uuids']));

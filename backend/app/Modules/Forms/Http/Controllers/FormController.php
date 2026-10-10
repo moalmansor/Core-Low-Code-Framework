@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Forms\Http\Controllers;
 
+use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\Models\Role;
@@ -97,9 +98,10 @@ final class FormController extends Controller
             $query->whereIn('application_id', Application::query()->where('uuid', $data['application'])->select('id'));
         }
         if (! empty($data['search'])) {
-            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $data['search']).'%';
-            $ids = DB::table('translations')->where('object_type', 'form')->where('field', 'name')->where('value', 'like', $term)->pluck('object_id');
-            $query->where(static fn ($q) => $q->where('key', 'like', $term)->orWhereIn('id', $ids));
+            // The driver escapes LIKE wildcards the same way on both engines (`_` in keys is literal).
+            $driver = app(DatabaseDriver::class);
+            $ids = $driver->caseInsensitiveLike(DB::table('translations')->where('object_type', 'form')->where('field', 'name'), 'value', $data['search'])->pluck('object_id');
+            $query->where(static fn ($q) => $driver->caseInsensitiveLike($q->getQuery(), 'key', $data['search'])->orWhereIn('id', $ids));
         }
         $page = $query->paginate($data['per_page'] ?? 25);
         $names = $this->translator->many('form', $page->getCollection()->pluck('id')->map(fn ($i) => (int) $i)->all(), ['name']);
