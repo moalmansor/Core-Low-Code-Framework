@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Access\AccessCache;
 use App\Modules\Access\Models\Permission;
 use App\Modules\Access\Models\PermissionAssignment;
+use App\Modules\Admin\ConsoleAreas;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -62,6 +63,9 @@ it('shows each admin console area only to holders of its permission', function (
     $this->actingAs($this->superAdmin(), 'web');
     $areas = collect($this->getJson('/api/v1/admin/console')->assertOk()->json('data.areas'))->pluck('key');
     expect($areas->all())->toContain('users', 'roles_permissions', 'audit_log', 'error_monitoring', 'translations', 'system_settings', 'system_health');
+    // No two sidebar entries open the same screen (design system §5.1).
+    $routes = array_column(ConsoleAreas::BUILT, 2);
+    expect($routes)->toBe(array_values(array_unique($routes)));
     $this->getJson('/api/v1/admin/health')->assertOk()->assertJsonPath('data.checks.database', 'ok');
 
     $this->flushSession();

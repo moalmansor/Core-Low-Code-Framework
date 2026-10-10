@@ -305,9 +305,7 @@ final class PrintRenderer
     /** @param  array<string, string|null>  $values */
     private function pick(array $values): ?string
     {
-        $v = $values[app()->getLocale()] ?? $values[$this->translator->defaultLocale()] ?? null;
-
-        return $v === null || trim((string) $v) === '' ? null : (string) $v;
+        return $this->translator->pick($values);
     }
 
     private function css(bool $rtl): string

@@ -11,12 +11,15 @@ import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import Tag from 'primevue/tag'
-import ToggleSwitch from 'primevue/toggleswitch'
 import { useToast } from 'primevue/usetoast'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ApiError, get, send } from '@/api/http'
 import FormPicker from '@/builder/FormPicker.vue'
+import ConfigField from '@/components/config/ConfigField.vue'
+import ConfigItem from '@/components/config/ConfigItem.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
+import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import DelegationsPanel from '@/components/DelegationsPanel.vue'
 import SubjectPicker from '@/components/SubjectPicker.vue'
 import { useSession } from '@/stores/session'
@@ -74,6 +77,7 @@ const editing = ref<Editing | null>(null)
 const errors = ref<Record<string, string>>({})
 const saving = ref(false)
 const trees = reactive<Record<string, PathNode[]>>({})
+const formName = (uuid: string | null): string | null => (uuid ? (queues.value.flatMap((q) => q.forms).find((f) => f.form === uuid)?.name ?? null) : null)
 async function tree(form: string | null): Promise<void> {
   if (form && !trees[form]) trees[form] = ((await viewsApi.load(form).catch(() => null))?.extra.fields as PathNode[] | undefined) ?? []
 }
@@ -177,42 +181,55 @@ async function save(): Promise<void> {
     </Tabs>
 
     <Dialog :visible="!!editing" modal :header="editing?.uuid ? t('queues.edit') : t('queues.add')" class="w-full max-w-2xl" @update:visible="(v) => !v && (editing = null)">
-      <form v-if="editing" class="flex flex-col gap-3" @submit.prevent="save">
-        <div class="field">
-          <label for="q-key">{{ t('workflow.key') }}</label>
-          <InputText id="q-key" v-model="editing.key" class="ltr-value" maxlength="48" :invalid="!!errors.key" />
-          <span v-if="errors.key" class="field-error">{{ errors.key }}</span>
-        </div>
-        <LocaleFields v-model="editing.names" :label="t('views.name')" field="name" :errors="errors" id-prefix="q-name" />
-        <div class="field">
-          <span class="text-sm font-medium">{{ t('queues.members') }}</span>
-          <SubjectPicker v-model="editing.subject" :types="['role', 'department']" :invalid="!!errors.subject" />
-          <span v-if="errors.subject" class="field-error">{{ errors.subject }}</span>
-        </div>
-        <div class="flex flex-wrap items-end gap-4">
-          <div class="field w-48">
-            <label for="q-claim">{{ t('queues.claim_timeout') }}</label>
-            <InputNumber v-model="editing.claim_timeout_minutes" input-id="q-claim" :min="1" :max="525600" :suffix="` ${t('workflow.minutes')}`" />
+      <form v-if="editing" class="dlg-form" data-testid="queue-dialog" @submit.prevent="save">
+        <section class="dlg-group">
+          <h3 class="dlg-heading">{{ t('queues.section.basics') }}</h3>
+          <ConfigField :label="t('workflow.key')" for="q-key" width="sm" :hint="t('formconfig.key_hint')" :error="errors.key" required>
+            <InputText id="q-key" v-model="editing.key" class="ltr-value" maxlength="48" :invalid="!!errors.key" />
+          </ConfigField>
+          <div class="w-field-md flex flex-col gap-3">
+            <LocaleFields v-model="editing.names" :label="t('views.name')" field="name" :errors="errors" id-prefix="q-name" />
           </div>
-          <label class="flex items-center gap-2 text-sm pb-2"><ToggleSwitch v-model="editing.is_active" />{{ t('reason_codes.active') }}</label>
-        </div>
-        <h3 class="font-semibold">{{ t('queues.forms') }}</h3>
-        <section v-for="(f, i) in editing.forms" :key="i" class="rounded-lg border border-line p-2 flex flex-col gap-2">
-          <div class="flex items-end gap-2">
-            <div class="field flex-1">
-              <label :for="`q-form-${i}`">{{ t('queues.form') }}</label>
-              <FormPicker v-model="f.form" kind="form" :input-id="`q-form-${i}`" @update:model-value="(v) => ((f.columns = []), tree(v ?? null))" />
-            </div>
-            <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="editing.forms.splice(i, 1)" />
-          </div>
-          <span class="text-sm font-medium">{{ t('queues.columns') }}</span>
-          <div v-for="(_, j) in f.columns" :key="j" class="flex items-end gap-2">
-            <PathPicker v-model="f.columns[j]" :tree="(trees[f.form ?? ''] ?? []).filter((n) => n.type !== 'system')" class="flex-1" />
-            <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="f.columns.splice(j, 1)" />
-          </div>
-          <div><Button icon="pi pi-plus" :label="t('views.add_column')" size="small" outlined :disabled="!f.form || f.columns.length >= 12" @click="f.columns.push([])" /></div>
+          <ConfigField :label="t('queues.members')" width="lg" :hint="t('queues.members_hint')" :error="errors.subject" required>
+            <SubjectPicker v-model="editing.subject" :types="['role', 'department']" :invalid="!!errors.subject" />
+          </ConfigField>
         </section>
-        <div><Button icon="pi pi-plus" :label="t('queues.add_form')" size="small" outlined @click="editing.forms.push({ form: null, columns: [] })" /></div>
+        <section class="dlg-group">
+          <h3 class="dlg-heading">{{ t('queues.section.claiming') }}</h3>
+          <ConfigField :label="t('queues.claim_timeout')" for="q-claim" width="sm" :hint="t('queues.claim_timeout_hint')">
+            <InputNumber v-model="editing.claim_timeout_minutes" input-id="q-claim" :min="1" :max="525600" :use-grouping="false" :suffix="` ${t('workflow.minutes')}`" />
+          </ConfigField>
+          <SettingSwitch id="q-active" v-model="editing.is_active" :label="t('reason_codes.active')" :description="t('queues.active_desc')" />
+        </section>
+        <section class="dlg-group">
+          <h3 class="dlg-heading">{{ t('queues.forms') }}</h3>
+          <EmptyState v-if="!editing.forms.length" icon="pi pi-file" :title="t('queues.no_forms')" :description="t('queues.no_forms_text')">
+            <Button icon="pi pi-plus" :label="t('queues.add_form')" size="small" outlined @click="editing.forms.push({ form: null, columns: [] })" />
+          </EmptyState>
+          <template v-else>
+            <ConfigItem
+              v-for="(f, i) in editing.forms"
+              :key="i"
+              :title="formName(f.form) ?? t('queues.form')"
+              :subtitle="t('queues.column_count', { n: f.columns.length })"
+              :index="i"
+              :count="editing.forms.length"
+              @remove="editing.forms.splice(i, 1)"
+            >
+              <ConfigField :label="t('queues.form')" :for="`q-form-${i}`" width="md">
+                <FormPicker v-model="f.form" kind="form" :input-id="`q-form-${i}`" @update:model-value="(v) => ((f.columns = []), tree(v ?? null))" />
+              </ConfigField>
+              <ConfigField :label="t('queues.columns')" width="full" :hint="t('queues.columns_hint')">
+                <div v-for="(_, j) in f.columns" :key="j" class="flex items-end gap-2">
+                  <PathPicker v-model="f.columns[j]" :tree="(trees[f.form ?? ''] ?? []).filter((n) => n.type !== 'system')" class="flex-1 w-field-md" />
+                  <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="f.columns.splice(j, 1)" />
+                </div>
+                <div><Button icon="pi pi-plus" :label="t('views.add_column')" size="small" text :disabled="!f.form || f.columns.length >= 12" @click="f.columns.push([])" /></div>
+              </ConfigField>
+            </ConfigItem>
+            <div><Button icon="pi pi-plus" :label="t('queues.add_form')" size="small" outlined @click="editing.forms.push({ form: null, columns: [] })" /></div>
+          </template>
+        </section>
         <div class="flex justify-end gap-2">
           <Button type="button" :label="t('workflow.cancel')" text @click="editing = null" />
           <Button type="submit" :label="t('workflow.save')" icon="pi pi-check" :loading="saving" data-testid="queue-save" />

@@ -180,10 +180,15 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
 
   <section
     v-else
+    class="lcf-section"
     :class="[group.type === 'card' ? 'rounded-xl border border-line bg-card shadow-sm p-4' : '', group.type === 'panel' || group.type === 'accordion' ? 'rounded-lg border border-line' : '', frame]"
     :data-group="group.key"
   >
-    <header v-if="title || collapsible" class="flex items-center gap-2" :class="group.type === 'panel' || group.type === 'accordion' ? 'px-4 py-3 bg-subtle rounded-t-lg' : 'mb-3'">
+    <header
+      v-if="title || collapsible"
+      class="flex items-center gap-2"
+      :class="group.type === 'panel' || group.type === 'accordion' ? 'px-4 py-3 bg-subtle rounded-t-lg' : group.type === 'card' ? 'mb-3' : 'lcf-section-head'"
+    >
       <i v-if="icon" :class="icon" />
       <h3 class="text-base font-semibold flex-1">{{ title }}</h3>
       <Button

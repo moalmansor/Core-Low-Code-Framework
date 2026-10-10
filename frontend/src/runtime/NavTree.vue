@@ -15,7 +15,7 @@ export interface NavItem {
 }
 
 /** Sidebar menu of an application: form and collection links, external links, headers, separators, nested groups. */
-defineProps<{ items: NavItem[]; depth?: number }>()
+defineProps<{ items: NavItem[]; depth?: number; active?: string | null }>()
 const open = ref<Record<string, boolean>>({})
 const toggle = (uuid: string) => (open.value = { ...open.value, [uuid]: !(open.value[uuid] ?? true) })
 const isOpen = (uuid: string) => open.value[uuid] ?? true
@@ -30,14 +30,17 @@ const isOpen = (uuid: string) => open.value[uuid] ?? true
         <span class="flex-1 text-start">{{ item.label }}</span>
         <i :class="isOpen(item.uuid) ? 'pi pi-chevron-down' : 'pi pi-chevron-right rtl:rotate-180'" class="text-xs" />
       </button>
-      <NavTree v-if="isOpen(item.uuid) && item.children?.length" :items="item.children" :depth="(depth ?? 0) + 1" />
+      <NavTree v-if="isOpen(item.uuid) && item.children?.length" :items="item.children" :depth="(depth ?? 0) + 1" :active="active" />
     </template>
     <template v-else>
       <RouterLink
         v-if="(item.type === 'form' || item.type === 'collection') && item.target"
         class="nav-link"
         :to="`/app/${item.target}`"
-        active-class="nav-active"
+        active-class=""
+        exact-active-class=""
+        :class="{ 'nav-active': active === item.uuid }"
+        :aria-current="active === item.uuid ? 'page' : undefined"
         :style="{ paddingInlineStart: `${0.75 + (depth ?? 0) * 0.75}rem` }"
         :data-testid="`nav-item-${item.uuid}`"
       >
@@ -56,7 +59,7 @@ const isOpen = (uuid: string) => open.value[uuid] ?? true
         <span class="truncate">{{ item.label }}</span>
         <i v-if="item.open_in_new_tab" class="pi pi-external-link text-xs ms-auto" />
       </a>
-      <NavTree v-if="item.children?.length" :items="item.children" :depth="(depth ?? 0) + 1" />
+      <NavTree v-if="item.children?.length" :items="item.children" :depth="(depth ?? 0) + 1" :active="active" />
     </template>
   </template>
 </template>

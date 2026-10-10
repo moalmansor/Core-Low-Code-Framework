@@ -36,6 +36,26 @@ All notable changes to this project are documented here, one section per phase.
   tab of the form configuration screen: sections, one switch per line with a
   description, content-sized inputs (field-width tokens), empty states with
   the add action, quiet help text, and a sticky save bar with Discard.
+- Record pages follow the design system (§5.6): automatic multi-column layout
+  for unsized fields, muted labels and emphasised values, a clear empty value,
+  sections and tabs carried through, an aligned header and workflow bar
+  (ADR-0037).
+- A checklist for new screens (design system §5.7).
+
+### Changed
+- The "Workflows, statuses & views" sidebar entry is removed; a form's
+  configuration is opened from its row menu. Only one sidebar entry is ever
+  highlighted.
+- Reason codes are added to an existing set chosen from a list or to an
+  explicitly created new set; justification rules choose from existing sets.
+- Publishing requires a label in the default language for every field that
+  holds a value.
+
+### Fixed
+- Labels, option labels and status names fell back to the field key (or to
+  English) when the user's language held a blank entry; they now fall back to
+  the default language, then any filled language.
+- Number inputs overlapped neighbouring controls in dialogs.
 
 ## [Unreleased] — Interface (before Phase 3)
 

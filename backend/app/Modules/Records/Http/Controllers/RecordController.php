@@ -70,7 +70,7 @@ final class RecordController extends Controller
         abort_unless($levels['modes'][$mode] ?? false, 403, __('records.forbidden'));
 
         // Print layouts the user can choose from (names only; printing checks the print permission).
-        $layouts = ($levels['modes']['print'] ?? false) ? array_map(static fn (array $l) => ['key' => $l['key'], 'name' => ((array) $l['i18n']['name'])[app()->getLocale()] ?? ((array) $l['i18n']['name'])[app(Translator::class)->defaultLocale()] ?? $l['key'], 'default' => $l['default']], app(PrintLayouts::class)->load($form)) : [];
+        $layouts = ($levels['modes']['print'] ?? false) ? array_map(static fn (array $l) => ['key' => $l['key'], 'name' => app(Translator::class)->pick($l['i18n']['name'] ?? null) ?? $l['key'], 'default' => $l['default']], app(PrintLayouts::class)->load($form)) : [];
 
         return response()->json(['data' => $client->build($rt->definition, $levels, $mode) + ['name' => $form->translate('name') ?? $form->key, 'names' => $form->translationsFor('name'), 'user' => app(ExpressionContext::class)->client($this->user()), 'print_layouts' => $layouts]]);
     }

@@ -432,8 +432,6 @@ final class ViewRuntime
     /** @param  array<string, string|null>  $values */
     private function pickLocale(array $values): ?string
     {
-        $v = $values[app()->getLocale()] ?? $values[$this->translator->defaultLocale()] ?? null;
-
-        return $v === null || trim($v) === '' ? null : $v;
+        return $this->translator->pick($values);
     }
 }

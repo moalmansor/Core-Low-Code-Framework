@@ -5,12 +5,15 @@ import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
+import Select from 'primevue/select'
 import Tag from 'primevue/tag'
-import ToggleSwitch from 'primevue/toggleswitch'
 import { useToast } from 'primevue/usetoast'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ApiError, get, send } from '@/api/http'
+import ConfigField from '@/components/config/ConfigField.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
+import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import LocaleFields from './building/LocaleFields.vue'
 import { errorText, fieldErrors } from './building/shared'
 
@@ -35,7 +38,13 @@ const { t } = useI18n()
 const toast = useToast()
 const codes = ref<Code[]>([])
 const loading = ref(true)
-const editing = ref<(Partial<Code> & { labels: Record<string, string> }) | null>(null)
+const editing = ref<(Partial<Code> & { labels: Record<string, string>; requires_note: boolean; is_active: boolean; sort_order: number }) | null>(null)
+// Codes are grouped in sets; a new code joins an existing set unless "New set" is chosen, so a typo never creates a second set silently.
+const NEW_SET = '\u0000new'
+const sets = computed(() => [...new Set(codes.value.map((c) => c.set_key))].sort())
+const setChoice = ref<string>(NEW_SET)
+const newSet = ref('')
+const setOptions = computed(() => [...sets.value.map((k) => ({ value: k, label: k })), { value: NEW_SET, label: t('reason_codes.new_set') }])
 const errors = ref<Record<string, string>>({})
 const saving = ref(false)
 
@@ -51,9 +60,15 @@ async function load(): Promise<void> {
 }
 onMounted(load)
 
-function create(): void {
+function create(set?: string): void {
   errors.value = {}
-  editing.value = { set_key: '', code: '', labels: {}, requires_note: false, sort_order: 0, is_active: true }
+  setChoice.value = set ?? sets.value[0] ?? NEW_SET
+  newSet.value = ''
+  editing.value = { set_key: '', code: '', labels: {}, requires_note: false, sort_order: nextOrder(set ?? sets.value[0]), is_active: true }
+}
+function nextOrder(set: string | undefined): number {
+  const orders = codes.value.filter((c) => c.set_key === set).map((c) => c.sort_order)
+  return orders.length ? Math.max(...orders) + 10 : 0
 }
 function edit(c: Code): void {
   errors.value = {}
@@ -67,7 +82,7 @@ async function save(): Promise<void> {
   const body = { label: e.labels, requires_note: e.requires_note, sort_order: e.sort_order, is_active: e.is_active }
   try {
     if (e.uuid) await send('patch', `/justification-reason-codes/${e.uuid}`, { ...body, base_updated_at: e.updated_at })
-    else await send('post', '/justification-reason-codes', { ...body, set_key: e.set_key, code: e.code })
+    else await send('post', '/justification-reason-codes', { ...body, set_key: setChoice.value === NEW_SET ? newSet.value.trim() : setChoice.value, code: e.code })
     editing.value = null
     toast.add({ severity: 'success', summary: t('workflow.saved'), life: 3000 })
     await load()
@@ -87,15 +102,23 @@ async function save(): Promise<void> {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3" data-testid="reason-codes">
-    <div class="flex items-center gap-2">
-      <h1 class="page-title m-0 flex-1">{{ t('admin.area.reason_codes') }}</h1>
-      <Button icon="pi pi-plus" :label="t('reason_codes.add')" size="small" data-testid="reason-code-add" @click="create" />
-    </div>
-    <p class="text-sm text-muted-color">{{ t('reason_codes.hint') }}</p>
-    <DataTable :value="codes" :loading="loading" data-key="uuid" size="small" row-group-mode="subheader" group-rows-by="set_key" scrollable>
+  <div class="flex flex-col gap-4" data-testid="reason-codes">
+    <header class="flex flex-wrap items-start gap-3">
+      <div class="flex-1 min-w-0">
+        <h1 class="page-title !mb-1">{{ t('admin.area.reason_codes') }}</h1>
+        <p class="m-0 text-sm text-muted-color max-w-[var(--measure)]">{{ t('reason_codes.hint') }}</p>
+      </div>
+      <Button v-if="codes.length" icon="pi pi-plus" :label="t('reason_codes.add')" size="small" data-testid="reason-code-add" @click="create()" />
+    </header>
+    <EmptyState v-if="!loading && !codes.length" icon="pi pi-comment" :title="t('reason_codes.empty')" :description="t('reason_codes.empty_text')" testid="reason-codes-empty">
+      <Button icon="pi pi-plus" :label="t('reason_codes.add')" size="small" data-testid="reason-code-add" @click="create()" />
+    </EmptyState>
+    <DataTable v-else :value="codes" :loading="loading" data-key="uuid" size="small" row-group-mode="subheader" group-rows-by="set_key" scrollable>
       <template #groupheader="{ data }">
-        <span class="font-semibold ltr-value">{{ data.set_key }}</span>
+        <div class="flex items-center gap-2">
+          <span class="font-semibold ltr-value flex-1">{{ data.set_key }}</span>
+          <Button icon="pi pi-plus" :label="t('reason_codes.add_to_set')" text size="small" :data-testid="`reason-code-add-${data.set_key}`" @click="create(data.set_key)" />
+        </div>
       </template>
       <Column field="code" :header="t('reason_codes.code')"
         ><template #body="{ data }"
@@ -113,32 +136,57 @@ async function save(): Promise<void> {
       <Column>
         <template #body="{ data }"><Button icon="pi pi-pencil" text size="small" :aria-label="t('common.edit')" @click="edit(data)" /></template>
       </Column>
-      <template #empty>{{ t('reason_codes.empty') }}</template>
     </DataTable>
 
-    <Dialog :visible="!!editing" modal :header="editing?.uuid ? t('reason_codes.edit') : t('reason_codes.add')" class="w-full max-w-lg" @update:visible="(v) => !v && (editing = null)">
-      <form v-if="editing" class="flex flex-col gap-3" @submit.prevent="save">
-        <div class="grid gap-3 grid-cols-2">
-          <div class="field">
-            <label for="rc-set">{{ t('reason_codes.set') }}</label>
-            <InputText id="rc-set" v-model="editing.set_key" :disabled="!!editing.uuid" class="ltr-value" maxlength="48" :invalid="!!errors.set_key" />
-            <span v-if="errors.set_key" class="field-error">{{ errors.set_key }}</span>
+    <Dialog :visible="!!editing" modal :header="editing?.uuid ? t('reason_codes.edit') : t('reason_codes.add')" class="w-full max-w-xl" @update:visible="(v) => !v && (editing = null)">
+      <form v-if="editing" class="dlg-form" data-testid="reason-code-dialog" @submit.prevent="save">
+        <section class="dlg-group">
+          <h3 class="dlg-heading">{{ t('reason_codes.identity') }}</h3>
+          <div class="cfg-row">
+            <ConfigField v-if="editing.uuid" :label="t('reason_codes.set')" width="sm"
+              ><span class="ltr-value py-2">{{ editing.set_key }}</span></ConfigField
+            >
+            <ConfigField v-else :label="t('reason_codes.set')" for="rc-set" width="md" :hint="t('reason_codes.set_hint')" :error="setChoice === NEW_SET ? undefined : errors.set_key" required>
+              <Select
+                v-model="setChoice"
+                input-id="rc-set"
+                :options="setOptions"
+                option-label="label"
+                option-value="value"
+                data-testid="reason-code-set"
+                @change="editing.sort_order = nextOrder(setChoice)"
+              />
+            </ConfigField>
+            <ConfigField
+              v-if="!editing.uuid && setChoice === NEW_SET"
+              :label="t('reason_codes.new_set_key')"
+              for="rc-new-set"
+              width="sm"
+              :hint="t('reason_codes.new_set_hint')"
+              :error="errors.set_key"
+              required
+            >
+              <InputText id="rc-new-set" v-model="newSet" class="ltr-value" maxlength="48" :invalid="!!errors.set_key" data-testid="reason-code-new-set" />
+            </ConfigField>
           </div>
-          <div class="field">
-            <label for="rc-code">{{ t('reason_codes.code') }}</label>
-            <InputText id="rc-code" v-model="editing.code" :disabled="!!editing.uuid" class="ltr-value" maxlength="48" :invalid="!!errors.code" />
-            <span v-if="errors.code" class="field-error">{{ errors.code }}</span>
+          <ConfigField v-if="editing.uuid" :label="t('reason_codes.code')" width="sm"
+            ><span class="ltr-value py-2">{{ editing.code }}</span></ConfigField
+          >
+          <ConfigField v-else :label="t('reason_codes.code')" for="rc-code" width="sm" :hint="t('reason_codes.code_hint')" :error="errors.code" required>
+            <InputText id="rc-code" v-model="editing.code" class="ltr-value" maxlength="48" :invalid="!!errors.code" data-testid="reason-code-code" />
+          </ConfigField>
+          <div class="w-field-md flex flex-col gap-3">
+            <LocaleFields v-model="editing.labels" :label="t('reason_codes.label')" field="label" :errors="errors" id-prefix="rc-label" />
           </div>
-        </div>
-        <LocaleFields v-model="editing.labels" :label="t('reason_codes.label')" field="label" :errors="errors" id-prefix="rc-label" />
-        <div class="flex flex-wrap items-end gap-4">
-          <div class="field w-32">
-            <label for="rc-order">{{ t('reason_codes.order') }}</label>
-            <InputNumber v-model="editing.sort_order" input-id="rc-order" :min="0" :max="100000" />
-          </div>
-          <label class="flex items-center gap-2 text-sm pb-2"><ToggleSwitch v-model="editing.requires_note" />{{ t('reason_codes.requires_note') }}</label>
-          <label class="flex items-center gap-2 text-sm pb-2"><ToggleSwitch v-model="editing.is_active" />{{ t('reason_codes.active') }}</label>
-        </div>
+        </section>
+        <section class="dlg-group">
+          <h3 class="dlg-heading">{{ t('reason_codes.behaviour') }}</h3>
+          <ConfigField :label="t('reason_codes.order')" for="rc-order" width="xs" :hint="t('reason_codes.order_hint')">
+            <InputNumber v-model="editing.sort_order" input-id="rc-order" :min="0" :max="100000" :use-grouping="false" />
+          </ConfigField>
+          <SettingSwitch id="rc-note" v-model="editing.requires_note" :label="t('reason_codes.requires_note')" :description="t('reason_codes.requires_note_desc')" />
+          <SettingSwitch id="rc-active" v-model="editing.is_active" :label="t('reason_codes.active')" :description="t('reason_codes.active_desc')" />
+        </section>
         <div class="flex justify-end gap-2">
           <Button type="button" :label="t('workflow.cancel')" text @click="editing = null" />
           <Button type="submit" :label="t('workflow.save')" icon="pi pi-check" :loading="saving" data-testid="reason-code-save" />

@@ -256,3 +256,54 @@ body {
   flex-direction: column;
   gap: 0.75rem;
 }
+
+/* A number input never overflows its space: it shrinks to its container
+   instead of keeping PrimeVue's intrinsic 20-character width (design system §5.5). */
+.p-inputnumber {
+  max-width: 100%;
+}
+.p-inputnumber-input {
+  min-width: 0;
+  width: 100%;
+}
+
+/* Dialogs that edit settings (design system §5.5): groups under plain
+   headings, one control per row, sized like configuration fields. */
+.dlg-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.dlg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.dlg-group + .dlg-group {
+  padding-block-start: 1.25rem;
+  border-block-start: 1px solid var(--border);
+}
+.dlg-heading {
+  margin: 0;
+  font-size: var(--text-size-md);
+  font-weight: 600;
+}
+
+/* The save bar of every editing page (design system §5.5, §5.6): pinned to
+   the bottom of the content area, the save state at the start, the actions at
+   the end. */
+.action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: 0 -2px 8px var(--shadow-color);
+}

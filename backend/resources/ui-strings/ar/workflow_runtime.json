@@ -109,5 +109,6 @@
   "workflow_run.status": "الحالة",
   "workflow_run.stayed": "بعد {time}",
   "workflow_run.submit_decision": "إرسال القرار",
-  "workflow_run.timeline_empty": "لا توجد تغييرات حالة بعد."
+  "workflow_run.timeline_empty": "لا توجد تغييرات حالة بعد.",
+  "workflow_run.unassigned": "غير مُسند"
 }

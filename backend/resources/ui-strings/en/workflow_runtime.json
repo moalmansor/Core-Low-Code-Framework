@@ -109,5 +109,6 @@
   "workflow_run.status": "Status",
   "workflow_run.stayed": "after {time}",
   "workflow_run.submit_decision": "Submit decision",
-  "workflow_run.timeline_empty": "No status changes yet."
+  "workflow_run.timeline_empty": "No status changes yet.",
+  "workflow_run.unassigned": "Not assigned"
 }

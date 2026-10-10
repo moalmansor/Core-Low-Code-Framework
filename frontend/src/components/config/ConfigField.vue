@@ -15,10 +15,11 @@ withDefaults(defineProps<{ label: string; for?: string; width?: 'xs' | 'sm' | 'm
 </script>
 
 <template>
-  <div class="cfg-field" :class="`w-field-${width}`">
+  <!-- Short inputs keep room for their label and help (a 20rem column); the control itself is sized to its content. -->
+  <div class="cfg-field" :class="`w-field-${width === 'xs' || width === 'sm' ? 'md' : width}`">
     <label v-if="$props.for" :for="$props.for" class="cfg-field-label">{{ label }}<span v-if="required" class="text-danger ms-1" aria-hidden="true">*</span></label>
     <span v-else class="cfg-field-label">{{ label }}<span v-if="required" class="text-danger ms-1" aria-hidden="true">*</span></span>
-    <slot />
+    <div class="cfg-field-control" :class="`w-field-${width}`"><slot /></div>
     <small v-if="hint" class="cfg-field-hint">{{ hint }}</small>
     <small v-if="error" class="field-error" role="alert">{{ error }}</small>
   </div>
@@ -40,12 +41,20 @@ withDefaults(defineProps<{ label: string; for?: string; width?: 'xs' | 'sm' | 'm
   font-size: var(--text-size-sm);
   color: var(--text-muted);
 }
-.cfg-field :deep(.p-inputtext),
-.cfg-field :deep(.p-select),
-.cfg-field :deep(.p-multiselect),
-.cfg-field :deep(.p-inputnumber),
-.cfg-field :deep(.p-treeselect),
-.cfg-field :deep(.p-autocomplete) {
+.cfg-field-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+/* Only the field's own input fills the control; composite pickers lay out their parts themselves. */
+.cfg-field-control > :deep(.p-inputtext),
+.cfg-field-control > :deep(.p-select),
+.cfg-field-control > :deep(.p-multiselect),
+.cfg-field-control > :deep(.p-inputnumber),
+.cfg-field-control > :deep(.p-treeselect),
+.cfg-field-control > :deep(.p-autocomplete),
+.cfg-field-control > :deep(.p-datepicker),
+.cfg-field-control > :deep(.p-textarea) {
   width: 100%;
 }
 </style>

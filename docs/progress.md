@@ -344,6 +344,23 @@ Decided by the owner:
   sticky save bar with Discard and an unsaved-changes guard. Shared
   components in `frontend/src/components/config/`; recorded as the standard
   in `docs/design-system.md` §5.5; e2e `06-workflow` checks the frame.
+- Second design review (owner, 2026-10-10), applied across all screens:
+  - sidebar: "Workflows, statuses & views" removed (per-form configuration is
+    reached from the form's row menu; specification §4.1 updated); exactly one
+    active entry (`layouts/navActive.ts`);
+  - reason code dialog: grouped rows, Set chosen from existing sets or an
+    explicit new set, optional languages marked; the queue dialog fixed the
+    same way; number inputs never overflow; justification rules pick a set
+    from those that exist;
+  - record view and edit pages: automatic two/three-column layout for unsized
+    fields (builder canvas matches), muted labels with emphasised values,
+    *Not filled in* for empty values, section headings with rules, an aligned
+    header and workflow bar, and the shared save bar on edit;
+  - labels: publishing requires a label in the default language; every
+    per-locale lookup now skips blank entries and falls back to the default
+    language (`Translator::pick`, `pickText`), fixing fields shown by key;
+  - recorded in design system §5.1, §5.5, §5.6 (record pages) and §5.7 (a
+    checklist for new screens), specification §4.1, §4.6, §4.24, ADR-0037.
 
 ## Resume point
 

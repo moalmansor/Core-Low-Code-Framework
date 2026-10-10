@@ -6,6 +6,7 @@ namespace App\Modules\Views;
 
 use App\Modules\Access\RecordScope;
 use App\Modules\Audit\AuditWriter;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Forms\Definition\DefinitionCompiler;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
@@ -134,7 +135,7 @@ final class ReferencePreviews
                 if ($r === null) {
                     continue;
                 }
-                $label = $r['field'] === null ? __('views.system_'.$r['system']) : ($r['field']['i18n']['label'][app()->getLocale()] ?? $r['field']['i18n']['label']['en'] ?? $r['field']['key']);
+                $label = $r['field'] === null ? __('views.system_'.$r['system']) : (app(Translator::class)->pick($r['field']['i18n']['label'] ?? null) ?? $r['field']['key']);
                 $items[] = ['label' => $label, 'value' => $this->paths->values($trt, $path, [(int) $row->id], $user)[(int) $row->id] ?? null];
             }
             foreach (json_decode((string) ($config->autofill_map ?? 'null'), true) ?: [] as $a) {

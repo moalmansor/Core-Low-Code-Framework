@@ -131,6 +131,7 @@ const helpCount = computed(() => (['placeholder', 'help', 'tooltip', 'descriptio
         </label>
       </div>
       <BreakpointsInput v-model="ui.width" :label="t('builder.ui.width')" />
+      <small class="text-muted-color">{{ t('builder.ui.width_auto') }}</small>
     </PanelSection>
     <PanelSection
       id="field-advanced"

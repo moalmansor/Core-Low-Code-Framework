@@ -68,6 +68,8 @@ provide(RECORD_UUID, recordUuid)
 const tab = ref('details')
 const panelCount = ref<number | null>(null)
 const attachmentCount = ref(0)
+// The status shows in the workflow bar when the form has a workflow; otherwise beside the title.
+const workflowShown = ref(false)
 
 const index = computed(() => (definition.value ? new FormIndex(definition.value) : null))
 const name = computed(() => (definition.value ? (pickText(definition.value.names, locale.value) ?? definition.value.name ?? definition.value.form.key) : ''))
@@ -224,33 +226,25 @@ watch(
   <Message v-if="loadError" severity="error" data-testid="record-view-error">{{ loadError }}</Message>
   <div v-else-if="!definition || !record" class="flex justify-center p-10"><ProgressSpinner style="width: 2.5rem; height: 2.5rem" /></div>
   <div v-else class="max-w-6xl flex flex-col gap-4" data-testid="record-view">
-    <div class="flex flex-wrap items-center gap-3">
-      <RouterLink :to="{ name: 'records.list', params: { form: formUuid } }" class="text-sm text-primary flex items-center gap-1"> <i class="pi pi-arrow-left rtl:rotate-180" />{{ name }} </RouterLink>
-    </div>
-    <header class="flex flex-wrap items-start gap-3">
-      <div class="flex-1 min-w-0">
-        <h1 class="page-title !mb-1 flex flex-wrap items-center gap-2" data-testid="record-title">
+    <!-- Header (design system §5.6): back link, then the title and its facts at the start, the actions at the end, aligned on one line. -->
+    <header class="rec-head">
+      <div class="rec-title flex flex-col gap-1">
+        <RouterLink :to="{ name: 'records.list', params: { form: formUuid } }" class="text-sm text-primary inline-flex items-center gap-1 self-start">
+          <i class="pi pi-arrow-left rtl:rotate-180" aria-hidden="true" />{{ name }}
+        </RouterLink>
+        <h1 class="page-title !m-0 flex flex-wrap items-center gap-2" data-testid="record-title">
           <span dir="auto">{{ record.title ?? record.system.record_number ?? name }}</span>
-          <Tag v-if="record.system.record_number" severity="secondary" :value="record.system.record_number" class="ltr-value" />
-          <StatusBadge :status="record.system.status ?? null" />
+          <Tag v-if="record.system.record_number && record.title" severity="secondary" :value="record.system.record_number" class="ltr-value" />
+          <StatusBadge v-if="!workflowShown" :status="record.system.status ?? null" />
           <Tag v-if="deleted" severity="danger" :value="t('records.in_trash')" />
         </h1>
-        <dl class="text-sm text-muted-color flex flex-wrap gap-x-6 gap-y-1">
-          <div>
-            <dt class="inline">{{ t('records.created_label') }}:</dt>
-            <dd class="inline ms-1">{{ when(record.system.created_at) }} · {{ record.system.created_by ?? '—' }}</dd>
-          </div>
-          <div>
-            <dt class="inline">{{ t('records.updated_label') }}:</dt>
-            <dd class="inline ms-1">{{ when(record.system.updated_at) }} · {{ record.system.updated_by ?? '—' }}</dd>
-          </div>
-          <div v-if="record.system.version">
-            <dt class="inline">{{ t('records.form_version') }}:</dt>
-            <dd class="inline ms-1">{{ record.system.version }}</dd>
-          </div>
-        </dl>
+        <p class="m-0 text-sm text-muted-color flex flex-wrap gap-x-4 gap-y-1">
+          <span>{{ t('records.created_label') }} {{ when(record.system.created_at) }} · {{ record.system.created_by ?? t('records.system_actor') }}</span>
+          <span>{{ t('records.updated_label') }} {{ when(record.system.updated_at) }} · {{ record.system.updated_by ?? t('records.system_actor') }}</span>
+          <span v-if="record.system.version">{{ t('records.form_version') }} {{ record.system.version }}</span>
+        </p>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <RouterLink v-if="perms.edit" v-slot="{ navigate }" :to="{ name: 'records.edit', params: { form: formUuid, record: recordUuid } }" custom>
           <Button icon="pi pi-pencil" :label="t('common.edit')" data-testid="record-edit" @click="navigate" />
         </RouterLink>
@@ -272,7 +266,7 @@ watch(
       </div>
     </header>
 
-    <WorkflowPanel :form="formUuid" :record="recordUuid" :row-version="record.row_version" :field-label="fieldLabel" :missing="missing" @changed="load" />
+    <WorkflowPanel :form="formUuid" :record="recordUuid" :row-version="record.row_version" :field-label="fieldLabel" :missing="missing" @changed="load" @enabled="(v) => (workflowShown = v)" />
 
     <Tabs v-model:value="tab">
       <TabList>
@@ -283,7 +277,7 @@ watch(
         <Tab value="attachments" data-testid="tab-attachments">{{ t('records.tab_attachments') }} ({{ attachmentCount }})</Tab>
       </TabList>
       <TabPanels>
-        <TabPanel value="details">
+        <TabPanel value="details" class="rec-details">
           <RecordPanels :form="formUuid" :record="record" :definition="definition" @loaded="(n) => (panelCount = n)">
             <template #comments><RecordComments :form="formUuid" :record="recordUuid" :readonly="!allowComments" /></template>
             <template #attachments><RecordAttachments :form="formUuid" :record="recordUuid" :files="Object.values(files)" /></template>
@@ -341,3 +335,17 @@ watch(
     <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
   </div>
 </template>
+
+<style scoped>
+.rec-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+}
+/* The title takes the line; on narrow screens the actions wrap below it. */
+.rec-title {
+  flex: 1 1 22rem;
+  min-width: 0;
+}
+</style>

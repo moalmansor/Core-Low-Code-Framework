@@ -175,8 +175,15 @@ function setCondition(r: JustificationRuleDoc, ast: JustificationRuleDoc['condit
                   size="small"
                 />
               </ConfigField>
-              <ConfigField v-if="r.reasonCodes.source === 'codes'" :label="t('justification.code_set')" :for="`jr-set-${i}`" width="sm">
-                <Select v-model="r.reasonCodes.set" :input-id="`jr-set-${i}`" :options="codeSets" editable size="small" />
+              <!-- A set is chosen from the sets that exist, so a typo cannot point a rule at nothing. -->
+              <ConfigField
+                v-if="r.reasonCodes.source === 'codes'"
+                :label="t('justification.code_set')"
+                :for="`jr-set-${i}`"
+                width="sm"
+                :hint="codeSets.length ? undefined : t('justification.no_code_sets')"
+              >
+                <Select v-model="r.reasonCodes.set" :input-id="`jr-set-${i}`" :options="codeSets" :disabled="!codeSets.length" size="small" />
               </ConfigField>
               <ConfigField v-else :label="t('justification.collection')" :for="`jr-col-${i}`" width="md">
                 <Select v-model="r.reasonCodes.collection" :input-id="`jr-col-${i}`" :options="collections" option-label="name" option-value="uuid" filter size="small" />

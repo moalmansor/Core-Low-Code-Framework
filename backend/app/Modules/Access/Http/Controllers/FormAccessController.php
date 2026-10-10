@@ -207,7 +207,7 @@ final class FormAccessController extends Controller
     /** @return list<array{type: string, uuid: string, key: string, label: string|null, depth: int, parent: string|null}> */
     private function targets(array $doc, ?string $onlyGroup): array
     {
-        $out = [['type' => 'form', 'uuid' => $doc['form']['uuid'], 'key' => $doc['form']['key'], 'label' => $doc['form']['i18n']['name'][app()->getLocale()] ?? null, 'depth' => 0, 'parent' => null]];
+        $out = [['type' => 'form', 'uuid' => $doc['form']['uuid'], 'key' => $doc['form']['key'], 'label' => app(Translator::class)->pick($doc['form']['i18n']['name'] ?? null), 'depth' => 0, 'parent' => null]];
         $children = [];
         foreach ($doc['groups'] as $g) {
             $children[$g['parent'] ?? ''][] = ['type' => 'group'] + $g;
@@ -221,7 +221,7 @@ final class FormAccessController extends Controller
             foreach ($items as $item) {
                 $in = $include || ($item['type'] === 'group' && $item['uuid'] === $onlyGroup);
                 if ($in) {
-                    $label = $item['type'] === 'group' ? ($item['i18n']['title'][app()->getLocale()] ?? null) : ($item['i18n']['label'][app()->getLocale()] ?? null);
+                    $label = app(Translator::class)->pick($item['type'] === 'group' ? ($item['i18n']['title'] ?? null) : ($item['i18n']['label'] ?? null));
                     $out[] = ['type' => $item['type'], 'uuid' => $item['uuid'], 'key' => $item['key'], 'label' => $label, 'depth' => $depth, 'parent' => $parent === '' ? null : $parent];
                 }
                 if ($item['type'] === 'group') {

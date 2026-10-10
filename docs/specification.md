@@ -137,7 +137,7 @@ A single, well-organized control center with navigation to:
 - System Settings
 
 Each area is visible only to holders of its permission.
-Workflows, statuses, views, panels, previews, print layouts, record rules, justification rules, and assignment rules are configured per form, from the form's configuration screen reached from Form Builder; the "Workflows & Statuses" and "Views, Filters & Actions" areas lead there.
+Workflows, statuses, views, panels, previews, print layouts, record rules, justification rules, and assignment rules are configured per form, from the form's configuration screen reached from the form's row menu in Form Builder. "Workflows & Statuses" and "Views, Filters & Actions" are therefore not separate menu entries: they are part of Form Builder, and the sidebar never holds two entries that open the same screen. A system-wide screen for them is added only when there is something system-wide to configure, with its own screen.
 
 ### 4.2 Operations Center (Failures & Recovery)
 
@@ -318,10 +318,10 @@ Clicking any field shows a complete properties panel. It is organized in tabs an
 - Translatable text shows the interface language first; the other languages fold under one line showing how many are filled.
 
 **General**
-- Identity: field key (auto-generated, editable, validated as unique), label (AR/EN), placeholder (AR/EN).
+- Identity: field key (auto-generated, editable, validated as unique), label (AR/EN), placeholder (AR/EN). Every field that holds a value needs a label in the default language before the form can be published, so record pages never show a field key in place of a label.
 - Help: help text, tooltip, description.
 - Decoration: prefix/suffix text, icon, size (small/medium/large).
-- Layout: width in grid columns per breakpoint, label position (top/side/hidden).
+- Layout: width in grid columns per breakpoint, label position (top/side/hidden). A field with no width set takes the automatic layout: short fields share the row (one column on phones, two on tablets, three on wide screens), and long text, files, maps and display blocks take the whole row.
 - Browser behavior: autofocus, tab index, autocomplete attribute, spellcheck.
 - Styling: CSS class.
 
@@ -859,7 +859,7 @@ Conditional rules from 4.7 can switch between these levels, so a justification c
 
 **Delivery note (ADR-0035)**
 - Phase 3 delivers the scopes form, group, field, status, transition, delete, restore, and reassign, plus the builder's per-field and per-group "Change justification" setting, which counts as a rule for everyone. The action, bulk-action, import, and merge scopes arrive with the features they govern (Phase 4 and 4.35).
-- Reason codes come from admin-defined code sets (each code with labels per language, an optional "note required", an order, and active or not; codes are deactivated, never deleted) or from the entries of a collection.
+- Reason codes come from admin-defined code sets (each code with labels per language, an optional "note required", an order, and active or not; codes are deactivated, never deleted) or from the entries of a collection. A new code is added to an existing set chosen from a list, or to a new set created explicitly, so a mistyped set name never creates a second set; a justification rule likewise chooses its set from the sets that exist.
 - When several rules apply, the strictest level wins and their constraints combine (longest minimum, shortest maximum, the narrowest attachment rules).
 
 ### 4.25 Assignment, Queues & Delegation

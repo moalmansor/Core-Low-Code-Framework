@@ -52,7 +52,7 @@ function onFocus(): void {
   <div v-if="!s.hidden && field.type !== 'hidden'" :class="['lcf-field', field.ui.cssClass ?? '']" :data-field="field.key" :data-testid="`field-${path}`">
     <component :is="component" v-if="isDisplay && component" :field="field" :row="row" />
     <div v-else :class="position === 'side' ? 'grid gap-2 md:grid-cols-[minmax(8rem,30%)_1fr] md:items-start' : 'flex flex-col gap-1.5'">
-      <label v-if="!inlineLabel" :for="inputId" :class="position === 'hidden' ? 'sr-only' : 'text-sm font-medium md:pt-2'">
+      <label v-if="!inlineLabel" :for="inputId" :class="position === 'hidden' ? 'sr-only' : ['lcf-label text-sm font-medium', position === 'side' ? 'md:pt-2' : '']">
         <i v-if="field.ui.icon" :class="`${field.ui.icon} me-1 text-muted-color`" />{{ label
         }}<span v-if="s.required && !readOnlyView" class="text-danger ms-1" :aria-label="t('runtime.required')">*</span>
         <i v-if="tooltip" v-tooltip.top="tooltip" class="pi pi-info-circle ms-1 text-muted-color" tabindex="0" :aria-label="tooltip" />
@@ -62,7 +62,7 @@ function onFocus(): void {
         <div class="flex items-stretch gap-2">
           <span v-if="prefix" class="self-center text-muted-color text-sm">{{ prefix }}</span>
           <div class="flex-1 min-w-0">
-            <ValueDisplay v-if="readOnlyView" :field="field" :value="value" :row="row" />
+            <ValueDisplay v-if="readOnlyView" :field="field" :value="value" :row="row" :compact="compact" />
             <component
               :is="component"
               v-else

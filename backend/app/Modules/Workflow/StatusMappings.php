@@ -59,7 +59,7 @@ final class StatusMappings
         }
         $targets = array_map(fn (array $s): array => [
             'uuid' => $s['uuid'], 'key' => $s['key'],
-            'name' => ((array) ($s['i18n']['name'] ?? []))[app()->getLocale()] ?? ((array) ($s['i18n']['name'] ?? []))[$this->translator->defaultLocale()] ?? $s['key'],
+            'name' => $this->translator->pick($s['i18n']['name'] ?? null) ?? $s['key'],
         ], $draftWorkflow['statuses'] ?? []);
         $unassigned = ($draftWorkflow['statuses'] ?? []) !== [] && $this->tableExists($form)
             ? (int) DB::table($form->table_name)->whereNull('status_id')->count() : 0;

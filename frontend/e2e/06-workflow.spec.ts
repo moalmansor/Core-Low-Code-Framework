@@ -125,6 +125,9 @@ test('a record moves through a workflow with a justification and lands in My Wor
   await page.getByTestId('record-save').click()
   await expect(page.getByTestId('record-view')).toBeVisible()
   await expect(page.getByTestId('workflow-panel')).toContainText('Draft')
+  // Record pages (design system §5.6): an empty value reads as empty, and one sidebar entry is active.
+  await expect(page.locator('[data-empty="true"]').first()).toHaveText('Not filled in')
+  await expect(page.getByTestId('sidebar').locator('.nav-active')).toHaveCount(1)
   const record = page.url().split(`/app/${form}/`)[1]!.split(/[/?]/)[0]!
 
   // Submit: the comment is required, then the justification is asked for.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Workflow\Runtime;
 
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Records\Runtime\FormRuntime;
 use Illuminate\Support\Facades\DB;
 
@@ -111,8 +112,6 @@ final class WorkflowRuntime
      */
     public static function label(array $status, string $field = 'name'): string
     {
-        $names = (array) ($status['i18n'][$field] ?? []);
-
-        return (string) ($names[app()->getLocale()] ?? $names[config('app.fallback_locale', 'en')] ?? (reset($names) ?: ($status['key'] ?? '')));
+        return app(Translator::class)->pick($status['i18n'][$field] ?? null) ?? (string) ($status['key'] ?? '');
     }
 }

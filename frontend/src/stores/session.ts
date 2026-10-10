@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { ensureCsrf, get, resetCsrf, send } from '@/api/http'
 import { useLocale, type LocaleInfo } from '@/i18n'
 import { applyBrand } from '@/theme/brand'
+import { setDefaultTextLocale } from '@/runtime/i18nText'
 
 export interface Bootstrap {
   setup_completed: boolean
@@ -61,6 +62,7 @@ export const useSession = defineStore('session', () => {
 
   async function loadBootstrap(): Promise<void> {
     boot.value = (await get<{ data: Bootstrap }>('/bootstrap')).data
+    if (boot.value.default_locale) setDefaultTextLocale(boot.value.default_locale)
     applyBrand(boot.value.branding.primary_color, boot.value.branding.primary_color_dark)
     const preferred = storedLocale()
     const browser = navigator.language.slice(0, 2)

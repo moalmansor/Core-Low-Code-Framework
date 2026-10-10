@@ -24,11 +24,16 @@ import type { TransitionOption, WorkflowState } from './types'
  * approval and its decisions, the assignment, the claim and the SLA.
  */
 const props = defineProps<{ form: string; record: string; rowVersion: number; fieldLabel: (key: string) => string; missing: (keys: string[]) => string[] }>()
-const emit = defineEmits<{ changed: [] }>()
+const emit = defineEmits<{ changed: []; enabled: [on: boolean] }>()
 const { t, locale } = useI18n()
 const toast = useToast()
 const session = useSession()
 const state = ref<WorkflowState | null>(null)
+watch(
+  () => !!state.value?.enabled,
+  (on) => emit('enabled', on),
+  { immediate: true },
+)
 const justification = useJustification()
 
 async function load(): Promise<void> {
@@ -161,29 +166,63 @@ async function claim(release: boolean): Promise<void> {
 </script>
 
 <template>
-  <section v-if="state?.enabled" class="rounded-xl border border-line p-3 flex flex-col gap-3" data-testid="workflow-panel">
-    <div class="flex flex-wrap items-center gap-2">
-      <span class="text-sm text-muted-color">{{ t('workflow_run.status') }}</span>
-      <StatusBadge :status="state.status" />
-      <Tag
-        v-if="sla"
-        :severity="sla.state === 'breached' ? 'danger' : sla.state === 'warned' ? 'warn' : 'secondary'"
-        :value="t(`workflow_run.sla.${sla.state}`, { at: when(sla.due_at) })"
-        data-testid="sla-badge"
-      />
-      <span class="flex-1" />
-      <Button
-        v-for="tr in state.transitions"
-        :key="tr.uuid"
-        :icon="tr.style?.icon ?? 'pi pi-arrow-right rtl:rotate-180'"
-        :label="tr.name"
-        size="small"
-        :style="tr.style?.color ? { backgroundColor: tr.style.color, borderColor: tr.style.color } : undefined"
-        :data-testid="`transition-${tr.key}`"
-        @click="start(tr)"
-      />
+  <section v-if="state?.enabled" class="flex flex-col gap-3" data-testid="workflow-panel">
+    <!-- One aligned bar (design system §5.6): facts as labelled columns at the start, every action in one row at the end. -->
+    <div class="wf-bar">
+      <dl class="wf-facts">
+        <div class="wf-fact">
+          <dt>{{ t('workflow_run.status') }}</dt>
+          <dd>
+            <StatusBadge :status="state.status" />
+            <Tag
+              v-if="sla"
+              :severity="sla.state === 'breached' ? 'danger' : sla.state === 'warned' ? 'warn' : 'secondary'"
+              :value="t(`workflow_run.sla.${sla.state}`, { at: when(sla.due_at) })"
+              data-testid="sla-badge"
+            />
+          </dd>
+        </div>
+        <div class="wf-fact">
+          <dt>{{ t('workflow_run.assigned_to') }}</dt>
+          <dd>
+            <span v-if="!state.assignments.length" class="lcf-empty">{{ t('workflow_run.unassigned') }}</span>
+            <span v-for="a in state.assignments" :key="a.uuid" class="inline-flex items-center gap-1">
+              <i :class="a.assignee.type === 'user' ? 'pi pi-user' : 'pi pi-users'" class="text-muted-color" aria-hidden="true" />{{ a.assignee.name }}
+              <span v-if="a.due_at" class="text-sm font-normal text-muted-color">({{ t('workflow_run.due', { at: when(a.due_at) }) }})</span>
+            </span>
+            <span v-if="state.claim" class="inline-flex items-center gap-1 text-sm font-normal text-muted-color"
+              ><i class="pi pi-lock" aria-hidden="true" />{{ t('workflow_run.claimed_by', { name: state.claim.by.name ?? '' }) }}</span
+            >
+          </dd>
+        </div>
+      </dl>
+      <div class="wf-actions">
+        <Button
+          v-for="tr in state.transitions"
+          :key="tr.uuid"
+          :icon="tr.style?.icon ?? 'pi pi-arrow-right rtl:rotate-180'"
+          :label="tr.name"
+          size="small"
+          :style="tr.style?.color ? { backgroundColor: tr.style.color, borderColor: tr.style.color } : undefined"
+          :data-testid="`transition-${tr.key}`"
+          @click="start(tr)"
+        />
+        <span v-if="state.transitions.length && (queueItem || claimedByMe || state.can.assign || state.can.reassign)" class="wf-sep" aria-hidden="true" />
+        <Button v-if="queueItem && !state.claim" icon="pi pi-lock" :label="t('workflow_run.claim')" size="small" severity="secondary" outlined data-testid="claim" @click="claim(false)" />
+        <Button v-if="claimedByMe" icon="pi pi-lock-open" :label="t('workflow_run.release')" size="small" severity="secondary" outlined data-testid="release" @click="claim(true)" />
+        <Button
+          v-if="state.assignments.length ? state.can.reassign : state.can.assign"
+          icon="pi pi-user-edit"
+          :label="state.assignments.length ? t('workflow_run.reassign') : t('workflow_run.assign')"
+          size="small"
+          severity="secondary"
+          outlined
+          data-testid="assign"
+          @click="assigning = true"
+        />
+      </div>
     </div>
-    <p v-if="state.transitions.some((x) => x.on_behalf_of)" class="text-xs text-muted-color">{{ t('workflow_run.delegated_hint') }}</p>
+    <p v-if="state.transitions.some((x) => x.on_behalf_of)" class="m-0 text-xs text-muted-color">{{ t('workflow_run.delegated_hint') }}</p>
 
     <div v-if="state.approval" class="rounded-lg bg-primary-subtle p-3 flex flex-col gap-2" data-testid="approval-card">
       <div class="flex flex-wrap items-center gap-2">
@@ -206,28 +245,6 @@ async function claim(release: boolean): Promise<void> {
           <span v-if="d.comment" class="w-full ps-4" dir="auto">{{ d.comment }}</span>
         </li>
       </ul>
-    </div>
-
-    <div class="flex flex-wrap items-center gap-2 text-sm">
-      <span class="text-muted-color">{{ t('workflow_run.assigned_to') }}</span>
-      <span v-if="!state.assignments.length">—</span>
-      <span v-for="a in state.assignments" :key="a.uuid" class="inline-flex items-center gap-1">
-        <i :class="a.assignee.type === 'user' ? 'pi pi-user' : 'pi pi-users'" aria-hidden="true" />{{ a.assignee.name }}
-        <span v-if="a.due_at" class="text-muted-color">({{ t('workflow_run.due', { at: when(a.due_at) }) }})</span>
-      </span>
-      <span v-if="state.claim" class="inline-flex items-center gap-1"><i class="pi pi-lock" aria-hidden="true" />{{ t('workflow_run.claimed_by', { name: state.claim.by.name ?? '' }) }}</span>
-      <span class="flex-1" />
-      <Button v-if="queueItem && !state.claim" icon="pi pi-lock" :label="t('workflow_run.claim')" size="small" outlined data-testid="claim" @click="claim(false)" />
-      <Button v-if="claimedByMe" icon="pi pi-lock-open" :label="t('workflow_run.release')" size="small" outlined data-testid="release" @click="claim(true)" />
-      <Button
-        v-if="state.assignments.length ? state.can.reassign : state.can.assign"
-        icon="pi pi-user-edit"
-        :label="state.assignments.length ? t('workflow_run.reassign') : t('workflow_run.assign')"
-        size="small"
-        outlined
-        data-testid="assign"
-        @click="assigning = true"
-      />
     </div>
 
     <Dialog :visible="!!moving" modal :header="moving?.name" class="w-full max-w-lg" @update:visible="(v) => !v && (moving = null)">
@@ -290,3 +307,48 @@ async function claim(release: boolean): Promise<void> {
     <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
   </section>
 </template>
+
+<style scoped>
+.wf-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-surface);
+}
+.wf-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2.5rem;
+  margin: 0;
+}
+.wf-fact dt {
+  font-size: var(--text-size-xs);
+  color: var(--text-muted);
+}
+.wf-fact dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.75rem;
+  margin: 0.25rem 0 0;
+  font-weight: 500;
+}
+.wf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.wf-sep {
+  width: 1px;
+  align-self: stretch;
+  margin-inline: 0.25rem;
+  background: var(--border);
+}
+</style>

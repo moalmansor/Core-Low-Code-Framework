@@ -7,6 +7,7 @@ namespace App\Modules\Views;
 use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\RecordScope;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
@@ -305,7 +306,7 @@ final class RelationPaths
         }
         $labels = [];
         foreach ($f['options']['static'] ?? [] as $o) {
-            $labels[$o['value']] = $o['i18n']['label'][app()->getLocale()] ?? ($o['i18n']['label']['en'] ?? $o['value']);
+            $labels[$o['value']] = app(Translator::class)->pick($o['i18n']['label'] ?? null) ?? (string) $o['value'];
         }
         foreach ($records as $rec) {
             $v = $rec['values'][$f['key']] ?? null;

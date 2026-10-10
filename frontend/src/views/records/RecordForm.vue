@@ -58,7 +58,7 @@ const renderKey = ref(0)
 
 const name = computed(() => (definition.value ? (pickText(definition.value.names, locale.value) ?? definition.value.name ?? definition.value.form.key) : ''))
 const submitLabel = computed(() => pickText(definition.value?.form.i18n.submitButtonLabel, locale.value) ?? t('common.save'))
-const heading = computed(() => (mode.value === 'create' ? t('records.new_in', { name: name.value }) : t('records.edit_title', { title: recordTitle.value ?? '' })))
+const heading = computed(() => (mode.value === 'create' ? t('records.new_in', { name: name.value }) : t('records.edit_title', { title: recordTitle.value ?? name.value })))
 
 async function load(): Promise<void> {
   definition.value = null
@@ -95,7 +95,7 @@ function applyRecord(rec: RecordPayload): void {
   values.value = JSON.parse(JSON.stringify(rec.values)) as Values
   loaded.value = JSON.parse(JSON.stringify(rec.values)) as Values
   rowVersion.value = rec.row_version
-  recordTitle.value = rec.title
+  recordTitle.value = rec.title ?? rec.system.record_number ?? null
   references.value = rec.references ?? {}
   files.value = { ...(rec.files ?? {}) }
 }
@@ -238,7 +238,7 @@ async function onConflictResolve(choices: Record<string, Choice>): Promise<void>
   loaded.value = JSON.parse(JSON.stringify(rec.values)) as Values
   values.value = mergeAfterResolution(rec.values, submission)
   rowVersion.value = rec.row_version
-  recordTitle.value = rec.title
+  recordTitle.value = rec.title ?? rec.system.record_number ?? null
   renderKey.value++
   await nextTick()
   if (Object.keys(submission).length) await save(submission)
@@ -260,17 +260,24 @@ onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('records.leave_unsaved'
 <template>
   <Message v-if="loadError" severity="error" data-testid="record-form-error">{{ loadError }}</Message>
   <div v-else-if="!definition" class="flex justify-center p-10"><ProgressSpinner style="width: 2.5rem; height: 2.5rem" /></div>
-  <form v-else class="max-w-6xl" novalidate data-testid="record-form" @submit.prevent="save()">
-    <div class="flex flex-wrap items-center gap-3 mb-4">
-      <RouterLink :to="{ name: 'records.list', params: { form: formUuid } }" class="text-sm text-primary flex items-center gap-1"> <i class="pi pi-arrow-left rtl:rotate-180" />{{ name }} </RouterLink>
-    </div>
-    <h1 class="page-title">{{ heading }}</h1>
-    <Message v-if="banner" severity="error" class="mb-4" data-testid="record-form-banner">{{ banner }}</Message>
+  <form v-else class="max-w-6xl flex flex-col gap-4" novalidate data-testid="record-form" @submit.prevent="save()">
+    <header class="flex flex-col gap-1">
+      <RouterLink :to="{ name: 'records.list', params: { form: formUuid } }" class="text-sm text-primary inline-flex items-center gap-1 self-start">
+        <i class="pi pi-arrow-left rtl:rotate-180" aria-hidden="true" />{{ name }}
+      </RouterLink>
+      <h1 class="page-title !m-0" dir="auto">{{ heading }}</h1>
+    </header>
+    <Message v-if="banner" severity="error" data-testid="record-form-banner">{{ banner }}</Message>
     <div class="rounded-xl bg-card border border-line p-4 lg:p-6">
       <FormRenderer :key="renderKey" ref="renderer" v-model="values" :definition="definition" :mode="mode" :errors="serverErrors" :form-uuid="formUuid" :references="references" />
     </div>
-    <div class="sticky bottom-0 z-10 flex flex-wrap gap-2 justify-end py-3 mt-4 bg-page/90 backdrop-blur">
-      <Button type="button" :label="t('common.cancel')" severity="secondary" outlined @click="cancel" />
+    <div class="action-bar !mt-0" role="region" :aria-label="t('formconfig.actions')" data-testid="record-form-bar">
+      <span class="text-sm flex items-center gap-2" :class="dirty ? '' : 'text-muted-color'" aria-live="polite">
+        <i :class="dirty ? 'pi pi-circle-fill text-warning text-[0.5rem]' : 'pi pi-check'" aria-hidden="true" />
+        {{ dirty ? t('workflow.unsaved') : mode === 'create' ? t('records.nothing_entered') : t('records.no_changes') }}
+      </span>
+      <span class="flex-1" />
+      <Button type="button" :label="t('common.cancel')" severity="secondary" text @click="cancel" />
       <Button type="submit" :label="submitLabel" icon="pi pi-check" :loading="saving" data-testid="record-save" />
     </div>
     <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
