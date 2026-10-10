@@ -10,6 +10,7 @@ use App\Modules\Core\Outbox\OutboxRelay;
 use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Monitoring\ErrorReporter;
+use App\Modules\Records\Exchange\ExportService;
 use App\Modules\Records\FileStore;
 use App\Modules\Schema\Execution\SchemaReconciler;
 use App\Modules\Schema\Execution\Snapshots;
@@ -18,6 +19,12 @@ use App\Modules\Workflow\Runtime\SlaTimers;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
+
+Artisan::command('records:expire-exports', function (ExportService $exports): int {
+    $this->info('Expired '.$exports->expire().' export(s).');
+
+    return 0;
+})->purpose('Delete export files past their expiry time');
 
 Artisan::command('outbox:relay {--limit=200}', function (OutboxRelay $relay): int {
     $count = $relay->relayPending((int) $this->option('limit'));
@@ -169,6 +176,7 @@ Artisan::command('work:maintain', function (Claims $claims, OutboxWriter $outbox
 Schedule::command('sla:tick')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('work:maintain')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('files:purge-temporary')->hourly()->onOneServer();
+Schedule::command('records:expire-exports')->hourly()->onOneServer();
 Schedule::command('schema:purge-snapshots')->dailyAt('04:10')->onOneServer();
 Schedule::command('schema:reconcile --scheduled')->dailyAt('01:40')->withoutOverlapping()->onOneServer();
 Schedule::command('outbox:relay')->everyMinute()->withoutOverlapping()->onOneServer();

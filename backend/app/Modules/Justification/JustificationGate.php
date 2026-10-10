@@ -330,7 +330,7 @@ final class JustificationGate
                 'field' => $editLike && isset($changedFields[$r['target']]),
                 'status' => $editLike && $r['statusId'] !== null && $r['statusId'] === ($change['status'] ?? null),
                 'transition' => $context === 'transition' && $r['transitionId'] !== null && $r['transitionId'] === ($change['transition'] ?? null),
-                'delete', 'restore', 'reassign' => $context === $r['scope'],
+                'delete', 'restore', 'reassign', 'import', 'bulk', 'merge' => $context === $r['scope'],
                 default => false,
             };
         };

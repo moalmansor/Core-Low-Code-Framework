@@ -70,7 +70,13 @@ final class SettingsRegistry
 
         // Records import/export (§4.8)
         $d('records', 'export_max_rows', 50000, ['required', 'integer', 'between:100,1000000']);
-        $d('records', 'import_max_rows', 5000, ['required', 'integer', 'between:10,50000']);
+        // Imports run as background jobs (§4.15): these are the job's own guards.
+        $d('records', 'import_max_rows', 100000, ['required', 'integer', 'between:10,1000000']);
+        $d('records', 'import_time_limit_minutes', 60, ['required', 'integer', 'between:1,1440']);
+        // Exports of more rows than this run as background jobs; smaller ones download at once.
+        $d('records', 'export_sync_rows', 5000, ['required', 'integer', 'between:0,100000']);
+        // Exported and generated files (exports, error reports, downloads) expire after this many hours.
+        $d('records', 'job_file_hours', 72, ['required', 'integer', 'between:1,2160']);
 
         // Formats and calendar (§2)
         $d('formats', 'timezone', 'UTC', ['required', 'timezone:all']);

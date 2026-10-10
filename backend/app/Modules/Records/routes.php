@@ -13,9 +13,21 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::get('/r/{form}/definition', [RecordController::class, 'definition']);
     Route::get('/r/{form}/options/{field}', [RecordController::class, 'options'])->where('field', '[a-z][a-z0-9_]{0,47}');
     Route::post('/r/{form}/validate-field', [RecordController::class, 'validateField']);
-    Route::get('/r/{form}/export', [RecordExchangeController::class, 'export'])->middleware('throttle:10,1');
+    // Import and export (§4.15): background jobs with progress, cancel and error reports.
+    Route::post('/r/{form}/exports', [RecordExchangeController::class, 'export'])->middleware('throttle:30,1');
+    Route::get('/exports/{job}', [RecordExchangeController::class, 'exportStatus'])->whereUuid('job');
+    Route::post('/exports/{job}/cancel', [RecordExchangeController::class, 'cancelExport'])->whereUuid('job');
     Route::get('/r/{form}/import/template', [RecordExchangeController::class, 'template']);
-    Route::post('/r/{form}/import', [RecordExchangeController::class, 'import'])->middleware('throttle:10,1');
+    Route::post('/r/{form}/imports/inspect', [RecordExchangeController::class, 'inspect'])->middleware('throttle:20,1');
+    Route::post('/r/{form}/imports/preview', [RecordExchangeController::class, 'preview'])->middleware('throttle:60,1');
+    Route::post('/r/{form}/imports', [RecordExchangeController::class, 'start'])->middleware('throttle:30,1');
+    Route::get('/r/{form}/imports', [RecordExchangeController::class, 'imports']);
+    Route::get('/r/{form}/import-mappings', [RecordExchangeController::class, 'mappingsIndex']);
+    Route::delete('/import-mappings/{mapping}', [RecordExchangeController::class, 'deleteMapping'])->whereUuid('mapping');
+    Route::get('/imports/{job}', [RecordExchangeController::class, 'importStatus'])->whereUuid('job');
+    Route::post('/imports/{job}/cancel', [RecordExchangeController::class, 'cancelImport'])->whereUuid('job');
+    Route::get('/imports/{job}/report', [RecordExchangeController::class, 'importReport'])->whereUuid('job');
+    Route::post('/{kind}/{job}/retry', [RecordExchangeController::class, 'retry'])->whereIn('kind', ['imports', 'exports'])->whereUuid('job');
     Route::get('/r/{form}', [RecordController::class, 'index']);
     Route::post('/r/{form}', [RecordController::class, 'store']);
     Route::get('/r/{form}/{record}', [RecordController::class, 'show'])->whereUuid('record');

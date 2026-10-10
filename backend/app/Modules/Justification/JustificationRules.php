@@ -30,7 +30,7 @@ use Illuminate\Validation\ValidationException;
  */
 final class JustificationRules
 {
-    public const SCOPES = ['form', 'group', 'field', 'status', 'transition', 'delete', 'restore', 'reassign'];
+    public const SCOPES = ['form', 'group', 'field', 'status', 'transition', 'delete', 'restore', 'reassign', 'import', 'bulk', 'merge'];
 
     public const LEVELS = ['not_required', 'optional', 'mandatory'];
 

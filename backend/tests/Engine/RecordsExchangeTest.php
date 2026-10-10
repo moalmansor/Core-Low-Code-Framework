@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Modules\Core\Settings\SettingsService;
+use App\Modules\Records\Exchange\ImportService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use OpenSpout\Common\Entity\Row;
@@ -75,65 +77,174 @@ function readXlsx(string $content): array
     return $rows;
 }
 
-it('exports records with labels and imports them back with validation, updates and idempotency', function () {
-    [$col, $form] = buildCatalog($this);
+/** Exports through the job API and returns the file's content. */
+function exportContent(TestCase $t, string $form, array $params): string
+{
+    $job = $t->postJson("/api/v1/r/{$form}/exports", $params)->assertOk()->json('data');
+    expect($job['status'])->toBe('completed');
+
+    return $t->get($job['url'])->assertOk()->streamedContent();
+}
+
+/**
+ * Uploads a file, takes the suggested mapping, and starts an import job;
+ * returns [inspection, job].
+ *
+ * @param  array<string, mixed>  $options
+ * @return array{0: array<string, mixed>, 1: array<string, mixed>}
+ */
+function importFile(TestCase $t, string $form, UploadedFile $file, array $options = []): array
+{
+    $inspect = $t->post("/api/v1/r/{$form}/imports/inspect", ['file' => $file], ['Accept' => 'application/json'])->assertOk()->json('data');
+    $mapping = array_map(static fn ($c) => ['column' => $c['column'], 'field' => $c['field'], 'system' => $c['system']], $inspect['columns']);
+    $job = $t->postJson("/api/v1/r/{$form}/imports", ['file' => $inspect['file'], 'mapping' => $mapping, 'mode' => 'insert'] + $options)->assertStatus(202)->json('data');
+
+    return [$inspect, $t->getJson("/api/v1/imports/{$job['uuid']}")->assertOk()->json('data')];
+}
+
+it('exports what the table shows, escapes formulas, and audits every export', function () {
+    [$col] = buildCatalog($this);
     $acme = $this->postJson("/api/v1/r/{$col}", ['values' => ['code' => 'ACME', 'name' => 'Acme Ltd', 'tier' => 'gold', 'active' => true, 'rating' => '4.5']])->assertCreated()->json('data');
     $this->postJson("/api/v1/r/{$col}", ['values' => ['code' => 'EVIL', 'name' => '=HYPERLINK("http://x")', 'tier' => 'silver', 'active' => false]])->assertCreated();
 
-    // XLSX export: system columns, headers in the reader's language, labels instead of codes.
-    $response = $this->get("/api/v1/r/{$col}/export?format=xlsx&sort=record_number&direction=asc")->assertOk();
-    $rows = readXlsx($response->streamedContent());
+    // XLSX: system columns, headers in the reader's language, labels instead of codes.
+    $rows = readXlsx(exportContent($this, $col, ['format' => 'xlsx', 'sort' => 'record_number', 'direction' => 'asc']));
     expect($rows[0])->toBe(['Record ID', 'Version', 'Record number', 'Created at', 'Updated at', 'Code', 'Name', 'Tier', 'Active', 'Rating'])
         ->and($rows)->toHaveCount(3)
         ->and($rows[1][0])->toBe($acme['uuid'])
         ->and(array_slice($rows[1], 5))->toBe(['ACME', 'Acme Ltd', 'Gold', true, 4.5]);
 
-    // CSV export never emits a formula.
-    $csv = $this->get("/api/v1/r/{$col}/export?format=csv")->assertOk()->streamedContent();
-    expect($csv)->toContain("'=HYPERLINK")->and(DB::table('audit_logs')->where('event', 'records.exported')->count())->toBe(2);
+    // Only the columns asked for (the table's visible columns).
+    $narrow = readXlsx(exportContent($this, $col, ['format' => 'xlsx', 'columns' => ['code', 'name']]));
+    expect($narrow[0])->toBe(['Code', 'Name']);
 
-    // Import: one update (by ID and version), one create (labels and yes/no), one invalid row.
+    // CSV never emits a formula; PDF is a PDF.
+    expect(exportContent($this, $col, ['format' => 'csv']))->toContain("'=HYPERLINK")
+        ->and(substr(exportContent($this, $col, ['format' => 'pdf']), 0, 5))->toBe('%PDF-')
+        ->and(DB::table('audit_logs')->where('event', 'records.exported')->count())->toBe(4);
+});
+
+it('runs a large export as a background job and lets only its owner download it', function () {
+    [$col] = buildCatalog($this);
+    app(SettingsService::class)->write('records', 'export_sync_rows', 0);
+    $this->postJson("/api/v1/r/{$col}", ['values' => ['code' => 'ACME', 'name' => 'Acme Ltd']])->assertCreated();
+    $job = $this->postJson("/api/v1/r/{$col}/exports", ['format' => 'csv'])->assertStatus(202)->json('data');
+    // The queue runs jobs at once in tests: the job has finished and notified its owner.
+    $done = $this->getJson("/api/v1/exports/{$job['uuid']}")->assertOk()->json('data');
+    expect($done['status'])->toBe('completed')->and($done['rows'])->toBe(1)
+        ->and(DB::table('in_app_notifications')->where('user_id', $this->admin->id)->where('type', 'export.ready')->count())->toBe(1);
+
+    $other = $this->makeUser();
+    $this->flushSession();
+    $this->actingAs($other, 'web');
+    $this->getJson("/api/v1/exports/{$job['uuid']}")->assertNotFound();
+    $file = DB::table('files')->where('owner_type', 'export_job')->value('uuid');
+    $this->getJson("/api/v1/files/{$file}/url")->assertNotFound();
+});
+
+it('imports in the background: suggested mapping, preview, error report, idempotent re-run', function () {
+    [$col, $form] = buildCatalog($this);
+    $acme = $this->postJson("/api/v1/r/{$col}", ['values' => ['code' => 'ACME', 'name' => 'Acme Ltd', 'tier' => 'gold', 'active' => true, 'rating' => '4.5']])->assertCreated()->json('data');
+
     $file = xlsxUpload([
-        ['Record ID', 'Version', 'code', 'Name', 'Tier', 'Active', 'Unknown column'],
-        [$acme['uuid'], 1, 'ACME', 'Acme International', 'Silver', 'no', 'x'],
-        [null, null, 'NEW', 'Newco', 'gold', 'نعم', null],
-        [null, null, null, 'No code', 'platinum', 'maybe', null],
+        ['code', 'Name', 'Tier', 'Active', 'Unknown column'],
+        ['NEW', 'Newco', 'gold', 'نعم', null],
+        [null, 'No code', 'platinum', 'maybe', null],
+        ['=1+1', 'Formula', 'Silver', 'no', 'x'],
     ]);
-    $preview = $this->post("/api/v1/r/{$col}/import", ['file' => $file])->assertOk()->json('data');
-    expect($preview['total'])->toBe(3)
-        ->and($preview['valid'])->toBe(2)
-        ->and($preview['invalid'])->toBe(1)
-        ->and($preview['committed'])->toBeFalse()
-        ->and($preview['ignored'])->toBe(['Unknown column'])
-        ->and($preview['rows'][0]['row'])->toBe(4)
-        ->and(array_column($preview['rows'][0]['errors'], 'field'))->toContain('code', 'tier', 'active');
+    $inspect = $this->post("/api/v1/r/{$col}/imports/inspect", ['file' => $file], ['Accept' => 'application/json'])->assertOk()->json('data');
+    $byHeader = array_column($inspect['columns'], null, 'header');
+    expect($inspect['total_rows'])->toBe(3)
+        ->and($byHeader['Unknown column']['field'])->toBeNull()
+        ->and($byHeader['Name']['field'])->not->toBeNull()
+        ->and($byHeader['code']['samples'][0])->toBe('NEW');
+    $mapping = array_map(static fn ($c) => ['column' => $c['column'], 'field' => $c['field'], 'system' => $c['system']], $inspect['columns']);
 
-    // Commit refuses while rows are invalid, unless invalid rows are skipped.
-    $refused = $this->post("/api/v1/r/{$col}/import", ['file' => $file, 'commit' => 1])->assertOk()->json('data');
-    expect($refused['committed'])->toBeFalse()->and(DB::table('c_suppliers')->count())->toBe(2);
-    $done = $this->post("/api/v1/r/{$col}/import", ['file' => $file, 'commit' => 1, 'skip_invalid' => 1])->assertOk()->json('data');
-    expect($done['committed'])->toBeTrue()->and($done['created'])->toBe(1)->and($done['updated'])->toBe(1);
+    // Validation preview: nothing is written; the bad row names its columns.
+    $preview = $this->postJson("/api/v1/r/{$col}/imports/preview", ['file' => $inspect['file'], 'mapping' => $mapping, 'mode' => 'insert'])->assertOk()->json('data');
+    expect($preview['valid'])->toBe(2)->and($preview['invalid'])->toBe(1)
+        ->and($preview['rows'][1]['row'])->toBe(3)
+        ->and(array_column($preview['rows'][1]['errors'], 'column'))->toContain('code', 'Tier', 'Active')
+        ->and(DB::table('c_suppliers')->count())->toBe(1);
+
+    // Dry run: every row checked, nothing written, a report of the problems.
+    $dry = $this->postJson("/api/v1/r/{$col}/imports", ['file' => $inspect['file'], 'mapping' => $mapping, 'mode' => 'insert', 'dry_run' => true])->assertStatus(202)->json('data');
+    $dry = $this->getJson("/api/v1/imports/{$dry['uuid']}")->json('data');
+    expect($dry['status'])->toBe('completed_with_errors')->and($dry['created'])->toBe(2)->and($dry['errors'])->toBe(1)->and($dry['has_report'])->toBeTrue()
+        ->and(DB::table('c_suppliers')->count())->toBe(1);
+
+    // The real run, saving the mapping for next time.
+    $run = $this->postJson("/api/v1/r/{$col}/imports", ['file' => $inspect['file'], 'mapping' => $mapping, 'mode' => 'insert', 'save_as' => 'Supplier sheet'])->assertStatus(202)->json('data');
+    $run = $this->getJson("/api/v1/imports/{$run['uuid']}")->json('data');
+    expect($run['status'])->toBe('completed_with_errors')->and($run['created'])->toBe(2)->and($run['errors'])->toBe(1)
+        ->and(DB::table('c_suppliers')->count())->toBe(3)
+        // A formula is imported as its text, never evaluated.
+        ->and(DB::table('c_suppliers')->where('name', 'Formula')->value('code'))->toBe('=1+1')
+        ->and(DB::table('submission_journal')->whereNotNull('import_job_id')->count())->toBe(2)
+        ->and($this->getJson("/api/v1/r/{$col}/import-mappings")->json('data.0.name'))->toBe('Supplier sheet');
+
+    // The error report names the row, keeps its cells, and lists the problems by column.
+    $url = $this->getJson("/api/v1/imports/{$run['uuid']}/report")->assertOk()->json('data.url');
+    $report = readXlsx($this->get($url)->assertOk()->streamedContent());
+    expect($report[0])->toBe(['Row', 'code', 'Name', 'Tier', 'Active', 'Unknown column', 'Problems'])
+        ->and($report[1][0])->toBe(3)
+        ->and($report[1][2])->toBe('No code')
+        ->and($report[1][6])->toContain('Tier:');
+
+    // Running the same job again (a retry) creates nothing twice.
+    $job = DB::table('import_jobs')->where('uuid', $run['uuid'])->first();
+    DB::table('import_jobs')->where('id', $job->id)->update(['status' => 'failed', 'last_committed_batch' => 0, 'processed_rows' => 0, 'created_count' => 0, 'error_count' => 0]);
+    app(ImportService::class)->run((int) $job->id);
+    expect(DB::table('c_suppliers')->count())->toBe(3);
+
+    // Upsert by a key field: existing rows update, new ones are created.
+    $upsert = xlsxUpload([['code', 'Name'], ['ACME', 'Acme International'], ['FRESH', 'Fresh Co']]);
+    $inspect = $this->post("/api/v1/r/{$col}/imports/inspect", ['file' => $upsert], ['Accept' => 'application/json'])->assertOk()->json('data');
+    $mapping = array_map(static fn ($c) => ['column' => $c['column'], 'field' => $c['field']], $inspect['columns']);
+    $codeField = $inspect['columns'][0]['field'];
+    $job = $this->postJson("/api/v1/r/{$col}/imports", ['file' => $inspect['file'], 'mapping' => $mapping, 'mode' => 'upsert', 'key_field' => $codeField])->assertStatus(202)->json('data');
+    $job = $this->getJson("/api/v1/imports/{$job['uuid']}")->json('data');
+    expect($job['status'])->toBe('completed')->and($job['created'])->toBe(1)->and($job['updated'])->toBe(1);
     $updated = $this->getJson("/api/v1/r/{$col}/{$acme['uuid']}")->json('data');
-    expect($updated['values']['name'])->toBe('Acme International')
-        ->and($updated['values']['tier'])->toBe('silver')
-        ->and($updated['values']['active'])->toBeFalse()
-        ->and($updated['values']['rating'])->toBe('4.5')
-        ->and($updated['row_version'])->toBe(2);
-    $newco = DB::table('c_suppliers')->where('code', 'NEW')->first();
-    expect($newco)->not->toBeNull();
+    expect($updated['values']['name'])->toBe('Acme International')->and($updated['values']['tier'])->toBe('gold')->and($updated['row_version'])->toBe(2);
 
-    // The same file again: rows already imported are recognised, nothing is duplicated.
-    $again = $this->post("/api/v1/r/{$col}/import", ['file' => $file, 'commit' => 1, 'skip_invalid' => 1])->assertOk()->json('data');
-    expect(DB::table('c_suppliers')->count())->toBe(3)
-        ->and($again['already_imported'])->toBe(2)
-        ->and($again['created'] + $again['updated'])->toBe(0);
+    // Update mode refuses rows that match nothing.
+    $update = xlsxUpload([['code', 'Name'], ['GHOST', 'Nobody']]);
+    $inspect = $this->post("/api/v1/r/{$col}/imports/inspect", ['file' => $update], ['Accept' => 'application/json'])->assertOk()->json('data');
+    $mapping = array_map(static fn ($c) => ['column' => $c['column'], 'field' => $c['field']], $inspect['columns']);
+    $preview = $this->postJson("/api/v1/r/{$col}/imports/preview", ['file' => $inspect['file'], 'mapping' => $mapping, 'mode' => 'update', 'key_field' => $codeField])->assertOk()->json('data');
+    expect($preview['rows'][0]['errors'][0]['messages'][0])->toBe(__('records.import.no_match'));
 
     // References resolve by the display title; unknown titles are reported.
-    $orders = xlsxUpload([['Subject', 'Supplier'], ['Laptops', 'Acme International'], ['Chairs', 'Nobody']]);
-    $report = $this->post("/api/v1/r/{$form}/import", ['file' => $orders, 'commit' => 1, 'skip_invalid' => 1])->assertOk()->json('data');
-    expect($report['created'])->toBe(1)->and($report['rows'][0]['errors'][0]['field'])->toBe('supplier');
-    $order = $this->getJson("/api/v1/r/{$form}")->json('data.0');
-    expect($order['values']['supplier'])->toBe($acme['uuid']);
+    [, $orders] = importFile($this, $form, xlsxUpload([['Subject', 'Supplier'], ['Laptops', 'Acme International'], ['Chairs', 'Nobody']]));
+    expect($orders['created'])->toBe(1)->and($orders['errors'])->toBe(1);
+    expect($this->getJson("/api/v1/r/{$form}")->json('data.0.values.supplier'))->toBe($acme['uuid']);
+});
+
+it('cancels an import and asks for an import justification where a rule requires one', function () {
+    [$col] = buildCatalog($this);
+    $hash = $this->getJson("/api/v1/forms/{$col}/justification-rules")->assertOk()->json('data.hash');
+    $this->putJson("/api/v1/forms/{$col}/justification-rules", ['base_hash' => $hash, 'rules' => [[
+        'uuid' => uid(), 'scope' => 'import', 'target' => null, 'subject' => ['type' => 'everyone', 'uuid' => null], 'level' => 'mandatory',
+        'condition' => null, 'levelWhen' => null, 'text' => ['min' => 5, 'max' => 500],
+        'reasonCodes' => ['mode' => 'none', 'source' => 'codes', 'set' => null, 'collection' => null],
+        'attachments' => ['mode' => 'none', 'max' => null, 'rules' => null], 'showSummary' => false, 'active' => true, 'i18n' => ['title' => ['en' => 'Why import?'], 'help' => []],
+    ]]])->assertOk();
+    $inspect = $this->post("/api/v1/r/{$col}/imports/inspect", ['file' => xlsxUpload([['code', 'Name'], ['ONE', 'One']])], ['Accept' => 'application/json'])->assertOk()->json('data');
+    $mapping = array_map(static fn ($c) => ['column' => $c['column'], 'field' => $c['field']], $inspect['columns']);
+    $this->postJson("/api/v1/r/{$col}/imports", ['file' => $inspect['file'], 'mapping' => $mapping, 'mode' => 'insert'])
+        ->assertStatus(422)->assertJsonPath('code', 'justification_required');
+    $job = $this->postJson("/api/v1/r/{$col}/imports", ['file' => $inspect['file'], 'mapping' => $mapping, 'mode' => 'insert', 'justification' => ['reason_text' => 'Yearly supplier list']])
+        ->assertStatus(202)->json('data');
+    $row = DB::table('import_jobs')->where('uuid', $job['uuid'])->first();
+    expect($row->justification_id)->not->toBeNull()
+        ->and(DB::table('justifications')->where('id', $row->justification_id)->value('context'))->toBe('import')
+        ->and(DB::table('justifications')->where('id', $row->justification_id)->value('import_job_id'))->toBe($row->id);
+
+    // A finished job cannot be cancelled; a queued one can.
+    $this->postJson("/api/v1/imports/{$job['uuid']}/cancel")->assertStatus(409);
+    DB::table('import_jobs')->where('id', $row->id)->update(['status' => 'queued']);
+    expect($this->postJson("/api/v1/imports/{$job['uuid']}/cancel")->assertOk()->json('data.status'))->toBe('cancelled');
 });
 
 it('requires the export and import permissions', function () {
@@ -141,6 +252,6 @@ it('requires the export and import permissions', function () {
     $user = $this->makeUser();
     $this->flushSession();
     $this->actingAs($user, 'web');
-    $this->get("/api/v1/r/{$col}/export")->assertNotFound();
-    $this->post("/api/v1/r/{$col}/import", ['file' => xlsxUpload([['code'], ['X']])])->assertNotFound();
+    $this->postJson("/api/v1/r/{$col}/exports", ['format' => 'csv'])->assertNotFound();
+    $this->post("/api/v1/r/{$col}/imports/inspect", ['file' => xlsxUpload([['code'], ['X']])], ['Accept' => 'application/json'])->assertNotFound();
 });

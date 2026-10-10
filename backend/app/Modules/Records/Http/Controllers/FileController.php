@@ -27,6 +27,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 final class FileController extends Controller
 {
+    /** Files a job produced for one user (imports, their error reports, exports, downloads): only that user reads them. */
+    public const PERSONAL = ['import_job', 'import_report', 'export_job', 'download_job'];
+
     public function upload(Request $request, FileStore $files): JsonResponse
     {
         $data = $request->validate([
@@ -79,7 +82,7 @@ final class FileController extends Controller
     private function mayRead(StoredFile $file): bool
     {
         $user = $this->user();
-        if ($file->is_temporary) {
+        if ($file->is_temporary || in_array($file->owner_type, self::PERSONAL, true)) {
             return $file->uploaded_by === $user->id;
         }
         if ($file->form_id !== null) {

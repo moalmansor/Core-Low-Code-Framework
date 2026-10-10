@@ -18,6 +18,7 @@ use App\Modules\Forms\Models\MenuItem;
 use App\Modules\Justification\JustificationGate;
 use App\Modules\Records\Runtime\ExpressionContext;
 use App\Modules\Records\Runtime\FormRuntimes;
+use App\Modules\Records\Runtime\SubmissionJournal;
 use App\Modules\Reference\Models\BusinessCalendar;
 use App\Modules\Reference\Models\Currency;
 use App\Modules\Reference\Models\Holiday;
@@ -39,6 +40,7 @@ final class FormsServiceProvider extends ServiceProvider
         $this->app->scoped(RecordScope::class);
         $this->app->scoped(DelegationResolver::class);
         $this->app->scoped(JustificationGate::class);
+        $this->app->scoped(SubmissionJournal::class);
         $this->app->singleton(SchemaValidator::class);
     }
 

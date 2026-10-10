@@ -20,7 +20,29 @@ use Throwable;
  */
 final class SubmissionJournal
 {
+    /** The import job whose rows are being submitted, recorded on each entry (architecture §19.5). */
+    private ?int $importJobId = null;
+
     public function __construct(private readonly CorrelationId $correlation, private readonly TenantContext $tenant) {}
+
+    /**
+     * Runs `$work` with every entry it opens linked to an import job.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $work
+     * @return T
+     */
+    public function forImportJob(int $jobId, callable $work): mixed
+    {
+        $previous = $this->importJobId;
+        $this->importJobId = $jobId;
+        try {
+            return $work();
+        } finally {
+            $this->importJobId = $previous;
+        }
+    }
 
     /**
      * Opens (or re-opens for retry) the journal entry of a submission.
@@ -55,7 +77,7 @@ final class SubmissionJournal
                 'idempotency_key' => $key, 'form_id' => $formId, 'form_version_id' => $versionId, 'record_id' => $recordId,
                 'operation' => $operation, 'source' => $source, 'user_id' => $userId, 'payload' => $this->seal($payload),
                 'expected_row_version' => $expectedRowVersion, 'status' => 'processing', 'attempts' => 1,
-                'correlation_id' => $this->correlation->get(),
+                'correlation_id' => $this->correlation->get(), 'import_job_id' => $this->importJobId,
             ]);
 
             return ['id' => $id, 'uuid' => $uuid, 'state' => 'new', 'record_id' => $recordId];
