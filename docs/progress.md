@@ -390,6 +390,21 @@ Decided by the owner:
   messages and API names/labels/titles. Fixed what they found (lookup preview
   labels, publish impact, blueprint confirmations, about thirty API name
   fallbacks). Design system §5.6.
+- **Schema.** All Phase 4 tables generated from the ERD and checked by the
+  conformance test; the Phase 4 deferred columns added. Deferred to Phase 5:
+  `automation_triggers.inbound_endpoint_id`, `notification_deliveries`.
+- **Import and export as background jobs** (issue #7 item): upload and inspect,
+  column mapping (suggested, saved mappings, text clean-up), preview, insert /
+  update / upsert by key field, dry run, batches of 500 in one transaction each,
+  idempotent retry, cancel, error report, import justification scope, journal
+  `import_job_id`, in-app notification. The synchronous `POST /r/{form}/import`
+  and its 50 000-row cap are gone: guards are `records.import_max_rows`
+  (default 100 000, up to 1 000 000) and `records.import_time_limit_minutes`.
+  Exports: xlsx / csv / pdf of the table as shown, export jobs above
+  `records.export_sync_rows`, expiring personal files.
+- **Next:** notifications (email templates, rules, email queue, in-app
+  center, preferences), then documents, actions, downloads, automations,
+  data quality, Operations Center, Phase 4 e2e, docs and the pull request.
 
 ## Resume point
 
