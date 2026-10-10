@@ -7,20 +7,21 @@ namespace App\Modules\Records\Runtime;
 use App\Expressions\Text\Unicode;
 use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Access\AccessResolver;
+use App\Modules\Access\RecordScope;
 use App\Modules\Identity\Models\User;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
- * The record list query shared by the records table and the export: search
- * over the normalized search text, simple filters on filterable fields the
- * reader can see, the trash for those who may restore, and sorting on
- * sortable fields.
+ * The record list query shared by the records table and the export: the
+ * user's record scope, search over the normalized search text, simple
+ * filters on filterable fields the reader can see, the trash for those who
+ * may restore, and sorting on sortable fields.
  */
 final class RecordQuery
 {
-    public function __construct(private readonly DatabaseDriver $driver, private readonly AccessResolver $access, private readonly References $refs) {}
+    public function __construct(private readonly DatabaseDriver $driver, private readonly AccessResolver $access, private readonly References $refs, private readonly RecordScope $scope) {}
 
     /** @return array<string, list<mixed>> */
     public static function rules(): array
@@ -45,6 +46,8 @@ final class RecordQuery
     public function build(FormRuntime $rt, User $user, array $levels, array $data): Builder
     {
         $q = DB::table($rt->table);
+        // Record-level security: every list, export and lookup goes through the user's scope.
+        $this->scope->apply($q, $rt, $user, ($data['trashed'] ?? false) ? 'delete' : 'view');
         if (($data['trashed'] ?? false) && $this->access->allows($user, "form.{$rt->form->uuid}.restore")) {
             $q->whereNotNull('deleted_at');
         } else {

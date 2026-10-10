@@ -2,6 +2,7 @@
 import Button from 'primevue/button'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { autoSpan } from '@/runtime/autoLayout'
 import { canvasView, spanAt } from './canvas'
 import { pick } from './conditions/scope'
 import { childrenOf, findField, findGroup } from './document'
@@ -40,7 +41,11 @@ function uuidOf(item: (typeof items.value)[number]): string {
 }
 
 function span(item: (typeof items.value)[number]): number {
-  if (item.kind === 'field') return spanAt(item.field.ui?.width, canvasView.breakpoint)
+  if (item.kind === 'field') {
+    const g = parentGroup.value
+    const sized = g?.type === 'row' || g?.type === 'column' || Object.values(g?.layout?.columns ?? {}).some((v) => v)
+    return spanAt(item.field.ui?.width, canvasView.breakpoint, sized ? undefined : autoSpan(item.field.type))
+  }
   if (item.group.type === 'column' || item.group.layout?.span) return spanAt(item.group.layout?.span, canvasView.breakpoint)
   return 12
 }

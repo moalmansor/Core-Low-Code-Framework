@@ -326,6 +326,38 @@ defineExpose({
     grid-column: span var(--lcf-xl, var(--lcf-lg, var(--lcf-md, var(--lcf-sm, var(--lcf-xs, 12))))) / span var(--lcf-xl, var(--lcf-lg, var(--lcf-md, var(--lcf-sm, var(--lcf-xs, 12)))));
   }
 }
+/* Record pages (design system §5.6): in View Mode the label is quiet and the
+   value carries the weight; empty values read as empty, not as content. */
+.lcf-mode-view .lcf-grid {
+  gap: calc(var(--lcf-gap, 1rem) + 0.25rem) calc(var(--lcf-gap, 1rem) * 2);
+}
+.lcf-mode-view .lcf-field .lcf-label {
+  font-size: var(--text-size-sm);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.lcf-mode-view .lcf-field .lcf-value {
+  min-height: 0;
+  padding-block: 0;
+  font-weight: 500;
+  color: var(--text);
+}
+.lcf-empty {
+  font-size: var(--text-size-sm);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+/* A section after other content starts a new block. */
+.lcf-cell + .lcf-cell > .lcf-section,
+.lcf-cell + .lcf-cell > [data-group] {
+  margin-block-start: 1rem;
+}
+.lcf-section-head {
+  padding-block-end: 0.5rem;
+  margin-block-end: 1rem;
+  border-block-end: 1px solid var(--border);
+}
 .lcf-rich :where(p, ul, ol, blockquote, pre, table) {
   margin-block: 0.5rem;
 }

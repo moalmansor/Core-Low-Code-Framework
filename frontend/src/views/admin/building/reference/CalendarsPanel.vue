@@ -20,6 +20,7 @@ import { useSession } from '@/stores/session'
 import { get, send } from '@/api/http'
 import LocaleFields from '../LocaleFields.vue'
 import { errorText, fieldErrors, filledLocales, isoDay, parseIsoDay } from '../shared'
+import { humanize } from '@/runtime/i18nText'
 
 interface Hours {
   day: number
@@ -144,7 +145,7 @@ async function save(): Promise<void> {
 }
 function destroy(c: Calendar): void {
   confirm.require({
-    message: t('building.ref.calendar_delete_confirm', { name: c.name ?? c.key }),
+    message: t('building.ref.calendar_delete_confirm', { name: c.name ?? humanize(c.key) }),
     header: t('common.confirm'),
     acceptProps: { label: t('common.delete'), severity: 'danger' },
     rejectProps: { label: t('common.cancel'), severity: 'secondary' },
@@ -254,7 +255,7 @@ const fmtDay = (s: string) => parseIsoDay(s)?.toLocaleDateString(session.locale)
     <template #empty>{{ t('building.ref.no_calendars') }}</template>
     <Column :header="t('building.name')">
       <template #body="{ data }">
-        <span class="font-medium">{{ data.name ?? data.key }}</span> <span class="text-xs text-muted-color ltr-value">{{ data.key }}</span>
+        <span class="font-medium">{{ data.name ?? humanize(data.key) }}</span> <span class="text-xs text-muted-color ltr-value">{{ data.key }}</span>
         <Tag v-if="data.is_default" class="ms-1" severity="success" :value="t('building.ref.default')" />
       </template>
     </Column>
@@ -279,7 +280,7 @@ const fmtDay = (s: string) => parseIsoDay(s)?.toLocaleDateString(session.locale)
 
   <section v-if="selected" class="mt-6" data-testid="holidays">
     <div class="flex flex-wrap items-center gap-2 mb-2">
-      <h3 class="font-semibold flex-1">{{ t('building.ref.holidays_of', { name: selected.name ?? selected.key }) }}</h3>
+      <h3 class="font-semibold flex-1">{{ t('building.ref.holidays_of', { name: selected.name ?? humanize(selected.key) }) }}</h3>
       <Button icon="pi pi-plus" size="small" :label="t('building.ref.new_holiday')" data-testid="holiday-new" @click="newHoliday" />
     </div>
     <DataTable :value="holidays" data-key="uuid" size="small">

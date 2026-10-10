@@ -9,6 +9,7 @@ use App\Modules\Audit\AuditWriter;
 use App\Modules\Schema\Models\MigrationPlan;
 use App\Modules\Schema\Models\MigrationStep;
 use App\Modules\Schema\Planning\StepSql;
+use App\Modules\Workflow\StatusMappings;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -25,11 +26,15 @@ final class SchemaExecutor
     /** Rows per batch for data steps. */
     public const CHUNK = 500;
 
-    public function __construct(private readonly DatabaseDriver $driver, private readonly AuditWriter $audit) {}
+    /** The plan being run: the actor and plan of data steps that record history. */
+    private ?MigrationPlan $plan = null;
+
+    public function __construct(private readonly DatabaseDriver $driver, private readonly AuditWriter $audit, private readonly StatusMappings $statusMappings) {}
 
     /** @return string final plan status: applied | reversed | inconsistent */
     public function run(MigrationPlan $plan): string
     {
+        $this->plan = $plan;
         $plan->forceFill(['status' => 'running', 'started_at' => $plan->started_at ?? Carbon::now('UTC'), 'error' => null])->save();
         $steps = $plan->steps()->get();
         foreach ($steps as $step) {
@@ -61,6 +66,7 @@ final class SchemaExecutor
      */
     public function reverse(MigrationPlan $plan): string
     {
+        $this->plan = $plan;
         $plan->forceFill(['status' => 'reversing'])->save();
         $ok = true;
         foreach ($plan->steps()->get()->sortByDesc('sequence') as $step) {
@@ -115,6 +121,8 @@ final class SchemaExecutor
         match ($spec['op']) {
             'validate_data' => $this->validateData($spec),
             'copy_data' => $this->copyData($spec),
+            'map_status' => $this->statusMappings->apply($spec, $this->plan?->confirmed_by === null ? null : (int) $this->plan->confirmed_by, $this->plan?->id),
+            'unmap_status' => $this->statusMappings->revert($spec, $this->plan?->confirmed_by === null ? null : (int) $this->plan->confirmed_by),
             'noop' => null,
             default => $this->ddl($spec, $retrying),
         };

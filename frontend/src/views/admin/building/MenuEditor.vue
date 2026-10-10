@@ -28,6 +28,7 @@ import {
   type MenuTreeContext,
 } from './menuTree'
 import { errorText, fetchFormOptions, FORM_OPTION_PERMISSIONS, type FormOption } from './shared'
+import { humanize } from '@/runtime/i18nText'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -63,7 +64,7 @@ onMounted(async () => {
   try {
     const [apps, menu] = await Promise.all([get<{ data: { uuid: string; key: string; name: string }[] }>('/applications'), get<{ data: MenuItemApi[] }>(`/applications/${appUuid.value}/menu`)])
     const app = apps.data.find((a) => a.uuid === appUuid.value)
-    appName.value = app?.name ?? app?.key ?? ''
+    appName.value = app?.name ?? (app ? humanize(app.key) : '')
     adopt(menu.data)
     if (formsAvailable) forms.value = await fetchFormOptions()
   } catch (e) {

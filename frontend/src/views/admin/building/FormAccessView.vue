@@ -49,6 +49,7 @@ import {
   type Target,
 } from './accessMatrix'
 import { errorText } from './shared'
+import { humanize } from '@/runtime/i18nText'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -98,7 +99,7 @@ const levelLabel = (l: Level | null) => (l ? t(`building.level.${l}`) : '—')
 const levelIcon: Record<Level, string> = { hidden: 'pi pi-eye-slash', read_only: 'pi pi-eye', editable: 'pi pi-pencil', required: 'pi pi-asterisk' }
 const modeOptions = computed(() => MODES.map((m) => ({ value: m, label: t(`building.access.mode.${m}`) })))
 const effectOptions = computed(() => (['allow', 'deny', 'hard_deny'] as const).map((v) => ({ value: v, label: t(`access.effect.${v}`) })))
-const targetName = (tg: Target) => tg.label || tg.key
+const targetName = (tg: Target) => tg.label || humanize(tg.key)
 
 // ── Form-level grants (permission assignments on form.{uuid}.*) ──────────
 
@@ -144,12 +145,17 @@ watch(
     if (v !== 'form' || catalog.value.length) return
     try {
       const prefix = `form.${formUuid.value}.`
-      const all = (await get<{ data: CatalogEntry[] }>('/permissions', { scope_type: 'form' })).data
+      const [own, transitions, views] = await Promise.all(
+        (['form', 'transition', 'view'] as const).map((scope) => get<{ data: CatalogEntry[] }>('/permissions', { scope_type: scope, form: formUuid.value }).then((r) => r.data)),
+      )
+      // The form's own abilities first, then its workflow transitions and table views.
+      const all = [...own!.filter((p) => p.key.startsWith(prefix)), ...transitions!, ...views!]
       const rank = (k: string) => {
+        if (!k.startsWith(prefix)) return ORDER.length + (k.startsWith('transition.') ? 1 : 2)
         const i = ORDER.indexOf(k.slice(prefix.length))
         return i < 0 ? ORDER.length : i
       }
-      catalog.value = all.filter((p) => p.key.startsWith(prefix)).sort((a, b) => rank(a.key) - rank(b.key) || a.key.localeCompare(b.key))
+      catalog.value = all.sort((a, b) => rank(a.key) - rank(b.key) || a.label.localeCompare(b.label))
     } catch (e) {
       toast.add({ severity: 'error', summary: errorText(e, t('building.load_failed')), life: 6000 })
     }
@@ -190,6 +196,7 @@ const view = reactive({
   subjects: [] as string[],
   group: null as string | null,
   deviatingOnly: true,
+  status: null as string | null,
   page: 1,
   perPage: 10,
 })
@@ -213,6 +220,7 @@ async function loadMatrix(): Promise<void> {
   try {
     const params: Record<string, unknown> = { mode: view.mode, subject_type: view.subjectType, deviating_only: view.deviatingOnly ? 1 : 0, page: view.page, per_page: view.perPage }
     if (view.group) params.group = view.group
+    if (view.status) params.status = view.status
     const chosen = view.subjectType === 'user' ? userSubjects.value.map((u) => u.uuid) : view.subjectType === 'everyone' ? [] : view.subjects
     if (chosen.length) params.subjects = chosen
     const res = await get<{ data: Matrix; meta: { total_subjects: number } }>(`/forms/${formUuid.value}/access-matrix`, params)
@@ -235,13 +243,13 @@ watch(
   },
 )
 watch(
-  () => [view.mode, view.subjectType, view.subjects.join(','), view.group, view.deviatingOnly, view.page],
+  () => [view.mode, view.subjectType, view.subjects.join(','), view.group, view.deviatingOnly, view.status, view.page],
   () => {
     if (tab.value === 'matrix') loadMatrix()
   },
 )
 watch(tab, (v) => {
-  if (v === 'matrix' && !matrix.value) loadMatrix()
+  if ((v === 'matrix' || v === 'explain') && !matrix.value) loadMatrix()
 })
 watch(addUser, (u) => {
   if (!u) return
@@ -376,6 +384,11 @@ interface Explanation {
 const explainUser = ref<UserOption | null>(null)
 const explainTarget = ref<string | null>(null)
 const explainMode = ref<Mode>('edit')
+const explainStatus = ref<string | null>(null)
+const statusOptions = computed(() => [
+  { value: null as string | null, label: t('building.access.any_status') },
+  ...(matrix.value?.statuses ?? []).map((s) => ({ value: s.uuid as string | null, label: s.name })),
+])
 const explanation = ref<Explanation | null>(null)
 const explaining = ref(false)
 const targetOptions = computed(() => allTargets.value.map((x) => ({ value: x.uuid, label: `${'· '.repeat(x.depth)}${targetName(x)}`, type: x.type })))
@@ -385,6 +398,7 @@ async function runExplain(): Promise<void> {
   const params: Record<string, unknown> = { user: explainUser.value.uuid, mode: explainMode.value }
   if (target?.type === 'field') params.field = target.uuid
   if (target?.type === 'group') params.group = target.uuid
+  if (explainStatus.value) params.status = explainStatus.value
   explaining.value = true
   try {
     explanation.value = (await get<{ data: Explanation }>(`/forms/${formUuid.value}/access-explain`, params)).data
@@ -436,7 +450,7 @@ const decided = computed(() => {
             <template v-else>
               <p class="text-sm text-muted-color mb-3">{{ t('building.access.form_level_hint') }}</p>
               <div class="rounded-lg border border-line divide-y divide-line">
-                <div v-for="p in catalog" :key="p.key" class="flex flex-wrap items-center gap-3 p-2" :data-testid="`grant-${p.key.split('.').pop()}`">
+                <div v-for="p in catalog" :key="p.key" class="flex flex-wrap items-center gap-3 p-2" :data-testid="`grant-${p.key.startsWith('form.') ? p.key.split('.').pop() : p.key}`">
                   <div class="flex-1 min-w-48">
                     <div>{{ p.label }} <Tag v-if="p.is_dangerous" severity="danger" :value="t('access.dangerous')" /></div>
                     <div class="text-xs text-muted-color ltr-value">{{ p.key }}</div>
@@ -471,6 +485,19 @@ const decided = computed(() => {
           <div class="field">
             <label>{{ t('building.access.mode_label') }}</label>
             <SelectButton v-model="view.mode" :options="modeOptions" option-label="label" option-value="value" :allow-empty="false" :disabled="pendingCount > 0" data-testid="matrix-mode" />
+          </div>
+          <div v-if="matrix?.statuses?.length" class="field">
+            <label for="mx-status">{{ t('building.access.status') }}</label>
+            <Select
+              v-model="view.status"
+              input-id="mx-status"
+              :options="statusOptions"
+              option-label="label"
+              option-value="value"
+              :disabled="pendingCount > 0"
+              class="w-48"
+              data-testid="matrix-status"
+            />
           </div>
           <div class="field">
             <label for="mx-type">{{ t('building.access.subject_type') }}</label>
@@ -650,6 +677,10 @@ const decided = computed(() => {
           <div class="field">
             <label for="ex-mode">{{ t('building.access.mode_label') }}</label>
             <Select v-model="explainMode" input-id="ex-mode" :options="modeOptions" option-label="label" option-value="value" class="w-40" />
+          </div>
+          <div v-if="matrix?.statuses?.length" class="field">
+            <label for="ex-status">{{ t('building.access.status') }}</label>
+            <Select v-model="explainStatus" input-id="ex-status" :options="statusOptions" option-label="label" option-value="value" class="w-48" />
           </div>
           <Button icon="pi pi-question-circle" :label="t('access.explain')" :disabled="!explainUser" :loading="explaining" data-testid="explain-run" @click="runExplain" />
         </div>

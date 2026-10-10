@@ -8,6 +8,7 @@ import { get } from '@/api/http'
 import BrandMark from '@/components/BrandMark.vue'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import NavTree, { type NavItem } from '@/runtime/NavTree.vue'
+import { activeNavId, type NavCandidate } from './navActive'
 import { useSession } from '@/stores/session'
 
 /** A published application with the menu items the user may see (GET /navigation). */
@@ -67,7 +68,7 @@ watch(
   () => {
     sidebarOpen.value = false
     // A long menu keeps the active item in view (instant: no motion).
-    void nextTick(() => nav.value?.querySelector('.nav-active, .router-link-active')?.scrollIntoView({ block: 'nearest' }))
+    void nextTick(() => nav.value?.querySelector('.nav-active')?.scrollIntoView({ block: 'nearest' }))
     document.title = [route.meta.title ? t(route.meta.title) : '', session.systemName].filter(Boolean).join(' · ')
   },
   { immediate: true },
@@ -78,6 +79,22 @@ const sections = computed(() => {
   for (const a of areas.value) groups.set(a.section, [...(groups.get(a.section) ?? []), a])
   return [...groups.entries()]
 })
+
+// Exactly one sidebar entry is active: the longest match, first in menu order on a tie.
+function appCandidates(items: NavItem[]): NavCandidate[] {
+  return items.flatMap((i) => [...((i.type === 'form' || i.type === 'collection') && i.target ? [{ id: i.uuid, path: `/app/${i.target}` }] : []), ...appCandidates(i.children ?? [])])
+}
+const active = computed(() =>
+  activeNavId(route.path, [
+    { id: 'home', path: '/', exact: true },
+    { id: 'my_work', path: '/my-work' },
+    ...apps.value.flatMap((a) => appCandidates(a.items)),
+    { id: 'admin', path: '/admin', exact: true },
+    ...areas.value.map((a) => ({ id: `area-${a.key}`, path: a.route })),
+  ]),
+)
+const navClass = (id: string) => ({ 'nav-link': true, 'nav-active': active.value === id })
+const current = (id: string) => (active.value === id ? 'page' : undefined)
 
 const userItems = computed(() => [
   { label: t('profile.title'), icon: 'pi pi-user', command: () => router.push({ name: 'profile' }) },
@@ -114,7 +131,10 @@ const userItems = computed(() => [
         <RouterLink :to="{ name: 'home' }"><BrandMark /></RouterLink>
       </div>
       <nav ref="nav" class="flex-1 min-h-0 p-3 flex flex-col gap-1 overflow-y-auto overscroll-contain" data-testid="sidebar">
-        <RouterLink class="nav-link" :to="{ name: 'home' }" exact-active-class="nav-active"><i class="pi pi-home" />{{ t('shell.home') }}</RouterLink>
+        <RouterLink :class="navClass('home')" :to="{ name: 'home' }" active-class="" exact-active-class="" :aria-current="current('home')"><i class="pi pi-home" />{{ t('shell.home') }}</RouterLink>
+        <RouterLink :class="navClass('my_work')" :to="{ name: 'my_work' }" active-class="" exact-active-class="" :aria-current="current('my_work')" data-testid="nav-my-work"
+          ><i class="pi pi-inbox" />{{ t('my_work.title') }}</RouterLink
+        >
         <section v-for="app in apps" :key="app.uuid" class="mt-3" :data-testid="`nav-app-${app.key}`">
           <button
             type="button"
@@ -127,13 +147,24 @@ const userItems = computed(() => [
             <i v-if="app.maintenance" v-tooltip="t('records.app_maintenance')" class="pi pi-wrench text-warning" />
             <i :class="collapsedApps[app.uuid] ? 'pi pi-chevron-right rtl:rotate-180' : 'pi pi-chevron-down'" class="text-[0.625rem]" />
           </button>
-          <NavTree v-if="!collapsedApps[app.uuid]" :items="app.items" />
+          <NavTree v-if="!collapsedApps[app.uuid]" :items="app.items" :active="active" />
         </section>
         <div v-if="apps.length && areas.length" class="mt-3 border-t border-line" />
-        <RouterLink v-if="areas.length" class="nav-link" :to="{ name: 'admin' }" exact-active-class="nav-active"><i class="pi pi-cog" />{{ t('admin.title') }}</RouterLink>
+        <RouterLink v-if="areas.length" :class="navClass('admin')" :to="{ name: 'admin' }" active-class="" exact-active-class="" :aria-current="current('admin')"
+          ><i class="pi pi-cog" />{{ t('admin.title') }}</RouterLink
+        >
         <template v-for="[section, items] in sections" :key="section">
           <div class="mt-3 mb-1 px-3 text-xs uppercase tracking-wide text-muted-color">{{ t(`admin.section.${section}`) }}</div>
-          <RouterLink v-for="a in items" :key="a.key" class="nav-link" :to="a.route" active-class="nav-active" :data-testid="`nav-${a.key}`">
+          <RouterLink
+            v-for="a in items"
+            :key="a.key"
+            :class="navClass(`area-${a.key}`)"
+            :to="a.route"
+            active-class=""
+            exact-active-class=""
+            :aria-current="current(`area-${a.key}`)"
+            :data-testid="`nav-${a.key}`"
+          >
             <i :class="`pi ${icons[a.key] ?? 'pi-circle'}`" />{{ t(`admin.area.${a.key}`) }}
           </RouterLink>
         </template>
@@ -171,6 +202,8 @@ export const icons: Record<string, string> = {
   blueprints: 'pi-clone',
   reference_data: 'pi-book',
   schema: 'pi-database',
+  assignment_queues: 'pi-inbox',
+  reason_codes: 'pi-comment',
 }
 </script>
 

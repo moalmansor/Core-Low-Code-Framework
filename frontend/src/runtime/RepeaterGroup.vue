@@ -7,7 +7,7 @@ import { useRenderer } from './context'
 import FieldNode from './FieldNode.vue'
 import { formatDecimal } from './format'
 import GroupBody from './GroupBody.vue'
-import { pickText } from './i18nText'
+import { labelOf, pickText, humanize } from './i18nText'
 import { fieldState, isHidden, newRow } from './rules'
 import type { ClientField, ClientGroup, Row } from './types'
 
@@ -94,7 +94,7 @@ const aggregates = computed(() =>
       const avg = sum.div(Decimal.of(nums.length), 4)
       value = a.fn === 'sum' ? sum.toString() : avg instanceof Decimal ? avg.toString() : '—'
     }
-    const label = pickText(a.label, ctx.locale.value) ?? `${t(`runtime.aggregate.${a.fn}`)} ${field ? (pickText(field.i18n.label, ctx.locale.value) ?? field.key) : ''}`
+    const label = pickText(a.label, ctx.locale.value) ?? `${t(`runtime.aggregate.${a.fn}`)} ${field ? labelOf(field.i18n.label, ctx.locale.value, field.key) : ''}`
     const display = /^-?\d+(\.\d+)?$/.test(value) ? formatDecimal(value, { decimals: field?.behavior.number?.decimals ?? null, locale: ctx.locale.value }) : value
     return { label, value: display, field: field?.key ?? a.field }
   }),
@@ -105,7 +105,7 @@ const errors = computed(() => ctx.errorsAt(key.value))
 <template>
   <section class="rounded-lg border border-line p-3" :data-group="group.key" :data-testid="`repeater-${group.key}`">
     <header class="flex items-center gap-2 mb-2">
-      <h3 class="text-base font-semibold flex-1">{{ title ?? group.key }}</h3>
+      <h3 class="text-base font-semibold flex-1">{{ title ?? humanize(group.key) }}</h3>
       <span class="text-sm text-muted-color">{{ t('runtime.rows_count', { count: rows.length }) }}</span>
     </header>
     <p v-if="description" class="text-sm text-muted-color mb-2">{{ description }}</p>
@@ -116,7 +116,7 @@ const errors = computed(() => ctx.errorsAt(key.value))
           <tr class="border-b border-line">
             <th class="p-2 text-start w-10">#</th>
             <th v-for="f in columns" :key="f.uuid" class="p-2 text-start font-medium whitespace-nowrap">
-              {{ pickText(f.i18n.label, ctx.locale.value) ?? f.key }}<span v-if="required(f)" class="text-danger ms-1" aria-hidden="true">*</span>
+              {{ labelOf(f.i18n.label, ctx.locale.value, f.key) }}<span v-if="required(f)" class="text-danger ms-1" aria-hidden="true">*</span>
             </th>
             <th v-if="editable" class="p-2 w-28 lcf-no-print">
               <span class="sr-only">{{ t('common.actions') }}</span>

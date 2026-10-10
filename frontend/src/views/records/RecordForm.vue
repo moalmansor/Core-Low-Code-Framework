@@ -11,11 +11,13 @@ import { newUuid } from '@/runtime/api'
 import { changedValues, conflictRows, isConflictPayload, mergeAfterResolution, resolvedSubmission, type Choice, type ConflictPayload } from '@/runtime/conflict'
 import { RECORD_FILES, RECORD_UUID } from '@/runtime/context'
 import FormRenderer from '@/runtime/FormRenderer.vue'
-import { pickText } from '@/runtime/i18nText'
+import { pickText, humanize } from '@/runtime/i18nText'
 import { submissionValues } from '@/runtime/submission'
 import type { ClientDefinition, FileMeta, RecordPayload, References, Values } from '@/runtime/types'
 import { same } from '@/runtime/values'
 import { useSession } from '@/stores/session'
+import JustificationDialog from '@/runtime/JustificationDialog.vue'
+import { useJustification } from '@/runtime/useJustification'
 import ConflictDialog from './ConflictDialog.vue'
 import { scrollBehavior } from '@/theme/motion'
 
@@ -31,6 +33,7 @@ const router = useRouter()
 const session = useSession()
 const { t, locale } = useI18n()
 const toast = useToast()
+const justification = useJustification()
 
 const formUuid = computed(() => String(route.params.form).toLowerCase())
 const recordUuid = computed(() => (route.params.record ? String(route.params.record).toLowerCase() : null))
@@ -53,9 +56,9 @@ const banner = ref('')
 const renderer = ref<InstanceType<typeof FormRenderer> | null>(null)
 const renderKey = ref(0)
 
-const name = computed(() => (definition.value ? (pickText(definition.value.names, locale.value) ?? definition.value.name ?? definition.value.form.key) : ''))
+const name = computed(() => (definition.value ? (pickText(definition.value.names, locale.value) ?? definition.value.name ?? humanize(definition.value.form.key)) : ''))
 const submitLabel = computed(() => pickText(definition.value?.form.i18n.submitButtonLabel, locale.value) ?? t('common.save'))
-const heading = computed(() => (mode.value === 'create' ? t('records.new_in', { name: name.value }) : t('records.edit_title', { title: recordTitle.value ?? '' })))
+const heading = computed(() => (mode.value === 'create' ? t('records.new_in', { name: name.value }) : t('records.edit_title', { title: recordTitle.value ?? name.value })))
 
 async function load(): Promise<void> {
   definition.value = null
@@ -64,7 +67,8 @@ async function load(): Promise<void> {
   banner.value = ''
   saved.value = false
   try {
-    const def = (await get<{ data: ClientDefinition }>(`/r/${formUuid.value}/definition`, { mode: mode.value })).data
+    // Field access depends on the status of the record being edited.
+    const def = (await get<{ data: ClientDefinition }>(`/r/${formUuid.value}/definition`, { mode: mode.value, ...(recordUuid.value ? { record: recordUuid.value } : {}) })).data
     if (mode.value === 'edit') {
       const rec = (await get<{ data: RecordPayload }>(`/r/${formUuid.value}/${recordUuid.value}`)).data
       if (rec.permissions && !rec.permissions.edit) {
@@ -81,17 +85,34 @@ async function load(): Promise<void> {
     }
     definition.value = def
     renderKey.value++
+    markRequired()
     document.title = [heading.value, session.systemName].filter(Boolean).join(' · ')
   } catch (e) {
     loadError.value = e instanceof ApiError && e.status !== 0 ? e.message : t('records.load_failed')
   }
 }
 
+/**
+ * Opened from a transition that needs fields filled (`?require=a,b&for=Submit`):
+ * those fields are marked on the form and the first one is brought into view.
+ */
+function markRequired(): void {
+  const keys = typeof route.query.require === 'string' ? route.query.require.split(',').filter((k) => definition.value?.fields.some((f) => f.key === k)) : []
+  if (!keys.length) return
+  const name = typeof route.query.for === 'string' ? route.query.for : ''
+  banner.value = t('workflow_run.fill_to_move', { name })
+  // After the form has rendered and settled its own values, so the marks are not cleared as edits.
+  void nextTick(() => {
+    serverErrors.value = Object.fromEntries(keys.map((k) => [k, [t('workflow_run.needed_for', { name })]]))
+    focusFirstError()
+  })
+}
+
 function applyRecord(rec: RecordPayload): void {
   values.value = JSON.parse(JSON.stringify(rec.values)) as Values
   loaded.value = JSON.parse(JSON.stringify(rec.values)) as Values
   rowVersion.value = rec.row_version
-  recordTitle.value = rec.title
+  recordTitle.value = rec.title ?? rec.system.record_number ?? null
   references.value = rec.references ?? {}
   files.value = { ...(rec.files ?? {}) }
 }
@@ -156,11 +177,15 @@ async function save(override?: Values): Promise<void> {
   banner.value = ''
   try {
     await ensureCsrf()
-    const headers = { 'Idempotency-Key': keyFor(body) }
-    const res =
-      mode.value === 'create'
-        ? await http.post<{ data: RecordPayload }>(`/r/${formUuid.value}`, body, { headers })
-        : await http.patch<{ data: RecordPayload }>(`/r/${formUuid.value}/${recordUuid.value}`, body, { headers })
+    // A change that needs a justification is answered 422 with the prompt; it is sent again with the user's justification.
+    const res = await justification.run((j) => {
+      const sent = j ? { ...body, justification: j } : body
+      const headers = { 'Idempotency-Key': keyFor(sent) }
+      return mode.value === 'create'
+        ? http.post<{ data: RecordPayload }>(`/r/${formUuid.value}`, sent, { headers })
+        : http.patch<{ data: RecordPayload }>(`/r/${formUuid.value}/${recordUuid.value}`, sent, { headers })
+    })
+    if (res === null) return
     attempt = null
     saved.value = true
     serverErrors.value = {}
@@ -230,7 +255,7 @@ async function onConflictResolve(choices: Record<string, Choice>): Promise<void>
   loaded.value = JSON.parse(JSON.stringify(rec.values)) as Values
   values.value = mergeAfterResolution(rec.values, submission)
   rowVersion.value = rec.row_version
-  recordTitle.value = rec.title
+  recordTitle.value = rec.title ?? rec.system.record_number ?? null
   renderKey.value++
   await nextTick()
   if (Object.keys(submission).length) await save(submission)
@@ -252,19 +277,27 @@ onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('records.leave_unsaved'
 <template>
   <Message v-if="loadError" severity="error" data-testid="record-form-error">{{ loadError }}</Message>
   <div v-else-if="!definition" class="flex justify-center p-10"><ProgressSpinner style="width: 2.5rem; height: 2.5rem" /></div>
-  <form v-else class="max-w-6xl" novalidate data-testid="record-form" @submit.prevent="save()">
-    <div class="flex flex-wrap items-center gap-3 mb-4">
-      <RouterLink :to="{ name: 'records.list', params: { form: formUuid } }" class="text-sm text-primary flex items-center gap-1"> <i class="pi pi-arrow-left rtl:rotate-180" />{{ name }} </RouterLink>
-    </div>
-    <h1 class="page-title">{{ heading }}</h1>
-    <Message v-if="banner" severity="error" class="mb-4" data-testid="record-form-banner">{{ banner }}</Message>
+  <form v-else class="max-w-6xl flex flex-col gap-4" novalidate data-testid="record-form" @submit.prevent="save()">
+    <header class="flex flex-col gap-1">
+      <RouterLink :to="{ name: 'records.list', params: { form: formUuid } }" class="text-sm text-primary inline-flex items-center gap-1 self-start">
+        <i class="pi pi-arrow-left rtl:rotate-180" aria-hidden="true" />{{ name }}
+      </RouterLink>
+      <h1 class="page-title !m-0" dir="auto">{{ heading }}</h1>
+    </header>
+    <Message v-if="banner" severity="error" data-testid="record-form-banner">{{ banner }}</Message>
     <div class="rounded-xl bg-card border border-line p-4 lg:p-6">
       <FormRenderer :key="renderKey" ref="renderer" v-model="values" :definition="definition" :mode="mode" :errors="serverErrors" :form-uuid="formUuid" :references="references" />
     </div>
-    <div class="sticky bottom-0 z-10 flex flex-wrap gap-2 justify-end py-3 mt-4 bg-page/90 backdrop-blur">
-      <Button type="button" :label="t('common.cancel')" severity="secondary" outlined @click="cancel" />
+    <div class="action-bar !mt-0" role="region" :aria-label="t('formconfig.actions')" data-testid="record-form-bar">
+      <span class="text-sm flex items-center gap-2" :class="dirty ? '' : 'text-muted-color'" aria-live="polite">
+        <i :class="dirty ? 'pi pi-circle-fill text-warning text-[0.5rem]' : 'pi pi-check'" aria-hidden="true" />
+        {{ dirty ? t('workflow.unsaved') : mode === 'create' ? t('records.nothing_entered') : t('records.no_changes') }}
+      </span>
+      <span class="flex-1" />
+      <Button type="button" :label="t('common.cancel')" severity="secondary" text @click="cancel" />
       <Button type="submit" :label="submitLabel" icon="pi pi-check" :loading="saving" data-testid="record-save" />
     </div>
+    <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
     <ConflictDialog
       v-if="conflict && definition"
       :payload="conflict"

@@ -97,6 +97,44 @@ const preview = computed(() => {
   return p ? previewKeys.value.filter((k) => p[k] !== null && p[k] !== undefined && p[k] !== '').map((k) => ({ key: k, value: typeof p[k] === 'object' ? JSON.stringify(p[k]) : String(p[k]) })) : null
 })
 const drawer = ref<string | null>(null)
+
+/**
+ * The preview card an administrator configured for this lookup (or for the
+ * target form): chosen fields of the picked record, auto-fill into this form
+ * and whether the record may open in a drawer. Null when none is configured
+ * or the user cannot see the record; the field's own preview applies then.
+ */
+interface Card {
+  record: { uuid: string; title: string | null }
+  items: { label: string; value: unknown }[]
+  columns: number
+  autofill: { field: string; value: unknown; overwrite: boolean }[]
+  drawer: boolean
+}
+const card = ref<Card | null>(null)
+async function loadCard(uuid: string | undefined, apply: boolean): Promise<void> {
+  card.value = null
+  if (!uuid || multiple.value || !targetForm.value || !ctx.formUuid.value) return
+  try {
+    card.value = (await get<{ data: Card }>(`/r/${ctx.formUuid.value}/preview/${props.field.key}/${uuid}`)).data
+  } catch {
+    return
+  }
+  if (!apply || ctx.mode.value === 'view' || ctx.mode.value === 'print') return
+  for (const a of card.value.autofill) {
+    const target = ctx.index.value.fieldByKey(a.field)
+    if (!target) continue
+    const current = ctx.values.value[target.key]
+    if (!a.overwrite && current !== null && current !== undefined && current !== '') continue
+    ctx.setValue(target, a.value, null)
+  }
+}
+watch(
+  () => selected.value[0],
+  (now, before) => void loadCard(now, before !== undefined && now !== before),
+  { immediate: true },
+)
+const cardValue = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v))
 </script>
 
 <template>
@@ -138,16 +176,34 @@ const drawer = ref<string | null>(null)
           </div>
         </template>
       </AutoComplete>
-      <Button v-if="targetForm && !multiple && selected[0]" type="button" icon="pi pi-window-maximize" outlined :aria-label="t('runtime.open_reference')" @click="drawer = selected[0]!" />
+      <Button
+        v-if="targetForm && !multiple && selected[0] && (card?.drawer ?? true)"
+        type="button"
+        icon="pi pi-window-maximize"
+        outlined
+        :aria-label="t('runtime.open_reference')"
+        @click="drawer = selected[0]!"
+      />
     </div>
-    <dl v-if="preview && preview.length" class="mt-2 rounded-md border border-line p-2 text-sm grid grid-cols-[auto_1fr] gap-x-3 gap-y-1" data-testid="reference-preview">
+    <dl
+      v-if="card && card.items.length"
+      class="mt-2 rounded-md border border-line p-2 text-sm grid gap-x-3 gap-y-1"
+      :class="card.columns === 2 ? 'grid-cols-[auto_1fr_auto_1fr]' : 'grid-cols-[auto_1fr]'"
+      data-testid="reference-card"
+    >
+      <template v-for="(it, i) in card.items" :key="i">
+        <dt class="text-muted-color">{{ it.label }}</dt>
+        <dd dir="auto">{{ cardValue(it.value) }}</dd>
+      </template>
+    </dl>
+    <dl v-else-if="preview && preview.length" class="mt-2 rounded-md border border-line p-2 text-sm grid grid-cols-[auto_1fr] gap-x-3 gap-y-1" data-testid="reference-preview">
       <template v-for="p in preview" :key="p.key">
         <dt class="text-muted-color">{{ p.key }}</dt>
         <dd>{{ p.value }}</dd>
       </template>
     </dl>
     <div v-if="multiple && targetForm && selected.length" class="flex flex-wrap gap-1 mt-1">
-      <Button v-for="u in selected" :key="u" type="button" :label="titles[u] ?? u" icon="pi pi-window-maximize" text size="small" @click="drawer = u" />
+      <Button v-for="u in selected" :key="u" type="button" :label="titles[u] ?? t('runtime.untitled_record')" icon="pi pi-window-maximize" text size="small" @click="drawer = u" />
     </div>
     <ReferenceDrawer v-if="targetForm && drawer" :form="targetForm" :record="drawer" @close="drawer = null" />
   </div>

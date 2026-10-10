@@ -14,7 +14,7 @@ import FileList from './FileList.vue'
 import { hasComponent } from './index'
 
 /** A field's value shown read-only (view and print modes, read-only fields, computed values, and unknown types). */
-const props = defineProps<{ field: ClientField; value: unknown; row: RowRef | null }>()
+const props = defineProps<{ field: ClientField; value: unknown; row: RowRef | null; compact?: boolean }>()
 const ctx = useRenderer()
 const { t } = useI18n()
 
@@ -22,7 +22,14 @@ const known = computed(() => fieldType(props.field.type) !== null && hasComponen
 const storage = computed(() => ctx.index.value.storage(props.field))
 const empty = computed(() => props.value === null || props.value === undefined || props.value === '' || (Array.isArray(props.value) && props.value.length === 0))
 const text = computed(() =>
-  formatValue(ctx.index.value, props.field, props.value, { locale: ctx.locale.value, references: ctx.references.value, files: ctx.files.value, yes: t('runtime.yes'), no: t('runtime.no') }),
+  formatValue(ctx.index.value, props.field, props.value, {
+    locale: ctx.locale.value,
+    references: ctx.references.value,
+    files: ctx.files.value,
+    yes: t('runtime.yes'),
+    no: t('runtime.no'),
+    untitled: t('runtime.untitled_record'),
+  }),
 )
 const uuids = computed(() => (empty.value ? [] : (Array.isArray(props.value) ? props.value : [props.value]).map(String)))
 const target = computed(() => ctx.index.value.relationOf(props.field)?.target ?? null)
@@ -39,12 +46,16 @@ const link = computed(() => {
 </script>
 
 <template>
-  <div class="min-h-9 flex items-center py-1" :data-testid="`value-${field.key}`">
+  <div class="lcf-value min-h-9 flex items-center py-1" :data-testid="`value-${field.key}`">
     <div v-if="!known" class="flex flex-col gap-1">
       <span class="text-sm text-warning"><i class="pi pi-exclamation-triangle me-1" />{{ t('runtime.unsupported_type', { type: field.type }) }}</span>
       <span v-if="!empty" class="ltr-value text-sm">{{ typeof value === 'object' ? JSON.stringify(value) : String(value) }}</span>
     </div>
-    <span v-else-if="empty" class="text-muted-color">—</span>
+    <!-- An empty value looks different from a filled one everywhere (design system §5.6). -->
+    <span v-else-if="empty && compact" class="lcf-empty" :title="t('runtime.empty_value')"
+      ><span aria-hidden="true">—</span><span class="sr-only">{{ t('runtime.empty_value') }}</span></span
+    >
+    <span v-else-if="empty" class="lcf-empty" data-empty="true">{{ t('runtime.empty_value') }}</span>
     <FileList v-else-if="storage === 'file' || storage === 'files'" :uuids="uuids" :images="['image_upload', 'camera', 'signature'].includes(field.type)" class="w-full" />
     <SafeHtml v-else-if="field.type === 'rich_text'" :html="String(value)" class="w-full" />
     <SafeHtml v-else-if="field.type === 'markdown'" :html="String(value)" markdown class="w-full" />
@@ -57,7 +68,7 @@ const link = computed(() => {
     </span>
     <Rating v-else-if="field.type === 'rating'" :model-value="Number(value)" :stars="Number(field.validation.number?.max ?? field.ui.props?.stars ?? 5) || 5" readonly />
     <span v-else-if="isRef && target" class="flex flex-wrap gap-1">
-      <Button v-for="u in uuids" :key="u" type="button" :label="titles[u] ?? u" link size="small" class="!p-0" @click="drawer = u" />
+      <Button v-for="u in uuids" :key="u" type="button" :label="titles[u] ?? t('runtime.untitled_record')" link size="small" class="!p-0" @click="drawer = u" />
     </span>
     <a v-else-if="link" :href="link" class="text-primary underline ltr-value" :target="field.type === 'url' ? '_blank' : undefined" rel="noopener noreferrer">{{ text }}</a>
     <span v-else :class="{ 'ltr-value': ['iban', 'national_id', 'barcode', 'password'].includes(field.type) }" class="whitespace-pre-wrap break-words" dir="auto">{{

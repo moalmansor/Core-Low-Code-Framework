@@ -231,6 +231,8 @@ export interface ClientDefinition {
   /** Present on GET /r/{form}/definition. */
   name?: string
   names?: I18nText
+  /** Print layouts the user may choose (GET /r/{form}/definition). */
+  print_layouts?: { key: string; name: string; default: boolean }[]
   /** The user the definition was resolved for (the previewed user or role in builder previews). */
   user?: DefinitionUser
 }
@@ -282,6 +284,8 @@ export interface RecordPayload {
     updated_at: string | null
     updated_by: string | null
     deleted_at: string | null
+    /** Workflow status (null when the form has no workflow or the record none yet). */
+    status?: { uuid: string; key: string; name: string; color: string; icon: string | null } | null
   }
   permissions?: { edit: boolean; delete: boolean; restore: boolean; print: boolean; view_log: boolean }
   changed?: string[]

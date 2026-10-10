@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Forms;
 
+use App\Modules\Access\RecordScope;
+use App\Modules\Assignment\DelegationResolver;
 use App\Modules\Blueprints\Models\Blueprint;
 use App\Modules\Core\I18n\TranslatableRegistry;
 use App\Modules\Forms\Models\Application;
@@ -13,12 +15,14 @@ use App\Modules\Forms\Models\FieldOption;
 use App\Modules\Forms\Models\FieldTemplate;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Forms\Models\MenuItem;
+use App\Modules\Justification\JustificationGate;
 use App\Modules\Records\Runtime\ExpressionContext;
 use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Reference\Models\BusinessCalendar;
 use App\Modules\Reference\Models\Currency;
 use App\Modules\Reference\Models\Holiday;
 use App\Modules\Reference\Models\UnitOfMeasure;
+use App\Modules\Workflow\Runtime\WorkflowRuntimes;
 use App\Support\Json\SchemaValidator;
 use Illuminate\Support\ServiceProvider;
 
@@ -30,6 +34,11 @@ final class FormsServiceProvider extends ServiceProvider
         $this->app->scoped(Definition\PublishedDefinitions::class);
         $this->app->scoped(FormRuntimes::class);
         $this->app->scoped(ExpressionContext::class);
+        // Phase 3 request memos: workflow indexes, record scopes, delegations, justification rules.
+        $this->app->scoped(WorkflowRuntimes::class);
+        $this->app->scoped(RecordScope::class);
+        $this->app->scoped(DelegationResolver::class);
+        $this->app->scoped(JustificationGate::class);
         $this->app->singleton(SchemaValidator::class);
     }
 

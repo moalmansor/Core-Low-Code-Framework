@@ -168,7 +168,7 @@ async function reconcileNow(): Promise<void> {
   }
 }
 /** Differences name the owning form by uuid; show its key when known. */
-const formKeyOf = (uuid: string | undefined) => (uuid ? (tables.value.find((r) => r.form === uuid)?.form_key ?? uuid) : '—')
+const formKeyOf = (uuid: string | undefined) => (uuid ? (tables.value.find((r) => r.form === uuid)?.form_key ?? '—') : '—')
 const reportSeverity: Record<string, string> = { clean: 'success', drift: 'warn', error: 'danger', running: 'info' }
 const showValue = (v: unknown) => (v === null || v === undefined ? '—' : Array.isArray(v) ? v.join(', ') : String(v))
 </script>

@@ -2,6 +2,82 @@
 
 All notable changes to this project are documented here, one section per phase.
 
+## [Unreleased] — Phase 3: Workflow, Records & Views
+
+### Added
+- Workflow per form, versioned with it (ADR-0031): statuses, transitions with
+  conditions, required fields, comment and attachment rules, confirmation and
+  multi-party approvals; a Vue Flow designer; publish-time checks; status
+  mapping for removed statuses on the publish screen; full status history.
+- SLA rules per status with working-time calendars, warnings and escalations
+  (notify, reassign, transition), run every minute by `sla:tick`.
+- Status-based field and group access, transition permissions and the status
+  filter in the access matrix; record-level rules with compiled custom scopes
+  and "explain" (ADR-0032).
+- Edit justification (ADR-0035): rules per form, group, field, status,
+  transition, delete, restore and reassign, per subject; reason code sets;
+  the save-time prompt; immutable justifications shown in history, the
+  status timeline and table views.
+- Assignment rules, work queues with claim and release, delegation and
+  out-of-office cover recorded on behalf of the delegator, approvals with
+  decisions and reminders, and My Work (ADR-0036).
+- Table views with relation-path columns and filters, totals, row options,
+  column chooser, saved and shared views, bulk delete and restore with one
+  justification, and view blueprints (ADR-0034).
+- View Mode panels (tabs, sections, form body, related records, summaries,
+  linked fields, timeline, comments, attachments, text), lookup preview cards
+  with auto-fill, and print layouts as a page or PDF (mPDF).
+- The form configuration screen (workflow, SLA, record access, justification,
+  assignment, views, panels, previews, print), and Admin Console areas for
+  reason codes and for assignment, queues and delegation.
+- Configuration documents are saved whole with a concurrency hash; queues and
+  reason codes carry their last update time (ADR-0033).
+- A standard for configuration screens (design system §5.5), applied to every
+  tab of the form configuration screen: sections, one switch per line with a
+  description, content-sized inputs (field-width tokens), empty states with
+  the add action, quiet help text, and a sticky save bar with Discard.
+- Record pages follow the design system (§5.6): automatic multi-column layout
+  for unsized fields, muted labels and emphasised values, a clear empty value,
+  sections and tabs carried through, an aligned header and workflow bar
+  (ADR-0037).
+- A checklist for new screens (design system §5.7).
+- Workflow designer: *Tidy up* layout by flow order, transition labels that
+  never overlap, highlighted selection with both endpoint statuses, a checks
+  strip (unreachable, no way out, no way in), a compact outline instead of
+  the duplicate lists, and no keys on the canvas (design system §5.6a).
+
+### Changed
+- The "Workflows, statuses & views" sidebar entry is removed; a form's
+  configuration is opened from its row menu. Only one sidebar entry is ever
+  highlighted.
+- Reason codes are added to an existing set chosen from a list or to an
+  explicitly created new set; justification rules choose from existing sets.
+- Publishing requires a label in the default language for every field that
+  holds a value.
+
+### Fixed
+- Labels, option labels and status names fell back to the field key (or to
+  English) when the user's language held a blank entry; they now fall back to
+  the default language, then any filled language.
+- Number inputs overlapped neighbouring controls in dialogs.
+- A transition with required fields listed them as identifiers and, because
+  the record page looked them up by the wrong name, treated filled fields as
+  empty and blocked the transition. It now names them by label, offers to
+  open the edit page with those fields marked, and the server's enforcement
+  is unchanged (422 while any is empty).
+- Internal identifiers no longer reach the interface: workflow publish
+  checks and record-rule errors name statuses, transitions and fields;
+  configuration error lists say where in words; the publish dialog shows
+  translated problems without paths; linked records without a title read
+  "Untitled record"; a missing label shows the key made readable. A test
+  guards the source against new fallbacks to keys, ids or paths.
+- Workflow designer: a transition's name and key were generated once from its
+  first target and never followed a later route change, so the panel could
+  show a key and label that no longer matched the canvas. Routes now change
+  only on the canvas (drag the arrow's end or *Re-route*), the panel shows
+  them read-only, and a managed name and key follow the route and name until
+  edited; a saved key is locked behind *Change key* (owner report 11).
+
 ## [Unreleased] — Interface (before Phase 3)
 
 ### Added

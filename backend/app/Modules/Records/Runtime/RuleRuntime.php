@@ -52,6 +52,32 @@ final class RuleRuntime
         return ['values' => $values, 'state' => $state];
     }
 
+    /**
+     * Whether a boolean expression holds for a record (transition, SLA,
+     * justification, assignment and panel conditions). Without a user the
+     * `@user` scope is empty (system work such as SLA escalations). An
+     * expression that fails to evaluate does not hold.
+     *
+     * @param  array<string, mixed>  $ast
+     * @param  array<string, mixed>  $values  API values of the record
+     * @param  array<string, mixed>|null  $old  values before the change being checked
+     */
+    public function holds(FormRuntime $rt, array $ast, array $values, ?User $user = null, string $mode = 'edit', ?array $old = null): bool
+    {
+        $ctx = $user === null
+            ? Context::now(config('app.timezone', 'UTC'))->with(['mode' => $mode, 'form' => $rt->form->key, 'locale' => app()->getLocale()])
+            : $this->context($rt, $mode, $user);
+        $ctx = $ctx->with([
+            'record' => ValuesRecord::forRecord($rt, $values, $this->loader),
+            'old' => $old === null ? null : ValuesRecord::forRecord($rt, $old, $this->loader),
+        ]);
+        try {
+            return Evaluator::evaluate($ast, $ctx)->value->data === true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     public function context(FormRuntime $rt, string $mode, User $user, array $params = []): Context
     {
         $calendar = null;

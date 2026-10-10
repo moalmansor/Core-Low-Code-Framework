@@ -44,6 +44,9 @@ export interface Matrix {
   subjects: Subject[]
   targets: Target[]
   cells: Record<string, Record<string, Cell>>
+  /** The status the rules apply in (null: every status). */
+  status?: string | null
+  statuses?: { uuid: string; key: string; color: string; name: string }[]
 }
 
 /** A pending edit; `access: null` resets the cell to inherited (deletes the rule). */
@@ -58,6 +61,7 @@ export interface RuleChange {
   mode: Mode | null
   access: Level | null
   effect: Effect
+  status: string | null
 }
 
 export const subjectKey = (s: Subject): string => s.uuid ?? 'everyone'
@@ -136,6 +140,7 @@ export function buildChanges(pending: Map<string, PendingEdit>, matrix: Matrix):
       mode: scope === 'all' ? null : matrix.mode,
       access: edit.access,
       effect: edit.access === null ? 'allow' : edit.effect,
+      status: matrix.status ?? null,
     })
   }
   return out

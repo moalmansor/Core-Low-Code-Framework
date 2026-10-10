@@ -1,5 +1,5 @@
 import type { FormIndex } from './formIndex'
-import { pickText } from './i18nText'
+import { labelOf } from './i18nText'
 import type { ClientField, FileMeta, References } from './types'
 
 /**
@@ -14,6 +14,8 @@ export interface FormatOptions {
   files?: Record<string, FileMeta>
   yes: string
   no: string
+  /** Shown for a linked record without a title (never its identifier). */
+  untitled?: string
 }
 
 const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩'
@@ -105,14 +107,15 @@ export function formatDuration(seconds: string | number): string {
 
 function optionLabel(field: ClientField, value: string, locale: string): string {
   const o = (field.options?.static ?? []).find((x) => x.value === value)
-  return o ? (pickText(o.i18n?.label, locale) ?? o.value) : value
+  return o ? labelOf(o.i18n?.label, locale, o.value) : value
 }
 
 export function formatValue(index: FormIndex | null, field: ClientField, value: unknown, opts: FormatOptions): string {
   if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) return ''
   const storage = index?.storage(field) ?? 'string'
-  const refTitle = (uuid: unknown) => (typeof uuid === 'string' ? (opts.references?.[field.key]?.[uuid] ?? uuid) : String(uuid))
-  const fileName = (uuid: unknown) => (typeof uuid === 'string' ? (opts.files?.[uuid]?.name ?? uuid) : String(uuid))
+  // A linked record or file without a title or name never shows its identifier.
+  const refTitle = (uuid: unknown) => (typeof uuid === 'string' ? (opts.references?.[field.key]?.[uuid] ?? opts.untitled ?? '—') : String(uuid))
+  const fileName = (uuid: unknown) => (typeof uuid === 'string' ? (opts.files?.[uuid]?.name ?? '—') : String(uuid))
   const digits = (s: string) => (field.behavior.digits === 'arabic_indic' || (field.behavior.digits === 'locale' && opts.locale === 'ar') ? toArabicIndic(s) : s)
   const sep = opts.locale === 'ar' ? '، ' : ', '
   if (index?.isReference(field)) return (Array.isArray(value) ? value : [value]).map(refTitle).join(sep)

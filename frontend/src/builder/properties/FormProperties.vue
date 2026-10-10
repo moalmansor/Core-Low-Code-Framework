@@ -17,6 +17,7 @@ import { providePanel } from '../panel/panel'
 import type { CollectionSettings, FormSettings } from '../types'
 import { useBuilder } from '../useBuilder'
 import IssueList from './IssueList.vue'
+import { humanize } from '@/runtime/i18nText'
 
 /** Form-level settings (architecture §14.2) and, for collections, the collection settings. */
 const { t } = useI18n()
@@ -39,7 +40,7 @@ onMounted(async () => {
   const [apps, seqs, cals] = await Promise.all([referenceApi.applications().catch(() => []), referenceApi.sequences().catch(() => []), referenceApi.calendars().catch(() => [])])
   applications.value = apps.map((a) => ({ value: a.uuid, label: `${a.name} (${a.key})` }))
   sequences.value = seqs.map((s) => ({ value: s.uuid, label: `${s.key}${s.next_preview ? ` — ${s.next_preview}` : ''}` }))
-  calendars.value = cals.map((c) => ({ value: c.uuid, label: c.name ?? c.key }))
+  calendars.value = cals.map((c) => ({ value: c.uuid, label: c.name ?? humanize(c.key) }))
 })
 
 function setSetting<K extends keyof FormSettings>(key: K, value: FormSettings[K]): void {

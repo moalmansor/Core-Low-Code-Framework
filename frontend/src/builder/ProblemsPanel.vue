@@ -26,7 +26,7 @@ function elementName(uuid: string | null): string {
   if (f) return `${pick(f.i18n?.label, builder.locale, f.key)} (${f.key})`
   const g = findGroup(builder.doc, uuid)
   if (g) return `${pick(g.i18n?.title, builder.locale, g.key)} (${g.key})`
-  return uuid
+  return t('builder.problems.form')
 }
 
 async function validateNow(): Promise<void> {

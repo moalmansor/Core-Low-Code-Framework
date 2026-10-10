@@ -79,7 +79,7 @@ final class FieldAccessResolver
      * @param  array<string, mixed>  $definition
      * @return array{form: string, groups: array<string, string>, fields: array<string, string>, modes: array<string, bool>}
      */
-    public function resolveForSubject(string $type, ?int $id, int $formId, string $formUuid, array $definition, string $mode): array
+    public function resolveForSubject(string $type, ?int $id, int $formId, string $formUuid, array $definition, string $mode, ?int $statusId = null): array
     {
         $subjects = ['departments' => [], 'roles' => [], 'user' => 0];
         if ($type === 'role' && $id !== null) {
@@ -106,7 +106,7 @@ final class FieldAccessResolver
             [$gate[$ability]] = $this->permissions->decide($grants);
         }
 
-        return $this->compute($subjects, $gate, $formId, $definition, $mode, null);
+        return $this->compute($subjects, $gate, $formId, $definition, $mode, $statusId);
     }
 
     /**
@@ -187,8 +187,10 @@ final class FieldAccessResolver
      */
     private function rules(int $formId, array $subjects, string $mode, ?int $statusId): array
     {
+        // Status overrides apply only in that status; rules without a status apply in every status.
         $rows = DB::table('field_access_rules')->where('form_id', $formId)
             ->where(static fn ($q) => $q->whereNull('mode')->orWhere('mode', $mode))
+            ->where(static fn ($q) => $statusId === null ? $q->whereNull('status_id') : $q->whereNull('status_id')->orWhere('status_id', $statusId))
             ->where(static function ($q) use ($subjects): void {
                 $q->where('subject_type', 'everyone')
                     ->orWhere(static fn ($w) => $w->where('subject_type', 'user')->where('subject_id', $subjects['user']));
@@ -209,7 +211,7 @@ final class FieldAccessResolver
             'subject_type' => $r->subject_type,
             'subject_id' => $r->subject_id === null ? null : (int) $r->subject_id,
             'mode' => $r->mode,
-            'status' => null,
+            'status' => $r->status_id === null ? null : (int) $r->status_id,
             'access' => $r->access,
             'effect' => $r->effect,
         ])->all();

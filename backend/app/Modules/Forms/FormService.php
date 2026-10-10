@@ -17,6 +17,8 @@ use App\Modules\Forms\Models\Collection;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Forms\Models\FormVersion;
 use App\Modules\Forms\Models\MenuItem;
+use App\Modules\Workflow\WorkflowDocument;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -124,12 +126,14 @@ final class FormService
     public function loadVersionIntoDraft(Form $form, FormVersion $version): void
     {
         $doc = $version->definition;
-        unset($doc['$schema'], $doc['schema'], $doc['targets'], $doc['access']);
+        $workflow = $doc['workflow'] ?? ['statuses' => [], 'transitions' => [], 'sla' => []];
+        unset($doc['$schema'], $doc['schema'], $doc['targets'], $doc['access'], $doc['workflow'], $doc['justification']);
         $doc['form']['key'] = $form->key;
         $doc['form']['bindingMode'] = $form->binding_mode;
         unset($doc['form']['table'], $doc['form']['version']);
         $published = $form->current_version_id === null ? null : $this->definitions->version($form->id, (int) $form->current_version_id);
         $this->drafts->save($form, $doc, null, $published);
+        app(WorkflowDocument::class)->save($form, $workflow, (int) Auth::id());
         $this->audit->record('form.version_loaded_into_draft', 'config', null, 'form', $form->id, ['version' => $version->version_number]);
     }
 
@@ -156,6 +160,16 @@ final class FormService
         $doc['form']['boundTable'] = null;
         $doc['form']['i18n']['name'] = $name;
         $this->drafts->save($copy, $doc, null, null);
+        $workflows = app(WorkflowDocument::class);
+        $workflow = $workflows->compile($source);
+        $own = [];
+        foreach (['statuses', 'transitions', 'sla'] as $kind) {
+            foreach ($workflow[$kind] as $o) {
+                $own[$o['uuid']] = $fresh($o['uuid']);
+            }
+        }
+        $workflow = $this->remapUuids(['groups' => [], 'fields' => [], 'relations' => [], 'conditions' => []] + $workflow, static fn (string $old) => $own[$old] ?? $fresh($old), $map + $own);
+        $workflows->save($copy, ['statuses' => $workflow['statuses'], 'transitions' => $workflow['transitions'], 'sla' => $workflow['sla']], (int) Auth::id());
         if ($withPermissions) {
             $this->copyAccessRules($source, $copy, $map);
         }

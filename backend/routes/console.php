@@ -2,15 +2,19 @@
 
 declare(strict_types=1);
 
+use App\Modules\Assignment\Claims;
+use App\Modules\Assignment\Http\Controllers\DelegationController;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Audit\ChainVerifier;
 use App\Modules\Core\Outbox\OutboxRelay;
+use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Monitoring\ErrorReporter;
 use App\Modules\Records\FileStore;
 use App\Modules\Schema\Execution\SchemaReconciler;
 use App\Modules\Schema\Execution\Snapshots;
 use App\Modules\Setup\SetupState;
+use App\Modules\Workflow\Runtime\SlaTimers;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
@@ -138,6 +142,32 @@ Artisan::command('schema:reconcile {--scheduled : Run only when daily reconcilia
     return 0;
 })->purpose('Compare form metadata with the physical schema and report every difference');
 
+Artisan::command('sla:tick', function (SlaTimers $timers): int {
+    $this->info('Processed '.$timers->tick().' SLA timer(s).');
+
+    return 0;
+})->purpose('Warn, mark breaches and run SLA escalations that are due');
+
+Artisan::command('work:maintain', function (Claims $claims, OutboxWriter $outbox): int {
+    $expired = $claims->expire();
+    $delegations = DelegationController::refreshStatuses();
+    // Approvers who have not decided by the request's due date are reminded once.
+    $now = now('UTC')->format('Y-m-d H:i:s.u');
+    $due = DB::table('approval_decisions')->join('approval_requests', 'approval_requests.id', '=', 'approval_decisions.approval_request_id')
+        ->where('approval_requests.status', 'pending')->whereNotNull('approval_requests.due_at')->where('approval_requests.due_at', '<', $now)
+        ->where('approval_decisions.decision', 'pending')->whereNull('approval_decisions.reminded_at')
+        ->limit(500)->get(['approval_decisions.id', 'approval_decisions.approver_type', 'approval_decisions.approver_id', 'approval_requests.uuid']);
+    foreach ($due as $d) {
+        DB::table('approval_decisions')->where('id', $d->id)->update(['reminded_at' => $now, 'updated_at' => $now]);
+        $outbox->publish('approval.reminder', ['approval' => strtolower((string) $d->uuid), 'approver' => ['type' => $d->approver_type, 'id' => (int) $d->approver_id]]);
+    }
+    $this->info("Released {$expired} claim(s), updated {$delegations} delegation(s), reminded ".count($due).' approver(s).');
+
+    return 0;
+})->purpose('Release timed-out claims, refresh delegation states and remind overdue approvers');
+
+Schedule::command('sla:tick')->everyMinute()->withoutOverlapping()->onOneServer();
+Schedule::command('work:maintain')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('files:purge-temporary')->hourly()->onOneServer();
 Schedule::command('schema:purge-snapshots')->dailyAt('04:10')->onOneServer();
 Schedule::command('schema:reconcile --scheduled')->dailyAt('01:40')->withoutOverlapping()->onOneServer();

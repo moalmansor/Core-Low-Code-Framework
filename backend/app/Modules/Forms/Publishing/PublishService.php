@@ -21,6 +21,7 @@ use App\Modules\Schema\Execution\Snapshots;
 use App\Modules\Schema\Models\MigrationPlan;
 use App\Modules\Schema\Planning\MigrationPlanner;
 use App\Modules\Schema\Planning\SchemaDiffer;
+use App\Modules\Workflow\StatusMappings;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -52,6 +53,7 @@ final class PublishService
         private readonly CorrelationId $correlation,
         private readonly DatabaseDriver $driver,
         private readonly Placement $placement,
+        private readonly StatusMappings $statusMappings,
     ) {}
 
     /**
@@ -75,9 +77,14 @@ final class PublishService
             $live[$form->table_name] = array_column($this->driver->columns($form->table_name), 'name');
         }
         $operations = $this->differ->diff($published['schema'] ?? null, $definition['schema'], $stamp, $live);
+        // Records move between statuses only after the schema steps (architecture §13.5).
+        $mapping = $this->statusMappings->plan($form, $definition, $published);
+        $operations = [...$operations, ...$mapping['operations']];
         $steps = $this->planner->plan($operations, $stamp);
         $diff = $this->versionDiff->diff($published, $definition);
         $impact = $this->impact->analyze($form, $definition, $published, $operations, $steps, $compiled['problems'], $diff);
+        $impact['workflow'] = ['removed_statuses' => $mapping['summary']['removed'], 'unassigned_records' => $mapping['summary']['unassigned']];
+        $impact['blocking'] = [...$impact['blocking'], ...$mapping['blocking']];
         $impact['lock_set'] = array_map(static fn (Form $f) => ['uuid' => $f->uuid, 'key' => $f->key], Form::query()->whereIn('id', $this->lockSet($form, $definition))->get(['uuid', 'key'])->all());
         $hash = hash('sha256', DefinitionCompiler::hash($definition['schema']).DefinitionCompiler::hash(array_map(static fn ($s) => [$s['operation'], $s['table_name'], $s['forward']], $steps)).DefinitionCompiler::hash($impact['blocking']));
 
@@ -236,7 +243,9 @@ final class PublishService
                 DB::table('fields')->where('form_id', $form->id)->whereNotNull('archived_at')->where('column_name', $step->forward['column'])
                     ->update(['archived_column_name' => $step->forward['archived']]);
             }
+            $this->statusMappings->finalize($form, $version->id, $plan->id, $definition, $published, $plan->confirmed_by === null ? null : (int) $plan->confirmed_by);
             $form->forceFill([
+                'workflow_enabled' => ($definition['workflow']['statuses'] ?? []) !== [],
                 'current_version_id' => $version->id,
                 'state' => $form->state === 'draft' || $form->state === 'schema_inconsistent' ? 'published' : $form->state,
                 'draft_version_number' => $version->version_number + 1,

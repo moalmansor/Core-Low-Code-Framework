@@ -9,7 +9,7 @@ import { newUuid } from './api'
 import { RECORD_UUID, useRenderer } from './context'
 import FormRenderer from './FormRenderer.vue'
 import GroupBody from './GroupBody.vue'
-import { pickText } from './i18nText'
+import { labelOf, pickText } from './i18nText'
 import type { ClientDefinition, ClientGroup, Values } from './types'
 
 /**
@@ -22,7 +22,7 @@ const props = defineProps<{ group: ClientGroup }>()
 const ctx = useRenderer()
 const { t } = useI18n()
 const recordUuid = inject(RECORD_UUID, ref(null))
-const title = computed(() => pickText(props.group.i18n?.title, ctx.locale.value) ?? props.group.key)
+const title = computed(() => labelOf(props.group.i18n?.title, ctx.locale.value, props.group.key))
 const description = computed(() => pickText(props.group.i18n?.description, ctx.locale.value))
 const target = computed(() => props.group.subform?.form ?? null)
 const endpoint = computed(() => (ctx.formUuid.value && recordUuid.value ? `/r/${ctx.formUuid.value}/${recordUuid.value}/subforms/${props.group.key}` : null))
@@ -108,7 +108,7 @@ async function saveAdd(): Promise<void> {
       <p v-else-if="items.length === 0" class="text-sm text-muted-color">{{ t('runtime.subform_empty') }}</p>
       <ul v-else class="flex flex-col gap-1" data-testid="subform-items">
         <li v-for="item in items" :key="item.uuid">
-          <RouterLink :to="`/app/${target}/${item.uuid}`" class="text-primary hover:underline">{{ item.title ?? item.system.record_number ?? item.uuid }}</RouterLink>
+          <RouterLink :to="`/app/${target}/${item.uuid}`" class="text-primary hover:underline">{{ item.title ?? item.system.record_number ?? t('runtime.untitled_record') }}</RouterLink>
         </li>
       </ul>
       <p v-if="total > items.length" class="text-xs text-muted-color mt-1">{{ t('runtime.subform_more', { n: total - items.length }) }}</p>

@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Modules\Access\AccessCache;
+use App\Modules\Access\Models\PermissionAssignment;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -82,4 +85,53 @@ function publish(TestCase $test, string $form, array $options = []): array
     }
 
     return $data;
+}
+
+/** @return array<string, mixed> */
+function statusDoc(string $key, bool $initial = false, bool $final = false): array
+{
+    return ['uuid' => uid(), 'key' => $key, 'i18n' => ['name' => ['en' => ucfirst($key), 'ar' => $key]], 'color' => '#336699', 'icon' => null, 'initial' => $initial, 'final' => $final, 'order' => 0, 'position' => ['x' => 0, 'y' => 0]];
+}
+
+/** @return array<string, mixed> */
+function transitionDoc(string $key, ?array $from, array $to, array $extra = []): array
+{
+    return array_replace_recursive([
+        'uuid' => uid(), 'key' => $key, 'from' => $from['uuid'] ?? null, 'to' => $to['uuid'], 'i18n' => ['name' => ['en' => ucfirst($key)]],
+        'condition' => null, 'requiredFields' => [], 'comment' => 'none', 'attachments' => 'none',
+        'approval' => ['mode' => 'none', 'approvers' => [], 'n' => null, 'quorumWeight' => null, 'rejection' => 'immediate', 'rejectionStatus' => null],
+        'confirmation' => false, 'style' => null, 'order' => 0, 'edge' => null,
+    ], $extra);
+}
+
+function saveWorkflow(TestCase $t, string $form, array $statuses, array $transitions, array $sla = []): TestResponse
+{
+    $hash = $t->getJson("/api/v1/forms/{$form}/workflow")->assertOk()->json('data.hash');
+
+    return $t->putJson("/api/v1/forms/{$form}/workflow", ['document' => ['statuses' => $statuses, 'transitions' => $transitions, 'sla' => $sla], 'base_hash' => $hash]);
+}
+
+function grantPermission(int $userId, string $key, string $type = 'user'): void
+{
+    $permission = DB::table('permissions')->where('key', $key)->value('id');
+    PermissionAssignment::query()->create(['permission_id' => $permission, 'subject_type' => $type, 'subject_id' => $userId, 'effect' => 'allow', 'include_descendants' => false]);
+    app(AccessCache::class)->bump();
+}
+
+/** A request form with draft → submitted → approved, a mandatory comment on submit and a required "reason". */
+function buildWorkflowForm(TestCase $t): array
+{
+    [, $form] = createForm($t, 'leave');
+    $subject = fieldDoc('subject', 'text', null, ['validation' => ['required' => true], 'table' => ['filterable' => true]]);
+    $reason = fieldDoc('reason', 'textarea');
+    saveDraft($t, $form, [], [$subject, $reason])->assertOk();
+    $draft = statusDoc('draft', true);
+    $submitted = statusDoc('submitted');
+    $approved = statusDoc('approved', false, true);
+    $submit = transitionDoc('submit', $draft, $submitted, ['comment' => 'mandatory', 'requiredFields' => [$reason['uuid']]]);
+    $approve = transitionDoc('approve', $submitted, $approved);
+    saveWorkflow($t, $form, [$draft, $submitted, $approved], [$submit, $approve])->assertOk()->assertJsonPath('data.problems', []);
+    expect(publish($t, $form)['status'])->toBe('applied');
+
+    return compact('form', 'subject', 'reason', 'draft', 'submitted', 'approved', 'submit', 'approve');
 }

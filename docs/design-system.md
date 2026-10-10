@@ -144,6 +144,13 @@ or a rule; none was ignored (decided 2026-10-09):
 - Control height:
   - 36px (`--control-height`);
   - 32px in compact areas.
+- Field widths (maximum widths; a field never overflows a narrow screen):
+  - `xs` 7rem (`--field-xs`): numbers, minutes, counts;
+  - `sm` 13rem (`--field-sm`): keys, codes, short choices;
+  - `md` 20rem (`--field-md`): names, pickers, most choices;
+  - `lg` 32rem (`--field-lg`): longer text, paths;
+  - `full`: expressions, long help text, lists.
+- Reading measure: 42rem (`--measure`) for help text.
 
 ## 2. Modes
 
@@ -206,8 +213,15 @@ a value in code.
   - Its menu scrolls inside it.
   - The content area scrolls on its own.
   - The page itself never scrolls.
-- **Active item:** the active menu item is scrolled into view when the route
+- **Active item:** exactly one menu entry is highlighted, or none. An entry
+  is active when the page is its address or lies under it; the longest match
+  wins, and on a tie the first entry in menu order (`layouts/navActive.ts`,
+  tested in `navActive.spec.ts`). It is scrolled into view when the route
   changes.
+- **No duplicate entries:** two entries never open the same screen. A
+  screen reached per item (a form's configuration, for example) is opened
+  from that item's row menu, not from its own sidebar entry; a test fails
+  when two Admin Console areas share a route.
 - **Tested:** e2e `05-interface`, five window sizes (1280×720 to 2560×1440,
   which covers 1920×1080 at 150 % and 80 % zoom), three screens, in both
   directions.
@@ -294,3 +308,191 @@ a value in code.
   *Custom* (1–12).
   - Phone, tablet and desktop always show.
   - Large phone and wide screens show on request, or when set.
+
+### 5.5 Configuration screens
+
+The standard for every screen where an admin configures something and saves
+it as a whole: today the nine tabs of *Configure form* (workflow, SLA,
+record access, justification, assignment, table views, View Mode, lookup
+previews, print layouts). New configuration screens follow it. The shared
+parts live in `frontend/src/components/config/`.
+
+- **Frame:**
+  - a back link to the list, the page title, one line of subtitle, and the
+    page's secondary action at the end of the header;
+  - the tab strip 24px below the header;
+  - each tab's content 24px below the tab strip, its blocks 24px apart, at
+    most 64rem wide (the workflow canvas takes the full width).
+- **Tab intro (`TabIntro`):** the tab's name as a heading and one or two
+  sentences of muted help text under it.
+  - Help that applies on every visit is never an alert. Alerts (`Message`)
+    are only for real problems: a save error, a conflict, a validation list.
+- **Sections (`ConfigSection`):** each tab, and each item card, is made of
+  collapsible sections with plain headings (16px, semibold) and an optional
+  count.
+  - Common sections (basics, the main lists) start open; advanced ones
+    (conditions, wording, row actions, approvals, management) start folded.
+  - Which sections a person opened or closed is remembered in their browser
+    (a convenience only).
+  - Settings of different kinds never share a band. For a table view, for
+    example: *Basics* holds name, key and rows per page; *Where it is used* holds
+    Default and Use in work queues; *What users can do* holds the view
+    chooser, search and totals.
+- **Switches (`SettingSwitch`):** one per line. The label and a short
+  description at the start, the switch at the end, at most 32rem wide so the
+  two stay connected. Related switches sit together under their section's
+  heading.
+- **Fields (`ConfigField`):** the label above the input, the hint and the
+  error below. A short field (`xs`, `sm`) keeps a 20rem column so its label
+  and hint read on one or two lines, while the input itself stays narrow. The input is sized to its content with the field widths of
+  §1.5: a key is `sm`, a name `md`, rows per page `xs`. Short fields share a
+  row (`cfg-row`, wrapping on narrow screens).
+- **Empty states (`EmptyState`):** a list with nothing in it says what the
+  thing is and what happens without it, and holds the add action. For
+  example: *No columns chosen. The view shows the form's main fields.* with
+  *Add column*. A bare heading with a lone add button is not used.
+- **Items (`ConfigItem`):** each entry of a list (a rule, a column, a panel,
+  a layout) is a card with a header (its title, a one-line summary, badges,
+  move up and down where order matters, remove) and its sections below. The
+  card folds away so a long list stays readable. An invalid entry has a
+  danger border.
+- **Save bar (`ConfigSaveBar`):** at the bottom of the tab, sticky to the
+  bottom of the window while there is more to scroll.
+  - The status at the start: *Unsaved changes* or *All changes saved*.
+  - *Discard changes* (restores the last saved version) and *Save* at the
+    end. Save is disabled when there is nothing to save.
+  - Switching tabs or leaving the page with unsaved changes asks first.
+  - Saving keeps optimistic concurrency: a document changed elsewhere is
+    reported as a conflict, never overwritten.
+- **Both directions:** padding, chevrons and alignment use logical sides, so
+  every part reads correctly in Arabic and English.
+- **Dialogs that edit settings** follow the same rules (`dlg-form`,
+  `dlg-group`, `dlg-heading` in `style.css`): settings grouped under plain
+  headings, one control per row, labels above, inputs sized with the field
+  widths, switches as switch rows. A number and a switch never share a row.
+- **Number inputs** never overflow their space: they shrink to their
+  container (global rule on `.p-inputnumber`).
+- **Translatable text:** the default language is marked required (*); every
+  other language says *(optional)*, and shows the default language when left
+  empty.
+- **Choosing from what exists:** a value that groups other things (a reason
+  code's set, a rule's set) is picked from a list of existing ones, with an
+  explicit *New …* choice where creating one is allowed. Free text that would
+  silently create a second group is not used.
+- **Composite pickers** (a type and a value side by side, such as *Members*)
+  take the `lg` width so both parts stay usable.
+
+### 5.6 Record pages (view and edit)
+
+The screens users see most. The standard applies to the record view, the
+edit and create pages, and View Mode panels that show the form.
+
+- **Header:**
+  - a back link to the list, then the record's title (its title, else its
+    number, else the form name) with its number and *In trash* tags;
+  - one line of facts: created, last updated (date and person), form
+    version;
+  - the actions (Edit, Print, Restore, Delete) at the end, aligned with the
+    title; on narrow screens they wrap below it.
+- **Workflow bar** (forms with a workflow): one bordered bar under the
+  header. Facts sit at the start as labelled columns (*Status* with the SLA
+  tag; *Assigned to* with due time and claim), every action at the end in
+  one row: the transitions first, then claim, release, assign or reassign as
+  secondary buttons, separated by a divider. An approval in progress shows as
+  its own card below. The status shows in this bar, not again beside the
+  title.
+- **Layout:** fields use the width of the page.
+  - A field the admin has not sized takes the automatic width
+    (`runtime/autoLayout.ts`): one column on phones, two from tablets (768px),
+    three on wide screens (1280px). Long text, rich text, code, files,
+    images, signatures, maps, consent, option groups and display blocks take
+    the whole row.
+  - A width set in the builder always wins, and so do a group's own column
+    settings and rows and columns. The builder canvas shows the same
+    automatic widths, and its width setting says so.
+- **The form's structure carries through:** sections show their heading with
+  a rule under it and space above; tabs stay tabs in the view and the edit
+  page; cards, panels and fieldsets keep their frame.
+- **Labels and values (view):** the label is small and muted
+  (`--text-muted`, 14px, regular); the value is the emphasis (`--text`,
+  medium weight). Rows are 20px apart and columns 32px apart.
+- **Empty values:** shown as *Not filled in*, small, italic and muted, never
+  as a bare dash; in compact places (table cells) a muted dash with the same
+  words for screen readers.
+- **Internal identifiers never reach the interface.** No UUID, key, id or
+  document path appears in a label, message, dialog or table cell.
+  - Text per language is read in the user's language, then the default
+    language, then any filled language; blank entries count as missing.
+  - When no language has a label, the key is shown made readable
+    ("visit_date" → "Visit date"), never as-is: `Translator::labelOf` on the
+    server, `labelOf` / `humanize` in the browser. A linked record without a
+    title reads *Untitled record*.
+  - Messages that name a field, status, transition or form take its label
+    (for example the workflow's publish checks and record-rule errors).
+  - Validation lists say where in words ("Transition 2 › Column 1", or the
+    status's name), not as a path.
+  - Publishing requires a label in the default language for every field
+    that holds a value.
+  - `src/i18n/identifiers.spec.ts` fails when the source falls back to a key,
+    id or raw path; the few technical admin views that show definition paths
+    or storage locations are listed there with their reason.
+- **Transition requirements:** a transition that needs fields filled names
+  them by label and offers *Fill them in*, which opens the edit page with
+  those fields marked and the first in view. The server enforces the same
+  fields and refuses the transition (422, one error per field) while any is
+  empty.
+- **Edit and create:** the same header (back link, *Edit {title}* or
+  *New record: {form}*), the form in one card, and the save bar of §5.5 at the bottom
+  (*Unsaved changes* / *No changes*, Cancel, Save); leaving with unsaved
+  changes asks first.
+
+### 5.6a Workflow designer
+
+- **One source of truth for routes:** the canvas. A transition is drawn by
+  dragging from one status to another; its route changes by dragging the
+  arrow's end or with *Re-route on the canvas*, which asks for the start and
+  then the end status (clicks on the canvas or in the outline answer it). The
+  properties panel shows the route as read-only facts.
+- **Names and keys:** a new transition is named after its target ("Move to
+  Approved") and follows its route until its name is edited; a new item's key
+  follows its name until the key is edited or saved. A saved key shows
+  read-only with *Change key*, which warns that links and API calls will
+  break. The canvas never shows keys.
+- **Reading the canvas:** transition labels are small pills placed so they
+  never cover each other (`edgeLabels.ts`); transitions between the same two
+  statuses run side by side. The selected transition is drawn in the primary
+  colour and its two statuses are outlined; the selected status has a solid
+  outline; statuses with a warning have a warning outline and icon.
+- **Tidy up** places statuses left to right by flow order, ordering each
+  column to limit crossings; statuses the initial one cannot reach follow by
+  their own flow.
+- **Checks strip** above the canvas: blocking problems and the statuses that
+  cannot be reached, have no way out and are not final, or have no way in and
+  are not initial, each a chip that selects the status. When nothing is
+  wrong, one quiet line says so. The server reports the same checks.
+- **Outline** (folded by default): the same workflow as a list for the
+  keyboard; choosing an item selects it on the canvas.
+
+### 5.7 Checklist for every new screen
+
+Flat stacks of controls with no hierarchy came up three times in review.
+Before a screen ships (Phase 4 onward), check it against this list:
+
+1. **Frame:** title, optional tab strip, content with 24px between blocks,
+   one save bar at the bottom (§5.1, §5.5).
+2. **Grouping:** related settings sit under a plain heading; common groups
+   open, advanced ones folded. No band mixes unrelated kinds of settings.
+3. **One control per row** for switches and numbers, each switch with a
+   one-line description; or a labelled grid. Two controls never share the
+   same space.
+4. **Widths from the tokens:** no input wider than what it holds.
+5. **Empty states** say what the thing is, what happens without it, and hold
+   the add action.
+6. **Help is quiet text;** alerts only for real problems.
+7. **Values read differently from labels,** and empty values read as empty
+   (§5.6).
+8. **Pickers over free text** for anything that must match an existing item.
+9. **One active menu entry,** no duplicate entries.
+10. **Arabic and English** both checked, with screenshots, at a desktop and
+    a phone width.
+

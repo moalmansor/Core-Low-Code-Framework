@@ -7,6 +7,7 @@ namespace App\Modules\Forms\Draft;
 use App\Expressions\Checking\TypeChecker;
 use App\Expressions\StaticError;
 use App\Expressions\Text\SafeRegex;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Forms\Definition\PublishedDefinitions;
 use App\Modules\Forms\Definition\SystemColumns;
 use App\Modules\Forms\Definition\TargetSchemaBuilder;
@@ -55,6 +56,7 @@ final class DraftValidator
         private readonly PublishedDefinitions $definitions,
         private readonly TargetSchemaBuilder $schemaBuilder,
         private readonly ErrorReporter $reporter,
+        private readonly Translator $translator,
     ) {}
 
     /**
@@ -288,6 +290,11 @@ final class DraftValidator
             }
             if (($f['relation'] ?? null) !== null && ! isset($this->relations[$f['relation']])) {
                 $this->error("{$path}.relation", 'unknown_relation', 'The relation does not exist.');
+            }
+            // A field that holds a value is shown with its label; without one the key would show instead.
+            $defaultLocale = $this->translator->defaultLocale();
+            if ($type->storage !== 'none' && $f['type'] !== 'hidden' && trim((string) ($f['i18n']['label'][$defaultLocale] ?? '')) === '') {
+                $this->problem("{$path}.i18n.label", 'label_missing', 'Give this field a label in the default language.', ['locale' => $defaultLocale]);
             }
             $storageKind = $type->storage;
             $needsRelation = in_array($storageKind, ['lookup'], true)

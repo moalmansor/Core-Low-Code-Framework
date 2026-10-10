@@ -21,6 +21,7 @@ import { get, send } from '@/api/http'
 import { useSession } from '@/stores/session'
 import LocaleFields from './LocaleFields.vue'
 import { INCLUDE_MODES, errorText, fieldErrors, filledLocales, formatDateTime, type FormSummary, type IncludeMode } from './shared'
+import { humanize } from '@/runtime/i18nText'
 
 interface AppOption {
   uuid: string
@@ -285,6 +286,7 @@ const menuItems = computed(() => {
   const items: { label: string; icon: string; command: () => void; class?: string }[] = [
     { label: t('building.forms.open_builder'), icon: 'pi pi-pencil', command: () => openBuilder(f) },
     { label: t('building.forms.versions'), icon: 'pi pi-history', command: () => router.push({ name: 'admin.forms.versions', params: { form: f.uuid } }) },
+    { label: t('formconfig.open'), icon: 'pi pi-sitemap', command: () => router.push({ name: 'admin.forms.configure', params: { form: f.uuid } }) },
   ]
   if (f.version !== null && f.state !== 'schema_inconsistent')
     items.push({ label: t('building.forms.open_records'), icon: 'pi pi-list', command: () => router.push({ name: 'records.list', params: { form: f.uuid } }) })
@@ -351,7 +353,7 @@ function openMenu(event: Event, f: FormSummary): void {
       <template #body="{ data }">{{ t(`building.kind.${data.kind}`) }}</template>
     </Column>
     <Column :header="t('building.application')">
-      <template #body="{ data }">{{ appName(data.application?.uuid) || data.application?.key || '—' }}</template>
+      <template #body="{ data }">{{ appName(data.application?.uuid) || (data.application ? humanize(data.application.key) : '') || '—' }}</template>
     </Column>
     <Column :header="t('building.status')">
       <template #body="{ data }">

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { autoSpan, hasWidth } from './autoLayout'
 import { useRenderer } from './context'
 import FieldNode from './FieldNode.vue'
 import GroupNode from './GroupNode.vue'
@@ -40,8 +41,16 @@ const defaults = computed<Breakpoints>(() => {
   return out
 })
 
-function cellStyle(width: Breakpoints | undefined): Record<string, string> {
-  const merged: Breakpoints = { ...defaults.value, ...(width ?? {}) }
+/** Whether the group lays its children out itself (a row, a column, or columns set per screen size). */
+const groupSized = computed(() => {
+  const g = props.group
+  return g?.type === 'row' || g?.type === 'column' || hasWidth(g?.layout?.columns)
+})
+
+function cellStyle(width: Breakpoints | undefined, type?: string): Record<string, string> {
+  // An unsized field in an unsized group takes its automatic width (design system §5.6).
+  const base = type !== undefined && !groupSized.value && !hasWidth(width) ? autoSpan(type) : defaults.value
+  const merged: Breakpoints = { ...base, ...(width ?? {}) }
   const style: Record<string, string> = {}
   for (const bp of BPS) if (merged[bp]) style[`--lcf-${bp}`] = String(merged[bp])
   return style
@@ -61,7 +70,7 @@ function visible(node: Node): boolean {
       <div v-if="visible(n) && n.kind === 'group'" class="lcf-cell" :style="cellStyle(n.group.layout?.span)">
         <GroupNode :group="n.group" :row="row" />
       </div>
-      <FieldNode v-else-if="visible(n) && n.kind === 'field'" class="lcf-cell" :style="cellStyle(n.field.ui?.width)" :field="n.field" :row="row" />
+      <FieldNode v-else-if="visible(n) && n.kind === 'field'" class="lcf-cell" :style="cellStyle(n.field.ui?.width, n.field.type)" :field="n.field" :row="row" />
     </template>
   </div>
 </template>

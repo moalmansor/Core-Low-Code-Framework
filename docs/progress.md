@@ -8,9 +8,9 @@ Project memory file (specification §8.1). Updated at the end of every run.
 |---|---|---|---|
 | 0 — Architecture & Data Model | `phase-0-architecture` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#1](https://github.com/moalmansor/Core-Low-Code-Framework/pull/1) |
 | 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
-| 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | **In progress** (issue #4) | — |
-| 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | Not started | — |
-| 3 — Workflow, Records & Views | `phase-3-workflow` | Not started | — |
+| 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | **Complete. Merged.** (plus the interface pull request) | [moalmansor/Core-Low-Code-Framework#11](https://github.com/moalmansor/Core-Low-Code-Framework/pull/11), [#12](https://github.com/moalmansor/Core-Low-Code-Framework/pull/12) |
+| 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | **Complete.** Owner confirmed 2026-10-09; no findings, no code changes (`docs/pilot-findings.md`) | — (issue #5 closed) |
+| 3 — Workflow, Records & Views | `phase-3-workflow` | **Complete; pull request open for review** (issue #6) | pull request from `phase-3-workflow` into `main` |
 | 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | Not started | — |
 | 5 — Platform & Extensibility | `phase-5-platform` | Not started | — |
 | 6 — Hardening & Final Delivery | `phase-6-hardening` | Not started | — |
@@ -301,29 +301,90 @@ Decided by the owner:
 - Formula-language diagnostics (syntax/type errors in typed formulas) are
   English only; translating them by code is a follow-up.
 
+## Phase 2.5: pilot (issue #5)
+
+- The owner built pilot forms from their organization in the running system,
+  including linked forms, with their users. Claude created none of them.
+- **Findings:** none. The owner confirmed on 2026-10-09 that the forms work for
+  their users, which ends the phase.
+- **Specification changes:** none were needed (`docs/pilot-findings.md`).
+- No code changed, so the phase has no pull request of its own. The findings
+  report and this entry are the first commit on `phase-3-workflow`, and
+  issue #5 is closed with a link to it.
+
+## Phase 3: completed deliverables (branch `phase-3-workflow`, issue #6)
+
+- Schema: workflow, SLA, record access, justification, assignment and views
+  tables per the ERD; `archived_at` added to `transitions` and `sla_rules`
+  (ADR-0031); deferred columns filled; conformance test updated.
+- Workflow versioned with the form, Vue Flow designer, publish checks, status
+  mapping on the publish screen, status history (ADR-0031).
+- SLA timers with working time, warnings and escalations (`sla:tick`).
+- Status-based field access, transition permissions, status filter in the
+  matrix; record-level rules with compiled custom scopes and explain (ADR-0032).
+- Edit justification with reason codes and the save-time prompt (ADR-0035).
+- Assignment rules, queues, claims, delegation, approvals with reminders,
+  My Work (ADR-0036); `work:maintain` every minute.
+- Table views, saved/shared views, totals, bulk delete/restore, view
+  blueprints; View Mode panels; lookup preview cards with auto-fill; print
+  layouts as HTML and PDF (ADR-0034).
+- Configuration documents saved whole with a concurrency hash (ADR-0033).
+- Admin screens: form configuration hub, reason codes, queues and delegations.
+- Tests: Pest engine tests for workflow, record security, justification,
+  assignment, delegation, views, panels, print; Vitest for the workflow graph,
+  view state, justification flow and access matrix; Playwright
+  `06-workflow.spec.ts`.
+- Docs: specification §4.1, §4.11, §4.12, §4.14, §4.24, §4.25 details;
+  architecture §21.2; ADR-0031 to ADR-0036; CHANGELOG.
+- Configuration screens redesigned (owner review, 2026-10-10), presentation
+  only, across all nine tabs of *Configure form*: one page frame, a quiet tab
+  intro instead of an alert, collapsible sections (common open, advanced
+  folded, remembered), one switch per line with a description, inputs sized
+  to their content, empty states holding the add action, item cards, and a
+  sticky save bar with Discard and an unsaved-changes guard. Shared
+  components in `frontend/src/components/config/`; recorded as the standard
+  in `docs/design-system.md` §5.5; e2e `06-workflow` checks the frame.
+- Second design review (owner, 2026-10-10), applied across all screens:
+  - sidebar: "Workflows, statuses & views" removed (per-form configuration is
+    reached from the form's row menu; specification §4.1 updated); exactly one
+    active entry (`layouts/navActive.ts`);
+  - reason code dialog: grouped rows, Set chosen from existing sets or an
+    explicit new set, optional languages marked; the queue dialog fixed the
+    same way; number inputs never overflow; justification rules pick a set
+    from those that exist;
+  - record view and edit pages: automatic two/three-column layout for unsized
+    fields (builder canvas matches), muted labels with emphasised values,
+    *Not filled in* for empty values, section headings with rules, an aligned
+    header and workflow bar, and the shared save bar on edit;
+  - labels: publishing requires a label in the default language; every
+    per-locale lookup now skips blank entries and falls back to the default
+    language (`Translator::pick`, `pickText`), fixing fields shown by key;
+  - recorded in design system §5.1, §5.5, §5.6 (record pages) and §5.7 (a
+    checklist for new screens), specification §4.1, §4.6, §4.24, ADR-0037.
+- Owner report 10 (2026-10-10): transition required fields were sent as field
+  identifiers and looked up by key in the browser, so they were listed as
+  UUIDs and filled fields counted as empty. The server now sends key, label
+  and state; the dialog names the fields and opens the edit page with them
+  marked. Server enforcement verified (`WorkflowTest`: 422 while empty). An
+  audit of every message naming a field, status, transition, role or form
+  fixed the remaining leaks (publish checks, record-rule errors, error lists,
+  publish dialog, untitled linked records, formatter fallbacks) and added
+  `identifiers.spec.ts` as a guard; design system §5.6 updated.
+- Owner report 11 (workflow designer): stale From/To/key/label traced to names
+  and keys generated once from the first target, plus a panel that could
+  change routes independently of the canvas. Routes now change only on the
+  canvas (drag or *Re-route*), names and keys follow until edited, saved keys
+  are locked behind *Change key*; tests in `workflowGraph.spec.ts` replay the
+  report. Canvas: non-overlapping labels, *Tidy up*, selection highlight with
+  endpoints, checks strip (client and server: unreachable, dead end, no
+  entry), outline, no keys on nodes. Spec §4.12, design system §5.6a.
+
 ## Resume point
 
-Phase 2 is complete and merge-ready on its functional fixes (all walkthrough
-items fixed or moved; item 3 withdrawn; the republish fix of 2026-10-09).
-Backend: 620 tests pass; frontend: 490 unit tests pass; CI green on
-`701c21a`. The owner reviews and
-merges.
-
-Interface pull request (owner-approved, before Phase 3): branch
-`phase-2-interface`, PR #12, based on `phase-2-form-builder`. Complete: theme
-tokens with contrast fixes A–G, IBM Plex fonts, primary colour in Appearance &
-Branding, page frame, records table standard, properties panel,
-`docs/design-system.md`, ADR-0030, specification additions, before/after page
-(https://claude.ai/artifact/57K92EsBeWmhznA5WFheMs). Pest 624 on MySQL and
-SQL Server, Vitest 534, Playwright 14 on both engines in CI.
-
-CI is green on both pull requests (Actions was down from 05:38 to about 13:10
-UTC on 2026-10-09). PR #12's end-to-end jobs crashed in PHP 8.3.35's OPcache
-JIT, which setup-php turns on; CI now keeps the JIT off as the production
-image does, and `docker/php/php.ini` disables it explicitly. After PR #11
-merges, retarget PR #12 to `main`.
-
-Do not start Phase 2.5 or 3.
+Phase 3 is complete and its pull request is open for the owner's review. Do
+not start Phase 4 until that pull request is merged. Address review comments
+by pushing to `phase-3-workflow`, re-run CI on the new head, and update the
+verification report in the pull request.
 
 ### Local development notes
 

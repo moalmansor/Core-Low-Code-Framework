@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
@@ -29,15 +30,27 @@ final class PermissionController extends Controller
     public function catalog(Request $request): JsonResponse
     {
         Gate::authorize('system.manage_permissions');
-        $scope = $request->validate(['scope_type' => ['nullable', 'string', 'max:32']])['scope_type'] ?? 'system';
-        $permissions = Permission::query()->where('scope_type', $scope)->orderBy('category')->orderBy('key')->get();
+        $data = $request->validate(['scope_type' => ['nullable', 'string', 'max:32'], 'form' => ['sometimes', 'nullable', 'uuid']]);
+        $scope = $data['scope_type'] ?? 'system';
+        $formId = isset($data['form']) ? DB::table('forms')->where('uuid', $data['form'])->value('id') : null;
+        // One form's objects: its own abilities, its transitions (status level) and its views.
+        $permissions = Permission::query()->where('scope_type', $scope)
+            ->when($formId !== null, static fn ($q) => match ($scope) {
+                'form' => $q->where('scope_id', $formId),
+                'transition' => $q->whereIn('scope_id', DB::table('transitions')->where('form_id', $formId)->whereNull('archived_at')->select('id')),
+                'view' => $q->whereIn('scope_id', DB::table('views')->where('form_id', $formId)->select('id')),
+                default => $q,
+            })
+            ->orderBy('category')->orderBy('key')->get();
         $labels = $this->translator->many('permission', $permissions->pluck('id')->all(), ['label', 'description']);
+        // Transition and view permissions carry the name of their object.
+        $objects = in_array($scope, ['transition', 'view'], true) ? $this->translator->many($scope, $permissions->pluck('scope_id')->filter()->map(static fn ($v) => (int) $v)->all(), ['name']) : [];
 
         return response()->json(['data' => $permissions->map(static fn (Permission $p): array => [
             'key' => $p->key,
             'category' => $p->category,
             'is_dangerous' => $p->is_dangerous,
-            'label' => $labels[$p->id]['label'] ?? $p->key,
+            'label' => ($labels[$p->id]['label'] ?? $p->key).(isset($objects[(int) $p->scope_id]['name']) ? ': '.$objects[(int) $p->scope_id]['name'] : ''),
             'description' => $labels[$p->id]['description'] ?? null,
         ])->values()]);
     }

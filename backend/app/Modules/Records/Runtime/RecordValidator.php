@@ -10,6 +10,7 @@ use App\Expressions\Evaluation\Evaluator;
 use App\Expressions\Numbers\Decimal;
 use App\Expressions\Text\SafeRegex;
 use App\Expressions\Text\Unicode;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Records\Models\StoredFile;
 use Illuminate\Support\Facades\DB;
 
@@ -490,7 +491,7 @@ final class RecordValidator
 
     private function label(array $f): string
     {
-        return $f['i18n']['label'][app()->getLocale()] ?? ($f['i18n']['label']['en'] ?? $f['key']);
+        return app(Translator::class)->labelOf($f['i18n']['label'] ?? null, $f['key']);
     }
 
     /** Translated message: the field's custom message for the rule, else the default. */

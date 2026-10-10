@@ -62,8 +62,8 @@ describe('access matrix state', () => {
     pending.set(editKey(GROUP, ROLE_A, 'all'), { access: null, effect: 'hard_deny' })
     const changes = buildChanges(pending, matrix)
     expect(changes).toEqual([
-      { target: { type: 'field', uuid: FIELD }, subject: { type: 'role', uuid: ROLE_B }, mode: 'edit', access: 'hidden', effect: 'deny' },
-      { target: { type: 'group', uuid: GROUP }, subject: { type: 'role', uuid: ROLE_A }, mode: null, access: null, effect: 'allow' },
+      { target: { type: 'field', uuid: FIELD }, subject: { type: 'role', uuid: ROLE_B }, mode: 'edit', access: 'hidden', effect: 'deny', status: null },
+      { target: { type: 'group', uuid: GROUP }, subject: { type: 'role', uuid: ROLE_A }, mode: null, access: null, effect: 'allow', status: null },
     ])
     expect(needsStepUp(changes)).toBe(false)
     pending.set(editKey(FORM, ROLE_B, 'mode'), { access: 'read_only', effect: 'hard_deny' })
@@ -86,5 +86,13 @@ describe('access matrix state', () => {
     expect(parseDecidedBy('allow:0001.0000.0001.0003')).toEqual({ kind: 'allow', vector: [1, 0, 1, 3] })
     expect(parseDecidedBy('hard_deny')).toEqual({ kind: 'hard_deny', vector: null })
     expect(parseDecidedBy('default')).toEqual({ kind: 'default', vector: null })
+  })
+})
+
+describe('status-level rules', () => {
+  it('carry the status the matrix shows', () => {
+    const pending = new Map<string, PendingEdit>([[editKey(FIELD, ROLE_A, 'mode'), { access: 'read_only', effect: 'allow' }]])
+    const status = '0b8e2d1c-3f4a-4b5c-8d6e-7f8091a2b3c4'
+    expect(buildChanges(pending, { ...matrix, status })[0]).toMatchObject({ status })
   })
 })

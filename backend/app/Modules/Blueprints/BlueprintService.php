@@ -378,7 +378,9 @@ final class BlueprintService
     public function detach(BlueprintInstance $instance): void
     {
         $instance->forceFill(['is_detached' => true])->save();
-        Form::query()->whereKey($instance->object_id)->update(['blueprint_instance_id' => null]);
+        if ($instance->object_type === 'form') {
+            Form::query()->whereKey($instance->object_id)->update(['blueprint_instance_id' => null]);
+        }
         $this->audit->record('blueprint.detached', 'config', null, 'blueprint', $instance->blueprint_id, ['instance' => $instance->uuid]);
     }
 
@@ -523,7 +525,7 @@ final class BlueprintService
             throw ValidationException::withMessages(['file' => __('blueprints.import_format')]);
         }
         $meta = $payload['blueprint'];
-        if (! in_array($meta['kind'] ?? null, ['form', 'collection'], true)) {
+        if (! in_array($meta['kind'] ?? null, ['form', 'collection', 'view'], true)) {
             throw ValidationException::withMessages(['file' => __('blueprints.kind_unavailable')]);
         }
         $versions = $payload['versions'];
@@ -535,6 +537,17 @@ final class BlueprintService
             }
             if (($content['kind'] ?? null) !== $meta['kind'] || ! isset(self::MODES[$v['includeMode'] ?? ''])) {
                 throw ValidationException::withMessages(['file' => __('blueprints.import_format')]);
+            }
+            if ($meta['kind'] === 'view') {
+                // A view blueprint: settings plus columns and filters addressed by relation path.
+                $view = $content['view'] ?? null;
+                $valid = is_array($view) && is_array($view['columns'] ?? null) && is_array($view['filters'] ?? null)
+                    && array_reduce([...$view['columns'], ...$view['filters']], static fn (bool $ok, $i) => $ok && is_array($i) && is_array($i['path'] ?? null) && $i['path'] !== [], true);
+                if (! $valid) {
+                    throw ValidationException::withMessages(['file' => __('blueprints.import_invalid', ['version' => $v['version'] ?? $i + 1])]);
+                }
+
+                continue;
             }
             $doc = $content['document'] ?? null;
             $doc = is_array($doc) ? $doc + ['form' => []] : null;

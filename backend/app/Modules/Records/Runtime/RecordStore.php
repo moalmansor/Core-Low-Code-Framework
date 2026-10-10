@@ -93,6 +93,8 @@ final class RecordStore
                 'values' => $values,
                 'system' => [
                     'record_number' => $r['record_number'] ?? null,
+                    'status_id' => isset($r['status_id']) ? (int) $r['status_id'] : null,
+                    'status_changed_at' => isset($r['status_changed_at']) ? Carbon::parse($r['status_changed_at'], 'UTC')->toIso8601ZuluString() : null,
                     'form_version_id' => (int) $r['form_version_id'],
                     'owner_user_id' => $r['owner_user_id'] ?? null,
                     'owner_department_id' => $r['owner_department_id'] ?? null,

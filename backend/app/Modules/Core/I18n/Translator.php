@@ -51,6 +51,47 @@ final class Translator
         return (string) ($default ?? config('app.locale'));
     }
 
+    /**
+     * The text of a per-locale map (an object's `i18n` entry) for the
+     * request's locale: that locale, its fallback chain, then any filled
+     * locale. Blank entries count as missing, so a label filled only in the
+     * default language is still shown (design system §5.6).
+     *
+     * @param  array<string, string|null>|object|null  $values
+     */
+    public function pick(array|object|null $values, ?string $locale = null): ?string
+    {
+        $values = (array) ($values ?? []);
+        foreach ([$locale ?? App::getLocale(), ...$this->fallbackChain($locale), ...array_keys($values)] as $code) {
+            $v = $values[$code] ?? null;
+            if (is_string($v) && trim($v) !== '') {
+                return $v;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * A label for display: the per-locale text (see pick()), else the key made
+     * readable ("visit_date" → "Visit date"). An internal identifier is never
+     * shown as-is (design system §5.6).
+     *
+     * @param  array<string, string|null>|object|null  $values
+     */
+    public function labelOf(array|object|null $values, string $key): string
+    {
+        return $this->pick($values) ?? self::humanize($key);
+    }
+
+    /** "visit_date" → "Visit date"; "VAT_no" → "VAT no". */
+    public static function humanize(string $key): string
+    {
+        $text = trim((string) preg_replace('/[_\-\s]+/', ' ', $key));
+
+        return $text === '' ? $key : mb_strtoupper(mb_substr($text, 0, 1)).mb_substr($text, 1);
+    }
+
     /** @return list<string> */
     public function fallbackChain(?string $locale = null): array
     {

@@ -6,7 +6,7 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRenderer } from '../context'
-import { pickText } from '../i18nText'
+import { labelOf, pickText } from '../i18nText'
 import SafeHtml from '../SafeHtml'
 import type { InputProps } from './props'
 
@@ -16,7 +16,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: unknown]; focus: []; blu
 const ctx = useRenderer()
 const { t } = useI18n()
 const checked = computed(() => props.modelValue === true || props.modelValue === 1 || props.modelValue === '1')
-const label = computed(() => pickText(props.field.i18n.label, ctx.locale.value) ?? props.field.key)
+const label = computed(() => labelOf(props.field.i18n.label, ctx.locale.value, props.field.key))
 const terms = computed(() => pickText(props.field.i18n.consentTerms, ctx.locale.value))
 const tooltip = computed(() => pickText(props.field.i18n.tooltip, ctx.locale.value))
 const showTerms = ref(false)

@@ -162,7 +162,10 @@ abstract class AbstractDriver implements DatabaseDriver
 
     public function caseInsensitiveLike(Builder $query, string $column, string $term, string $mode = 'contains'): Builder
     {
-        $this->assertIdentifier($column);
+        // A column may be qualified by its table (`table.column`).
+        foreach (explode('.', $column, 2) as $part) {
+            $this->assertIdentifier($part);
+        }
         // '!' is the escape character: it needs no quoting in either engine's
         // string literals (a backslash does in MySQL), and '[' is a wildcard
         // on SQL Server.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Access\Models\Role;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Mail\TestMail;
 use App\Modules\Core\Models\Setting;
 use App\Modules\Core\Settings\SettingsService;
@@ -154,4 +155,28 @@ it('matches the contrast arithmetic of the interface', function () {
     expect(round(Contrast::ratio('#ffffff', '#1a6fd4'), 2))->toBe(4.92)
         ->and(round(Contrast::ratio('#e6edf3', '#171e26'), 2))->toBe(14.22)
         ->and(Contrast::onSurfaces('#1a6fd4', 'light'))->toBeGreaterThanOrEqual(4.5);
+});
+
+it('picks per-locale text in the request locale, then the default, skipping blank entries', function () {
+    $this->completeSetup();
+    $translator = app(Translator::class);
+    $default = $translator->defaultLocale();
+    $other = $default === 'ar' ? 'en' : 'ar';
+
+    app()->setLocale($other);
+    expect($translator->pick([$other => '  ', $default => 'Code']))->toBe('Code')
+        ->and($translator->pick([$other => null, $default => 'Code']))->toBe('Code')
+        ->and($translator->pick([$other => 'الرمز', $default => 'Code']))->toBe('الرمز')
+        ->and($translator->pick((object) ['fr' => 'Code FR']))->toBe('Code FR')
+        ->and($translator->pick([$other => '', $default => '']))->toBeNull()
+        ->and($translator->pick(null))->toBeNull();
+});
+
+it('never returns a raw key as a label: a missing label becomes a readable phrase', function () {
+    $translator = app(Translator::class);
+
+    expect($translator->labelOf(['en' => 'Visit date'], 'visit_date'))->toBe('Visit date')
+        ->and($translator->labelOf([], 'visit_date'))->toBe('Visit date')
+        ->and($translator->labelOf(null, 'contact-email'))->toBe('Contact email')
+        ->and(Translator::humanize('VAT_no'))->toBe('VAT no');
 });

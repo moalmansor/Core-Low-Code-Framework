@@ -17,36 +17,18 @@ final class VersionDiff
     /**
      * @param  array<string, mixed>|null  $before
      * @param  array<string, mixed>  $after
-     * @return array{form: list<array<string, mixed>>, groups: list<array<string, mixed>>, fields: list<array<string, mixed>>, relations: list<array<string, mixed>>, conditions: list<array<string, mixed>>, access: array{added: int, removed: int, changed: int}, summary: array<string, int>}
+     * @return array{form: list<array<string, mixed>>, groups: list<array<string, mixed>>, fields: list<array<string, mixed>>, relations: list<array<string, mixed>>, conditions: list<array<string, mixed>>, workflow: array<string, list<array<string, mixed>>>, access: array{added: int, removed: int, changed: int}, summary: array<string, int>}
      */
     public function diff(?array $before, array $after): array
     {
         $out = ['form' => $this->props($before['form'] ?? [], $after['form'], ['version', 'table'])];
         $summary = ['added' => 0, 'removed' => 0, 'changed' => 0];
         foreach (self::COLLECTIONS as $kind) {
-            $a = $this->byUuid($before[$kind] ?? []);
-            $b = $this->byUuid($after[$kind] ?? []);
-            $entries = [];
-            foreach ($b as $uuid => $obj) {
-                if (! isset($a[$uuid])) {
-                    $entries[] = ['uuid' => $uuid, 'key' => $obj['key'] ?? null, 'change' => 'added', 'after' => $obj];
-                    $summary['added']++;
-
-                    continue;
-                }
-                $changes = $this->props($a[$uuid], $obj);
-                if ($changes !== []) {
-                    $entries[] = ['uuid' => $uuid, 'key' => $obj['key'] ?? null, 'change' => 'changed', 'changes' => $changes];
-                    $summary['changed']++;
-                }
-            }
-            foreach ($a as $uuid => $obj) {
-                if (! isset($b[$uuid])) {
-                    $entries[] = ['uuid' => $uuid, 'key' => $obj['key'] ?? null, 'change' => 'removed', 'before' => $obj];
-                    $summary['removed']++;
-                }
-            }
-            $out[$kind] = $entries;
+            $out[$kind] = $this->collection($before[$kind] ?? [], $after[$kind] ?? [], $summary);
+        }
+        $out['workflow'] = [];
+        foreach (['statuses', 'transitions', 'sla'] as $kind) {
+            $out['workflow'][$kind] = $this->collection($before['workflow'][$kind] ?? [], $after['workflow'][$kind] ?? [], $summary);
         }
         $accessKey = static fn (array $r): string => json_encode([$r['target'], $r['subject'], $r['status'] ?? null, $r['mode'] ?? null]);
         $ab = [];
@@ -65,6 +47,42 @@ final class VersionDiff
         $out['summary'] = $summary;
 
         return $out;
+    }
+
+    /**
+     * Added, removed and changed objects of one collection, by uuid.
+     *
+     * @param  list<array<string, mixed>>  $before
+     * @param  list<array<string, mixed>>  $after
+     * @param  array<string, int>  $summary
+     * @return list<array<string, mixed>>
+     */
+    private function collection(array $before, array $after, array &$summary): array
+    {
+        $a = $this->byUuid($before);
+        $b = $this->byUuid($after);
+        $entries = [];
+        foreach ($b as $uuid => $obj) {
+            if (! isset($a[$uuid])) {
+                $entries[] = ['uuid' => $uuid, 'key' => $obj['key'] ?? null, 'change' => 'added', 'after' => $obj];
+                $summary['added']++;
+
+                continue;
+            }
+            $changes = $this->props($a[$uuid], $obj);
+            if ($changes !== []) {
+                $entries[] = ['uuid' => $uuid, 'key' => $obj['key'] ?? null, 'change' => 'changed', 'changes' => $changes];
+                $summary['changed']++;
+            }
+        }
+        foreach ($a as $uuid => $obj) {
+            if (! isset($b[$uuid])) {
+                $entries[] = ['uuid' => $uuid, 'key' => $obj['key'] ?? null, 'change' => 'removed', 'before' => $obj];
+                $summary['removed']++;
+            }
+        }
+
+        return $entries;
     }
 
     /**
