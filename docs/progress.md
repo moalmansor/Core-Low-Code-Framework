@@ -10,7 +10,7 @@ Project memory file (specification §8.1). Updated at the end of every run.
 | 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
 | 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | **Complete. Merged.** (plus the interface pull request) | [moalmansor/Core-Low-Code-Framework#11](https://github.com/moalmansor/Core-Low-Code-Framework/pull/11), [#12](https://github.com/moalmansor/Core-Low-Code-Framework/pull/12) |
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | **Complete.** Owner confirmed 2026-10-09; no findings, no code changes (`docs/pilot-findings.md`) | — (issue #5 closed) |
-| 3 — Workflow, Records & Views | `phase-3-workflow` | **In progress** (issue #6) | — |
+| 3 — Workflow, Records & Views | `phase-3-workflow` | **Complete; pull request open for review** (issue #6) | pull request from `phase-3-workflow` into `main` |
 | 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | Not started | — |
 | 5 — Platform & Extensibility | `phase-5-platform` | Not started | — |
 | 6 — Hardening & Final Delivery | `phase-6-hardening` | Not started | — |
@@ -312,26 +312,37 @@ Decided by the owner:
   report and this entry are the first commit on `phase-3-workflow`, and
   issue #5 is closed with a link to it.
 
+## Phase 3: completed deliverables (branch `phase-3-workflow`, issue #6)
+
+- Schema: workflow, SLA, record access, justification, assignment and views
+  tables per the ERD; `archived_at` added to `transitions` and `sla_rules`
+  (ADR-0031); deferred columns filled; conformance test updated.
+- Workflow versioned with the form, Vue Flow designer, publish checks, status
+  mapping on the publish screen, status history (ADR-0031).
+- SLA timers with working time, warnings and escalations (`sla:tick`).
+- Status-based field access, transition permissions, status filter in the
+  matrix; record-level rules with compiled custom scopes and explain (ADR-0032).
+- Edit justification with reason codes and the save-time prompt (ADR-0035).
+- Assignment rules, queues, claims, delegation, approvals with reminders,
+  My Work (ADR-0036); `work:maintain` every minute.
+- Table views, saved/shared views, totals, bulk delete/restore, view
+  blueprints; View Mode panels; lookup preview cards with auto-fill; print
+  layouts as HTML and PDF (ADR-0034).
+- Configuration documents saved whole with a concurrency hash (ADR-0033).
+- Admin screens: form configuration hub, reason codes, queues and delegations.
+- Tests: Pest engine tests for workflow, record security, justification,
+  assignment, delegation, views, panels, print; Vitest for the workflow graph,
+  view state, justification flow and access matrix; Playwright
+  `06-workflow.spec.ts`.
+- Docs: specification §4.1, §4.11, §4.12, §4.14, §4.24, §4.25 details;
+  architecture §21.2; ADR-0031 to ADR-0036; CHANGELOG.
+
 ## Resume point
 
-Phase 3 (Workflow, Records & Views) is in progress on branch
-`phase-3-workflow`, issue #6, including the view blueprints moved from
-Phase 2. Do not start Phase 4.
-
-Done and pushed (backend and frontend, unit and engine tests green on MySQL):
-schema; workflow, SLA, status mapping; record-level security and status-based
-field access; justification; assignment, queues, delegation, approvals,
-My Work; table views, saved views, bulk delete/restore, view blueprints;
-View Mode panels, reference previews, print (HTML/PDF); the form
-configuration hub (`/admin/forms/:form/configure`), reason codes, work
-queues/delegations screens, and the runtime screens.
-
-Next, in order:
-1. A Phase 3 end-to-end test (workflow form → transition with justification → My Work).
-2. Documentation: specification additions, architecture API list, ADR-0031 onward,
-   CHANGELOG, this file.
-3. Push, CI on both engines, then the pull request into `main` with
-   "Closes #6" and the §8.2 verification report citing the head commit.
+Phase 3 is complete and its pull request is open for the owner's review. Do
+not start Phase 4 until that pull request is merged. Address review comments
+by pushing to `phase-3-workflow`, re-run CI on the new head, and update the
+verification report in the pull request.
 
 ### Local development notes
 
