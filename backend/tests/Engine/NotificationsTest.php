@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Notifications\EmailQueue;
+use App\Modules\Notifications\HtmlPreviews;
 use App\Modules\Notifications\InAppNotifier;
 use App\Modules\Notifications\Notifier;
 use Illuminate\Support\Facades\DB;
@@ -84,6 +85,23 @@ it('validates templates, previews them with a real record and sends a test to th
         ->and($preview['html'])->toContain('Urgent handling')
         ->and($preview['html'])->toContain('/app/'.$form.'/'.$rec['uuid'])
         ->and($preview['html'])->toContain('#0f766e');
+
+    // Markup comes from the template only, and a bold span that fills to nothing leaves no markers.
+    $marked = $this->postJson("/api/v1/r/{$form}", ['values' => ['subject' => '**not bold**']])->assertCreated()->json('data');
+    $bare = $this->postJson('/api/v1/notifications/templates/preview', [
+        'form' => $form, 'record' => $marked['uuid'], 'subject' => ['en' => 'Re **{{ subject }}**'],
+        'design' => ['blocks' => [['type' => 'text', 'text' => ['en' => 'By **{{ reason }}**. Topic {{ subject }}']]]], 'locale' => 'en',
+    ])->assertOk()->json('data');
+    expect($bare['subject'])->toBe('Re **not bold**')
+        ->and($bare['html'])->toContain('By . Topic **not bold**')
+        ->and($bare['html'])->not->toContain('<strong>');
+
+    // The designer shows the email through a signed link served under its own policy: inline styles, nothing else.
+    $shown = $this->get($bare['url'])->assertOk();
+    expect($shown->getContent())->toContain('By . Topic')
+        ->and($shown->headers->get('Content-Security-Policy'))->toBe(HtmlPreviews::POLICY)
+        ->and($shown->headers->has(HtmlPreviews::HEADER))->toBeFalse();
+    $this->get(strtok($bare['url'], '?'))->assertForbidden();
 
     $this->postJson("/api/v1/notifications/templates/{$tpl['uuid']}/test", ['record' => $rec['uuid'], 'locale' => 'en'])->assertStatus(202);
     $row = DB::table('email_queue')->where('source', 'test')->first();

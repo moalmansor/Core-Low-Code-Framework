@@ -11,6 +11,7 @@ use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
 use App\Modules\Notifications\EmailQueue;
 use App\Modules\Notifications\EmailTemplates;
+use App\Modules\Notifications\HtmlPreviews;
 use App\Modules\Notifications\Models\EmailTemplate;
 use App\Modules\Notifications\TemplateRenderer;
 use App\Modules\Records\Runtime\FormRuntime;
@@ -118,7 +119,7 @@ final class EmailTemplateController extends Controller
         $viewer = isset($data['as_user']) ? User::query()->where('uuid', strtolower($data['as_user']))->firstOrFail() : $this->user();
         $out = $this->renderer->render($design, (array) ($data['subject'] ?? []), (array) ($data['preheader'] ?? []), $rt, $recordId, [$viewer], $data['locale'] ?? app()->getLocale(), $viewer->name);
 
-        return response()->json(['data' => ['subject' => $out['subject'], 'html' => $out['html'], 'preheader' => $out['preheader']]]);
+        return response()->json(['data' => ['subject' => $out['subject'], 'html' => $out['html'], 'preheader' => $out['preheader'], 'url' => app(HtmlPreviews::class)->put($out['html'])]]);
     }
 
     /** Sends the template, rendered for a record as the current user, to the current user. */

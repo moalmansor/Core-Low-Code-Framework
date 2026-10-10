@@ -156,9 +156,10 @@ function setAttachments(r: NotificationRuleDoc, keys: string[]): void {
       >
         <ConfigSection id="nr-when" :title="t('notif.section.when')">
           <div class="cfg-row">
-            <ConfigField :label="t('notif.name')" width="md" :error="err(`rules.${i}.name.${dl}`)" required>
+            <div class="w-field-md flex flex-col gap-1">
               <I18nInput v-model="r.name as never" class="w-field-md" :label="t('notif.name')" :maxlength="255" :invalid="!!err(`rules.${i}.name.${dl}`)" />
-            </ConfigField>
+              <p v-if="err(`rules.${i}.name.${dl}`)" class="m-0 text-xs text-danger">{{ err(`rules.${i}.name.${dl}`) }}</p>
+            </div>
             <ConfigField :label="t('notif.key')" :for="`nr-key-${i}`" width="sm" :error="err(`rules.${i}.key`)">
               <InputText :id="`nr-key-${i}`" v-model="r.key" class="ltr-value" dir="ltr" size="small" maxlength="48" />
             </ConfigField>

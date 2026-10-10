@@ -33,6 +33,9 @@ use Illuminate\Support\Facades\DB;
  */
 final class TemplateRenderer
 {
+    /** The product's default primary colour (frontend/src/theme/tokens.css), for an unbranded installation. */
+    public const DEFAULT_ACCENT = '#1a6fd4';
+
     public const SYSTEM = ['@record_number', '@status', '@created_at', '@updated_at', '@link', '@form', '@recipient', '@today', '@app'];
 
     public const TOKEN = '/\{\{\s*([@a-z0-9_.]+)\s*\}\}/i';
@@ -157,8 +160,27 @@ final class TemplateRenderer
         };
     }
 
-    /** Escaped text with its placeholders filled; `**bold**` is the only markup. */
+    /**
+     * Escaped text with its placeholders filled; `**bold**` in the template is
+     * the only markup. Markup is read from the template, never from filled
+     * values, and a bold span that fills to nothing leaves no markers behind.
+     */
     private function text(string $source, RenderContext $ctx, bool $html): string
+    {
+        $out = '';
+        foreach (preg_split('/(\*\*.+?\*\*)/su', $source, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [] as $part) {
+            if (strlen($part) > 4 && str_starts_with($part, '**') && str_ends_with($part, '**')) {
+                $inner = $this->fill(substr($part, 2, -2), $ctx, $html);
+                $out .= $html && trim($inner) !== '' ? '<strong>'.$inner.'</strong>' : $inner;
+            } else {
+                $out .= $this->fill($part, $ctx, $html);
+            }
+        }
+
+        return $out;
+    }
+
+    private function fill(string $source, RenderContext $ctx, bool $html): string
     {
         $out = '';
         $offset = 0;
@@ -170,9 +192,8 @@ final class TemplateRenderer
             $out .= $html ? e($value) : $value;
             $offset = $pos + strlen($whole);
         }
-        $out .= $html ? e(substr($source, $offset)) : substr($source, $offset);
 
-        return $html ? (string) preg_replace('/\*\*(.+?)\*\*/u', '<strong>$1</strong>', $out) : $out;
+        return $out.($html ? e(substr($source, $offset)) : substr($source, $offset));
     }
 
     private function paragraphs(string $source, RenderContext $ctx): string
@@ -391,7 +412,7 @@ final class TemplateRenderer
         }
         $brand = $this->settings->get('branding', 'primary_color');
 
-        return is_string($brand) && preg_match('/^#[0-9a-f]{6}$/i', $brand) === 1 ? $brand : '#2563eb';
+        return is_string($brand) && preg_match('/^#[0-9a-f]{6}$/i', $brand) === 1 ? $brand : self::DEFAULT_ACCENT;
     }
 
     /** @param  array<string, mixed>  $design */

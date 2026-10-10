@@ -150,7 +150,7 @@ const previewLocale = ref<string>(dl.value)
 const previewRecord = ref<string | null>(null)
 const previewUser = ref<{ uuid: string; name: string; email: string } | null>(null)
 const records = ref<{ value: string; label: string }[]>([])
-const preview = ref<{ subject: string; html: string } | null>(null)
+const preview = ref<{ subject: string; html: string; url: string } | null>(null)
 const previewError = ref('')
 let timer: ReturnType<typeof setTimeout> | null = null
 async function searchRecords(q = ''): Promise<void> {
@@ -180,7 +180,7 @@ async function renderPreview(): Promise<void> {
     preview.value = await templatesApi.preview(doc.value, previewRecord.value, previewUser.value?.uuid ?? null, previewLocale.value)
     previewError.value = ''
   } catch (e) {
-    previewError.value = e instanceof ApiError && e.status === 422 ? t('tpl.preview_invalid') : errorText(e, t('tpl.preview_failed'))
+    previewError.value = e instanceof ApiError && e.status === 422 ? (Object.values(e.fieldErrors)[0] ?? t('tpl.preview_invalid')) : errorText(e, t('tpl.preview_failed'))
   }
 }
 async function testSend(): Promise<void> {
@@ -191,6 +191,8 @@ async function testSend(): Promise<void> {
     toast.add({ severity: 'error', summary: errorText(e, t('tpl.test_failed')), life: 6000 })
   }
 }
+/** What the email uses without its own accent: the brand's primary colour (§4.16). */
+const brandAccent = computed(() => session.boot?.branding.primary_color || getComputedStyle(document.documentElement).getPropertyValue('--primary').trim())
 function setAccent(v: string): void {
   if (doc.value) doc.value.design.style.accent = v
 }
@@ -243,7 +245,7 @@ const blockSummary = (b: TemplateBlock) => (b.condition ? t('tpl.conditional') :
               <input
                 id="tpl-accent"
                 type="color"
-                :value="doc.design.style.accent ?? '#2563eb'"
+                :value="doc.design.style.accent ?? brandAccent"
                 class="h-9 w-12 rounded border border-line"
                 @input="(e: Event) => setAccent((e.target as HTMLInputElement).value)"
               />
@@ -351,7 +353,7 @@ const blockSummary = (b: TemplateBlock) => (b.condition ? t('tpl.conditional') :
           <p class="m-0 text-sm">
             <span class="text-muted-color">{{ t('tpl.subject') }}:</span> <span dir="auto" data-testid="tpl-preview-subject">{{ preview.subject }}</span>
           </p>
-          <iframe class="tpl-frame" sandbox="" :srcdoc="preview.html" :title="t('tpl.preview')" data-testid="tpl-preview" />
+          <iframe class="tpl-frame" sandbox="" :src="preview.url" :title="t('tpl.preview')" data-testid="tpl-preview" />
         </template>
       </aside>
     </div>

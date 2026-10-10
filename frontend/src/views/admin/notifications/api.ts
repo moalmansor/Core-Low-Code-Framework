@@ -61,7 +61,7 @@ export const templatesApi = {
   save: (uuid: string, doc: TemplateDoc, hash: string) => send<{ data: TemplateDoc }>('put', `/notifications/templates/${uuid}`, { ...doc, base_hash: hash }).then((r) => r.data),
   remove: (uuid: string) => send('delete', `/notifications/templates/${uuid}`),
   preview: (doc: TemplateDoc, record: string | null, asUser: string | null, locale: string) =>
-    send<{ data: { subject: string; html: string; preheader: string } }>('post', '/notifications/templates/preview', {
+    send<{ data: { subject: string; html: string; preheader: string; url: string } }>('post', '/notifications/templates/preview', {
       form: doc.form,
       design: doc.design,
       subject: doc.subject,
