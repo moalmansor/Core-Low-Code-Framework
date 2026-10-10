@@ -74,6 +74,16 @@ test('a record moves through a workflow with a justification and lands in My Wor
   await page.goto(`/admin/forms/${form}/configure/workflow`)
   await expect(page.getByTestId('workflow-designer')).toContainText('Submitted')
 
+  // Configuration screens share one frame (design system §5.5): quiet intro,
+  // an empty state holding the add action, and a save bar with Discard.
+  await page.getByTestId('config-tab-views').click()
+  await expect(page.getByTestId('tab-intro')).toContainText('Columns can show')
+  await page.getByTestId('views-empty').getByTestId('views-add').click()
+  await expect(page.getByTestId('views-bar')).toContainText('Unsaved changes')
+  await page.getByTestId('views-discard').click()
+  await expect(page.getByTestId('views-empty')).toBeVisible()
+  await expect(page.getByTestId('views-bar')).toContainText('All changes saved')
+
   // Publish the workflow from the builder.
   await page.goto(`/admin/forms/${form}/builder`)
   await page.getByTestId('open-publish').click()

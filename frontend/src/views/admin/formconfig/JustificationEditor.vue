@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
-import Message from 'primevue/message'
 import Select from 'primevue/select'
-import ToggleSwitch from 'primevue/toggleswitch'
+import Tag from 'primevue/tag'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { get } from '@/api/http'
@@ -12,11 +11,17 @@ import { buildScope } from '@/builder/conditions/scope'
 import { useBuilder } from '@/builder/useBuilder'
 import SubjectPicker from '@/components/SubjectPicker.vue'
 import { useSession } from '@/stores/session'
+import ConfigField from '@/components/config/ConfigField.vue'
+import ConfigItem from '@/components/config/ConfigItem.vue'
+import ConfigSaveBar from '@/components/config/ConfigSaveBar.vue'
+import ConfigSection from '@/components/config/ConfigSection.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
+import SettingSwitch from '@/components/config/SettingSwitch.vue'
+import TabIntro from '@/components/config/TabIntro.vue'
 import LocaleFields from '../building/LocaleFields.vue'
 import { fetchFormOptions, type FormOption } from '../building/shared'
 import { justificationRulesApi, labelOf, newUuid, workflowApi, type JustificationRuleDoc, type StatusDoc, type TransitionDoc } from './api'
 import ErrorList from './ErrorList.vue'
-import SaveBar from './SaveBar.vue'
 import { useHashedDocument } from './useHashedDocument'
 
 /**
@@ -70,6 +75,10 @@ function targets(scopeName: string): { value: string; label: string }[] {
   }
 }
 
+function ruleTitle(r: JustificationRuleDoc): string {
+  const target = r.target ? targets(r.scope).find((o) => o.value === r.target)?.label : null
+  return `${t(`justification.scope.${r.scope}`)}${target ? `: ${target}` : ''} — ${t(`justification.level.${r.level}`)}`
+}
 function add(): void {
   doc.value.value?.push({
     uuid: newUuid(),
@@ -98,90 +107,109 @@ function setCondition(r: JustificationRuleDoc, ast: JustificationRuleDoc['condit
 </script>
 
 <template>
-  <div class="flex flex-col gap-3" data-testid="justification-editor">
-    <SaveBar :dirty="doc.dirty.value" :saving="doc.saving.value" :add-label="t('justification.add')" testid="jr" @add="add" @save="doc.save()" />
-    <Message severity="secondary" :closable="false" class="text-sm">{{ t('justification.hint') }}</Message>
-    <section v-for="(r, i) in doc.value.value ?? []" :key="r.uuid" class="rounded-lg border border-line p-3 flex flex-col gap-3">
-      <div class="grid gap-2 md:grid-cols-3">
-        <div class="field">
-          <label :for="`jr-scope-${i}`">{{ t('justification.where') }}</label>
-          <Select :model-value="r.scope" :input-id="`jr-scope-${i}`" :options="scopes" option-label="label" option-value="value" size="small" @update:model-value="(v) => setScope(r, v)" />
-        </div>
-        <div v-if="['group', 'field', 'status', 'transition'].includes(r.scope)" class="field">
-          <label :for="`jr-target-${i}`">{{ t(`justification.target.${r.scope}`) }}</label>
-          <Select v-model="r.target" :input-id="`jr-target-${i}`" :options="targets(r.scope)" option-label="label" option-value="value" filter size="small" />
-        </div>
-        <div class="field">
-          <label :for="`jr-level-${i}`">{{ t('justification.level_label') }}</label>
-          <Select v-model="r.level" :input-id="`jr-level-${i}`" :options="levels" option-label="label" option-value="value" size="small" />
-        </div>
-      </div>
-      <div class="field">
-        <span class="text-sm font-medium">{{ t('justification.who') }}</span>
-        <SubjectPicker v-model="r.subject as never" />
-      </div>
-      <ExpressionInput :model-value="r.condition" :scope="scope" expected="boolean" :label="t('justification.condition')" @update:model-value="(v) => setCondition(r, v)" />
-      <div v-if="r.condition" class="field md:w-1/3">
-        <label :for="`jr-when-${i}`">{{ t('justification.level_when') }}</label>
-        <Select v-model="r.levelWhen" :input-id="`jr-when-${i}`" :options="levels" option-label="label" option-value="value" size="small" />
-      </div>
-      <div class="grid gap-2 md:grid-cols-4">
-        <div class="field">
-          <label :for="`jr-min-${i}`">{{ t('justification.min_length') }}</label>
-          <InputNumber v-model="r.text.min" :input-id="`jr-min-${i}`" :min="0" :max="5000" size="small" />
-        </div>
-        <div class="field">
-          <label :for="`jr-max-${i}`">{{ t('justification.max_length') }}</label>
-          <InputNumber v-model="r.text.max" :input-id="`jr-max-${i}`" :min="1" :max="5000" size="small" />
-        </div>
-        <div class="field">
-          <label :for="`jr-codes-${i}`">{{ t('justification.reason_codes') }}</label>
-          <Select v-model="r.reasonCodes.mode" :input-id="`jr-codes-${i}`" :options="modes" option-label="label" option-value="value" size="small" />
-        </div>
-        <div class="field">
-          <label :for="`jr-att-${i}`">{{ t('justification.attachments') }}</label>
-          <Select v-model="r.attachments.mode" :input-id="`jr-att-${i}`" :options="modes" option-label="label" option-value="value" size="small" />
-        </div>
-      </div>
-      <div v-if="r.reasonCodes.mode !== 'none'" class="grid gap-2 md:grid-cols-2">
-        <div class="field">
-          <label :for="`jr-src-${i}`">{{ t('justification.code_source') }}</label>
-          <Select
-            v-model="r.reasonCodes.source"
-            :input-id="`jr-src-${i}`"
-            :options="[
-              { value: 'codes', label: t('justification.source_codes') },
-              { value: 'collection', label: t('justification.source_collection') },
-            ]"
-            option-label="label"
-            option-value="value"
-            size="small"
-          />
-        </div>
-        <div v-if="r.reasonCodes.source === 'codes'" class="field">
-          <label :for="`jr-set-${i}`">{{ t('justification.code_set') }}</label>
-          <Select v-model="r.reasonCodes.set" :input-id="`jr-set-${i}`" :options="codeSets" editable size="small" />
-        </div>
-        <div v-else class="field">
-          <label :for="`jr-col-${i}`">{{ t('justification.collection') }}</label>
-          <Select v-model="r.reasonCodes.collection" :input-id="`jr-col-${i}`" :options="collections" option-label="name" option-value="uuid" filter size="small" />
-        </div>
-      </div>
-      <div v-if="r.attachments.mode !== 'none'" class="field md:w-1/4">
-        <label :for="`jr-maxatt-${i}`">{{ t('justification.max_attachments') }}</label>
-        <InputNumber v-model="r.attachments.max" :input-id="`jr-maxatt-${i}`" :min="1" :max="20" size="small" />
-      </div>
-      <div class="grid gap-2 md:grid-cols-2">
-        <div class="flex flex-col gap-1"><LocaleFields v-model="r.i18n.title" :label="t('justification.prompt_title')" field="title" :id-prefix="`jr-title-${i}`" /></div>
-        <div class="flex flex-col gap-1"><LocaleFields v-model="r.i18n.help" :label="t('justification.prompt_help')" field="help" multiline :id-prefix="`jr-help-${i}`" /></div>
-      </div>
-      <div class="flex flex-wrap gap-4">
-        <label class="flex items-center gap-2 text-sm"><ToggleSwitch v-model="r.showSummary" />{{ t('justification.show_summary') }}</label>
-        <label class="flex items-center gap-2 text-sm"><ToggleSwitch v-model="r.active" />{{ t('justification.active') }}</label>
-        <span class="flex-1" />
-        <Button icon="pi pi-trash" text severity="danger" size="small" :label="t('workflow.remove')" @click="doc.value.value!.splice(i, 1)" />
-      </div>
-    </section>
+  <div class="flex flex-col gap-6" data-testid="justification-editor">
+    <TabIntro :title="t('formconfig.tab.justification')" :text="t('justification.hint')" />
+
+    <EmptyState v-if="doc.value.value && !doc.value.value.length" icon="pi pi-comment" :title="t('justification.empty_title')" :description="t('justification.empty_text')" testid="jr-empty">
+      <Button icon="pi pi-plus" :label="t('justification.add')" size="small" data-testid="jr-add" @click="add" />
+    </EmptyState>
+
+    <template v-else-if="doc.value.value">
+      <ConfigItem
+        v-for="(r, i) in doc.value.value"
+        :key="r.uuid"
+        :title="ruleTitle(r)"
+        :subtitle="t(`subjects.${r.subject.type}`)"
+        :index="i"
+        :count="doc.value.value.length"
+        :invalid="Object.keys(doc.errors.value).some((k) => k.startsWith(`rules.${i}.`))"
+        :testid="`jr-rule-${i}`"
+        @remove="doc.value.value!.splice(i, 1)"
+      >
+        <template #badges>
+          <Tag v-if="!r.active" :value="t('reason_codes.inactive')" severity="secondary" />
+        </template>
+
+        <ConfigSection id="jr-where" :title="t('justification.section.where')">
+          <div class="cfg-row">
+            <ConfigField :label="t('justification.where')" :for="`jr-scope-${i}`" width="md">
+              <Select :model-value="r.scope" :input-id="`jr-scope-${i}`" :options="scopes" option-label="label" option-value="value" size="small" @update:model-value="(v) => setScope(r, v)" />
+            </ConfigField>
+            <ConfigField v-if="['group', 'field', 'status', 'transition'].includes(r.scope)" :label="t(`justification.target.${r.scope}`)" :for="`jr-target-${i}`" width="md">
+              <Select v-model="r.target" :input-id="`jr-target-${i}`" :options="targets(r.scope)" option-label="label" option-value="value" filter size="small" />
+            </ConfigField>
+          </div>
+          <ConfigField :label="t('justification.who')" width="md">
+            <SubjectPicker v-model="r.subject as never" />
+          </ConfigField>
+          <ConfigField :label="t('justification.level_label')" :for="`jr-level-${i}`" width="sm">
+            <Select v-model="r.level" :input-id="`jr-level-${i}`" :options="levels" option-label="label" option-value="value" size="small" />
+          </ConfigField>
+          <SettingSwitch :id="`jr-active-${i}`" v-model="r.active" :label="t('justification.active')" :description="t('justification.active_desc')" />
+        </ConfigSection>
+
+        <ConfigSection id="jr-prompt" :title="t('justification.section.prompt')">
+          <div class="cfg-row">
+            <ConfigField :label="t('justification.min_length')" :for="`jr-min-${i}`" width="xs">
+              <InputNumber v-model="r.text.min" :input-id="`jr-min-${i}`" :min="0" :max="5000" size="small" />
+            </ConfigField>
+            <ConfigField :label="t('justification.max_length')" :for="`jr-max-${i}`" width="xs">
+              <InputNumber v-model="r.text.max" :input-id="`jr-max-${i}`" :min="1" :max="5000" size="small" />
+            </ConfigField>
+          </div>
+          <div class="cfg-row">
+            <ConfigField :label="t('justification.reason_codes')" :for="`jr-codes-${i}`" width="sm">
+              <Select v-model="r.reasonCodes.mode" :input-id="`jr-codes-${i}`" :options="modes" option-label="label" option-value="value" size="small" />
+            </ConfigField>
+            <template v-if="r.reasonCodes.mode !== 'none'">
+              <ConfigField :label="t('justification.code_source')" :for="`jr-src-${i}`" width="sm">
+                <Select
+                  v-model="r.reasonCodes.source"
+                  :input-id="`jr-src-${i}`"
+                  :options="[
+                    { value: 'codes', label: t('justification.source_codes') },
+                    { value: 'collection', label: t('justification.source_collection') },
+                  ]"
+                  option-label="label"
+                  option-value="value"
+                  size="small"
+                />
+              </ConfigField>
+              <ConfigField v-if="r.reasonCodes.source === 'codes'" :label="t('justification.code_set')" :for="`jr-set-${i}`" width="sm">
+                <Select v-model="r.reasonCodes.set" :input-id="`jr-set-${i}`" :options="codeSets" editable size="small" />
+              </ConfigField>
+              <ConfigField v-else :label="t('justification.collection')" :for="`jr-col-${i}`" width="md">
+                <Select v-model="r.reasonCodes.collection" :input-id="`jr-col-${i}`" :options="collections" option-label="name" option-value="uuid" filter size="small" />
+              </ConfigField>
+            </template>
+          </div>
+          <div class="cfg-row">
+            <ConfigField :label="t('justification.attachments')" :for="`jr-att-${i}`" width="sm">
+              <Select v-model="r.attachments.mode" :input-id="`jr-att-${i}`" :options="modes" option-label="label" option-value="value" size="small" />
+            </ConfigField>
+            <ConfigField v-if="r.attachments.mode !== 'none'" :label="t('justification.max_attachments')" :for="`jr-maxatt-${i}`" width="xs">
+              <InputNumber v-model="r.attachments.max" :input-id="`jr-maxatt-${i}`" :min="1" :max="20" size="small" />
+            </ConfigField>
+          </div>
+          <SettingSwitch :id="`jr-summary-${i}`" v-model="r.showSummary" :label="t('justification.show_summary')" :description="t('justification.show_summary_desc')" />
+        </ConfigSection>
+
+        <ConfigSection id="jr-when" :title="t('justification.section.when')" :description="t('justification.condition_desc')" :default-open="false">
+          <ExpressionInput :model-value="r.condition" :scope="scope" expected="boolean" :label="t('justification.condition')" @update:model-value="(v) => setCondition(r, v)" />
+          <ConfigField v-if="r.condition" :label="t('justification.level_when')" :for="`jr-when-${i}`" width="sm">
+            <Select v-model="r.levelWhen" :input-id="`jr-when-${i}`" :options="levels" option-label="label" option-value="value" size="small" />
+          </ConfigField>
+        </ConfigSection>
+
+        <ConfigSection id="jr-wording" :title="t('justification.section.wording')" :description="t('justification.wording_desc')" :default-open="false">
+          <div class="w-field-lg cfg-stack"><LocaleFields v-model="r.i18n.title" :label="t('justification.prompt_title')" field="title" :id-prefix="`jr-title-${i}`" /></div>
+          <div class="w-field-lg cfg-stack"><LocaleFields v-model="r.i18n.help" :label="t('justification.prompt_help')" field="help" multiline :id-prefix="`jr-help-${i}`" /></div>
+        </ConfigSection>
+      </ConfigItem>
+      <Button icon="pi pi-plus" :label="t('justification.add')" size="small" outlined class="self-start" data-testid="jr-add" @click="add" />
+    </template>
+
     <ErrorList :errors="doc.errors.value" />
+    <ConfigSaveBar :dirty="doc.dirty.value" :saving="doc.saving.value" testid="jr" @save="doc.save()" @discard="doc.discard()" />
   </div>
 </template>

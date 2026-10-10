@@ -144,6 +144,13 @@ or a rule; none was ignored (decided 2026-10-09):
 - Control height:
   - 36px (`--control-height`);
   - 32px in compact areas.
+- Field widths (maximum widths; a field never overflows a narrow screen):
+  - `xs` 7rem (`--field-xs`): numbers, minutes, counts;
+  - `sm` 13rem (`--field-sm`): keys, codes, short choices;
+  - `md` 20rem (`--field-md`): names, pickers, most choices;
+  - `lg` 32rem (`--field-lg`): longer text, paths;
+  - `full`: expressions, long help text, lists.
+- Reading measure: 42rem (`--measure`) for help text.
 
 ## 2. Modes
 
@@ -294,3 +301,60 @@ a value in code.
   *Custom* (1–12).
   - Phone, tablet and desktop always show.
   - Large phone and wide screens show on request, or when set.
+
+### 5.5 Configuration screens
+
+The standard for every screen where an admin configures something and saves
+it as a whole: today the nine tabs of *Configure form* (workflow, SLA,
+record access, justification, assignment, table views, View Mode, lookup
+previews, print layouts). New configuration screens follow it. The shared
+parts live in `frontend/src/components/config/`.
+
+- **Frame:**
+  - a back link to the list, the page title, one line of subtitle, and the
+    page's secondary action at the end of the header;
+  - the tab strip 24px below the header;
+  - each tab's content 24px below the tab strip, its blocks 24px apart, at
+    most 64rem wide (the workflow canvas takes the full width).
+- **Tab intro (`TabIntro`):** the tab's name as a heading and one or two
+  sentences of muted help text under it.
+  - Help that applies on every visit is never an alert. Alerts (`Message`)
+    are only for real problems: a save error, a conflict, a validation list.
+- **Sections (`ConfigSection`):** each tab, and each item card, is made of
+  collapsible sections with plain headings (16px, semibold) and an optional
+  count.
+  - Common sections (basics, the main lists) start open; advanced ones
+    (conditions, wording, row actions, approvals, management) start folded.
+  - Which sections a person opened or closed is remembered in their browser
+    (a convenience only).
+  - Settings of different kinds never share a band. For a table view, for
+    example: *Basics* holds name, key and rows per page; *Where it is used* holds
+    Default and Use in work queues; *What users can do* holds the view
+    chooser, search and totals.
+- **Switches (`SettingSwitch`):** one per line. The label and a short
+  description at the start, the switch at the end, at most 32rem wide so the
+  two stay connected. Related switches sit together under their section's
+  heading.
+- **Fields (`ConfigField`):** the label above the input, the hint and the
+  error below. The input is sized to its content with the field widths of
+  §1.5: a key is `sm`, a name `md`, rows per page `xs`. Short fields share a
+  row (`cfg-row`, wrapping on narrow screens).
+- **Empty states (`EmptyState`):** a list with nothing in it says what the
+  thing is and what happens without it, and holds the add action. For
+  example: *No columns chosen. The view shows the form's main fields.* with
+  *Add column*. A bare heading with a lone add button is not used.
+- **Items (`ConfigItem`):** each entry of a list (a rule, a column, a panel,
+  a layout) is a card with a header (its title, a one-line summary, badges,
+  move up and down where order matters, remove) and its sections below. The
+  card folds away so a long list stays readable. An invalid entry has a
+  danger border.
+- **Save bar (`ConfigSaveBar`):** at the bottom of the tab, sticky to the
+  bottom of the window while there is more to scroll.
+  - The status at the start: *Unsaved changes* or *All changes saved*.
+  - *Discard changes* (restores the last saved version) and *Save* at the
+    end. Save is disabled when there is nothing to save.
+  - Switching tabs or leaving the page with unsaved changes asks first.
+  - Saving keeps optimistic concurrency: a document changed elsewhere is
+    reported as a conflict, never overwritten.
+- **Both directions:** padding, chevrons and alignment use logical sides, so
+  every part reads correctly in Arabic and English.

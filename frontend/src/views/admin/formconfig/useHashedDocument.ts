@@ -2,6 +2,7 @@ import { useToast } from 'primevue/usetoast'
 import { computed, onMounted, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ApiError } from '@/api/http'
+import { reportDirty } from '@/components/config/configScreen'
 import { errorText } from '../building/shared'
 
 /**
@@ -9,6 +10,8 @@ import { errorText } from '../building/shared'
  * concurrency hash: tracks unsaved changes, shows inline validation errors,
  * and on a 409 reloads the newer version instead of overwriting it.
  */
+let documents = 0
+
 export function useHashedDocument<T>(
   loader: () => Promise<{ value: T; hash: string; extra: Record<string, unknown> }>,
   saver: (value: T, hash: string) => Promise<{ value: T; hash: string; extra: Record<string, unknown> }>,
@@ -64,6 +67,13 @@ export function useHashedDocument<T>(
     }
   }
 
+  /** Returns to the last saved version. */
+  function discard(): void {
+    if (saved.value) value.value = JSON.parse(saved.value) as T
+    errors.value = {}
+  }
+
+  reportDirty(`doc-${++documents}`, () => dirty.value)
   onMounted(load)
-  return { value, extra, hash, saving, loading, errors, dirty, load, save }
+  return { value, extra, hash, saving, loading, errors, dirty, load, save, discard }
 }

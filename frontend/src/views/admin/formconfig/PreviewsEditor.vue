@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
-import Message from 'primevue/message'
 import Select from 'primevue/select'
-import ToggleSwitch from 'primevue/toggleswitch'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useBuilder } from '@/builder/useBuilder'
 import { useSession } from '@/stores/session'
+import ConfigField from '@/components/config/ConfigField.vue'
+import ConfigItem from '@/components/config/ConfigItem.vue'
+import ConfigSaveBar from '@/components/config/ConfigSaveBar.vue'
+import ConfigSection from '@/components/config/ConfigSection.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
+import SettingSwitch from '@/components/config/SettingSwitch.vue'
+import TabIntro from '@/components/config/TabIntro.vue'
 import { labelOf, previewsApi, viewsApi, type Path, type PathNode, type PreviewDoc } from './api'
 import ErrorList from './ErrorList.vue'
 import PathPicker from './PathPicker.vue'
-import SaveBar from './SaveBar.vue'
 import { useHashedDocument } from './useHashedDocument'
 
 /**
@@ -64,120 +68,149 @@ const targetFields = (field: string) => (trees[targetOf(field) ?? ''] ?? []).fil
 const blank = (): PreviewDoc => ({ displayPaths: [], layout: { columns: 1 }, autofill: [], drawer: true })
 const columns = [1, 2].map((v) => ({ value: v, label: String(v) }))
 const err = (path: string) => doc.errors.value[path]
+const lookupLabel = (field: string) => lookups.value.find((l) => l.value === field)?.label ?? t('previews.new_lookup')
 </script>
 
 <template>
-  <div class="flex flex-col gap-3" data-testid="previews-editor">
-    <SaveBar :dirty="doc.dirty.value" :saving="doc.saving.value" testid="previews" @save="doc.save()" />
-    <Message severity="secondary" :closable="false" class="text-sm">{{ t('previews.hint') }}</Message>
-    <template v-if="doc.value.value">
-      <section class="rounded-lg border border-line p-3 flex flex-col gap-2">
-        <div class="flex items-center gap-2">
-          <h3 class="font-semibold flex-1">{{ t('previews.default_card') }}</h3>
-          <Button
-            v-if="!doc.value.value.default"
-            icon="pi pi-plus"
-            :label="t('previews.configure')"
-            size="small"
-            outlined
-            data-testid="previews-default-add"
-            @click="doc.value.value.default = blank()"
-          />
-          <Button v-else icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="doc.value.value.default = null" />
-        </div>
-        <template v-if="doc.value.value.default">
-          <div v-for="(_, j) in doc.value.value.default.displayPaths" :key="j" class="flex items-end gap-2">
-            <PathPicker v-model="doc.value.value.default.displayPaths[j]" :tree="ownTree" :default-locale="dl" class="flex-1" :invalid="!!err(`default.displayPaths.${j}`)" />
-            <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="doc.value.value.default.displayPaths.splice(j, 1)" />
-          </div>
-          <div class="flex flex-wrap items-end gap-4">
+  <div class="flex flex-col gap-6" data-testid="previews-editor">
+    <TabIntro :title="t('formconfig.tab.previews')" :text="t('previews.hint')" />
+
+    <div v-if="doc.value.value" class="rounded-xl border border-line bg-card px-5">
+      <ConfigSection id="preview-default" :title="t('previews.default_card')" :description="t('previews.default_card_desc')">
+        <EmptyState v-if="!doc.value.value.default" icon="pi pi-id-card" :title="t('previews.no_card')" :description="t('previews.no_card_text')">
+          <Button icon="pi pi-plus" :label="t('previews.configure')" size="small" outlined data-testid="previews-default-add" @click="doc.value.value.default = blank()" />
+        </EmptyState>
+        <template v-else>
+          <span class="text-sm font-medium">{{ t('previews.card_fields') }}</span>
+          <EmptyState v-if="!doc.value.value.default.displayPaths.length" icon="pi pi-list" :title="t('previews.no_fields')" :description="t('previews.no_fields_text')">
+            <Button icon="pi pi-plus" :label="t('panels.add_path')" size="small" outlined @click="doc.value.value.default.displayPaths.push([] as Path)" />
+          </EmptyState>
+          <template v-else>
+            <div v-for="(_, j) in doc.value.value.default.displayPaths" :key="j" class="cfg-row items-end">
+              <ConfigField :label="t('views.path')" :for="`pv-def-path-${j}`" width="lg" :error="err(`default.displayPaths.${j}`)">
+                <PathPicker v-model="doc.value.value.default.displayPaths[j]" :input-id="`pv-def-path-${j}`" :tree="ownTree" :default-locale="dl" :invalid="!!err(`default.displayPaths.${j}`)" />
+              </ConfigField>
+              <Button icon="pi pi-trash" text rounded severity="danger" size="small" :aria-label="t('workflow.remove')" @click="doc.value.value.default.displayPaths.splice(j, 1)" />
+            </div>
             <Button
               icon="pi pi-plus"
               :label="t('panels.add_path')"
               size="small"
               outlined
+              class="self-start"
               :disabled="doc.value.value.default.displayPaths.length >= 12"
               @click="doc.value.value.default.displayPaths.push([] as Path)"
             />
-            <div class="field w-28">
-              <label for="pv-def-cols">{{ t('panels.columns') }}</label>
-              <Select v-model="doc.value.value.default.layout.columns" input-id="pv-def-cols" :options="columns" option-label="label" option-value="value" size="small" />
-            </div>
-            <label class="flex items-center gap-2 text-sm pb-2"><ToggleSwitch v-model="doc.value.value.default.drawer" />{{ t('previews.drawer') }}</label>
-          </div>
+          </template>
+          <ConfigField :label="t('panels.columns')" for="pv-def-cols" width="xs">
+            <Select v-model="doc.value.value.default.layout.columns" input-id="pv-def-cols" :options="columns" option-label="label" option-value="value" size="small" />
+          </ConfigField>
+          <SettingSwitch id="pv-def-drawer" v-model="doc.value.value.default.drawer" :label="t('previews.drawer')" :description="t('previews.drawer_desc')" />
+          <Button icon="pi pi-trash" :label="t('previews.remove_card')" text severity="danger" size="small" class="self-start" @click="doc.value.value.default = null" />
         </template>
-      </section>
+      </ConfigSection>
 
-      <h3 class="font-semibold">{{ t('previews.lookups') }}</h3>
-      <p v-if="!lookups.length" class="text-sm text-muted-color">{{ t('previews.no_lookups') }}</p>
-      <section v-for="(f, i) in doc.value.value.fields" :key="i" class="rounded-lg border border-line p-3 flex flex-col gap-2" :data-testid="`preview-field-${i}`">
-        <div class="flex items-end gap-2">
-          <div class="field flex-1">
-            <label :for="`pv-f-${i}`">{{ t('previews.lookup') }}</label>
-            <Select
-              v-model="f.field"
-              :input-id="`pv-f-${i}`"
-              :options="lookups"
-              option-label="label"
-              option-value="value"
-              size="small"
-              :invalid="!!err(`fields.${i}.field`)"
-              @update:model-value="((f.displayPaths = []), (f.autofill = []))"
-            />
-          </div>
-          <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="doc.value.value.fields.splice(i, 1)" />
-        </div>
-        <template v-if="f.field">
-          <span class="text-sm font-medium">{{ t('previews.card_fields') }}</span>
-          <div v-for="(_, j) in f.displayPaths" :key="j" class="flex items-end gap-2">
-            <PathPicker v-model="f.displayPaths[j]" :tree="trees[targetOf(f.field) ?? ''] ?? []" :default-locale="dl" class="flex-1" :invalid="!!err(`fields.${i}.displayPaths.${j}`)" />
-            <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="f.displayPaths.splice(j, 1)" />
-          </div>
-          <div class="flex flex-wrap items-end gap-4">
-            <Button icon="pi pi-plus" :label="t('panels.add_path')" size="small" outlined :disabled="f.displayPaths.length >= 12" @click="f.displayPaths.push([] as Path)" />
-            <div class="field w-28">
-              <label :for="`pv-cols-${i}`">{{ t('panels.columns') }}</label>
-              <Select v-model="f.layout.columns" :input-id="`pv-cols-${i}`" :options="columns" option-label="label" option-value="value" size="small" />
-            </div>
-            <label class="flex items-center gap-2 text-sm pb-2"><ToggleSwitch v-model="f.drawer" />{{ t('previews.drawer') }}</label>
-          </div>
-          <span class="text-sm font-medium">{{ t('previews.autofill') }}</span>
-          <div v-for="(a, j) in f.autofill" :key="j" class="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] items-end">
-            <div class="field">
-              <label :for="`pv-af-from-${i}-${j}`">{{ t('previews.from') }}</label>
+      <ConfigSection id="preview-lookups" :title="t('previews.lookups')" :count="doc.value.value.fields.length" :description="t('previews.lookups_desc')">
+        <EmptyState v-if="!lookups.length" icon="pi pi-link" :title="t('previews.no_lookups')" :description="t('previews.no_lookups_text')" />
+        <EmptyState v-else-if="!doc.value.value.fields.length" icon="pi pi-link" :title="t('previews.no_overrides')" :description="t('previews.no_overrides_text')">
+          <Button icon="pi pi-plus" :label="t('previews.add_lookup')" size="small" outlined data-testid="previews-field-add" @click="doc.value.value.fields.push({ field: '', ...blank() })" />
+        </EmptyState>
+        <template v-else>
+          <ConfigItem
+            v-for="(f, i) in doc.value.value.fields"
+            :key="i"
+            :title="lookupLabel(f.field)"
+            :subtitle="t('previews.summary', { fields: f.displayPaths.length, autofill: f.autofill.length })"
+            :index="i"
+            :count="doc.value.value.fields.length"
+            :invalid="Object.keys(doc.errors.value).some((k) => k.startsWith(`fields.${i}.`))"
+            :testid="`preview-field-${i}`"
+            @remove="doc.value.value.fields.splice(i, 1)"
+          >
+            <ConfigField :label="t('previews.lookup')" :for="`pv-f-${i}`" width="md" :error="err(`fields.${i}.field`)">
               <Select
-                :model-value="a.from[0] ?? null"
-                :input-id="`pv-af-from-${i}-${j}`"
-                :options="targetFields(f.field)"
+                v-model="f.field"
+                :input-id="`pv-f-${i}`"
+                :options="lookups"
                 option-label="label"
                 option-value="value"
                 size="small"
-                :invalid="!!err(`fields.${i}.autofill.${j}`)"
-                @update:model-value="(v) => (a.from = v ? [v] : [])"
+                :invalid="!!err(`fields.${i}.field`)"
+                @update:model-value="((f.displayPaths = []), (f.autofill = []))"
               />
-            </div>
-            <div class="field">
-              <label :for="`pv-af-to-${i}-${j}`">{{ t('previews.to') }}</label>
-              <Select v-model="a.to" :input-id="`pv-af-to-${i}-${j}`" :options="ownFields" option-label="label" option-value="value" size="small" />
-            </div>
-            <label class="flex items-center gap-2 text-sm pb-2"><ToggleSwitch v-model="a.overwrite" />{{ t('previews.overwrite') }}</label>
-            <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="f.autofill.splice(j, 1)" />
-          </div>
-          <div><Button icon="pi pi-plus" :label="t('previews.add_autofill')" size="small" outlined @click="f.autofill.push({ from: [], to: '', overwrite: false })" /></div>
+            </ConfigField>
+            <template v-if="f.field">
+              <ConfigSection id="preview-card-fields" :title="t('previews.card_fields')" :count="f.displayPaths.length">
+                <EmptyState v-if="!f.displayPaths.length" icon="pi pi-list" :title="t('previews.no_fields')" :description="t('previews.no_fields_text')">
+                  <Button icon="pi pi-plus" :label="t('panels.add_path')" size="small" outlined @click="f.displayPaths.push([] as Path)" />
+                </EmptyState>
+                <template v-else>
+                  <div v-for="(_, j) in f.displayPaths" :key="j" class="cfg-row items-end">
+                    <ConfigField :label="t('views.path')" :for="`pv-path-${i}-${j}`" width="lg" :error="err(`fields.${i}.displayPaths.${j}`)">
+                      <PathPicker
+                        v-model="f.displayPaths[j]"
+                        :input-id="`pv-path-${i}-${j}`"
+                        :tree="trees[targetOf(f.field) ?? ''] ?? []"
+                        :default-locale="dl"
+                        :invalid="!!err(`fields.${i}.displayPaths.${j}`)"
+                      />
+                    </ConfigField>
+                    <Button icon="pi pi-trash" text rounded severity="danger" size="small" :aria-label="t('workflow.remove')" @click="f.displayPaths.splice(j, 1)" />
+                  </div>
+                  <Button icon="pi pi-plus" :label="t('panels.add_path')" size="small" outlined class="self-start" :disabled="f.displayPaths.length >= 12" @click="f.displayPaths.push([] as Path)" />
+                </template>
+                <ConfigField :label="t('panels.columns')" :for="`pv-cols-${i}`" width="xs">
+                  <Select v-model="f.layout.columns" :input-id="`pv-cols-${i}`" :options="columns" option-label="label" option-value="value" size="small" />
+                </ConfigField>
+                <SettingSwitch :id="`pv-drawer-${i}`" v-model="f.drawer" :label="t('previews.drawer')" :description="t('previews.drawer_desc')" />
+              </ConfigSection>
+
+              <ConfigSection id="preview-autofill" :title="t('previews.autofill')" :count="f.autofill.length" :description="t('previews.autofill_desc')">
+                <EmptyState v-if="!f.autofill.length" icon="pi pi-bolt" :title="t('previews.no_autofill')" :description="t('previews.no_autofill_text')">
+                  <Button icon="pi pi-plus" :label="t('previews.add_autofill')" size="small" outlined @click="f.autofill.push({ from: [], to: '', overwrite: false })" />
+                </EmptyState>
+                <template v-else>
+                  <div v-for="(a, j) in f.autofill" :key="j" class="cfg-stack rounded-lg border border-line p-3">
+                    <div class="cfg-row items-end">
+                      <ConfigField :label="t('previews.from')" :for="`pv-af-from-${i}-${j}`" width="md" :error="err(`fields.${i}.autofill.${j}`)">
+                        <Select
+                          :model-value="a.from[0] ?? null"
+                          :input-id="`pv-af-from-${i}-${j}`"
+                          :options="targetFields(f.field)"
+                          option-label="label"
+                          option-value="value"
+                          size="small"
+                          :invalid="!!err(`fields.${i}.autofill.${j}`)"
+                          @update:model-value="(v) => (a.from = v ? [v] : [])"
+                        />
+                      </ConfigField>
+                      <i class="pi pi-arrow-right rtl:rotate-180 text-muted-color pb-3" aria-hidden="true" />
+                      <ConfigField :label="t('previews.to')" :for="`pv-af-to-${i}-${j}`" width="md">
+                        <Select v-model="a.to" :input-id="`pv-af-to-${i}-${j}`" :options="ownFields" option-label="label" option-value="value" size="small" />
+                      </ConfigField>
+                      <Button icon="pi pi-trash" text rounded severity="danger" size="small" :aria-label="t('workflow.remove')" @click="f.autofill.splice(j, 1)" />
+                    </div>
+                    <SettingSwitch :id="`pv-af-ow-${i}-${j}`" v-model="a.overwrite" :label="t('previews.overwrite')" :description="t('previews.overwrite_desc')" />
+                  </div>
+                  <Button icon="pi pi-plus" :label="t('previews.add_autofill')" size="small" outlined class="self-start" @click="f.autofill.push({ from: [], to: '', overwrite: false })" />
+                </template>
+              </ConfigSection>
+            </template>
+          </ConfigItem>
+          <Button
+            icon="pi pi-plus"
+            :label="t('previews.add_lookup')"
+            size="small"
+            outlined
+            class="self-start"
+            data-testid="previews-field-add"
+            @click="doc.value.value.fields.push({ field: '', ...blank() })"
+          />
         </template>
-      </section>
-      <div>
-        <Button
-          icon="pi pi-plus"
-          :label="t('previews.add_lookup')"
-          size="small"
-          outlined
-          :disabled="!lookups.length"
-          data-testid="previews-field-add"
-          @click="doc.value.value.fields.push({ field: '', ...blank() })"
-        />
-      </div>
-    </template>
+      </ConfigSection>
+    </div>
+
     <ErrorList :errors="doc.errors.value" />
+    <ConfigSaveBar :dirty="doc.dirty.value" :saving="doc.saving.value" testid="previews" @save="doc.save()" @discard="doc.discard()" />
   </div>
 </template>

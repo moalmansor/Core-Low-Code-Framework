@@ -5,19 +5,24 @@ import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import Select from 'primevue/select'
-import ToggleSwitch from 'primevue/toggleswitch'
 import { useToast } from 'primevue/usetoast'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { send } from '@/api/http'
 import I18nInput from '@/builder/I18nInput.vue'
+import ConfigField from '@/components/config/ConfigField.vue'
+import ConfigItem from '@/components/config/ConfigItem.vue'
+import ConfigSaveBar from '@/components/config/ConfigSaveBar.vue'
+import ConfigSection from '@/components/config/ConfigSection.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
+import SettingSwitch from '@/components/config/SettingSwitch.vue'
+import TabIntro from '@/components/config/TabIntro.vue'
 import { useSession } from '@/stores/session'
 import LocaleFields from '../building/LocaleFields.vue'
 import { errorText, fieldErrors, filledLocales } from '../building/shared'
 import { labelOf, newUuid, viewsApi, type Path, type PathNode, type ViewColumnDoc, type ViewDoc } from './api'
 import ErrorList from './ErrorList.vue'
 import PathPicker from './PathPicker.vue'
-import SaveBar from './SaveBar.vue'
 import { useHashedDocument } from './useHashedDocument'
 
 /**
@@ -128,143 +133,202 @@ async function saveBlueprint(): Promise<void> {
 }
 const savedUuids = computed(() => new Set(((doc.extra.value.views as ViewDoc[] | undefined) ?? []).map((v) => v.uuid)))
 
+/** One line describing a column for its folded header. */
+function columnSummary(c: ViewColumnDoc): string {
+  const parts = [
+    c.width ? `${c.width}px` : null,
+    c.pinned !== 'none' ? t(`views.pinned.${c.pinned}`) : null,
+    c.aggregate !== 'none' ? t(`views.aggregate.${c.aggregate}`) : null,
+    !c.visible ? t('views.hidden') : null,
+  ]
+  return parts.filter(Boolean).join(' · ')
+}
 const err = (path: string) => doc.errors.value[`views.${current.value}.${path}`]
 const colInvalid = (c: ViewColumnDoc, j: number) => !c.path.length || !!err(`columns.${j}.path`)
 </script>
 
 <template>
-  <div class="flex flex-col gap-3" data-testid="views-editor">
-    <SaveBar :dirty="doc.dirty.value" :saving="doc.saving.value" :add-label="t('views.add')" :add-disabled="!published" testid="views" @add="addView" @save="doc.save()" />
+  <div class="flex flex-col gap-6" data-testid="views-editor">
+    <TabIntro :title="t('formconfig.tab.views')" :text="t('views.hint')" />
     <Message v-if="!published" severity="warn" :closable="false">{{ t('views.publish_first') }}</Message>
-    <Message severity="secondary" :closable="false" class="text-sm">{{ t('views.hint') }}</Message>
-    <div v-if="doc.value.value?.length" class="grid gap-3 lg:grid-cols-[16rem_minmax(0,1fr)]">
+
+    <EmptyState v-if="doc.value.value && !doc.value.value.length" icon="pi pi-table" :title="t('views.empty_title')" :description="t('views.empty_text')" testid="views-empty">
+      <Button icon="pi pi-plus" :label="t('views.add')" size="small" :disabled="!published" data-testid="views-add" @click="addView" />
+    </EmptyState>
+
+    <div v-else-if="doc.value.value" class="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)] items-start">
       <nav class="flex flex-col gap-1" :aria-label="t('views.list')">
         <button
           v-for="(v, i) in doc.value.value"
           :key="v.uuid"
           type="button"
-          class="text-start rounded-md px-3 py-2 border border-line"
-          :class="i === current ? 'bg-primary-subtle font-medium' : ''"
+          class="text-start rounded-md px-3 py-2 flex flex-col"
+          :class="i === current ? 'bg-primary-subtle text-on-primary-subtle font-medium' : 'hover:bg-subtle'"
+          :aria-current="i === current ? 'true' : undefined"
           :data-testid="`view-item-${v.key}`"
           @click="current = i"
         >
-          {{ labelOf(v.i18n.name, locale, v.key, dl) }}
-          <span v-if="v.default" class="text-xs text-muted-color">· {{ t('views.default') }}</span>
+          <span class="truncate">{{ labelOf(v.i18n.name, locale, v.key, dl) }}</span>
+          <span v-if="v.default" class="text-xs text-muted-color">{{ t('views.default') }}</span>
         </button>
+        <Button icon="pi pi-plus" :label="t('views.add')" text size="small" class="self-start mt-1" :disabled="!published" data-testid="views-add" @click="addView" />
       </nav>
-      <section v-if="view" class="flex flex-col gap-3 min-w-0">
-        <div class="grid gap-3 md:grid-cols-2">
-          <I18nInput v-model="view.i18n.name as never" :label="t('views.name')" :maxlength="255" :invalid="!!err('i18n.name')" />
-          <div class="field">
-            <label for="view-key">{{ t('workflow.key') }}</label>
-            <InputText id="view-key" v-model="view.key" size="small" class="ltr-value" :invalid="!!err('key')" maxlength="48" />
-          </div>
-        </div>
-        <div class="flex flex-wrap items-end gap-4">
-          <div class="field w-32">
-            <label for="view-ps">{{ t('views.page_size') }}</label>
-            <InputNumber v-model="view.pageSize" input-id="view-ps" :min="5" :max="100" size="small" />
-          </div>
-          <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="view.default" @update:model-value="setDefault(current)" />{{ t('views.default') }}</label>
-          <label class="flex items-center gap-2 text-sm"><ToggleSwitch v-model="view.showTotals" />{{ t('views.show_totals') }}</label>
-          <label class="flex items-center gap-2 text-sm"><ToggleSwitch v-model="view.columnChooser" />{{ t('views.column_chooser') }}</label>
-          <label class="flex items-center gap-2 text-sm"><ToggleSwitch v-model="view.globalSearch" />{{ t('views.global_search') }}</label>
-          <label class="flex items-center gap-2 text-sm"><ToggleSwitch v-model="view.includeInQueues" />{{ t('views.in_queues') }}</label>
-        </div>
-        <fieldset class="flex flex-wrap gap-4 text-sm">
-          <legend class="font-medium mb-1">{{ t('views.row_options') }}</legend>
-          <label v-for="o in ['view', 'edit', 'log'] as const" :key="o" class="flex items-center gap-2"><ToggleSwitch v-model="view.rowOptions[o]" />{{ t(`views.row.${o}`) }}</label>
-        </fieldset>
 
-        <h3 class="font-semibold">{{ t('views.columns') }}</h3>
-        <div v-for="(c, j) in view.columns" :key="c.uuid ?? j" class="rounded-lg border border-line p-2 flex flex-col gap-2" :data-testid="`view-col-${j}`">
-          <div class="grid gap-2 md:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_auto] items-end">
-            <div class="field min-w-0">
-              <label :for="`vc-path-${j}`">{{ t('views.path') }}</label>
-              <PathPicker v-model="c.path" :input-id="`vc-path-${j}`" :tree="tree" :default-locale="dl" :invalid="colInvalid(c, j)" />
-            </div>
-            <I18nInput v-model="c.i18n.label as never" :label="t('views.label_override')" :maxlength="255" />
-            <div class="flex gap-1">
-              <Button icon="pi pi-arrow-up" text size="small" :aria-label="t('assignment.move_up')" :disabled="j === 0" @click="move(view.columns, j, -1)" />
-              <Button icon="pi pi-arrow-down" text size="small" :aria-label="t('assignment.move_down')" :disabled="j === view.columns.length - 1" @click="move(view.columns, j, 1)" />
-              <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="view.columns.splice(j, 1)" />
-            </div>
+      <div v-if="view" class="rounded-xl border border-line bg-card px-5 min-w-0">
+        <ConfigSection id="view-basics" :title="t('views.section.basics')">
+          <I18nInput v-model="view.i18n.name as never" class="w-field-md" :label="t('views.name')" :maxlength="255" :invalid="!!err('i18n.name')" />
+          <div class="cfg-row">
+            <ConfigField :label="t('workflow.key')" for="view-key" width="sm" :hint="t('formconfig.key_hint')" :error="err('key')">
+              <InputText id="view-key" v-model="view.key" size="small" class="ltr-value" :invalid="!!err('key')" maxlength="48" />
+            </ConfigField>
+            <ConfigField :label="t('views.page_size')" for="view-ps" width="xs" :error="err('pageSize')">
+              <InputNumber v-model="view.pageSize" input-id="view-ps" :min="5" :max="100" size="small" />
+            </ConfigField>
           </div>
-          <div class="flex flex-wrap items-end gap-3">
-            <div class="field w-32">
-              <label :for="`vc-w-${j}`">{{ t('views.width') }}</label>
-              <InputNumber v-model="c.width" :input-id="`vc-w-${j}`" :min="40" :max="1200" size="small" />
-            </div>
-            <div class="field w-36">
-              <label :for="`vc-pin-${j}`">{{ t('views.pin') }}</label>
-              <Select v-model="c.pinned" :input-id="`vc-pin-${j}`" :options="pinned" option-label="label" option-value="value" size="small" />
-            </div>
-            <div class="field w-36">
-              <label :for="`vc-agg-${j}`">{{ t('views.total') }}</label>
-              <Select v-model="c.aggregate" :input-id="`vc-agg-${j}`" :options="aggregates" option-label="label" option-value="value" size="small" :invalid="!!err(`columns.${j}.aggregate`)" />
-            </div>
-            <label class="flex items-center gap-2 text-sm pb-2"><ToggleSwitch v-model="c.visible" />{{ t('views.visible') }}</label>
-            <label class="flex items-center gap-2 text-sm pb-2"><ToggleSwitch v-model="c.sortable" />{{ t('views.sortable') }}</label>
-          </div>
-        </div>
-        <div><Button icon="pi pi-plus" :label="t('views.add_column')" size="small" outlined data-testid="view-add-column" @click="addColumn" /></div>
+        </ConfigSection>
 
-        <h3 class="font-semibold">{{ t('views.filters') }}</h3>
-        <div v-for="(f, j) in view.filters" :key="f.uuid ?? j" class="grid gap-2 md:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_auto_auto] items-end rounded-lg border border-line p-2">
-          <div class="field min-w-0">
-            <label :for="`vf-path-${j}`">{{ t('views.path') }}</label>
-            <PathPicker v-model="f.path" :input-id="`vf-path-${j}`" :tree="tree" :default-locale="dl" :invalid="!f.path.length || !!err(`filters.${j}.path`)" />
-          </div>
-          <I18nInput v-model="f.i18n.label as never" :label="t('views.label_override')" :maxlength="255" />
-          <label class="flex items-center gap-2 text-sm pb-2"><ToggleSwitch v-model="f.quick" />{{ t('views.quick') }}</label>
-          <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="view.filters.splice(j, 1)" />
-        </div>
-        <div><Button icon="pi pi-plus" :label="t('views.add_filter')" size="small" outlined @click="addFilter" /></div>
+        <ConfigSection id="view-columns" :title="t('views.columns')" :count="view.columns.length">
+          <EmptyState v-if="!view.columns.length" icon="pi pi-table" :title="t('views.no_columns')" :description="t('views.no_columns_text')">
+            <Button icon="pi pi-plus" :label="t('views.add_column')" size="small" outlined data-testid="view-add-column" @click="addColumn" />
+          </EmptyState>
+          <template v-else>
+            <ConfigItem
+              v-for="(c, j) in view.columns"
+              :key="c.uuid ?? j"
+              :title="c.path.length ? pathLabel(c.path) : t('views.new_column')"
+              :subtitle="columnSummary(c)"
+              :index="j"
+              :count="view.columns.length"
+              movable
+              :invalid="colInvalid(c, j)"
+              :testid="`view-col-${j}`"
+              @move="(d) => move(view!.columns, j, d)"
+              @remove="view!.columns.splice(j, 1)"
+            >
+              <ConfigField :label="t('views.path')" :for="`vc-path-${j}`" width="lg" :error="err(`columns.${j}.path`)">
+                <PathPicker v-model="c.path" :input-id="`vc-path-${j}`" :tree="tree" :default-locale="dl" :invalid="colInvalid(c, j)" />
+              </ConfigField>
+              <I18nInput v-model="c.i18n.label as never" class="w-field-md" :label="t('views.label_override')" :maxlength="255" />
+              <div class="cfg-row">
+                <ConfigField :label="t('views.width')" :for="`vc-w-${j}`" width="xs" :hint="t('views.width_hint')">
+                  <InputNumber v-model="c.width" :input-id="`vc-w-${j}`" :min="40" :max="1200" size="small" />
+                </ConfigField>
+                <ConfigField :label="t('views.pin')" :for="`vc-pin-${j}`" width="sm">
+                  <Select v-model="c.pinned" :input-id="`vc-pin-${j}`" :options="pinned" option-label="label" option-value="value" size="small" />
+                </ConfigField>
+                <ConfigField :label="t('views.total')" :for="`vc-agg-${j}`" width="sm" :error="err(`columns.${j}.aggregate`)">
+                  <Select v-model="c.aggregate" :input-id="`vc-agg-${j}`" :options="aggregates" option-label="label" option-value="value" size="small" :invalid="!!err(`columns.${j}.aggregate`)" />
+                </ConfigField>
+              </div>
+              <div class="cfg-stack">
+                <SettingSwitch :id="`vc-vis-${j}`" v-model="c.visible" :label="t('views.visible')" :description="t('views.visible_desc')" />
+                <SettingSwitch :id="`vc-sort-${j}`" v-model="c.sortable" :label="t('views.sortable')" :description="t('views.sortable_desc')" />
+              </div>
+            </ConfigItem>
+            <Button icon="pi pi-plus" :label="t('views.add_column')" size="small" outlined class="self-start" data-testid="view-add-column" @click="addColumn" />
+          </template>
+        </ConfigSection>
 
-        <h3 class="font-semibold">{{ t('views.default_sort') }}</h3>
-        <div v-for="(s, j) in view.defaultSort" :key="j" class="flex flex-wrap items-end gap-2">
-          <div class="field min-w-0 flex-1">
-            <label :for="`vs-path-${j}`">{{ t('views.path') }}</label>
-            <PathPicker v-model="s.path" :input-id="`vs-path-${j}`" :tree="tree" :default-locale="dl" :invalid="!!err(`defaultSort.${j}`)" />
-          </div>
-          <Select v-model="s.dir" :options="dirs" option-label="label" option-value="value" size="small" :aria-label="t('views.direction')" />
-          <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="view.defaultSort.splice(j, 1)" />
-        </div>
-        <div><Button icon="pi pi-plus" :label="t('views.add_sort')" size="small" outlined @click="view.defaultSort.push({ path: [], dir: 'asc' })" /></div>
+        <ConfigSection id="view-filters" :title="t('views.filters')" :count="view.filters.length">
+          <EmptyState v-if="!view.filters.length" icon="pi pi-filter" :title="t('views.no_filters')" :description="t('views.no_filters_text')">
+            <Button icon="pi pi-plus" :label="t('views.add_filter')" size="small" outlined @click="addFilter" />
+          </EmptyState>
+          <template v-else>
+            <ConfigItem
+              v-for="(f, j) in view.filters"
+              :key="f.uuid ?? j"
+              :title="f.path.length ? pathLabel(f.path) : t('views.new_filter')"
+              :subtitle="f.quick ? t('views.quick') : undefined"
+              :index="j"
+              :count="view.filters.length"
+              movable
+              :invalid="!f.path.length || !!err(`filters.${j}.path`)"
+              @move="(d) => move(view!.filters, j, d)"
+              @remove="view!.filters.splice(j, 1)"
+            >
+              <ConfigField :label="t('views.path')" :for="`vf-path-${j}`" width="lg" :error="err(`filters.${j}.path`)">
+                <PathPicker v-model="f.path" :input-id="`vf-path-${j}`" :tree="tree" :default-locale="dl" :invalid="!f.path.length || !!err(`filters.${j}.path`)" />
+              </ConfigField>
+              <I18nInput v-model="f.i18n.label as never" class="w-field-md" :label="t('views.label_override')" :maxlength="255" />
+              <SettingSwitch :id="`vf-quick-${j}`" v-model="f.quick" :label="t('views.quick')" :description="t('views.quick_desc')" />
+            </ConfigItem>
+            <Button icon="pi pi-plus" :label="t('views.add_filter')" size="small" outlined class="self-start" @click="addFilter" />
+          </template>
+        </ConfigSection>
 
-        <p class="text-sm text-muted-color">{{ t('views.who_hint') }}</p>
-        <p v-if="view.columns.length" class="text-sm text-muted-color">
-          {{ t('views.preview_columns') }}:
-          {{
-            view.columns
-              .filter((c) => c.path.length)
-              .map((c) => pathLabel(c.path))
-              .join(', ')
-          }}
-        </p>
-        <div class="flex justify-end gap-2">
-          <Button
-            v-if="canBlueprint"
-            icon="pi pi-clone"
-            :label="t('views.save_blueprint')"
-            text
-            size="small"
-            :disabled="doc.dirty.value || !savedUuids.has(view.uuid)"
-            data-testid="view-save-blueprint"
-            @click="openBlueprint"
-          />
-          <Button icon="pi pi-trash" :label="t('views.remove')" text severity="danger" size="small" @click="removeView(current)" />
-        </div>
-      </section>
+        <ConfigSection id="view-sort" :title="t('views.default_sort')" :count="view.defaultSort.length">
+          <EmptyState v-if="!view.defaultSort.length" icon="pi pi-sort-alt" :title="t('views.no_sort')" :description="t('views.no_sort_text')">
+            <Button icon="pi pi-plus" :label="t('views.add_sort')" size="small" outlined @click="view.defaultSort.push({ path: [], dir: 'asc' })" />
+          </EmptyState>
+          <template v-else>
+            <div v-for="(s, j) in view.defaultSort" :key="j" class="cfg-row items-end">
+              <ConfigField :label="j === 0 ? t('views.sort_by') : t('views.then_by')" :for="`vs-path-${j}`" width="lg" :error="err(`defaultSort.${j}`)">
+                <PathPicker v-model="s.path" :input-id="`vs-path-${j}`" :tree="tree" :default-locale="dl" :invalid="!!err(`defaultSort.${j}`)" />
+              </ConfigField>
+              <ConfigField :label="t('views.direction')" :for="`vs-dir-${j}`" width="sm">
+                <Select v-model="s.dir" :input-id="`vs-dir-${j}`" :options="dirs" option-label="label" option-value="value" size="small" />
+              </ConfigField>
+              <Button icon="pi pi-trash" text rounded severity="danger" size="small" :aria-label="t('workflow.remove')" @click="view.defaultSort.splice(j, 1)" />
+            </div>
+            <Button icon="pi pi-plus" :label="t('views.add_sort')" size="small" outlined class="self-start" @click="view.defaultSort.push({ path: [], dir: 'asc' })" />
+          </template>
+        </ConfigSection>
+
+        <ConfigSection id="view-usage" :title="t('views.section.usage')" :description="t('views.who_hint')">
+          <div class="cfg-stack">
+            <SettingSwitch id="view-default" :model-value="view.default" :label="t('views.default')" :description="t('views.default_desc')" @update:model-value="setDefault(current)" />
+            <SettingSwitch id="view-queues" v-model="view.includeInQueues" :label="t('views.in_queues')" :description="t('views.in_queues_desc')" />
+          </div>
+        </ConfigSection>
+
+        <ConfigSection id="view-user-options" :title="t('views.section.user_options')" :default-open="false">
+          <div class="cfg-stack">
+            <SettingSwitch id="view-chooser" v-model="view.columnChooser" :label="t('views.column_chooser')" :description="t('views.column_chooser_desc')" />
+            <SettingSwitch id="view-search" v-model="view.globalSearch" :label="t('views.global_search')" :description="t('views.global_search_desc')" />
+            <SettingSwitch id="view-totals" v-model="view.showTotals" :label="t('views.show_totals')" :description="t('views.show_totals_desc')" />
+          </div>
+        </ConfigSection>
+
+        <ConfigSection id="view-row-actions" :title="t('views.row_options')" :description="t('views.row_options_desc')" :default-open="false">
+          <div class="cfg-stack">
+            <SettingSwitch
+              v-for="o in ['view', 'edit', 'log'] as const"
+              :id="`view-row-${o}`"
+              :key="o"
+              v-model="view.rowOptions[o]"
+              :label="t(`views.row.${o}`)"
+              :description="t(`views.row_desc.${o}`)"
+            />
+          </div>
+        </ConfigSection>
+
+        <ConfigSection id="view-manage" :title="t('views.section.manage')" :default-open="false">
+          <div class="flex flex-wrap gap-2">
+            <Button
+              v-if="canBlueprint"
+              icon="pi pi-clone"
+              :label="t('views.save_blueprint')"
+              outlined
+              size="small"
+              :disabled="doc.dirty.value || !savedUuids.has(view.uuid)"
+              data-testid="view-save-blueprint"
+              @click="openBlueprint"
+            />
+            <Button icon="pi pi-trash" :label="t('views.remove')" outlined severity="danger" size="small" @click="removeView(current)" />
+          </div>
+        </ConfigSection>
+      </div>
     </div>
+
     <ErrorList :errors="doc.errors.value" />
+    <ConfigSaveBar :dirty="doc.dirty.value" :saving="doc.saving.value" testid="views" @save="doc.save()" @discard="doc.discard()" />
+
     <Dialog :visible="!!blueprint" modal :header="t('views.save_blueprint')" class="w-full max-w-lg" @update:visible="(v) => !v && (blueprint = null)">
-      <form v-if="blueprint" class="flex flex-col gap-3" @submit.prevent="saveBlueprint">
+      <form v-if="blueprint" class="flex flex-col gap-4" @submit.prevent="saveBlueprint">
         <LocaleFields v-model="blueprint.names" :label="t('views.name')" field="name" :errors="blueprintErrors" id-prefix="vbp-name" />
-        <div class="field">
-          <label for="vbp-cat">{{ t('views.blueprint_category') }}</label>
+        <ConfigField :label="t('views.blueprint_category')" for="vbp-cat" width="sm" :error="blueprintErrors.category">
           <InputText id="vbp-cat" v-model="blueprint.category" class="ltr-value" maxlength="64" :invalid="!!blueprintErrors.category" />
-        </div>
+        </ConfigField>
         <div class="flex justify-end gap-2">
           <Button type="button" :label="t('workflow.cancel')" text @click="blueprint = null" />
           <Button type="submit" :label="t('workflow.save')" icon="pi pi-check" data-testid="vbp-save" />

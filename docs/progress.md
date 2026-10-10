@@ -336,6 +336,14 @@ Decided by the owner:
   `06-workflow.spec.ts`.
 - Docs: specification §4.1, §4.11, §4.12, §4.14, §4.24, §4.25 details;
   architecture §21.2; ADR-0031 to ADR-0036; CHANGELOG.
+- Configuration screens redesigned (owner review, 2026-10-10), presentation
+  only, across all nine tabs of *Configure form*: one page frame, a quiet tab
+  intro instead of an alert, collapsible sections (common open, advanced
+  folded, remembered), one switch per line with a description, inputs sized
+  to their content, empty states holding the add action, item cards, and a
+  sticky save bar with Discard and an unsaved-changes guard. Shared
+  components in `frontend/src/components/config/`; recorded as the standard
+  in `docs/design-system.md` §5.5; e2e `06-workflow` checks the frame.
 
 ## Resume point
 

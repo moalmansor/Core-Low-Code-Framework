@@ -32,6 +32,10 @@ All notable changes to this project are documented here, one section per phase.
   reason codes and for assignment, queues and delegation.
 - Configuration documents are saved whole with a concurrency hash; queues and
   reason codes carry their last update time (ADR-0033).
+- A standard for configuration screens (design system §5.5), applied to every
+  tab of the form configuration screen: sections, one switch per line with a
+  description, content-sized inputs (field-width tokens), empty states with
+  the add action, quiet help text, and a sticky save bar with Discard.
 
 ## [Unreleased] — Interface (before Phase 3)
 

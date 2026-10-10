@@ -223,3 +223,36 @@ body {
   background: var(--danger);
   color: var(--on-danger);
 }
+
+/* Configuration screens (design system §5.5): inputs sized to what they hold. */
+.w-field-xs,
+.w-field-sm,
+.w-field-md,
+.w-field-lg {
+  width: 100%;
+  min-width: 0;
+}
+.w-field-xs {
+  max-width: var(--field-xs);
+}
+.w-field-sm {
+  max-width: var(--field-sm);
+}
+.w-field-md {
+  max-width: var(--field-md);
+}
+.w-field-lg {
+  max-width: var(--field-lg);
+}
+/* A row of short settings side by side, wrapping on narrow screens. */
+.cfg-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem 1.5rem;
+}
+.cfg-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}

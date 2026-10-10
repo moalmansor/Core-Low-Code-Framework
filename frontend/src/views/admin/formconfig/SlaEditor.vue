@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
-import Message from 'primevue/message'
 import Select from 'primevue/select'
-import ToggleSwitch from 'primevue/toggleswitch'
+import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -11,9 +10,18 @@ import { ApiError, get, send } from '@/api/http'
 import ExpressionInput from '@/builder/conditions/ExpressionInput.vue'
 import { buildScope } from '@/builder/conditions/scope'
 import { useBuilder } from '@/builder/useBuilder'
+import { reportDirty } from '@/components/config/configScreen'
 import SubjectPicker from '@/components/SubjectPicker.vue'
 import { useSession } from '@/stores/session'
+import ConfigField from '@/components/config/ConfigField.vue'
+import ConfigItem from '@/components/config/ConfigItem.vue'
+import ConfigSaveBar from '@/components/config/ConfigSaveBar.vue'
+import ConfigSection from '@/components/config/ConfigSection.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
+import SettingSwitch from '@/components/config/SettingSwitch.vue'
+import TabIntro from '@/components/config/TabIntro.vue'
 import { errorText } from '../building/shared'
+import ErrorList from './ErrorList.vue'
 import { labelOf, newUuid, type EscalationDoc, type SlaDoc, type StatusDoc, type TransitionDoc } from './api'
 
 /**
@@ -112,96 +120,157 @@ async function save(): Promise<void> {
   }
 }
 const err = (path: string) => errors.value[path]
+function discard(): void {
+  rules.value = JSON.parse(saved.value) as SlaDoc[]
+  errors.value = {}
+}
+reportDirty('sla', () => dirty.value)
+const statusName = (uuid: string) => statusOptions.value.find((o) => o.value === uuid)?.label ?? t('sla.status')
+function duration(minutes: number): string {
+  if (minutes % 1440 === 0) return t('workflow_run.duration.days', { n: minutes / 1440 })
+  if (minutes % 60 === 0) return t('workflow_run.duration.hours', { n: minutes / 60 })
+  return t('workflow_run.duration.minutes', { n: minutes })
+}
+const ruleSummary = (r: SlaDoc) =>
+  [duration(r.durationMinutes), r.workingTime ? t('sla.working_time') : null, r.escalations.length ? t('sla.escalation_count', { n: r.escalations.length }) : null].filter(Boolean).join(' · ')
 </script>
 
 <template>
-  <div class="flex flex-col gap-3" data-testid="sla-editor">
-    <div class="flex flex-wrap items-center gap-2">
-      <Button icon="pi pi-plus" :label="t('sla.add')" size="small" :disabled="statuses.length === 0" data-testid="sla-add" @click="add" />
-      <span class="flex-1" />
-      <span v-if="dirty" class="text-sm text-muted-color">{{ t('workflow.unsaved') }}</span>
-      <Button icon="pi pi-save" :label="t('workflow.save')" size="small" :loading="saving" :disabled="!dirty" data-testid="sla-save" @click="save" />
-    </div>
-    <Message v-if="statuses.length === 0" severity="info" :closable="false">{{ t('sla.no_statuses') }}</Message>
-    <Message severity="secondary" :closable="false" class="text-sm">{{ t('sla.hint') }}</Message>
+  <div class="flex flex-col gap-6" data-testid="sla-editor">
+    <TabIntro :title="t('formconfig.tab.sla')" :text="t('sla.hint')" />
 
-    <section v-for="(r, i) in rules" :key="r.uuid" class="rounded-lg border border-line p-3 flex flex-col gap-3">
-      <div class="grid gap-3 md:grid-cols-4">
-        <div class="field">
-          <label :for="`sla-st-${i}`">{{ t('sla.status') }}</label>
-          <Select v-model="r.status" :input-id="`sla-st-${i}`" :options="statusOptions" option-label="label" option-value="value" size="small" :invalid="!!err(`sla.${i}.status`)" />
-        </div>
-        <div class="field">
-          <label :for="`sla-dur-${i}`">{{ t('sla.duration') }}</label>
-          <InputNumber v-model="r.durationMinutes" :input-id="`sla-dur-${i}`" :min="1" :max="5256000" size="small" :suffix="` ${t('workflow.minutes')}`" :invalid="!!err(`sla.${i}.durationMinutes`)" />
-        </div>
-        <div class="field">
-          <label :for="`sla-warn-${i}`">{{ t('sla.warn_before') }}</label>
-          <InputNumber v-model="r.warnBeforeMinutes" :input-id="`sla-warn-${i}`" :min="1" size="small" :suffix="` ${t('workflow.minutes')}`" :invalid="!!err(`sla.${i}.warnBeforeMinutes`)" />
-        </div>
-        <div class="flex flex-col gap-2 justify-end">
-          <label class="flex items-center gap-2 text-sm"><ToggleSwitch v-model="r.workingTime" />{{ t('sla.working_time') }}</label>
-          <label class="flex items-center gap-2 text-sm"><ToggleSwitch v-model="r.active" />{{ t('sla.active') }}</label>
-        </div>
-      </div>
-      <div v-if="r.workingTime" class="field md:w-1/2">
-        <label :for="`sla-cal-${i}`">{{ t('sla.calendar') }}</label>
-        <Select v-model="r.calendar" :input-id="`sla-cal-${i}`" :options="calendarOptions" option-label="label" option-value="value" show-clear :placeholder="t('sla.calendar_default')" size="small" />
-      </div>
-      <ExpressionInput v-model="r.condition" :scope="scope" expected="boolean" :label="t('sla.condition')" />
+    <EmptyState v-if="statuses.length === 0" icon="pi pi-clock" :title="t('sla.no_statuses_title')" :description="t('sla.no_statuses')" testid="sla-no-statuses" />
+    <EmptyState v-else-if="!rules.length" icon="pi pi-clock" :title="t('sla.empty_title')" :description="t('sla.empty_text')" testid="sla-empty">
+      <Button icon="pi pi-plus" :label="t('sla.add')" size="small" data-testid="sla-add" @click="add" />
+    </EmptyState>
 
-      <fieldset class="rounded border border-line p-2 flex flex-col gap-2">
-        <legend class="text-sm font-medium px-1">{{ t('sla.escalations') }}</legend>
-        <div v-for="(e, j) in r.escalations" :key="j" class="flex flex-wrap items-start gap-2 border-b border-line pb-2">
-          <div class="field w-40">
-            <label :for="`sla-after-${i}-${j}`">{{ t('sla.after') }}</label>
-            <InputNumber v-model="e.afterMinutes" :input-id="`sla-after-${i}-${j}`" :min="0" size="small" :suffix="` ${t('workflow.minutes')}`" />
+    <template v-else>
+      <ConfigItem
+        v-for="(r, i) in rules"
+        :key="r.uuid"
+        :title="statusName(r.status)"
+        :subtitle="ruleSummary(r)"
+        :index="i"
+        :count="rules.length"
+        :invalid="Object.keys(errors).some((k) => k.startsWith(`sla.${i}.`))"
+        :testid="`sla-rule-${i}`"
+        @remove="rules.splice(i, 1)"
+      >
+        <template #badges>
+          <Tag v-if="!r.active" :value="t('reason_codes.inactive')" severity="secondary" />
+        </template>
+
+        <ConfigSection id="sla-time" :title="t('sla.section.time')">
+          <ConfigField :label="t('sla.status')" :for="`sla-st-${i}`" width="md" :error="err(`sla.${i}.status`)">
+            <Select v-model="r.status" :input-id="`sla-st-${i}`" :options="statusOptions" option-label="label" option-value="value" size="small" :invalid="!!err(`sla.${i}.status`)" />
+          </ConfigField>
+          <div class="cfg-row">
+            <ConfigField :label="t('sla.duration')" :for="`sla-dur-${i}`" width="sm" :error="err(`sla.${i}.durationMinutes`)">
+              <InputNumber
+                v-model="r.durationMinutes"
+                :input-id="`sla-dur-${i}`"
+                :min="1"
+                :max="5256000"
+                size="small"
+                :suffix="` ${t('workflow.minutes')}`"
+                :invalid="!!err(`sla.${i}.durationMinutes`)"
+              />
+            </ConfigField>
+            <ConfigField :label="t('sla.warn_before')" :for="`sla-warn-${i}`" width="sm" :hint="t('sla.warn_hint')" :error="err(`sla.${i}.warnBeforeMinutes`)">
+              <InputNumber v-model="r.warnBeforeMinutes" :input-id="`sla-warn-${i}`" :min="1" size="small" :suffix="` ${t('workflow.minutes')}`" :invalid="!!err(`sla.${i}.warnBeforeMinutes`)" />
+            </ConfigField>
           </div>
-          <div class="field w-40">
-            <label :for="`sla-act-${i}-${j}`">{{ t('sla.action_label') }}</label>
-            <Select :model-value="e.action" :input-id="`sla-act-${i}-${j}`" :options="actions" option-label="label" option-value="value" size="small" @update:model-value="(v) => setAction(e, v)" />
-          </div>
-          <div class="flex-1 min-w-60 flex flex-col gap-1">
-            <template v-if="e.action === 'notify'">
-              <label class="flex items-center gap-2 text-sm"
-                ><ToggleSwitch :model-value="notifyTargets(e).some((x) => x.type === 'assignee')" @update:model-value="(v: boolean) => toggleBuiltIn(e, 'assignee', v)" />{{
-                  t('sla.notify_assignee')
-                }}</label
-              >
-              <label class="flex items-center gap-2 text-sm"
-                ><ToggleSwitch :model-value="notifyTargets(e).some((x) => x.type === 'owner')" @update:model-value="(v: boolean) => toggleBuiltIn(e, 'owner', v)" />{{ t('sla.notify_owner') }}</label
-              >
-              <template v-for="(target, k) in notifyTargets(e)" :key="k">
-                <div v-if="target.type !== 'assignee' && target.type !== 'owner'" class="flex gap-1">
-                  <SubjectPicker
-                    :model-value="target.uuid ? { type: target.type, uuid: target.uuid } : null"
-                    :types="['role', 'department', 'user']"
-                    class="flex-1"
-                    @update:model-value="(v) => v && Object.assign(target, v)"
-                  />
-                  <Button icon="pi pi-times" text size="small" severity="secondary" :aria-label="t('workflow.remove')" @click="e.params.to = notifyTargets(e).filter((_, x) => x !== k)" />
-                </div>
-              </template>
-              <Button icon="pi pi-plus" text size="small" :label="t('sla.add_recipient')" class="self-start" @click="addNotifySubject(e)" />
-              <p class="text-xs text-muted-color">{{ t('sla.notify_hint') }}</p>
-            </template>
-            <SubjectPicker
-              v-else-if="e.action === 'reassign'"
-              :model-value="!Array.isArray(e.params.to) && e.params.to?.uuid ? { type: e.params.to.type, uuid: e.params.to.uuid } : null"
-              :types="['role', 'department', 'user']"
-              @update:model-value="(v) => (e.params.to = v ? { type: v.type, uuid: v.uuid } : { type: 'role', uuid: null })"
+          <SettingSwitch :id="`sla-wt-${i}`" v-model="r.workingTime" :label="t('sla.working_time')" :description="t('sla.working_time_desc')" />
+          <ConfigField v-if="r.workingTime" :label="t('sla.calendar')" :for="`sla-cal-${i}`" width="md">
+            <Select
+              v-model="r.calendar"
+              :input-id="`sla-cal-${i}`"
+              :options="calendarOptions"
+              option-label="label"
+              option-value="value"
+              show-clear
+              :placeholder="t('sla.calendar_default')"
+              size="small"
             />
-            <Select v-else v-model="e.params.transition" :options="transitionOptions" option-label="label" option-value="value" size="small" :aria-label="t('sla.transition')" />
-          </div>
-          <Button icon="pi pi-times" text severity="secondary" size="small" :aria-label="t('workflow.remove')" @click="r.escalations.splice(j, 1)" />
-        </div>
-        <Button icon="pi pi-plus" text size="small" class="self-start" :label="t('sla.add_escalation')" @click="addEscalation(r)" />
-      </fieldset>
-      <Button icon="pi pi-trash" text severity="danger" size="small" class="self-start" :label="t('sla.remove')" @click="rules.splice(i, 1)" />
-    </section>
-    <Message v-for="(m, k) in errors" :key="k" severity="error" :closable="false" class="text-sm"
-      ><span class="ltr-value">{{ k }}</span
-      >: {{ m }}</Message
-    >
+          </ConfigField>
+          <SettingSwitch :id="`sla-active-${i}`" v-model="r.active" :label="t('sla.active')" :description="t('sla.active_desc')" />
+        </ConfigSection>
+
+        <ConfigSection id="sla-escalations" :title="t('sla.escalations')" :count="r.escalations.length" :description="t('sla.escalations_desc')">
+          <EmptyState v-if="!r.escalations.length" icon="pi pi-bell" :title="t('sla.no_escalations')" :description="t('sla.no_escalations_text')">
+            <Button icon="pi pi-plus" :label="t('sla.add_escalation')" size="small" outlined @click="addEscalation(r)" />
+          </EmptyState>
+          <template v-else>
+            <div v-for="(e, j) in r.escalations" :key="j" class="cfg-stack rounded-lg border border-line p-3">
+              <div class="cfg-row items-end">
+                <ConfigField :label="t('sla.after')" :for="`sla-after-${i}-${j}`" width="sm" :hint="t('sla.after_hint')">
+                  <InputNumber v-model="e.afterMinutes" :input-id="`sla-after-${i}-${j}`" :min="0" size="small" :suffix="` ${t('workflow.minutes')}`" />
+                </ConfigField>
+                <ConfigField :label="t('sla.action_label')" :for="`sla-act-${i}-${j}`" width="sm">
+                  <Select
+                    :model-value="e.action"
+                    :input-id="`sla-act-${i}-${j}`"
+                    :options="actions"
+                    option-label="label"
+                    option-value="value"
+                    size="small"
+                    @update:model-value="(v) => setAction(e, v)"
+                  />
+                </ConfigField>
+                <span class="flex-1" />
+                <Button icon="pi pi-trash" text rounded severity="danger" size="small" :aria-label="t('workflow.remove')" @click="r.escalations.splice(j, 1)" />
+              </div>
+              <template v-if="e.action === 'notify'">
+                <SettingSwitch
+                  :id="`sla-na-${i}-${j}`"
+                  :model-value="notifyTargets(e).some((x) => x.type === 'assignee')"
+                  :label="t('sla.notify_assignee')"
+                  @update:model-value="(v: boolean) => toggleBuiltIn(e, 'assignee', v)"
+                />
+                <SettingSwitch
+                  :id="`sla-no-${i}-${j}`"
+                  :model-value="notifyTargets(e).some((x) => x.type === 'owner')"
+                  :label="t('sla.notify_owner')"
+                  @update:model-value="(v: boolean) => toggleBuiltIn(e, 'owner', v)"
+                />
+                <template v-for="(target, k) in notifyTargets(e)" :key="k">
+                  <div v-if="target.type !== 'assignee' && target.type !== 'owner'" class="cfg-row items-end">
+                    <ConfigField :label="t('sla.recipient')" width="md">
+                      <SubjectPicker
+                        :model-value="target.uuid ? { type: target.type, uuid: target.uuid } : null"
+                        :types="['role', 'department', 'user']"
+                        @update:model-value="(v) => v && Object.assign(target, v)"
+                      />
+                    </ConfigField>
+                    <Button icon="pi pi-times" text rounded size="small" severity="secondary" :aria-label="t('workflow.remove')" @click="e.params.to = notifyTargets(e).filter((_, x) => x !== k)" />
+                  </div>
+                </template>
+                <Button icon="pi pi-plus" text size="small" :label="t('sla.add_recipient')" class="self-start" @click="addNotifySubject(e)" />
+                <p class="m-0 text-sm text-muted-color">{{ t('sla.notify_hint') }}</p>
+              </template>
+              <ConfigField v-else-if="e.action === 'reassign'" :label="t('sla.reassign_to')" width="md">
+                <SubjectPicker
+                  :model-value="!Array.isArray(e.params.to) && e.params.to?.uuid ? { type: e.params.to.type, uuid: e.params.to.uuid } : null"
+                  :types="['role', 'department', 'user']"
+                  @update:model-value="(v) => (e.params.to = v ? { type: v.type, uuid: v.uuid } : { type: 'role', uuid: null })"
+                />
+              </ConfigField>
+              <ConfigField v-else :label="t('sla.transition')" :for="`sla-tr-${i}-${j}`" width="md">
+                <Select v-model="e.params.transition" :input-id="`sla-tr-${i}-${j}`" :options="transitionOptions" option-label="label" option-value="value" size="small" />
+              </ConfigField>
+            </div>
+            <Button icon="pi pi-plus" :label="t('sla.add_escalation')" size="small" outlined class="self-start" @click="addEscalation(r)" />
+          </template>
+        </ConfigSection>
+
+        <ConfigSection id="sla-condition" :title="t('sla.condition')" :description="t('sla.condition_desc')" :default-open="false">
+          <ExpressionInput v-model="r.condition" :scope="scope" expected="boolean" :label="t('sla.condition')" />
+        </ConfigSection>
+      </ConfigItem>
+      <Button icon="pi pi-plus" :label="t('sla.add')" size="small" outlined class="self-start" data-testid="sla-add" @click="add" />
+    </template>
+
+    <ErrorList :errors="errors" />
+    <ConfigSaveBar :dirty="dirty" :saving="saving" testid="sla" @save="save" @discard="discard" />
   </div>
 </template>

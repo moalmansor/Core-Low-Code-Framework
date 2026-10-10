@@ -116,4 +116,11 @@
   --radius-card: 12px;
   --control-height: 2.25rem;
   --control-height-compact: 2rem;
+  /* Input widths on configuration screens (design system §5.5): sized to what they hold. */
+  --field-xs: 7rem; /* numbers, minutes, counts */
+  --field-sm: 13rem; /* keys, codes, short choices */
+  --field-md: 20rem; /* names, pickers, most choices */
+  --field-lg: 32rem; /* longer text, paths */
+  /* Reading width of help text. */
+  --measure: 42rem;
 }
