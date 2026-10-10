@@ -158,7 +158,7 @@ final class JustificationGate
             } else {
                 $code = ReasonCode::query()->where('uuid', strtolower($codeUuid))->where('is_active', true)->whereIn('set_key', array_keys($req['sets']))->first();
                 if ($code !== null) {
-                    $label = $code->translate('label') ?? $code->code;
+                    $label = $code->translate('label') ?? Translator::humanize((string) $code->code);
                     if ($code->requires_note && trim((string) ($payload['note'] ?? '')) === '') {
                         $errors['note'][] = __('justification.note_required');
                     }
@@ -255,7 +255,7 @@ final class JustificationGate
     {
         $codes = [];
         foreach (ReasonCode::query()->whereIn('set_key', array_keys($req['sets']))->where('is_active', true)->orderBy('sort_order')->orderBy('id')->get() as $c) {
-            $codes[] = ['uuid' => strtolower($c->uuid), 'code' => $c->code, 'label' => $c->translate('label') ?? $c->code, 'requires_note' => $c->requires_note];
+            $codes[] = ['uuid' => strtolower($c->uuid), 'code' => $c->code, 'label' => $c->translate('label') ?? Translator::humanize((string) $c->code), 'requires_note' => $c->requires_note];
         }
         // Codes drawn from collections: their active entries, offered like reason codes.
         $collections = [];

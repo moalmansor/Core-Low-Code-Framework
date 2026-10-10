@@ -554,7 +554,7 @@
   "builder.publish.destructive": "غير قابل للعكس بالكامل",
   "builder.publish.diff_summary": "{added} مضاف، {removed} محذوف، {changed} معدّل.",
   "builder.publish.estimated": "الوقت المقدّر",
-  "builder.publish.failing_required": "{n} من السجلات الحالية بلا قيمة للحقل {key} الذي أصبح إلزاميًا.",
+  "builder.publish.failing_required": "{n} من السجلات الحالية بلا قيمة للحقل {name} الذي أصبح إلزاميًا.",
   "builder.publish.hide_diff": "إخفاء التغييرات",
   "builder.publish.impact_changed": "تغيرت المسودة أو قاعدة البيانات منذ التحليل؛ راجع التحليل الجديد.",
   "builder.publish.inconsistent": "فشل النشر وتعذّر عكسه بالكامل. النموذج مقفل حتى يتم إصلاحه.",

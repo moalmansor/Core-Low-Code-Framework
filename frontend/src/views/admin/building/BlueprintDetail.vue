@@ -23,7 +23,7 @@ import FormPicker from '@/builder/FormPicker.vue'
 import { useSession } from '@/stores/session'
 import LocaleFields from './LocaleFields.vue'
 import { INCLUDE_MODES, errorText, fieldErrors, filledLocales, formatDateTime, saveBlob, type FormSummary, type IncludeMode } from './shared'
-import { humanize } from '@/runtime/i18nText'
+import { humanize, labelOf } from '@/runtime/i18nText'
 
 interface Version {
   uuid: string
@@ -185,6 +185,8 @@ async function submitInstantiate(): Promise<void> {
   instErrors.value = {}
   try {
     const isView = bp.value?.kind === 'view'
+    // The confirmation names what was created by the name just typed, never by its key.
+    const name = labelOf(filledLocales(i.names), session.locale, i.key)
     const res = await send<{ data: { uuid: string; key: string; skipped?: unknown[] } }>('post', `/blueprints/${uuid.value}/instantiate`, {
       ...(isView ? { form: i.form } : { application: i.application, include_mode: i.include_mode }),
       key: i.key,
@@ -193,7 +195,7 @@ async function submitInstantiate(): Promise<void> {
     })
     if (isView) {
       inst.value = null
-      toast.add({ severity: 'success', summary: t('building.blueprints.created_view', { key: res.data.key }), life: 6000 })
+      toast.add({ severity: 'success', summary: t('building.blueprints.created_view', { name }), life: 6000 })
       await load()
       tab.value = 'instances'
       return
@@ -202,7 +204,7 @@ async function submitInstantiate(): Promise<void> {
     inst.value = null
     toast.add({
       severity: res.data.skipped.length ? 'warn' : 'success',
-      summary: res.data.skipped.length ? t('building.blueprints.created_with_skips', { key: res.data.key, n: res.data.skipped.length }) : t('building.blueprints.created_form', { key: res.data.key }),
+      summary: res.data.skipped.length ? t('building.blueprints.created_with_skips', { name, n: res.data.skipped.length }) : t('building.blueprints.created_form', { name }),
       life: 6000,
     })
     await load()

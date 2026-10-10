@@ -62,7 +62,7 @@ final class FormAccessController extends Controller
             'role' => DB::table('roles')->where('organization_id', $form->organization_id)->when(isset($data['subjects']), fn ($q) => $q->whereIn('uuid', $data['subjects']))->orderBy('sort_order')->get(['id', 'uuid'])
                 ->map(fn ($r) => ['type' => 'role', 'id' => (int) $r->id, 'uuid' => strtolower((string) $r->uuid), 'name' => $this->translator->get('role', (int) $r->id, 'name') ?? '']),
             'department' => DB::table('departments')->whereNull('deleted_at')->when(isset($data['subjects']), fn ($q) => $q->whereIn('uuid', $data['subjects']))->orderBy('code')->get(['id', 'uuid', 'code'])
-                ->map(fn ($d) => ['type' => 'department', 'id' => (int) $d->id, 'uuid' => strtolower((string) $d->uuid), 'name' => $this->translator->get('department', (int) $d->id, 'name') ?? $d->code]),
+                ->map(fn ($d) => ['type' => 'department', 'id' => (int) $d->id, 'uuid' => strtolower((string) $d->uuid), 'name' => $this->translator->get('department', (int) $d->id, 'name') ?? Translator::humanize((string) $d->code)]),
             default => User::query()->when(isset($data['subjects']), fn ($q) => $q->whereIn('uuid', $data['subjects']), fn ($q) => $q->whereIn('id', DB::table('field_access_rules')->where('form_id', $form->id)->where('subject_type', 'user')->select('subject_id')))
                 ->orderBy('name')->get()->map(fn (User $u) => ['type' => 'user', 'id' => $u->id, 'uuid' => $u->uuid, 'name' => $u->name, 'model' => $u]),
         };
@@ -116,7 +116,7 @@ final class FormAccessController extends Controller
             'mode' => $mode,
             'status' => $data['status'] ?? null,
             'statuses' => DB::table('statuses')->where('form_id', $form->id)->whereNull('archived_at')->orderBy('sort_order')->get(['id', 'uuid', 'key', 'color'])
-                ->map(fn ($st) => ['uuid' => strtolower((string) $st->uuid), 'key' => $st->key, 'color' => $st->color, 'name' => $this->translator->get('status', (int) $st->id, 'name') ?? $st->key])->values(),
+                ->map(fn ($st) => ['uuid' => strtolower((string) $st->uuid), 'key' => $st->key, 'color' => $st->color, 'name' => $this->translator->get('status', (int) $st->id, 'name') ?? Translator::humanize((string) $st->key)])->values(),
             'subject_type' => $type,
             'subjects' => $subjects->map(static fn ($s) => ['type' => $s['type'], 'uuid' => $s['uuid'], 'name' => $s['name']])->values(),
             'targets' => $targets,

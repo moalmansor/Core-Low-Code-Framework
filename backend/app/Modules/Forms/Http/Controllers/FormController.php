@@ -71,7 +71,7 @@ final class FormController extends Controller
 
         return response()->json(['data' => $forms->map(static fn (Form $f) => [
             'uuid' => $f->uuid, 'key' => $f->key, 'kind' => $f->kind, 'state' => $f->state,
-            'name' => $names[$f->id]['name'] ?? $f->key,
+            'name' => $names[$f->id]['name'] ?? Translator::humanize((string) $f->key),
             'application' => $f->application === null ? null : ['uuid' => $f->application->uuid, 'key' => $f->application->key],
         ])->values()]);
     }
@@ -139,7 +139,7 @@ final class FormController extends Controller
     public function show(Form $form): JsonResponse
     {
         Gate::authorize('system.manage_forms');
-        $name = $form->translate('name') ?? $form->key;
+        $name = $form->translate('name') ?? Translator::humanize((string) $form->key);
         $version = $form->current_version_id === null ? null : FormVersion::query()->whereKey($form->current_version_id)->value('version_number');
         $plan = MigrationPlan::query()->where('form_id', $form->id)->orderByDesc('id')->first();
 

@@ -146,7 +146,7 @@ final class MyWorkController extends Controller
                     'assignment' => strtolower((string) $a->uuid),
                     'kind' => $a->approval_request_id === null ? 'work' : 'approval',
                     'approval' => $a->approval_request_id === null ? null : strtolower((string) DB::table('approval_requests')->where('id', $a->approval_request_id)->value('uuid')),
-                    'form' => ['uuid' => $rt->form->uuid, 'key' => $rt->form->key, 'name' => $rt->form->translate('name') ?? $rt->form->key],
+                    'form' => ['uuid' => $rt->form->uuid, 'key' => $rt->form->key, 'name' => $rt->form->translate('name') ?? Translator::humanize((string) $rt->form->key)],
                     'record' => ['uuid' => $rec['uuid'], 'title' => $titles[$rec['uuid']] ?? null, 'number' => $rec['system']['record_number'], 'row_version' => $rec['row_version']],
                     'status' => RecordPresenter::status($wf, $rec['system']['status_id'] ?? null),
                     'assignee' => ['type' => $a->assignee_type, 'name' => $this->subjectName($a->assignee_type, (int) $a->assignee_id)],

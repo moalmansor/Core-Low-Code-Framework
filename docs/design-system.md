@@ -433,9 +433,23 @@ edit and create pages, and View Mode panels that show the form.
     status's name), not as a path.
   - Publishing requires a label in the default language for every field
     that holds a value.
-  - `src/i18n/identifiers.spec.ts` fails when the source falls back to a key,
-    id or raw path; the few technical admin views that show definition paths
-    or storage locations are listed there with their reason.
+  - Two guards enforce this, one per side, each listing its deliberate
+    exceptions with the reason:
+    - `frontend/src/i18n/identifiers.spec.ts` (browser) fails when the source
+      falls back to a key, id or raw path, hands an identifier to a message as
+      a parameter, prints `{{ x.key }}` / `{{ x.uuid }}` outside a value shown
+      on purpose as a code (`ltr-value`), or a UI-string catalog asks for a
+      `{key}`, `{uuid}` or `{id}` placeholder. It also checks its own rules
+      against the leaks they were written for.
+    - `backend/tests/Unit/IdentifierLeakTest.php` (server) fails when a server
+      message has a `:key`, `:uuid` or `:id` placeholder, `__()` is handed an
+      identifier as a parameter, or a `name`, `label` or `title` sent for
+      display falls back to a key, code or UUID instead of `humanize()` or an
+      "Untitled" text. (The designer's warnings leaked a key on the server
+      side, which the browser guard could not see.)
+  - A message about the identifier itself is fine: the Key input's own
+    validation ("The key x is used twice") and typing the form key to confirm
+    a destructive publish.
 - **Transition requirements:** a transition that needs fields filled names
   them by label and offers *Fill them in*, which opens the edit page with
   those fields marked and the first in view. The server enforces the same

@@ -38,7 +38,7 @@ final class AccessToolsController extends Controller
             return [
                 'key' => $p->key,
                 'category' => $p->category,
-                'label' => $labels[$p->id]['label'] ?? $p->key,
+                'label' => $labels[$p->id]['label'] ?? Translator::humanize((string) $p->key),
                 'granted' => $explain['granted'],
                 'decided_by' => $explain['decided_by'],
             ];

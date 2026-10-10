@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Forms\Publishing;
 
 use App\Infrastructure\Database\Contracts\DatabaseDriver;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Forms\Models\MenuItem;
@@ -76,7 +77,7 @@ final class ImpactAnalyzer
                 if ($isRequired && ! $wasRequired && $col !== null && isset($before[$f['uuid']])) {
                     $n = (int) DB::table($table)->whereNull($col)->whereNull('deleted_at')->count();
                     if ($n > 0) {
-                        $failingRequired[] = ['field' => $f['uuid'], 'key' => $f['key'], 'records' => $n];
+                        $failingRequired[] = ['field' => $f['uuid'], 'key' => $f['key'], 'label' => app(Translator::class)->labelOf($f['i18n']['label'] ?? null, $f['key']), 'records' => $n];
                     }
                 }
             }

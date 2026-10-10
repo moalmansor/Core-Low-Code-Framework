@@ -3,6 +3,7 @@
 return [
     'invalid' => 'The record has errors. Correct the highlighted fields.',
     'not_found' => 'The record was not found.',
+    'untitled' => 'Untitled record',
     'form_unavailable' => 'This form is not available.',
     'maintenance' => 'This application is under maintenance. Try again later.',
     'forbidden' => 'You do not have permission to do this.',

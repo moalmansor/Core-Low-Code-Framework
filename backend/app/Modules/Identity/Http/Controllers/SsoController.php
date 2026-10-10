@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Identity\Http\Controllers;
 
 use App\Infrastructure\Egress\EgressGateway;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Identity\Auth\Oidc\OidcProvider;
 use App\Modules\Identity\Auth\Oidc\OidcProviderConfig;
@@ -31,7 +32,7 @@ final class SsoController extends Controller
     public function providers(): JsonResponse
     {
         $list = array_values(array_map(
-            static fn (OidcProviderConfig $c): array => ['key' => $c->key, 'name' => $c->name[app()->getLocale()] ?? (array_values($c->name)[0] ?? $c->key)],
+            static fn (OidcProviderConfig $c): array => ['key' => $c->key, 'name' => $c->name[app()->getLocale()] ?? (array_values($c->name)[0] ?? Translator::humanize((string) $c->key))],
             array_filter(OidcProviderConfig::all($this->settings), static fn (OidcProviderConfig $c): bool => $c->enabled),
         ));
 

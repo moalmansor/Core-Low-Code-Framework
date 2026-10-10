@@ -554,7 +554,7 @@
   "builder.publish.destructive": "Not fully reversible",
   "builder.publish.diff_summary": "{added} added, {removed} removed, {changed} changed.",
   "builder.publish.estimated": "Estimated time",
-  "builder.publish.failing_required": "{n} existing records have no value for the newly required field {key}.",
+  "builder.publish.failing_required": "{n} existing records have no value for the newly required field “{name}”.",
   "builder.publish.hide_diff": "Hide changes",
   "builder.publish.impact_changed": "The draft or the database changed since the analysis; review the new analysis.",
   "builder.publish.inconsistent": "Publishing failed and could not be fully reversed. The form is locked until it is repaired.",

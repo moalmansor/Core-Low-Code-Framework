@@ -10,8 +10,8 @@ Project memory file (specification §8.1). Updated at the end of every run.
 | 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
 | 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | **Complete. Merged.** (plus the interface pull request) | [moalmansor/Core-Low-Code-Framework#11](https://github.com/moalmansor/Core-Low-Code-Framework/pull/11), [#12](https://github.com/moalmansor/Core-Low-Code-Framework/pull/12) |
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | **Complete.** Owner confirmed 2026-10-09; no findings, no code changes (`docs/pilot-findings.md`) | — (issue #5 closed) |
-| 3 — Workflow, Records & Views | `phase-3-workflow` | **Complete; pull request open for review** (issue #6) | pull request from `phase-3-workflow` into `main` |
-| 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | Not started | — |
+| 3 — Workflow, Records & Views | `phase-3-workflow` | **Complete. Merged.** Owner re-tested after merge. | [moalmansor/Core-Low-Code-Framework#13](https://github.com/moalmansor/Core-Low-Code-Framework/pull/13) |
+| 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | **In progress** (issue #7) | — |
 | 5 — Platform & Extensibility | `phase-5-platform` | Not started | — |
 | 6 — Hardening & Final Delivery | `phase-6-hardening` | Not started | — |
 
@@ -379,12 +379,29 @@ Decided by the owner:
   endpoints, checks strip (client and server: unreachable, dead end, no
   entry), outline, no keys on nodes. Spec §4.12, design system §5.6a.
 
+## Phase 4: progress (branch `phase-4-actions`, issue #7)
+
+- **Before Phase 4 — identifier guard (owner request).** The designer's
+  warnings named statuses by key although the browser guard existed, because
+  the key was put into the message on the server. The browser guard now also
+  catches identifiers passed to messages, keys printed in templates and
+  `{key}`/`{uuid}`/`{id}` catalog placeholders, and tests its own rules; a new
+  server guard (`backend/tests/Unit/IdentifierLeakTest.php`) covers server
+  messages and API names/labels/titles. Fixed what they found (lookup preview
+  labels, publish impact, blueprint confirmations, about thirty API name
+  fallbacks). Design system §5.6.
+
 ## Resume point
 
-Phase 3 is complete and its pull request is open for the owner's review. Do
-not start Phase 4 until that pull request is merged. Address review comments
-by pushing to `phase-3-workflow`, re-run CI on the new head, and update the
-verification report in the pull request.
+Phase 3 is complete and merged (pull request
+[moalmansor/Core-Low-Code-Framework#13](https://github.com/moalmansor/Core-Low-Code-Framework/pull/13),
+merge commit `e4c89ad`). The owner re-tested the workflow designer,
+transitions with required fields, removing a status that has records, and
+field access by status, and all behaved correctly.
+
+Phase 4 is in progress on branch `phase-4-actions`
+([moalmansor/Core-Low-Code-Framework#7](https://github.com/moalmansor/Core-Low-Code-Framework/issues/7)).
+See the Phase 4 section above for what is done and where to continue.
 
 ### Local development notes
 

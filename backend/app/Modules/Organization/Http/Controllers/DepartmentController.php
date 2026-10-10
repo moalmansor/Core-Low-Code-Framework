@@ -34,7 +34,7 @@ final class DepartmentController extends Controller
             return ($byParent[$parentKey] ?? collect())->map(fn (Department $d): array => [
                 'uuid' => $d->uuid,
                 'code' => $d->code,
-                'name' => $names[$d->id]['name'] ?? $d->code,
+                'name' => $names[$d->id]['name'] ?? Translator::humanize((string) $d->code),
                 'names' => $d->translationsFor('name'),
                 'is_active' => $d->is_active,
                 'depth' => $d->depth,

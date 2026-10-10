@@ -38,7 +38,7 @@
   "building.access.any_status": "كل الحالات",
   "building.access.status": "الحالة",
   "building.blueprints.create_view": "إنشاء العرض",
-  "building.blueprints.created_view": "أُنشئ العرض {key}.",
+  "building.blueprints.created_view": "أُنشئ العرض {name}.",
   "building.blueprints.target_form": "النموذج",
   "building.blueprints.view_version_hint": "يُؤخذ الإصدار الجديد من العرض الذي حُفظ منه هذا المخطط.",
   "common.optional_locale": "(اختياري)",

@@ -117,7 +117,7 @@ export interface PlanStep {
 export interface Impact {
   records: {
     count: number
-    failing_required: { field: string; key: string; records: number }[]
+    failing_required: { field: string; key: string; label: string; records: number }[]
     type_conflicts: { table: string; column: string; to: string; records: unknown[] }[]
   }
   diff: { added?: number; removed?: number; changed?: number }

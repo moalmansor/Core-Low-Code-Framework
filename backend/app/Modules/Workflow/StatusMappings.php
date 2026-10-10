@@ -52,7 +52,7 @@ final class StatusMappings
             $removed[] = [
                 'uuid' => $s['uuid'],
                 'key' => $s['key'],
-                'name' => $id === null ? $s['key'] : ($this->translator->get('status', (int) $id, 'name') ?? $s['key']),
+                'name' => $id === null ? Translator::humanize((string) $s['key']) : ($this->translator->get('status', (int) $id, 'name') ?? Translator::humanize((string) $s['key'])),
                 'records' => $id === null ? 0 : $this->count($form, (int) $id),
                 'to' => isset($pending[$s['key']]) ? ($statusUuids[(int) $pending[$s['key']]] ?? null) : null,
             ];

@@ -50,7 +50,7 @@ final class PermissionController extends Controller
             'key' => $p->key,
             'category' => $p->category,
             'is_dangerous' => $p->is_dangerous,
-            'label' => ($labels[$p->id]['label'] ?? $p->key).(isset($objects[(int) $p->scope_id]['name']) ? ': '.$objects[(int) $p->scope_id]['name'] : ''),
+            'label' => ($labels[$p->id]['label'] ?? Translator::humanize((string) $p->key)).(isset($objects[(int) $p->scope_id]['name']) ? ': '.$objects[(int) $p->scope_id]['name'] : ''),
             'description' => $labels[$p->id]['description'] ?? null,
         ])->values()]);
     }

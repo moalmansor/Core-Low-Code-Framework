@@ -167,7 +167,7 @@ final class JustificationController extends Controller
     private function code(ReasonCode $c): array
     {
         return [
-            'uuid' => strtolower($c->uuid), 'set_key' => $c->set_key, 'code' => $c->code, 'label' => $c->translate('label') ?? $c->code,
+            'uuid' => strtolower($c->uuid), 'set_key' => $c->set_key, 'code' => $c->code, 'label' => $c->translate('label') ?? Translator::humanize((string) $c->code),
             'labels' => $c->translationsFor('label'), 'requires_note' => $c->requires_note, 'sort_order' => $c->sort_order, 'is_active' => $c->is_active,
             'updated_at' => $c->updated_at === null ? null : Carbon::parse($c->updated_at)->format('Y-m-d\\TH:i:s.u\\Z'),
         ];

@@ -138,7 +138,7 @@ final class ApplicationController extends Controller
     private function present(Application $a, array $names, int $forms, bool $manage): array
     {
         return [
-            'uuid' => $a->uuid, 'key' => $a->key, 'name' => $names['name'] ?? $a->key, 'description' => $names['description'] ?? null,
+            'uuid' => $a->uuid, 'key' => $a->key, 'name' => $names['name'] ?? Translator::humanize((string) $a->key), 'description' => $names['description'] ?? null,
             'icon' => $a->icon, 'color' => $a->color, 'status' => $a->status, 'data_sharing_default' => $a->data_sharing_default,
             'maintenance_mode' => $a->maintenance_mode, 'maintenance_until' => $a->maintenance_until?->toIso8601String(),
             'sort_order' => $a->sort_order, 'forms' => $manage ? $forms : null,

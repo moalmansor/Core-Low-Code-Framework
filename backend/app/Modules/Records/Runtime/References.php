@@ -73,7 +73,7 @@ final class References
         if ($storage === 'role' || $storage === 'department') {
             $names = $this->translator->many($storage, $rows->pluck('id')->map(fn ($i) => (int) $i)->all(), ['name']);
             foreach ($rows as $r) {
-                $out[strtolower((string) $r->uuid)] = $names[(int) $r->id]['name'] ?? (string) ($r->code ?? $r->key ?? $r->uuid);
+                $out[strtolower((string) $r->uuid)] = $names[(int) $r->id]['name'] ?? Translator::humanize((string) ($r->code ?? $r->key ?? ''));
             }
 
             return $out;
@@ -81,7 +81,7 @@ final class References
         $column = $this->displayColumn($rt, $field);
         foreach ($rows as $r) {
             $title = $column !== null ? ($r->{$column} ?? null) : null;
-            $out[strtolower((string) $r->uuid)] = (string) ($title ?? $r->record_number ?? $r->uuid);
+            $out[strtolower((string) $r->uuid)] = (string) ($title ?? $r->record_number ?? __('records.untitled'));
         }
 
         return $out;
@@ -89,7 +89,7 @@ final class References
 
     /**
      * The title of a record of a form (its label field for collections, else
-     * its first text field, else its record number or uuid).
+     * its first text field, else its record number, else "Untitled record").
      *
      * @param  array<string, mixed>  $definition  the form's published definition
      */
@@ -98,7 +98,7 @@ final class References
         $column = $this->titleColumn($definition);
         $title = $column !== null ? ($row->{$column} ?? null) : null;
 
-        return (string) ($title ?? $row->record_number ?? $row->uuid);
+        return (string) ($title ?? $row->record_number ?? __('records.untitled'));
     }
 
     /** @param  array<string, mixed>  $definition */

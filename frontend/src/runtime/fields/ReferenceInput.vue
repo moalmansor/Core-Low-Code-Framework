@@ -7,7 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { get } from '@/api/http'
 import type { OptionItem } from '../api'
 import { useRenderer } from '../context'
-import { pickText } from '../i18nText'
+import { humanize, pickText } from '../i18nText'
 import { useOptions } from '../options'
 import ReferenceDrawer from '../ReferenceDrawer.vue'
 import type { RecordPayload } from '../types'
@@ -36,6 +36,7 @@ const selected = computed<string[]>(() => {
 })
 const titles = computed(() => ctx.references.value[props.field.key] ?? {})
 const previews = reactive<Record<string, Record<string, unknown>>>({})
+const previewLabels = reactive<Record<string, string>>({})
 const suggestions = ref<OptionItem[]>([])
 const model = computed(() => {
   const items = selected.value.map((v) => ({ value: v, label: titles.value[v] ?? v }))
@@ -47,7 +48,10 @@ const placeholder = computed(() => pickText(props.field.i18n.placeholder, ctx.lo
 async function complete(e: { query: string }): Promise<void> {
   await opts.search(e.query)
   suggestions.value = opts.items.value
-  for (const o of opts.items.value) if (o.preview) previews[o.value] = o.preview
+  for (const o of opts.items.value) {
+    if (o.preview) previews[o.value] = o.preview
+    Object.assign(previewLabels, o.previewLabels ?? {})
+  }
 }
 
 watch(opts.depends, (now, before) => {
@@ -94,7 +98,7 @@ const previewKeys = computed(() => (props.field.options?.preview ?? []).map((p) 
 const preview = computed(() => {
   if (multiple.value || !selected.value[0] || !previewKeys.value.length) return null
   const p = previews[selected.value[0]]
-  return p ? previewKeys.value.filter((k) => p[k] !== null && p[k] !== undefined && p[k] !== '').map((k) => ({ key: k, value: typeof p[k] === 'object' ? JSON.stringify(p[k]) : String(p[k]) })) : null
+  return p ? previewKeys.value.filter((k) => p[k] !== null && p[k] !== undefined && p[k] !== '').map((k) => ({ key: k, label: previewLabels[k] ?? humanize(k), value: typeof p[k] === 'object' ? JSON.stringify(p[k]) : String(p[k]) })) : null
 })
 const drawer = ref<string | null>(null)
 
@@ -198,7 +202,7 @@ const cardValue = (v: unknown) => (v === null || v === undefined || v === '' ? '
     </dl>
     <dl v-else-if="preview && preview.length" class="mt-2 rounded-md border border-line p-2 text-sm grid grid-cols-[auto_1fr] gap-x-3 gap-y-1" data-testid="reference-preview">
       <template v-for="p in preview" :key="p.key">
-        <dt class="text-muted-color">{{ p.key }}</dt>
+        <dt class="text-muted-color">{{ p.label }}</dt>
         <dd>{{ p.value }}</dd>
       </template>
     </dl>

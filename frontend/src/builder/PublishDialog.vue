@@ -331,7 +331,7 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
               <li v-if="impact.removed_fields.length">
                 {{ t('builder.publish.removed_fields') }}: <span class="ltr-value">{{ impact.removed_fields.join(', ') }}</span>
               </li>
-              <li v-for="f in impact.records.failing_required" :key="f.field">{{ t('builder.publish.failing_required', { key: f.key, n: f.records }) }}</li>
+              <li v-for="f in impact.records.failing_required" :key="f.field">{{ t('builder.publish.failing_required', { name: f.label, n: f.records }) }}</li>
               <li v-for="c in impact.records.type_conflicts" :key="c.column">{{ t('builder.publish.type_conflict', { column: c.column, to: c.to, n: c.records.length }) }}</li>
               <li v-if="impact.permissions.orphaned_access_rules">{{ t('builder.publish.orphaned_rules', { n: impact.permissions.orphaned_access_rules }) }}</li>
               <li v-for="l in impact.linked_forms" :key="`${l.form}-${l.relation}`">

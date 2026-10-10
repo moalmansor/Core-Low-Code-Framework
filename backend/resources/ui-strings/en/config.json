@@ -38,7 +38,7 @@
   "building.access.any_status": "Every status",
   "building.access.status": "Status",
   "building.blueprints.create_view": "Create view",
-  "building.blueprints.created_view": "View {key} created.",
+  "building.blueprints.created_view": "View “{name}” created.",
   "building.blueprints.target_form": "Form",
   "building.blueprints.view_version_hint": "The new version is taken from the view this blueprint was saved from.",
   "common.optional_locale": "(optional)",

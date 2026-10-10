@@ -60,7 +60,7 @@ final class PrintRenderer
                 default => '',
             };
         }
-        $title = e($rt->form->translate('name') ?? $rt->form->key).($presented['title'] !== null ? ' — '.e((string) $presented['title']) : '');
+        $title = e($rt->form->translate('name') ?? Translator::humanize((string) $rt->form->key)).($presented['title'] !== null ? ' — '.e((string) $presented['title']) : '');
         $logo = ($layout['showLogo'] ?? true) ? $this->logo() : null;
         $header = $layout === null ? null : $this->pick((array) ($layout['i18n']['header'] ?? []));
         $footer = $layout === null ? null : $this->pick((array) ($layout['i18n']['footer'] ?? []));

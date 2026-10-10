@@ -2,7 +2,20 @@
 
 All notable changes to this project are documented here, one section per phase.
 
-## [Unreleased] — Phase 3: Workflow, Records & Views
+## [Unreleased] — Phase 4: Actions, Integrations & Background Work
+
+### Fixed
+- Identifier guard extended (owner request after Phase 3): the browser guard
+  now also catches identifiers handed to messages as parameters, keys printed
+  in templates, and `{key}`/`{uuid}`/`{id}` placeholders in the UI strings; a
+  new server guard covers server messages and the names, labels and titles
+  the API sends. Leaks it found and fixed: the lookup preview card named
+  values by field key, the publish impact named a newly required field by
+  key, blueprint confirmations named the new form or view by key, and about
+  thirty API names and labels fell back to a raw key, code or UUID (now made
+  readable, or *Untitled record* / *Untitled template*).
+
+## Phase 3: Workflow, Records & Views (merged in #13)
 
 ### Added
 - Workflow per form, versioned with it (ADR-0031): statuses, transitions with
