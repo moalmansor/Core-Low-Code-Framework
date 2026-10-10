@@ -34,3 +34,9 @@ One short record per significant decision (specification §8.1). New records are
 | [0028](0028-phase-2-data-engine.md) | Data engine decisions made while building Phase 2 |
 | [0029](0029-user-facing-validation-and-verbatim-expressions.md) | User-facing validation messages and verbatim expressions |
 | [0030](0030-interface-design-system.md) | One token-based design system for the interface |
+| [0031](0031-versioned-workflow-and-status-mapping.md) | The workflow is versioned with the form; removed statuses are mapped at publish |
+| [0032](0032-record-level-security.md) | Record-level rules — default "all", tier walk, compiled custom scopes |
+| [0033](0033-per-form-configuration-documents.md) | Per-form configuration documents saved whole with a concurrency hash |
+| [0034](0034-table-views-and-view-blueprints.md) | Table views as relation paths; view blueprints apply directly |
+| [0035](0035-justification-scope-in-phase-3.md) | Justification scopes delivered in Phase 3, and how rules combine |
+| [0036](0036-assignment-delegation-and-approvals.md) | Assignment, queues, delegation and approvals |

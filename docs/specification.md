@@ -137,6 +137,7 @@ A single, well-organized control center with navigation to:
 - System Settings
 
 Each area is visible only to holders of its permission.
+Workflows, statuses, views, panels, previews, print layouts, record rules, justification rules, and assignment rules are configured per form, from the form's configuration screen reached from Form Builder; the "Workflows & Statuses" and "Views, Filters & Actions" areas lead there.
 
 ### 4.2 Operations Center (Failures & Recovery)
 
@@ -542,6 +543,17 @@ All access control lives in **one** interface.
 - The matrix UI is filtered and paged by role, status, or group rather than rendering every combination at once, shows only fields that deviate by default, and supports bulk edit across a selection.
 - **Explain access:** for any user, form, field, and status the admin can see which rule produced the outcome and where it was defined.
 
+**Record-level rules (ADR-0032)**
+- Each rule names a subject (everyone, department, role, or user), an operation (view, edit, delete, or all), a scope (own records, own department, department tree, assigned to them, all, none, or a custom condition), and an effect (allow, deny, hard deny).
+- Without any rule, everyone who holds the form permission reaches every record. Rules narrow or widen that per subject, following the precedence above: the most specific tier present decides, a deny in that tier removes what its allows grant, and a hard deny always applies.
+- A custom condition is compiled into a safe database query when the rule is saved; a condition that cannot be compiled is refused with an explanation, never applied in memory. A denied custom condition excludes the records it matches.
+- Record scope is enforced on every list, record, export, panel, preview, print, and My Work request. A record outside the user's scope answers "not found", so its existence is not revealed.
+- "Explain" shows, for a user, which tier and rules decide each operation.
+
+**Status level**
+- Each transition registers its own permission (perform the transition) when it is created; the Super Admin role receives it. The form's access screen lists transitions and table views beside the form's abilities.
+- The group and field matrix can be filtered by status; a rule set for a status applies only to records in that status and overrides the rule without a status.
+
 ### 4.12 Workflow Engine
 - **Statuses:** name (AR/EN), color, icon, initial/final flags.
 - **Transitions:**
@@ -552,6 +564,14 @@ All access control lives in **one** interface.
 - **Visual designer:** Vue Flow, for drag-and-drop editing of statuses and transitions.
 - **SLA timers:** per status, with escalation rules (notify, reassign, auto-transition).
 - **History:** full status history per record, with comments.
+
+**Behavior (ADR-0031, ADR-0033)**
+- The workflow (statuses, transitions, SLA rules) is part of the form definition: it is saved with the draft's concurrency check and takes effect when the form is published, together with any field changes, and every version keeps the workflow it was published with.
+- Publishing checks the workflow: it is blocked unless there is exactly one initial status and no transition leaves a final status; a status that cannot be reached from the initial one is shown as a warning.
+- **Status mapping:** when a published status that still holds records is removed or merged, publishing is blocked until the admin chooses, on the publish screen, the status those records move to. The moves run as steps of the migration plan, are reversible with it, and are written to each record's status history as "when the workflow changed". Records without a status (created before the form had a workflow) move to the initial status.
+- Statuses, transitions, and SLA rules that were ever published are archived rather than deleted, so history keeps their names; adding one back with the same key restores it.
+- A transition is offered only when the user holds its permission, the record is in its "from" status (or the transition starts from any status), its condition holds, and no approval is pending on the record. Performing it re-checks all of this on the server, together with optimistic concurrency, required fields, comment and attachment rules, and the justification rules of 4.24.
+- **SLA:** timers start when a record enters a status with a rule, count working time on the chosen calendar when configured, warn before the due time, and run their escalations once each when due. A notify escalation is queued for delivery and recorded in the audit log; its delivery channels are those of 4.16.
 
 ### 4.13 Publishing & Navigation
 - On publish, the admin chooses:
@@ -581,6 +601,10 @@ All access control lives in **one** interface.
 - **Admin control:** record counts per form, full edit, soft delete + restore.
 - **Shareable state:** search, filters, sort, page, and page size are kept in the page address, so a filtered list can be bookmarked and shared. The server ignores filters on fields that are unknown, hidden from the user, encrypted, or not marked filterable.
 - **Mixed scripts:** each cell takes its reading direction from its own content, so Arabic text in the English interface and Latin codes in the Arabic interface both read correctly.
+- **Views (ADR-0034):** an admin defines a form's views on its configuration screen; views take effect when saved. Who uses which view is granted in the access matrix (one permission per view, created with it); a user without a granted view gets the form's default view. Columns and filters are relation paths: the form's own fields, its system values (status, record number, created and updated time), and fields of the forms it links to, followed through lookups up to a fixed depth. Columns on fields the user may not see are left out of the user's view, and their values are never sent.
+- **Justification columns** (latest reason, code, time, and author) are offered only to holders of View Justifications.
+- **Saved views** store the user's columns, filters, sort, page size, and search on top of a view the user may use. The owner can make one their default and share it with roles, departments, users, or everyone; a shared view opens only for people who may still use its underlying view.
+- **Bulk delete and restore** run in one request: each record is authorised and version-checked on its own, the strictest justification rule over the selection asks once for one justification that is linked to every affected record, and records the server refuses are reported without stopping the others.
 
 **View Mode (record details page)**
 - The admin can add:
@@ -591,15 +615,18 @@ All access control lives in **one** interface.
   - comments thread;
   - attachments panel;
   - tabs and sections with per-role visibility.
+- Panels are arranged in a tree (tabs, tabs' pages, sections) and each may carry a visibility condition (4.7). The server sends only visible panels, and each panel's data is limited to what the user may read; related tables and summaries count only records the user may see. Without panels the record shows its form.
 
 **Edit Mode**
 - When a user selects a reference to another record:
   - show a configurable preview card;
   - optionally auto-fill selected fields;
   - open the referenced record in a side drawer.
+- A form defines the card shown wherever one of its records is picked; a lookup field can override it with its own card and the auto-fill of fields of the form being edited (only into fields of a compatible type, and without overwriting a filled value unless configured). The card shows only records and values the user may see.
 
 **Print view**
 - A configurable print layout, with export to PDF (mPDF, full Arabic support).
+- A form can have several print layouts (paper, orientation, header and footer text per language, the logo, and an ordered list of sections: the form, chosen fields, a View Mode panel, the status history, page breaks); one is the default. The print applies the print-mode field rules, and every print is recorded in the audit log.
 
 ### 4.15 Actions
 **Built-in actions**
@@ -830,6 +857,11 @@ Conditional rules from 4.7 can switch between these levels, so a justification c
 - As columns available in table views, download profiles, and reports, subject to the same field-level permissions as any other data.
 - Viewing justifications is governed by a dedicated permission, since a reason can itself contain sensitive information.
 
+**Delivery note (ADR-0035)**
+- Phase 3 delivers the scopes form, group, field, status, transition, delete, restore, and reassign, plus the builder's per-field and per-group "Change justification" setting, which counts as a rule for everyone. The action, bulk-action, import, and merge scopes arrive with the features they govern (Phase 4 and 4.35).
+- Reason codes come from admin-defined code sets (each code with labels per language, an optional "note required", an order, and active or not; codes are deactivated, never deleted) or from the entries of a collection.
+- When several rules apply, the strictest level wins and their constraints combine (longest minimum, shortest maximum, the narrowest attachment rules).
+
 ### 4.25 Assignment, Queues & Delegation
 A status alone does not say who is expected to act, so records carry assignment as a first-class concept.
 
@@ -853,6 +885,13 @@ A status alone does not say who is expected to act, so records carry assignment 
 - Each approver's decision, timestamp, and comment is recorded separately; the transition completes only when the rule is satisfied.
 - Rejection behavior is configurable: return to a chosen status immediately, or wait for all decisions.
 - Approval requests appear in the approver's queue and notifications, with reminders and escalation under the SLA rules of 4.12.
+
+**Behavior (ADR-0036)**
+- While an approval is pending on a record, no other transition can be taken on it. Deciding twice is refused. A rejection needs a comment.
+- Assignment rules are evaluated in order on creation and on each transition; the first whose condition holds assigns the record, with an optional due time and priority.
+- A claim lasts until it is released, the record moves on, or the queue's claim timeout passes.
+- A delegate holds, for the delegator's work, the delegator's form and transition permissions and record scope in addition to their own, within the forms the delegation names. An administrator can set a delegation or out-of-office cover only for users whose permissions they hold themselves (4.11 escalation safeguards). Delegations are revoked, never deleted.
+- People are picked by name everywhere (approvers, assignees, rule subjects, shares, delegates). A user without Manage Users or Manage Permissions can look up users only by typing at least three characters, and sees at most ten matches.
 
 ### 4.26 Data Retention, Archiving & Personal Data
 - **Retention policies** per data class, configurable in the UI: records, audit logs, error logs, email logs, notification logs, submission journal entries, download files, and uploaded attachments.

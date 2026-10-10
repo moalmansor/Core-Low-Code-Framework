@@ -2,6 +2,37 @@
 
 All notable changes to this project are documented here, one section per phase.
 
+## [Unreleased] — Phase 3: Workflow, Records & Views
+
+### Added
+- Workflow per form, versioned with it (ADR-0031): statuses, transitions with
+  conditions, required fields, comment and attachment rules, confirmation and
+  multi-party approvals; a Vue Flow designer; publish-time checks; status
+  mapping for removed statuses on the publish screen; full status history.
+- SLA rules per status with working-time calendars, warnings and escalations
+  (notify, reassign, transition), run every minute by `sla:tick`.
+- Status-based field and group access, transition permissions and the status
+  filter in the access matrix; record-level rules with compiled custom scopes
+  and "explain" (ADR-0032).
+- Edit justification (ADR-0035): rules per form, group, field, status,
+  transition, delete, restore and reassign, per subject; reason code sets;
+  the save-time prompt; immutable justifications shown in history, the
+  status timeline and table views.
+- Assignment rules, work queues with claim and release, delegation and
+  out-of-office cover recorded on behalf of the delegator, approvals with
+  decisions and reminders, and My Work (ADR-0036).
+- Table views with relation-path columns and filters, totals, row options,
+  column chooser, saved and shared views, bulk delete and restore with one
+  justification, and view blueprints (ADR-0034).
+- View Mode panels (tabs, sections, form body, related records, summaries,
+  linked fields, timeline, comments, attachments, text), lookup preview cards
+  with auto-fill, and print layouts as a page or PDF (mPDF).
+- The form configuration screen (workflow, SLA, record access, justification,
+  assignment, views, panels, previews, print), and Admin Console areas for
+  reason codes and for assignment, queues and delegation.
+- Configuration documents are saved whole with a concurrency hash; queues and
+  reason codes carry their last update time (ADR-0033).
+
 ## [Unreleased] — Interface (before Phase 3)
 
 ### Added
