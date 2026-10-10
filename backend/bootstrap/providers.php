@@ -5,6 +5,7 @@ use App\Modules\Core\CoreServiceProvider;
 use App\Modules\Forms\FormsServiceProvider;
 use App\Modules\Identity\IdentityServiceProvider;
 use App\Modules\ModulesServiceProvider;
+use App\Modules\Notifications\NotificationsServiceProvider;
 use App\Providers\AppServiceProvider;
 
 return [
@@ -13,5 +14,6 @@ return [
     CoreServiceProvider::class,
     IdentityServiceProvider::class,
     FormsServiceProvider::class,
+    NotificationsServiceProvider::class,
     ModulesServiceProvider::class,
 ];

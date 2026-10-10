@@ -78,6 +78,10 @@ final class SettingsRegistry
         // Exported and generated files (exports, error reports, downloads) expire after this many hours.
         $d('records', 'job_file_hours', 72, ['required', 'integer', 'between:1,2160']);
 
+        // Notifications and the Operations Center (§4.2, §4.16)
+        $d('notifications', 'email_max_attempts', 5, ['required', 'integer', 'between:1,20']);
+        $d('operations', 'stuck_email_minutes', 15, ['required', 'integer', 'between:1,1440']);
+
         // Formats and calendar (§2)
         $d('formats', 'timezone', 'UTC', ['required', 'timezone:all']);
         $d('formats', 'date_format', 'yyyy-MM-dd', ['required', 'string', 'max:32', 'regex:/^[yMdHhmsaEG\/\-\.\s,]+$/']);

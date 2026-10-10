@@ -21,6 +21,29 @@ final class InAppNotifier
     public function __construct(private readonly Translator $translator) {}
 
     /**
+     * An in-app notification whose text is already in the recipient's
+     * language (rendered from a template, or a built-in notice).
+     *
+     * @param  array<string, mixed>|null  $data
+     * @param  array{form_id?: int|null, record_id?: int|null, rule_id?: int|null, on_behalf_of?: int|null}  $context
+     */
+    public function notifyText(int $userId, string $type, string $title, ?string $body, ?string $link, ?array $data = null, array $context = []): ?int
+    {
+        $org = DB::table('users')->where('id', $userId)->value('organization_id');
+        if ($org === null) {
+            return null;
+        }
+
+        return (int) DB::table('in_app_notifications')->insertGetId([
+            'uuid' => (string) Str::uuid7(), 'organization_id' => (int) $org, 'user_id' => $userId, 'type' => mb_substr($type, 0, 48),
+            'title' => mb_substr($title, 0, 255), 'body' => $body, 'link' => $link,
+            'data' => $data === null ? null : json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            'notification_rule_id' => $context['rule_id'] ?? null, 'form_id' => $context['form_id'] ?? null, 'record_id' => $context['record_id'] ?? null,
+            'on_behalf_of_user_id' => $context['on_behalf_of'] ?? null, 'created_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u'),
+        ]);
+    }
+
+    /**
      * @param  array<string, scalar|null>  $params  message parameters (names, counts; never identifiers)
      * @param  array<string, mixed>|null  $data
      * @param  array{form_id?: int|null, record_id?: int|null, rule_id?: int|null, on_behalf_of?: int|null, body?: string|null, body_params?: array<string, scalar|null>}  $context

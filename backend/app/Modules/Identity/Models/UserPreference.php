@@ -18,12 +18,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $theme_mode
  * @property string|null $density
  * @property string $digest_frequency
+ * @property array{email?: bool, in_app?: bool}|null $notification_channels
  */
 final class UserPreference extends BaseModel
 {
     protected $table = 'user_preferences';
 
-    protected $fillable = ['locale', 'timezone', 'calendar', 'date_format', 'number_format', 'digits', 'theme_mode', 'density', 'digest_frequency'];
+    protected $fillable = ['locale', 'timezone', 'calendar', 'date_format', 'number_format', 'digits', 'theme_mode', 'density', 'digest_frequency', 'notification_channels'];
 
     protected $attributes = ['theme_mode' => 'system', 'digest_frequency' => 'none'];
 

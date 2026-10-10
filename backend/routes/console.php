@@ -10,6 +10,8 @@ use App\Modules\Core\Outbox\OutboxRelay;
 use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Monitoring\ErrorReporter;
+use App\Modules\Notifications\EmailQueue;
+use App\Modules\Notifications\Notifier;
 use App\Modules\Records\Exchange\ExportService;
 use App\Modules\Records\FileStore;
 use App\Modules\Schema\Execution\SchemaReconciler;
@@ -25,6 +27,18 @@ Artisan::command('records:expire-exports', function (ExportService $exports): in
 
     return 0;
 })->purpose('Delete export files past their expiry time');
+
+Artisan::command('notifications:reminders', function (Notifier $notifier): int {
+    $this->info('Sent '.$notifier->reminders().' reminder(s).');
+
+    return 0;
+})->purpose('Send notification reminders whose moment has come');
+
+Artisan::command('mail:dispatch-due', function (EmailQueue $queue): int {
+    $this->info('Dispatched '.$queue->dispatchDue().' email(s).');
+
+    return 0;
+})->purpose('Send delayed emails and retries whose time has come');
 
 Artisan::command('outbox:relay {--limit=200}', function (OutboxRelay $relay): int {
     $count = $relay->relayPending((int) $this->option('limit'));
@@ -177,6 +191,8 @@ Schedule::command('sla:tick')->everyMinute()->withoutOverlapping()->onOneServer(
 Schedule::command('work:maintain')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('files:purge-temporary')->hourly()->onOneServer();
 Schedule::command('records:expire-exports')->hourly()->onOneServer();
+Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
+Schedule::command('mail:dispatch-due')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('schema:purge-snapshots')->dailyAt('04:10')->onOneServer();
 Schedule::command('schema:reconcile --scheduled')->dailyAt('01:40')->withoutOverlapping()->onOneServer();
 Schedule::command('outbox:relay')->everyMinute()->withoutOverlapping()->onOneServer();

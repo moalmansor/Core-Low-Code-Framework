@@ -61,7 +61,14 @@ final class MeController extends Controller
             'date_format' => ['sometimes', 'nullable', 'string', 'max:32', 'regex:/^[yMdHhmsaEG\/\-\.\s,]+$/'],
             'theme_mode' => ['sometimes', Rule::in(['light', 'dark', 'system'])],
             'density' => ['sometimes', 'nullable', Rule::in(['compact', 'normal', 'comfortable'])],
+            // Channels a person receives notifications on (rules marked mandatory still reach them).
+            'notification_channels' => ['sometimes', 'array:email,in_app'],
+            'notification_channels.email' => ['sometimes', 'boolean'],
+            'notification_channels.in_app' => ['sometimes', 'boolean'],
         ]);
+        if (isset($data['notification_channels'])) {
+            $data['notification_channels'] = ['email' => (bool) ($data['notification_channels']['email'] ?? true), 'in_app' => (bool) ($data['notification_channels']['in_app'] ?? true)];
+        }
         $preference = $user->preference()->firstOrNew();
         $preference->fill($data)->save();
         $user->setRelation('preference', $preference);
@@ -82,6 +89,7 @@ final class MeController extends Controller
             'date_format' => $p?->date_format,
             'theme_mode' => $p->theme_mode ?? 'system',
             'density' => $p?->density,
+            'notification_channels' => ['email' => ($p?->notification_channels['email'] ?? true) !== false, 'in_app' => ($p?->notification_channels['in_app'] ?? true) !== false],
         ];
     }
 

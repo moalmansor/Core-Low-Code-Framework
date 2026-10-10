@@ -58,6 +58,7 @@ final class RecordPipeline
         private readonly Claims $claims,
         private readonly DelegationResolver $delegations,
         private readonly SlaTimers $sla,
+        private readonly RecordObservers $observers,
     ) {}
 
     /**
@@ -117,7 +118,8 @@ final class RecordPipeline
                 $this->attachFiles($rt, $id, $values, $user);
                 $this->audit->record('record.created', 'data', $this->diff($rt, [], $values), 'record', $id, ['form' => $rt->form->key, 'row_version' => 1], $user->id, null, $rt->form->id, $id, $onBehalf);
                 $this->workflow->enter($rt, $id, $values, $user->id, $onBehalf, $user->department_id === null ? null : (int) $user->department_id);
-                $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $entry['uuid'], 'operation' => 'create']);
+                $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $entry['uuid'], 'operation' => 'create', 'actor' => $user->id]
+                    + $this->observers->payload($rt, null, $values, $user));
 
                 return $id;
             });
@@ -191,7 +193,8 @@ final class RecordPipeline
                     }
                     $this->attachFiles($rt, $current['id'], $values, $user);
                     $this->audit->record('record.updated', 'data', $diff, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $expectedVersion + 1], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
-                    $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $current['uuid'], 'operation' => 'update', 'changed' => $changed]);
+                    $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $current['uuid'], 'operation' => 'update', 'changed' => $changed, 'actor' => $user->id]
+                        + $this->observers->payload($rt, $current['values'], $values, $user));
                 });
             }
             $this->journal->processed($entry['id'], $current['id']);
