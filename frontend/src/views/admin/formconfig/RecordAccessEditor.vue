@@ -84,7 +84,9 @@ async function explain(): Promise<void> {
         <template v-for="(v, op) in explained" :key="op">
           <dt class="font-medium">{{ t(`record_access.op.${op}`) }}</dt>
           <dd>
-            {{ v.scopes.length || v.custom ? [...v.scopes.map((s) => t(`record_access.scope.${s}`)), ...(v.custom ? [t('record_access.scope.custom')] : [])].join(', ') : t('record_access.scope.none') }}
+            {{
+              v.scopes.length || v.custom ? [...v.scopes.map((s) => t(`record_access.scope.${s}`)), ...(v.custom ? [t('record_access.scope.custom')] : [])].join(', ') : t('record_access.scope.none')
+            }}
             <span v-if="v.exclusions" class="text-muted-color"> · {{ t('record_access.exclusions', { n: v.exclusions }) }}</span>
           </dd>
         </template>

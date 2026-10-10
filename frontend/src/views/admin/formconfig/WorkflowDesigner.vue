@@ -112,7 +112,10 @@ async function save(): Promise<void> {
 function addStatus(): void {
   const index = doc.value.statuses.length
   const name = t('workflow.new_status', { n: index + 1 })
-  const key = suggestKey(`status ${index + 1}`, doc.value.statuses.map((s) => s.key))
+  const key = suggestKey(
+    `status ${index + 1}`,
+    doc.value.statuses.map((s) => s.key),
+  )
   const s = newStatus(newUuid(), key, { [defaultLocale.value]: name }, index, { x: 240 * index, y: 0 })
   doc.value.statuses.push(s)
   selected.value = { kind: 'status', uuid: s.uuid }
@@ -121,7 +124,11 @@ function addStatus(): void {
 function addTransition(from: string | null, to: string): void {
   const target = statusById.value.get(to)
   const name = target ? t('workflow.move_to', { status: nameOf(target) }) : t('workflow.new_transition')
-  const key = suggestKey(`to ${target?.key ?? 'status'}`, doc.value.transitions.map((x) => x.key), 't')
+  const key = suggestKey(
+    `to ${target?.key ?? 'status'}`,
+    doc.value.transitions.map((x) => x.key),
+    't',
+  )
   const tr = newTransition(newUuid(), key, { [defaultLocale.value]: name }, from, to, doc.value.transitions.length)
   doc.value.transitions.push(tr)
   selected.value = { kind: 'transition', uuid: tr.uuid }
@@ -280,7 +287,12 @@ defineExpose({ dirty, save })
             <h3 class="font-semibold text-sm mb-2">{{ t('workflow.statuses') }}</h3>
             <ul class="flex flex-col gap-1">
               <li v-for="s in doc.statuses" :key="s.uuid">
-                <button type="button" class="w-full text-start flex items-center gap-2 rounded px-2 py-1 hover:bg-subtle" :class="selected?.uuid === s.uuid ? 'bg-primary-subtle' : ''" @click="selected = { kind: 'status', uuid: s.uuid }">
+                <button
+                  type="button"
+                  class="w-full text-start flex items-center gap-2 rounded px-2 py-1 hover:bg-subtle"
+                  :class="selected?.uuid === s.uuid ? 'bg-primary-subtle' : ''"
+                  @click="selected = { kind: 'status', uuid: s.uuid }"
+                >
                   <span class="inline-block w-2.5 h-2.5 rounded-full" :style="{ background: s.color }" aria-hidden="true" />
                   <span class="flex-1 truncate">{{ nameOf(s) }}</span>
                   <span v-if="s.initial" class="text-xs text-muted-color">{{ t('workflow.initial') }}</span>
@@ -292,11 +304,24 @@ defineExpose({ dirty, save })
           <section class="rounded-lg border border-line p-3">
             <div class="flex items-center gap-2 mb-2">
               <h3 class="font-semibold text-sm flex-1">{{ t('workflow.transitions') }}</h3>
-              <Button v-if="doc.statuses.length > 1" icon="pi pi-plus" size="small" text :label="t('workflow.add_transition')" data-testid="wf-add-transition" @click="addTransition(doc.statuses[0]!.uuid, doc.statuses[1]!.uuid)" />
+              <Button
+                v-if="doc.statuses.length > 1"
+                icon="pi pi-plus"
+                size="small"
+                text
+                :label="t('workflow.add_transition')"
+                data-testid="wf-add-transition"
+                @click="addTransition(doc.statuses[0]!.uuid, doc.statuses[1]!.uuid)"
+              />
             </div>
             <ul class="flex flex-col gap-1">
               <li v-for="x in doc.transitions" :key="x.uuid">
-                <button type="button" class="w-full text-start rounded px-2 py-1 hover:bg-subtle text-sm" :class="selected?.uuid === x.uuid ? 'bg-primary-subtle' : ''" @click="selected = { kind: 'transition', uuid: x.uuid }">
+                <button
+                  type="button"
+                  class="w-full text-start rounded px-2 py-1 hover:bg-subtle text-sm"
+                  :class="selected?.uuid === x.uuid ? 'bg-primary-subtle' : ''"
+                  @click="selected = { kind: 'transition', uuid: x.uuid }"
+                >
                   <span class="font-medium">{{ nameOf(x) }}</span>
                   <span class="text-muted-color">
                     · {{ x.from ? nameOf(statusById.get(x.from) ?? { key: '?', i18n: { name: {} } }) : t('workflow.any_status') }} →
@@ -341,7 +366,9 @@ defineExpose({ dirty, save })
             <label for="wf-status-icon">{{ t('workflow.icon') }}</label>
             <InputText id="wf-status-icon" v-model="status.icon" size="small" class="ltr-value" placeholder="pi pi-check" />
           </div>
-          <label class="flex items-center gap-2 text-sm"><ToggleSwitch :model-value="status.initial" @update:model-value="(v: boolean) => setInitial(status!, v)" />{{ t('workflow.initial_status') }}</label>
+          <label class="flex items-center gap-2 text-sm"
+            ><ToggleSwitch :model-value="status.initial" @update:model-value="(v: boolean) => setInitial(status!, v)" />{{ t('workflow.initial_status') }}</label
+          >
           <label class="flex items-center gap-2 text-sm"><ToggleSwitch v-model="status.final" />{{ t('workflow.final_status') }}</label>
           <Button icon="pi pi-trash" severity="danger" text size="small" :label="t('workflow.remove_status')" @click="removeSelected" />
         </template>
@@ -386,7 +413,12 @@ defineExpose({ dirty, save })
             <Select v-model="transition.approval.mode" :options="approvalModes" option-label="label" option-value="value" size="small" :aria-label="t('workflow.approvals')" />
             <template v-if="transition.approval.mode !== 'none'">
               <div v-for="(a, i) in transition.approval.approvers" :key="i" class="flex items-center gap-1">
-                <SubjectPicker :model-value="a.uuid ? { type: a.type, uuid: a.uuid } : null" :types="['role', 'department', 'user']" class="flex-1 min-w-0" @update:model-value="(v) => setApprover(i, v)" />
+                <SubjectPicker
+                  :model-value="a.uuid ? { type: a.type, uuid: a.uuid } : null"
+                  :types="['role', 'department', 'user']"
+                  class="flex-1 min-w-0"
+                  @update:model-value="(v) => setApprover(i, v)"
+                />
                 <InputNumber v-if="transition.approval.mode === 'quorum'" v-model="a.weight" :min="0.01" :max-fraction-digits="2" size="small" input-class="w-16" :aria-label="t('workflow.weight')" />
                 <Button icon="pi pi-times" text severity="secondary" size="small" :aria-label="t('workflow.remove')" @click="transition.approval.approvers.splice(i, 1)" />
               </div>
@@ -416,7 +448,8 @@ defineExpose({ dirty, save })
           <Button icon="pi pi-trash" severity="danger" text size="small" :label="t('workflow.remove_transition')" @click="removeSelected" />
         </template>
         <Message v-for="(m, k) in errors" :key="k" severity="error" :closable="false" class="text-sm"
-          ><span class="ltr-value">{{ k }}</span>: {{ m }}</Message
+          ><span class="ltr-value">{{ k }}</span
+          >: {{ m }}</Message
         >
       </aside>
     </div>

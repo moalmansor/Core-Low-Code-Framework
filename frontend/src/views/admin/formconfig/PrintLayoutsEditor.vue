@@ -102,7 +102,15 @@ const err = (path: string) => doc.errors.value[path]
       </div>
       <span class="text-sm font-medium">{{ t('print.sections') }}</span>
       <div v-for="(s, j) in l.layout.sections" :key="j" class="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] items-end">
-        <Select v-model="s.type" :options="sectionTypes" option-label="label" option-value="value" size="small" :aria-label="t('print.section_type')" :invalid="!!err(`layouts.${i}.layout.sections.${j}.type`)" />
+        <Select
+          v-model="s.type"
+          :options="sectionTypes"
+          option-label="label"
+          option-value="value"
+          size="small"
+          :aria-label="t('print.section_type')"
+          :invalid="!!err(`layouts.${i}.layout.sections.${j}.type`)"
+        />
         <MultiSelect
           v-if="s.type === 'fields'"
           v-model="s.fields"

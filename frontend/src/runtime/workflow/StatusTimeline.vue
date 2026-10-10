@@ -47,8 +47,8 @@ const stayed = (s: number) => {
         <span v-else class="text-muted-color">{{ t(`workflow_run.source.${h.source}`) }}</span>
       </div>
       <div class="text-sm text-muted-color">
-        {{ h.by ?? t('records.system_actor') }}<template v-if="h.on_behalf_of"> {{ t('workflow_run.for', { name: h.on_behalf_of }) }}</template> ·
-        {{ formatDatetime(h.at, locale) }}<template v-if="h.seconds_in_previous !== null"> · {{ t('workflow_run.stayed', { time: stayed(h.seconds_in_previous) }) }}</template>
+        {{ h.by ?? t('records.system_actor') }}<template v-if="h.on_behalf_of"> {{ t('workflow_run.for', { name: h.on_behalf_of }) }}</template> · {{ formatDatetime(h.at, locale)
+        }}<template v-if="h.seconds_in_previous !== null"> · {{ t('workflow_run.stayed', { time: stayed(h.seconds_in_previous) }) }}</template>
       </div>
       <p v-if="h.comment" class="text-sm" dir="auto">{{ h.comment }}</p>
       <ul v-if="h.attachments.length" class="text-sm flex flex-wrap gap-2">

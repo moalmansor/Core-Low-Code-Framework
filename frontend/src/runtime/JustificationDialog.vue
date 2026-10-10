@@ -82,7 +82,11 @@ const show = (v: unknown) => (v === '«masked»' ? t('records.masked') : formatL
     <form v-if="prompt" class="flex flex-col gap-3" data-testid="justification-dialog" @submit.prevent="submit">
       <p v-if="prompt.help" class="text-sm text-muted-color">{{ prompt.help }}</p>
       <table v-if="prompt.changes.length" class="w-full text-sm">
-        <caption class="text-start font-medium mb-1">{{ t('justify.changes') }}</caption>
+        <caption class="text-start font-medium mb-1">
+          {{
+            t('justify.changes')
+          }}
+        </caption>
         <tbody>
           <tr v-for="c in prompt.changes" :key="c.field" class="align-top">
             <td class="py-1 pe-3 font-medium">{{ c.label }}</td>
@@ -93,7 +97,17 @@ const show = (v: unknown) => (v === '«masked»' ? t('records.masked') : formatL
       </table>
       <div v-if="prompt.reason_codes.mode !== 'none'" class="field">
         <label for="jd-code">{{ t('justify.reason_code') }}<span v-if="prompt.reason_codes.mode === 'required'" class="text-danger ms-1" aria-hidden="true">*</span></label>
-        <Select v-model="code" input-id="jd-code" :options="prompt.reason_codes.options" option-label="label" option-value="uuid" filter show-clear :invalid="!!errors?.reason_code" data-testid="justification-code" />
+        <Select
+          v-model="code"
+          input-id="jd-code"
+          :options="prompt.reason_codes.options"
+          option-label="label"
+          option-value="uuid"
+          filter
+          show-clear
+          :invalid="!!errors?.reason_code"
+          data-testid="justification-code"
+        />
         <span v-if="errors?.reason_code" class="field-error">{{ errors.reason_code }}</span>
       </div>
       <div v-if="selectedCode?.requires_note" class="field">

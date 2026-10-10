@@ -101,8 +101,7 @@ export const workflowApi = {
   load: (form: string) => get<{ data: WorkflowState }>(`/forms/${form}/workflow`).then((r) => r.data),
   save: (form: string, document: WorkflowDocument, hash: string) => send<{ data: WorkflowState }>('put', `/forms/${form}/workflow`, { document, base_hash: hash }).then((r) => r.data),
   mapping: (form: string) => get<{ data: StatusMappingOverview }>(`/forms/${form}/workflow/status-mapping`).then((r) => r.data),
-  chooseMapping: (form: string, mappings: { from: string; to: string }[]) =>
-    send<{ data: StatusMappingOverview }>('post', `/forms/${form}/workflow/status-mapping`, { mappings }).then((r) => r.data),
+  chooseMapping: (form: string, mappings: { from: string; to: string }[]) => send<{ data: StatusMappingOverview }>('post', `/forms/${form}/workflow/status-mapping`, { mappings }).then((r) => r.data),
 }
 
 /** A document saved whole with its concurrency hash. */
@@ -261,7 +260,9 @@ export const printLayoutsApi = documentApi<PrintLayoutDoc[]>('print-layouts', 'l
 export const previewsApi = {
   load: (form: string) => get<{ data: { default: PreviewDoc | null; fields: (PreviewDoc & { field: string })[]; hash: string } }>(`/forms/${form}/reference-previews`).then((r) => r.data),
   save: (form: string, doc: { default: PreviewDoc | null; fields: (PreviewDoc & { field: string })[] }, hash: string) =>
-    send<{ data: { default: PreviewDoc | null; fields: (PreviewDoc & { field: string })[]; hash: string } }>('put', `/forms/${form}/reference-previews`, { ...doc, base_hash: hash }).then((r) => r.data),
+    send<{ data: { default: PreviewDoc | null; fields: (PreviewDoc & { field: string })[]; hash: string } }>('put', `/forms/${form}/reference-previews`, { ...doc, base_hash: hash }).then(
+      (r) => r.data,
+    ),
 }
 
 /** Label of a translatable map in the interface language, falling back to the default language, then the key. */

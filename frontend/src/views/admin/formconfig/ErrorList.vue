@@ -7,6 +7,7 @@ defineProps<{ errors: Record<string, string> }>()
 
 <template>
   <Message v-for="(m, k) in errors" :key="k" severity="error" :closable="false" class="text-sm" data-testid="config-error"
-    ><span class="ltr-value">{{ k }}</span>: {{ m }}</Message
+    ><span class="ltr-value">{{ k }}</span
+    >: {{ m }}</Message
   >
 </template>

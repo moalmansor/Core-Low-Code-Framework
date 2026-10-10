@@ -55,10 +55,12 @@ function nodeAt(path: Path): PathNode | undefined {
   return found
 }
 function pathLabel(path: Path): string {
-  return path.map((_, i) => {
-    const n = nodeAt(path.slice(0, i + 1))
-    return n ? labelOf(n.label, locale.value, n.key, dl.value) : path[i]
-  }).join(' › ')
+  return path
+    .map((_, i) => {
+      const n = nodeAt(path.slice(0, i + 1))
+      return n ? labelOf(n.label, locale.value, n.key, dl.value) : path[i]
+    })
+    .join(' › ')
 }
 
 function addView(): void {
@@ -231,7 +233,15 @@ const colInvalid = (c: ViewColumnDoc, j: number) => !c.path.length || !!err(`col
         <div><Button icon="pi pi-plus" :label="t('views.add_sort')" size="small" outlined @click="view.defaultSort.push({ path: [], dir: 'asc' })" /></div>
 
         <p class="text-sm text-muted-color">{{ t('views.who_hint') }}</p>
-        <p v-if="view.columns.length" class="text-sm text-muted-color">{{ t('views.preview_columns') }}: {{ view.columns.filter((c) => c.path.length).map((c) => pathLabel(c.path)).join(', ') }}</p>
+        <p v-if="view.columns.length" class="text-sm text-muted-color">
+          {{ t('views.preview_columns') }}:
+          {{
+            view.columns
+              .filter((c) => c.path.length)
+              .map((c) => pathLabel(c.path))
+              .join(', ')
+          }}
+        </p>
         <div class="flex justify-end gap-2">
           <Button
             v-if="canBlueprint"

@@ -97,9 +97,15 @@ async function save(): Promise<void> {
       <template #groupheader="{ data }">
         <span class="font-semibold ltr-value">{{ data.set_key }}</span>
       </template>
-      <Column field="code" :header="t('reason_codes.code')"><template #body="{ data }"><span class="ltr-value">{{ data.code }}</span></template></Column>
+      <Column field="code" :header="t('reason_codes.code')"
+        ><template #body="{ data }"
+          ><span class="ltr-value">{{ data.code }}</span></template
+        ></Column
+      >
       <Column field="label" :header="t('reason_codes.label')" />
-      <Column :header="t('reason_codes.requires_note')"><template #body="{ data }"><i v-if="data.requires_note" class="pi pi-check" :aria-label="t('common.yes')" /></template></Column>
+      <Column :header="t('reason_codes.requires_note')"
+        ><template #body="{ data }"><i v-if="data.requires_note" class="pi pi-check" :aria-label="t('common.yes')" /></template
+      ></Column>
       <Column field="sort_order" :header="t('reason_codes.order')" />
       <Column :header="t('reason_codes.state')">
         <template #body="{ data }"><Tag :severity="data.is_active ? 'success' : 'secondary'" :value="data.is_active ? t('reason_codes.active') : t('reason_codes.inactive')" /></template>

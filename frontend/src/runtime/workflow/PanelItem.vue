@@ -35,7 +35,7 @@ const cell = (v: unknown) => formatLoose(v) || '—'
     </TabList>
     <TabPanels>
       <TabPanel v-for="k in kids" :key="k.uuid" :value="k.uuid">
-        <div class="grid gap-4" :class="({ 2: 'md:grid-cols-2', 3: 'md:grid-cols-3' })[k.config.columns as 2 | 3] ?? ''">
+        <div class="grid gap-4" :class="{ 2: 'md:grid-cols-2', 3: 'md:grid-cols-3' }[k.config.columns as 2 | 3] ?? ''">
           <PanelItem v-for="c in ctx.children.get(k.uuid) ?? []" :key="c.uuid" :panel="c" />
         </div>
       </TabPanel>
@@ -60,7 +60,14 @@ const cell = (v: unknown) => formatLoose(v) || '—'
         <PanelItem v-for="c in kids" :key="c.uuid" :panel="c" />
       </div>
 
-      <FormRenderer v-else-if="panel.type === 'form_body'" :definition="bodyFor(ctx.definition, (panel.config.groups as string[]) ?? [])" :model-value="ctx.record.values" mode="view" :form-uuid="ctx.form" :references="ctx.record.references" />
+      <FormRenderer
+        v-else-if="panel.type === 'form_body'"
+        :definition="bodyFor(ctx.definition, (panel.config.groups as string[]) ?? [])"
+        :model-value="ctx.record.values"
+        mode="view"
+        :form-uuid="ctx.form"
+        :references="ctx.record.references"
+      />
 
       <dl v-else-if="panel.type === 'derived_fields'" class="grid gap-2 md:grid-cols-2">
         <div v-for="(it, i) in items" :key="i">

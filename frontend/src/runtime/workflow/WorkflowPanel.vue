@@ -94,12 +94,17 @@ async function perform(): Promise<void> {
   const key = newUuid()
   try {
     const done = await justification.run((j) =>
-      send('post', `/r/${props.form}/${props.record}/transitions/${m.uuid}`, {
-        row_version: props.rowVersion,
-        comment: comment.value.trim() || null,
-        attachments: files.value.map((f) => f.uuid),
-        ...(j ? { justification: j } : {}),
-      }, { headers: { 'Idempotency-Key': key } }),
+      send(
+        'post',
+        `/r/${props.form}/${props.record}/transitions/${m.uuid}`,
+        {
+          row_version: props.rowVersion,
+          comment: comment.value.trim() || null,
+          attachments: files.value.map((f) => f.uuid),
+          ...(j ? { justification: j } : {}),
+        },
+        { headers: { 'Idempotency-Key': key } },
+      ),
     )
     if (done === null) return
     moving.value = null
@@ -160,7 +165,12 @@ async function claim(release: boolean): Promise<void> {
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-sm text-muted-color">{{ t('workflow_run.status') }}</span>
       <StatusBadge :status="state.status" />
-      <Tag v-if="sla" :severity="sla.state === 'breached' ? 'danger' : sla.state === 'warned' ? 'warn' : 'secondary'" :value="t(`workflow_run.sla.${sla.state}`, { at: when(sla.due_at) })" data-testid="sla-badge" />
+      <Tag
+        v-if="sla"
+        :severity="sla.state === 'breached' ? 'danger' : sla.state === 'warned' ? 'warn' : 'secondary'"
+        :value="t(`workflow_run.sla.${sla.state}`, { at: when(sla.due_at) })"
+        data-testid="sla-badge"
+      />
       <span class="flex-1" />
       <Button
         v-for="tr in state.transitions"
@@ -190,7 +200,9 @@ async function claim(release: boolean): Promise<void> {
         <li v-for="(d, i) in state.approval.decisions" :key="i" class="flex flex-wrap gap-2">
           <span class="font-medium">{{ d.approver.name }}</span>
           <Tag :severity="d.decision === 'approved' ? 'success' : d.decision === 'rejected' ? 'danger' : 'secondary'" :value="t(`workflow_run.decision.${d.decision}`)" />
-          <span v-if="d.decided_by" class="text-muted-color">{{ d.decided_by }}<template v-if="d.on_behalf"> ({{ t('workflow_run.on_behalf') }})</template> · {{ when(d.decided_at) }}</span>
+          <span v-if="d.decided_by" class="text-muted-color"
+            >{{ d.decided_by }}<template v-if="d.on_behalf"> ({{ t('workflow_run.on_behalf') }})</template> · {{ when(d.decided_at) }}</span
+          >
           <span v-if="d.comment" class="w-full ps-4" dir="auto">{{ d.comment }}</span>
         </li>
       </ul>
@@ -222,9 +234,7 @@ async function claim(release: boolean): Promise<void> {
       <form v-if="moving" class="flex flex-col gap-3" data-testid="transition-dialog" @submit.prevent="perform">
         <p class="flex items-center gap-2 text-sm">{{ t('workflow_run.moves_to') }} <StatusBadge :status="moving.to" size="sm" /></p>
         <Message v-if="moving.approval" severity="info" size="small" :closable="false">{{ t('workflow_run.needs_approval') }}</Message>
-        <Message v-if="missingFields.length" severity="warn" :closable="false">
-          {{ t('workflow_run.fill_first') }} {{ missingFields.map(fieldLabel).join(', ') }}
-        </Message>
+        <Message v-if="missingFields.length" severity="warn" :closable="false"> {{ t('workflow_run.fill_first') }} {{ missingFields.map(fieldLabel).join(', ') }} </Message>
         <Message v-if="moving.on_behalf_of" severity="secondary" size="small" :closable="false">{{ t('workflow_run.acting_for', { name: moving.on_behalf_of }) }}</Message>
         <div v-if="moving.comment !== 'none'" class="field">
           <label for="tr-comment">{{ t('workflow.comment') }}<span v-if="moving.comment === 'mandatory'" class="text-danger ms-1" aria-hidden="true">*</span></label>
@@ -243,12 +253,18 @@ async function claim(release: boolean): Promise<void> {
         <p v-if="moving.confirmation" class="text-sm font-medium">{{ t('workflow_run.confirm', { name: moving.name }) }}</p>
         <div class="flex justify-end gap-2">
           <Button type="button" :label="t('common.cancel')" text @click="moving = null" />
-          <Button type="submit" :label="moving.name" icon="pi pi-check" :disabled="!canSubmit || uploading" :loading="performing" data-testid="transition-submit" />
+          <Button type="submit" :label="moving.name" icon="pi pi-check" :disabled="!canSubmit || uploading" :loading="performing" data-testid="transition-perform" />
         </div>
       </form>
     </Dialog>
 
-    <Dialog :visible="!!deciding" modal :header="deciding === 'approved' ? t('workflow_run.approve') : t('workflow_run.reject')" class="w-full max-w-md" @update:visible="(v) => !v && (deciding = null)">
+    <Dialog
+      :visible="!!deciding"
+      modal
+      :header="deciding === 'approved' ? t('workflow_run.approve') : t('workflow_run.reject')"
+      class="w-full max-w-md"
+      @update:visible="(v) => !v && (deciding = null)"
+    >
       <form class="flex flex-col gap-3" @submit.prevent="decide">
         <div class="field">
           <label for="dc-comment">{{ t('workflow.comment') }}<span v-if="deciding === 'rejected'" class="text-danger ms-1" aria-hidden="true">*</span></label>

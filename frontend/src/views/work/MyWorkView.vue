@@ -115,13 +115,17 @@ const pages = computed(() => Math.max(1, Math.ceil(total.value / 25)))
               <div class="flex flex-wrap items-center gap-2">
                 <Tag :value="t(`my_work.kind.${it.kind}`)" :severity="it.kind === 'approval' ? 'info' : 'secondary'" />
                 <RouterLink :to="{ name: 'records.view', params: { form: it.form.uuid, record: it.record.uuid } }" class="font-medium text-link" dir="auto">
-                  {{ it.record.title ?? it.record.number ?? it.record.uuid.slice(0, 8) }}
+                  {{ it.record.title ?? it.record.number ?? t('my_work.untitled', { form: it.form.name }) }}
                 </RouterLink>
                 <span class="text-sm text-muted-color">{{ it.form.name }}</span>
                 <StatusBadge :status="it.status" size="sm" />
                 <span class="flex-1" />
                 <Tag v-if="it.overdue" severity="danger" :value="t('my_work.overdue')" />
-                <Tag v-else-if="it.sla" :severity="it.sla.state === 'breached' ? 'danger' : it.sla.state === 'warned' ? 'warn' : 'secondary'" :value="t(`workflow_run.sla.${it.sla.state}`, { at: when(it.sla.due_at) })" />
+                <Tag
+                  v-else-if="it.sla"
+                  :severity="it.sla.state === 'breached' ? 'danger' : it.sla.state === 'warned' ? 'warn' : 'secondary'"
+                  :value="t(`workflow_run.sla.${it.sla.state}`, { at: when(it.sla.due_at) })"
+                />
                 <span v-if="it.due_at" class="text-sm text-muted-color">{{ t('workflow_run.due', { at: when(it.due_at) }) }}</span>
               </div>
               <dl v-if="it.columns.length" class="grid gap-x-4 gap-y-1 text-sm grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]">
@@ -135,10 +139,23 @@ const pages = computed(() => Math.max(1, Math.ceil(total.value / 25)))
                 <span v-if="it.on_behalf_of" class="text-muted-color">· {{ t('my_work.covering', { name: it.on_behalf_of }) }}</span>
                 <span v-if="it.claim" class="text-muted-color">· {{ t('workflow_run.claimed_by', { name: it.claim.by.name ?? '' }) }}</span>
                 <span class="flex-1" />
-                <Button v-if="it.claimable && !it.claim" icon="pi pi-lock" :label="t('workflow_run.claim')" size="small" outlined :data-testid="`my-work-claim-${it.record.uuid}`" @click="claim(it, false)" />
+                <Button
+                  v-if="it.claimable && !it.claim"
+                  icon="pi pi-lock"
+                  :label="t('workflow_run.claim')"
+                  size="small"
+                  outlined
+                  :data-testid="`my-work-claim-${it.record.uuid}`"
+                  @click="claim(it, false)"
+                />
                 <Button v-if="it.claim && it.claim.by.uuid === session.me?.uuid" icon="pi pi-lock-open" :label="t('workflow_run.release')" size="small" outlined @click="claim(it, true)" />
                 <RouterLink v-slot="{ navigate }" :to="{ name: 'records.view', params: { form: it.form.uuid, record: it.record.uuid } }" custom>
-                  <Button :icon="it.kind === 'approval' ? 'pi pi-check-square' : 'pi pi-arrow-right rtl:rotate-180'" :label="it.kind === 'approval' ? t('my_work.decide') : t('my_work.open')" size="small" @click="navigate" />
+                  <Button
+                    :icon="it.kind === 'approval' ? 'pi pi-check-square' : 'pi pi-arrow-right rtl:rotate-180'"
+                    :label="it.kind === 'approval' ? t('my_work.decide') : t('my_work.open')"
+                    size="small"
+                    @click="navigate"
+                  />
                 </RouterLink>
               </div>
             </li>

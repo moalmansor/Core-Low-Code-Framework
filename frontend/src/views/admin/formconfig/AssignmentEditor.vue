@@ -37,8 +37,13 @@ onMounted(async () => {
 })
 const dl = computed(() => session.boot?.default_locale ?? 'en')
 const scope = computed(() => (builder.doc ? buildScope(builder.doc, builder.catalog.fields) : { fields: [], repeaters: [], rows: null }))
-const whenOptions = computed(() => [{ value: null, label: t('assignment.on_create') }, ...transitions.value.map((x) => ({ value: x.uuid, label: labelOf(x.i18n.name, locale.value, x.key, dl.value) }))])
-const strategies = computed(() => (['user', 'role', 'department', 'field_user', 'creator_manager', 'round_robin', 'least_loaded'] as const).map((v) => ({ value: v, label: t(`assignment.strategy.${v}`) })))
+const whenOptions = computed(() => [
+  { value: null, label: t('assignment.on_create') },
+  ...transitions.value.map((x) => ({ value: x.uuid, label: labelOf(x.i18n.name, locale.value, x.key, dl.value) })),
+])
+const strategies = computed(() =>
+  (['user', 'role', 'department', 'field_user', 'creator_manager', 'round_robin', 'least_loaded'] as const).map((v) => ({ value: v, label: t(`assignment.strategy.${v}`) })),
+)
 const userFields = computed(() => (builder.doc?.fields ?? []).filter((f) => f.type === 'user').map((f) => ({ value: f.uuid, label: labelOf(f.i18n?.label ?? {}, locale.value, f.key, dl.value) })))
 const targetType = (s: string): ('user' | 'role' | 'department')[] => (s === 'user' ? ['user'] : s === 'department' ? ['department'] : ['role'])
 const needsTarget = (s: string) => ['user', 'role', 'department', 'round_robin', 'least_loaded'].includes(s)

@@ -93,7 +93,10 @@ async function save(): Promise<void> {
   saving.value = true
   errors.value = {}
   try {
-    const { data } = await send<{ data: { sla: SlaDoc[]; statuses: StatusDoc[]; transitions: TransitionDoc[]; hash: string } }>('put', `/forms/${props.form}/sla-rules`, { sla: rules.value, base_hash: hash.value })
+    const { data } = await send<{ data: { sla: SlaDoc[]; statuses: StatusDoc[]; transitions: TransitionDoc[]; hash: string } }>('put', `/forms/${props.form}/sla-rules`, {
+      sla: rules.value,
+      base_hash: hash.value,
+    })
     apply(data)
     toast.add({ severity: 'success', summary: t('workflow.saved'), life: 3000 })
   } catch (e) {
@@ -161,7 +164,9 @@ const err = (path: string) => errors.value[path]
           <div class="flex-1 min-w-60 flex flex-col gap-1">
             <template v-if="e.action === 'notify'">
               <label class="flex items-center gap-2 text-sm"
-                ><ToggleSwitch :model-value="notifyTargets(e).some((x) => x.type === 'assignee')" @update:model-value="(v: boolean) => toggleBuiltIn(e, 'assignee', v)" />{{ t('sla.notify_assignee') }}</label
+                ><ToggleSwitch :model-value="notifyTargets(e).some((x) => x.type === 'assignee')" @update:model-value="(v: boolean) => toggleBuiltIn(e, 'assignee', v)" />{{
+                  t('sla.notify_assignee')
+                }}</label
               >
               <label class="flex items-center gap-2 text-sm"
                 ><ToggleSwitch :model-value="notifyTargets(e).some((x) => x.type === 'owner')" @update:model-value="(v: boolean) => toggleBuiltIn(e, 'owner', v)" />{{ t('sla.notify_owner') }}</label
@@ -195,7 +200,8 @@ const err = (path: string) => errors.value[path]
       <Button icon="pi pi-trash" text severity="danger" size="small" class="self-start" :label="t('sla.remove')" @click="rules.splice(i, 1)" />
     </section>
     <Message v-for="(m, k) in errors" :key="k" severity="error" :closable="false" class="text-sm"
-      ><span class="ltr-value">{{ k }}</span>: {{ m }}</Message
+      ><span class="ltr-value">{{ k }}</span
+      >: {{ m }}</Message
     >
   </div>
 </template>

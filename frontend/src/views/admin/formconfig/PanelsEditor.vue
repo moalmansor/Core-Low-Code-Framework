@@ -44,7 +44,9 @@ const types = computed(() =>
 )
 const containers = computed(() =>
   [{ value: null as string | null, label: t('panels.top_level') }].concat(
-    (doc.value.value ?? []).filter((p) => ['tabs', 'tab', 'section'].includes(p.type)).map((p) => ({ value: p.uuid, label: `${t(`panels.type.${p.type}`)} · ${labelOf(p.i18n.title, locale.value, p.uuid.slice(0, 8), dl.value)}` })),
+    (doc.value.value ?? [])
+      .filter((p) => ['tabs', 'tab', 'section'].includes(p.type))
+      .map((p) => ({ value: p.uuid, label: `${t(`panels.type.${p.type}`)} · ${labelOf(p.i18n.title, locale.value, p.uuid.slice(0, 8), dl.value)}` })),
   ),
 )
 const groups = computed(() => (builder.doc?.groups ?? []).map((g) => ({ value: g.key, label: labelOf(g.i18n?.title ?? {}, locale.value, g.key, dl.value) })))
@@ -154,7 +156,16 @@ const err = (i: number, path: string) => doc.errors.value[`panels.${i}.${path}`]
 
       <div v-else-if="p.type === 'form_body'" class="field">
         <label :for="`pn-groups-${i}`">{{ t('panels.groups') }}</label>
-        <MultiSelect v-model="p.config.groups as string[]" :input-id="`pn-groups-${i}`" :options="groups" option-label="label" option-value="value" :placeholder="t('panels.all_groups')" size="small" display="chip" />
+        <MultiSelect
+          v-model="p.config.groups as string[]"
+          :input-id="`pn-groups-${i}`"
+          :options="groups"
+          option-label="label"
+          option-value="value"
+          :placeholder="t('panels.all_groups')"
+          size="small"
+          display="chip"
+        />
       </div>
 
       <div v-else-if="p.type === 'derived_fields'" class="flex flex-col gap-2">
@@ -175,7 +186,16 @@ const err = (i: number, path: string) => doc.errors.value[`panels.${i}.${path}`]
           </div>
           <div class="field">
             <label :for="`pn-via-${i}`">{{ t('panels.via') }}</label>
-            <Select v-model="p.config.via as string | null" :input-id="`pn-via-${i}`" :options="links(p.config.source)" option-label="label" option-value="value" size="small" :invalid="!!err(i, 'config.via')" :empty-message="t('panels.no_links')" />
+            <Select
+              v-model="p.config.via as string | null"
+              :input-id="`pn-via-${i}`"
+              :options="links(p.config.source)"
+              option-label="label"
+              option-value="value"
+              size="small"
+              :invalid="!!err(i, 'config.via')"
+              :empty-message="t('panels.no_links')"
+            />
           </div>
         </div>
         <template v-if="p.type === 'related_table'">
@@ -195,7 +215,15 @@ const err = (i: number, path: string) => doc.errors.value[`panels.${i}.${path}`]
         <div v-else class="grid gap-2 md:grid-cols-2">
           <div class="field">
             <label :for="`pn-agg-${i}`">{{ t('views.total') }}</label>
-            <Select v-model="p.config.aggregate as string" :input-id="`pn-agg-${i}`" :options="aggregates" option-label="label" option-value="value" size="small" :invalid="!!err(i, 'config.aggregate')" />
+            <Select
+              v-model="p.config.aggregate as string"
+              :input-id="`pn-agg-${i}`"
+              :options="aggregates"
+              option-label="label"
+              option-value="value"
+              size="small"
+              :invalid="!!err(i, 'config.aggregate')"
+            />
           </div>
           <div v-if="p.config.aggregate !== 'count'" class="field">
             <label :for="`pn-fld-${i}`">{{ t('panels.number_field') }}</label>

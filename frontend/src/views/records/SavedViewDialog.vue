@@ -30,7 +30,12 @@ const errors = ref<Record<string, string>>({})
 async function save(): Promise<void> {
   saving.value = true
   errors.value = {}
-  const body = { name: name.value.trim(), state: props.state, is_default: isDefault.value, shares: shares.value.filter((s): s is { type: string; uuid: string | null } => !!s && (s.type === 'everyone' || !!s.uuid)) }
+  const body = {
+    name: name.value.trim(),
+    state: props.state,
+    is_default: isDefault.value,
+    shares: shares.value.filter((s): s is { type: string; uuid: string | null } => !!s && (s.type === 'everyone' || !!s.uuid)),
+  }
   try {
     if (overwrite.value && props.current?.mine) await send('patch', `/r/${props.form}/saved-views/${props.current.uuid}`, body)
     else await send('post', `/r/${props.form}/saved-views`, { ...body, view: props.view })

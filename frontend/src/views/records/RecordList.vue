@@ -131,10 +131,10 @@ async function load(): Promise<void> {
   const mine = ++seq
   loading.value = true
   try {
-    const res = await get<{ data: Row[]; meta: { total: number; per_page: number; view: ActiveView | null; totals: Record<string, unknown>; views: { uuid: string; key: string; name: Record<string, string> }[] } }>(
-      `/r/${formUuid.value}`,
-      { ...params(), page: state.page, per_page: state.perPage },
-    )
+    const res = await get<{
+      data: Row[]
+      meta: { total: number; per_page: number; view: ActiveView | null; totals: Record<string, unknown>; views: { uuid: string; key: string; name: Record<string, string> }[] }
+    }>(`/r/${formUuid.value}`, { ...params(), page: state.page, per_page: state.perPage })
     if (mine !== seq) return
     rows.value = res.data
     total.value = res.meta.total
@@ -406,7 +406,12 @@ const rowItems = computed(() => {
   if (state.trashed) return [{ label: t('records.restore'), icon: 'pi pi-replay', visible: canRestore.value, command: () => restore(r) }]
   return [
     { label: t('records.view'), icon: 'pi pi-eye', visible: rowOptions.value.view, command: () => router.push({ name: 'records.view', params: { form: formUuid.value, record: r.uuid } }) },
-    { label: t('common.edit'), icon: 'pi pi-pencil', visible: canEdit.value && rowOptions.value.edit, command: () => router.push({ name: 'records.edit', params: { form: formUuid.value, record: r.uuid } }) },
+    {
+      label: t('common.edit'),
+      icon: 'pi pi-pencil',
+      visible: canEdit.value && rowOptions.value.edit,
+      command: () => router.push({ name: 'records.edit', params: { form: formUuid.value, record: r.uuid } }),
+    },
     { separator: true, visible: canDelete.value },
     { label: t('common.delete'), icon: 'pi pi-trash', class: 'text-danger', visible: canDelete.value, command: () => remove(r) },
   ]
@@ -766,7 +771,15 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
         </template>
       </Column>
       <template v-if="activeView">
-        <Column v-for="c in viewColumns" :key="c.key" :field="c.key" :header="c.label" :sortable="c.sortable" :style="c.width ? { minWidth: `${c.width}px` } : undefined" :frozen="c.pinned === 'start'">
+        <Column
+          v-for="c in viewColumns"
+          :key="c.key"
+          :field="c.key"
+          :header="c.label"
+          :sortable="c.sortable"
+          :style="c.width ? { minWidth: `${c.width}px` } : undefined"
+          :frozen="c.pinned === 'start'"
+        >
           <template #body="{ data }">
             <template v-for="vc in [viewCell(data as Row, c)]" :key="vc.kind">
               <StatusBadge v-if="vc.kind === 'status'" :status="vc.status" size="sm" />
@@ -788,36 +801,36 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
         </Column>
       </template>
       <template v-else>
-      <Column v-if="showNumber" field="record_number" :header="t('records.record_number')" sortable>
-        <template #body="{ data }">
-          <span class="ltr-value font-mono text-sm">{{ (data as RecordPayload).system.record_number ?? '—' }}</span>
-        </template>
-      </Column>
-      <Column v-if="showTitle" :header="t('records.record_title')">
-        <template #body="{ data }">{{ (data as RecordPayload).title ?? '—' }}</template>
-      </Column>
-      <Column v-for="f in columns" :key="f.uuid" :field="f.key" :header="columnLabel(f)" :sortable="f.table?.sortable === true">
-        <template #body="{ data }">
-          <template v-for="c in [cell(data as RecordPayload, f)]" :key="c.kind">
-            <span v-if="c.kind === 'pills'" class="flex flex-wrap gap-1">
-              <span v-for="(p, n) in c.pills" :key="n" :class="['pill', p.class]" :style="p.style" data-testid="cell-pill">{{ p.text }}</span>
-            </span>
-            <span v-else-if="c.kind === 'links'" class="flex flex-wrap gap-x-3 gap-y-1">
-              <RouterLink v-for="(l, n) in c.links" :key="n" :to="l.to" class="record-link" data-testid="cell-link" @click.stop>
-                <span dir="auto">{{ l.text }}</span
-                ><i class="pi pi-external-link" aria-hidden="true" />
-              </RouterLink>
-            </span>
-            <!-- A single token (a code, a number) never breaks; longer text wraps to two lines. -->
-            <span v-else :class="/\s/.test(c.text) ? 'line-clamp-2' : 'whitespace-nowrap'">{{ c.text }}</span>
+        <Column v-if="showNumber" field="record_number" :header="t('records.record_number')" sortable>
+          <template #body="{ data }">
+            <span class="ltr-value font-mono text-sm">{{ (data as RecordPayload).system.record_number ?? '—' }}</span>
           </template>
-        </template>
-      </Column>
-      <Column field="updated_at" :header="t('records.updated_at')" sortable>
-        <template #body="{ data }">
-          <span class="text-sm whitespace-nowrap text-muted-color">{{ (data as RecordPayload).system.updated_at ? formatDatetime((data as RecordPayload).system.updated_at!, locale) : '—' }}</span>
-        </template>
-      </Column>
+        </Column>
+        <Column v-if="showTitle" :header="t('records.record_title')">
+          <template #body="{ data }">{{ (data as RecordPayload).title ?? '—' }}</template>
+        </Column>
+        <Column v-for="f in columns" :key="f.uuid" :field="f.key" :header="columnLabel(f)" :sortable="f.table?.sortable === true">
+          <template #body="{ data }">
+            <template v-for="c in [cell(data as RecordPayload, f)]" :key="c.kind">
+              <span v-if="c.kind === 'pills'" class="flex flex-wrap gap-1">
+                <span v-for="(p, n) in c.pills" :key="n" :class="['pill', p.class]" :style="p.style" data-testid="cell-pill">{{ p.text }}</span>
+              </span>
+              <span v-else-if="c.kind === 'links'" class="flex flex-wrap gap-x-3 gap-y-1">
+                <RouterLink v-for="(l, n) in c.links" :key="n" :to="l.to" class="record-link" data-testid="cell-link" @click.stop>
+                  <span dir="auto">{{ l.text }}</span
+                  ><i class="pi pi-external-link" aria-hidden="true" />
+                </RouterLink>
+              </span>
+              <!-- A single token (a code, a number) never breaks; longer text wraps to two lines. -->
+              <span v-else :class="/\s/.test(c.text) ? 'line-clamp-2' : 'whitespace-nowrap'">{{ c.text }}</span>
+            </template>
+          </template>
+        </Column>
+        <Column field="updated_at" :header="t('records.updated_at')" sortable>
+          <template #body="{ data }">
+            <span class="text-sm whitespace-nowrap text-muted-color">{{ (data as RecordPayload).system.updated_at ? formatDatetime((data as RecordPayload).system.updated_at!, locale) : '—' }}</span>
+          </template>
+        </Column>
       </template>
     </DataTable>
     <Menu ref="rowMenu" :model="rowItems" popup />

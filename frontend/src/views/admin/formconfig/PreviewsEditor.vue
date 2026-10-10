@@ -74,7 +74,15 @@ const err = (path: string) => doc.errors.value[path]
       <section class="rounded-lg border border-line p-3 flex flex-col gap-2">
         <div class="flex items-center gap-2">
           <h3 class="font-semibold flex-1">{{ t('previews.default_card') }}</h3>
-          <Button v-if="!doc.value.value.default" icon="pi pi-plus" :label="t('previews.configure')" size="small" outlined data-testid="previews-default-add" @click="doc.value.value.default = blank()" />
+          <Button
+            v-if="!doc.value.value.default"
+            icon="pi pi-plus"
+            :label="t('previews.configure')"
+            size="small"
+            outlined
+            data-testid="previews-default-add"
+            @click="doc.value.value.default = blank()"
+          />
           <Button v-else icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="doc.value.value.default = null" />
         </div>
         <template v-if="doc.value.value.default">
@@ -83,7 +91,14 @@ const err = (path: string) => doc.errors.value[path]
             <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="doc.value.value.default.displayPaths.splice(j, 1)" />
           </div>
           <div class="flex flex-wrap items-end gap-4">
-            <Button icon="pi pi-plus" :label="t('panels.add_path')" size="small" outlined :disabled="doc.value.value.default.displayPaths.length >= 12" @click="doc.value.value.default.displayPaths.push([] as Path)" />
+            <Button
+              icon="pi pi-plus"
+              :label="t('panels.add_path')"
+              size="small"
+              outlined
+              :disabled="doc.value.value.default.displayPaths.length >= 12"
+              @click="doc.value.value.default.displayPaths.push([] as Path)"
+            />
             <div class="field w-28">
               <label for="pv-def-cols">{{ t('panels.columns') }}</label>
               <Select v-model="doc.value.value.default.layout.columns" input-id="pv-def-cols" :options="columns" option-label="label" option-value="value" size="small" />
@@ -99,7 +114,16 @@ const err = (path: string) => doc.errors.value[path]
         <div class="flex items-end gap-2">
           <div class="field flex-1">
             <label :for="`pv-f-${i}`">{{ t('previews.lookup') }}</label>
-            <Select v-model="f.field" :input-id="`pv-f-${i}`" :options="lookups" option-label="label" option-value="value" size="small" :invalid="!!err(`fields.${i}.field`)" @update:model-value="(f.displayPaths = []), (f.autofill = [])" />
+            <Select
+              v-model="f.field"
+              :input-id="`pv-f-${i}`"
+              :options="lookups"
+              option-label="label"
+              option-value="value"
+              size="small"
+              :invalid="!!err(`fields.${i}.field`)"
+              @update:model-value="((f.displayPaths = []), (f.autofill = []))"
+            />
           </div>
           <Button icon="pi pi-trash" text severity="danger" size="small" :aria-label="t('workflow.remove')" @click="doc.value.value.fields.splice(i, 1)" />
         </div>
@@ -143,7 +167,15 @@ const err = (path: string) => doc.errors.value[path]
         </template>
       </section>
       <div>
-        <Button icon="pi pi-plus" :label="t('previews.add_lookup')" size="small" outlined :disabled="!lookups.length" data-testid="previews-field-add" @click="doc.value.value.fields.push({ field: '', ...blank() })" />
+        <Button
+          icon="pi pi-plus"
+          :label="t('previews.add_lookup')"
+          size="small"
+          outlined
+          :disabled="!lookups.length"
+          data-testid="previews-field-add"
+          @click="doc.value.value.fields.push({ field: '', ...blank() })"
+        />
       </div>
     </template>
     <ErrorList :errors="doc.errors.value" />

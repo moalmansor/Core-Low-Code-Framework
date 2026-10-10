@@ -131,15 +131,25 @@ const canRevoke = (d: Delegation) => (d.status === 'active' || d.status === 'sch
       <Button icon="pi pi-plus" :label="t('delegation.add')" size="small" data-testid="delegation-add" @click="create" />
     </div>
     <DataTable :value="rows" :loading="loading" data-key="uuid" size="small" scrollable>
-      <Column :header="t('delegation.from')"><template #body="{ data }">{{ data.delegator.name }}</template></Column>
-      <Column :header="t('delegation.to')"><template #body="{ data }">{{ data.delegate.name }}</template></Column>
-      <Column :header="t('delegation.type_label')"><template #body="{ data }">{{ t(`delegation.type.${data.type}`) }}</template></Column>
-      <Column :header="t('delegation.period')"><template #body="{ data }">{{ when(data.starts_at) }} – {{ when(data.ends_at) }}</template></Column>
+      <Column :header="t('delegation.from')"
+        ><template #body="{ data }">{{ data.delegator.name }}</template></Column
+      >
+      <Column :header="t('delegation.to')"
+        ><template #body="{ data }">{{ data.delegate.name }}</template></Column
+      >
+      <Column :header="t('delegation.type_label')"
+        ><template #body="{ data }">{{ t(`delegation.type.${data.type}`) }}</template></Column
+      >
+      <Column :header="t('delegation.period')"
+        ><template #body="{ data }">{{ when(data.starts_at) }} – {{ when(data.ends_at) }}</template></Column
+      >
       <Column :header="t('delegation.forms')">
         <template #body="{ data }">{{ data.forms === null ? t('delegation.all_forms') : data.forms.map((f: { key: string }) => f.key).join(', ') }}</template>
       </Column>
       <Column field="reason" :header="t('delegation.reason')" />
-      <Column :header="t('reason_codes.state')"><template #body="{ data }"><Tag :severity="severity(data.status)" :value="t(`delegation.status.${data.status}`)" /></template></Column>
+      <Column :header="t('reason_codes.state')"
+        ><template #body="{ data }"><Tag :severity="severity(data.status)" :value="t(`delegation.status.${data.status}`)" /></template
+      ></Column>
       <Column>
         <template #body="{ data }">
           <Button v-if="canRevoke(data)" icon="pi pi-ban" text severity="danger" size="small" :aria-label="t('delegation.revoke')" @click="revoke(data)" />

@@ -149,13 +149,23 @@ async function save(): Promise<void> {
             </div>
             <DataTable :value="queues" :loading="loading" data-key="uuid" size="small" scrollable>
               <Column field="name" :header="t('views.name')" />
-              <Column :header="t('workflow.key')"><template #body="{ data }"><span class="ltr-value">{{ data.key }}</span></template></Column>
-              <Column :header="t('queues.members')"><template #body="{ data }">{{ t(`subjects.${data.type}`) }}</template></Column>
-              <Column :header="t('queues.forms')"><template #body="{ data }">{{ data.forms.map((f: { name: string }) => f.name).join(', ') }}</template></Column>
+              <Column :header="t('workflow.key')"
+                ><template #body="{ data }"
+                  ><span class="ltr-value">{{ data.key }}</span></template
+                ></Column
+              >
+              <Column :header="t('queues.members')"
+                ><template #body="{ data }">{{ t(`subjects.${data.type}`) }}</template></Column
+              >
+              <Column :header="t('queues.forms')"
+                ><template #body="{ data }">{{ data.forms.map((f: { name: string }) => f.name).join(', ') }}</template></Column
+              >
               <Column :header="t('reason_codes.state')">
                 <template #body="{ data }"><Tag :severity="data.is_active ? 'success' : 'secondary'" :value="data.is_active ? t('reason_codes.active') : t('reason_codes.inactive')" /></template>
               </Column>
-              <Column><template #body="{ data }"><Button icon="pi pi-pencil" text size="small" :aria-label="t('common.edit')" @click="edit(data)" /></template></Column>
+              <Column
+                ><template #body="{ data }"><Button icon="pi pi-pencil" text size="small" :aria-label="t('common.edit')" @click="edit(data)" /></template
+              ></Column>
               <template #empty>{{ t('queues.empty') }}</template>
             </DataTable>
           </div>

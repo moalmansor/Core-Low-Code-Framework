@@ -176,7 +176,14 @@ const cardValue = (v: unknown) => (v === null || v === undefined || v === '' ? '
           </div>
         </template>
       </AutoComplete>
-      <Button v-if="targetForm && !multiple && selected[0] && (card?.drawer ?? true)" type="button" icon="pi pi-window-maximize" outlined :aria-label="t('runtime.open_reference')" @click="drawer = selected[0]!" />
+      <Button
+        v-if="targetForm && !multiple && selected[0] && (card?.drawer ?? true)"
+        type="button"
+        icon="pi pi-window-maximize"
+        outlined
+        :aria-label="t('runtime.open_reference')"
+        @click="drawer = selected[0]!"
+      />
     </div>
     <dl
       v-if="card && card.items.length"

@@ -174,7 +174,19 @@ async function loadHistory(): Promise<void> {
     historyError.value = e instanceof ApiError ? e.message : t('records.load_failed')
   }
 }
-const EVENTS = ['record.created', 'record.updated', 'record.deleted', 'record.restored', 'record.comment_added', 'record.comment_deleted', 'record.transitioned', 'record.assigned', 'record.reassigned', 'record.claimed', 'record.released']
+const EVENTS = [
+  'record.created',
+  'record.updated',
+  'record.deleted',
+  'record.restored',
+  'record.comment_added',
+  'record.comment_deleted',
+  'record.transitioned',
+  'record.assigned',
+  'record.reassigned',
+  'record.claimed',
+  'record.released',
+]
 function eventLabel(event: string): string {
   return EVENTS.includes(event) ? t(`records.event.${event.slice(7)}`) : event
 }
@@ -195,13 +207,17 @@ function changeValue(key: string, v: unknown): string {
 watch(tab, (v) => {
   if (v === 'history' && history.value === null) void loadHistory()
 })
-watch([formUuid, recordUuid], () => {
-  definition.value = null
-  record.value = null
-  panelCount.value = null
-  tab.value = 'details'
-  void load()
-}, { immediate: true })
+watch(
+  [formUuid, recordUuid],
+  () => {
+    definition.value = null
+    record.value = null
+    panelCount.value = null
+    tab.value = 'details'
+    void load()
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -239,7 +255,16 @@ watch([formUuid, recordUuid], () => {
           <Button icon="pi pi-pencil" :label="t('common.edit')" data-testid="record-edit" @click="navigate" />
         </RouterLink>
         <template v-if="perms.print">
-          <Button icon="pi pi-print" :label="t('records.print')" severity="secondary" outlined :loading="printing" aria-haspopup="true" data-testid="record-print" @click="(e: Event) => printMenu?.toggle(e)" />
+          <Button
+            icon="pi pi-print"
+            :label="t('records.print')"
+            severity="secondary"
+            outlined
+            :loading="printing"
+            aria-haspopup="true"
+            data-testid="record-print"
+            @click="(e: Event) => printMenu?.toggle(e)"
+          />
           <Menu ref="printMenu" :model="printItems" popup />
         </template>
         <Button v-if="perms.restore" icon="pi pi-replay" :label="t('records.restore')" severity="secondary" outlined data-testid="record-restore" @click="restore" />
@@ -278,7 +303,9 @@ watch([formUuid, recordUuid], () => {
             <li v-for="(h, i) in history" :key="i" class="rounded-lg border border-line p-3">
               <div class="flex flex-wrap items-center gap-2 mb-1">
                 <Tag :value="eventLabel(h.event)" severity="secondary" />
-                <span class="text-sm">{{ h.by ?? t('records.system_actor') }}<template v-if="h.on_behalf_of"> {{ t('workflow_run.for', { name: h.on_behalf_of }) }}</template></span>
+                <span class="text-sm"
+                  >{{ h.by ?? t('records.system_actor') }}<template v-if="h.on_behalf_of"> {{ t('workflow_run.for', { name: h.on_behalf_of }) }}</template></span
+                >
                 <span class="text-sm text-muted-color">{{ when(h.at) }}</span>
               </div>
               <table v-if="h.changes.length" class="w-full text-sm">

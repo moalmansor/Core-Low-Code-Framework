@@ -384,7 +384,10 @@ const explainUser = ref<UserOption | null>(null)
 const explainTarget = ref<string | null>(null)
 const explainMode = ref<Mode>('edit')
 const explainStatus = ref<string | null>(null)
-const statusOptions = computed(() => [{ value: null as string | null, label: t('building.access.any_status') }, ...(matrix.value?.statuses ?? []).map((s) => ({ value: s.uuid as string | null, label: s.name }))])
+const statusOptions = computed(() => [
+  { value: null as string | null, label: t('building.access.any_status') },
+  ...(matrix.value?.statuses ?? []).map((s) => ({ value: s.uuid as string | null, label: s.name })),
+])
 const explanation = ref<Explanation | null>(null)
 const explaining = ref(false)
 const targetOptions = computed(() => allTargets.value.map((x) => ({ value: x.uuid, label: `${'· '.repeat(x.depth)}${targetName(x)}`, type: x.type })))
@@ -484,7 +487,16 @@ const decided = computed(() => {
           </div>
           <div v-if="matrix?.statuses?.length" class="field">
             <label for="mx-status">{{ t('building.access.status') }}</label>
-            <Select v-model="view.status" input-id="mx-status" :options="statusOptions" option-label="label" option-value="value" :disabled="pendingCount > 0" class="w-48" data-testid="matrix-status" />
+            <Select
+              v-model="view.status"
+              input-id="mx-status"
+              :options="statusOptions"
+              option-label="label"
+              option-value="value"
+              :disabled="pendingCount > 0"
+              class="w-48"
+              data-testid="matrix-status"
+            />
           </div>
           <div class="field">
             <label for="mx-type">{{ t('building.access.subject_type') }}</label>

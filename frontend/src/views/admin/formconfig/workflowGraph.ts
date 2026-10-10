@@ -10,7 +10,6 @@ export { STATUS_COLORS }
  * layout for statuses that have no saved position.
  */
 
-
 export function suggestKey(name: string, taken: Iterable<string>, prefix = 's'): string {
   const base =
     name

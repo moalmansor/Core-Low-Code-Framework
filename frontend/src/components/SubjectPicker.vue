@@ -62,7 +62,17 @@ function setPicked(o: Option | null | string): void {
 
 <template>
   <div class="flex gap-2 min-w-0">
-    <Select v-if="types.length > 1" :model-value="type" :options="typeOptions" option-label="label" option-value="value" size="small" class="w-36 shrink-0" :aria-label="t('subjects.type')" @update:model-value="setType" />
+    <Select
+      v-if="types.length > 1"
+      :model-value="type"
+      :options="typeOptions"
+      option-label="label"
+      option-value="value"
+      size="small"
+      class="w-36 shrink-0"
+      :aria-label="t('subjects.type')"
+      @update:model-value="setType"
+    />
     <AutoComplete
       v-if="type !== 'everyone'"
       :model-value="picked"

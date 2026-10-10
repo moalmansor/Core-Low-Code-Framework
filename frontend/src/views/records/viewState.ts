@@ -54,7 +54,14 @@ export interface SavedView {
   uuid: string
   name: string
   view: string
-  state: { columns?: string[]; widths?: Record<string, number>; filters?: Record<string, ViewCondition>; sort?: { key: string; dir: 'asc' | 'desc' } | null; page_size?: number; search?: string | null }
+  state: {
+    columns?: string[]
+    widths?: Record<string, number>
+    filters?: Record<string, ViewCondition>
+    sort?: { key: string; dir: 'asc' | 'desc' } | null
+    page_size?: number
+    search?: string | null
+  }
   is_default: boolean
   is_shared: boolean
   owner: string | null
