@@ -52,7 +52,7 @@ interface Blueprint {
   instance_count: number
   names: Record<string, string>
   descriptions: Record<string, string>
-  source: { uuid: string; key: string } | null
+  source: { uuid: string; key: string; name: string } | null
   versions: Version[]
   instances: Instance[]
 }
@@ -141,7 +141,7 @@ async function searchForms(e: { query: string }): Promise<void> {
 function openNewVersion(): void {
   const b = bp.value!
   versionErrors.value = {}
-  newVersion.value = { source: b.source ? { uuid: b.source.uuid, key: b.source.key, name: b.source.key } : null, include_mode: b.include_mode ?? 'structure', changelog: '' }
+  newVersion.value = { source: b.source ? { uuid: b.source.uuid, key: b.source.key, name: b.source.name } : null, include_mode: b.include_mode ?? 'structure', changelog: '' }
 }
 async function submitVersion(): Promise<void> {
   const v = newVersion.value!
@@ -345,7 +345,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
             </template>
             <dt class="text-muted-color">{{ t('building.blueprints.source') }}</dt>
             <dd>
-              <span v-if="bp.source" class="ltr-value">{{ bp.source.key }}</span
+              <span v-if="bp.source" dir="auto">{{ bp.source.name }}</span
               ><span v-else>{{ t('building.blueprints.no_source') }}</span>
             </dd>
             <dt class="text-muted-color">{{ t('building.include_label') }}</dt>
@@ -494,7 +494,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
             <span>{{ option.name }}</span> <span class="text-xs text-muted-color ltr-value ms-2">{{ option.key }}</span>
           </template>
         </AutoComplete>
-        <InputText v-else id="nv-source" :model-value="newVersion.source?.key ?? t('building.blueprints.no_source')" disabled class="ltr-value" />
+        <InputText v-else id="nv-source" :model-value="newVersion.source?.name ?? t('building.blueprints.no_source')" disabled />
         <small class="text-muted-color">{{ t('building.blueprints.version_source_hint') }}</small>
         <span v-if="versionErrors.source" class="field-error">{{ versionErrors.source }}</span>
       </div>

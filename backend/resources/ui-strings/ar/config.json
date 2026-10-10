@@ -379,6 +379,7 @@
   "sla.working_time_desc": "احتساب ساعات العمل في التقويم فقط، دون العطل الأسبوعية والرسمية.",
   "subjects.department": "إدارة",
   "subjects.everyone": "الجميع",
+  "subjects.not_found": "لم يعد موجودًا",
   "subjects.pick_department": "اختر إدارة",
   "subjects.pick_everyone": "الجميع",
   "subjects.pick_role": "اختر دورًا",

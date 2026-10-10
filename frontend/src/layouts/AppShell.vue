@@ -7,6 +7,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { get } from '@/api/http'
 import BrandMark from '@/components/BrandMark.vue'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+import NotificationsBell from './NotificationsBell.vue'
 import NavTree, { type NavItem } from '@/runtime/NavTree.vue'
 import { activeNavId, type NavCandidate } from './navActive'
 import { useSession } from '@/stores/session'
@@ -175,6 +176,7 @@ const userItems = computed(() => [
       <header class="h-14 shrink-0 px-4 flex items-center gap-3 bg-card border-b border-line">
         <Button class="lg:hidden" icon="pi pi-bars" text rounded :aria-label="t('shell.menu')" @click="sidebarOpen = true" />
         <div class="flex-1" />
+        <NotificationsBell />
         <LanguageSwitcher />
         <Button :label="session.me?.name" icon="pi pi-user" text aria-haspopup="true" data-testid="user-menu" @click="(e: Event) => userMenu?.toggle(e)" />
         <Menu ref="userMenu" :model="userItems" popup />
@@ -204,6 +206,7 @@ export const icons: Record<string, string> = {
   schema: 'pi-database',
   assignment_queues: 'pi-inbox',
   reason_codes: 'pi-comment',
+  notifications: 'pi-envelope',
 }
 </script>
 

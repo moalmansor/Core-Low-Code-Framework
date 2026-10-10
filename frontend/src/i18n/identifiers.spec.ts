@@ -23,6 +23,8 @@ const LEAKS: [RegExp, string][] = [
   // An identifier handed to a message as a parameter: t('…', { key }), t('…', { name: s.key }), { status: x.uuid } (the designer's warnings leaked this way).
   // (A key inside the message name itself, t(`admin.area.${a.key}`), only picks which message to show.)
   [/\bt\(\s*([`'"])[^`'"]*\1\s*,\s*\{[^}]*(\b(key|uuid|id)\s*[,}]|:\s*[\w.?!]+\.(key|uuid|id)\b)/, 'passes an identifier to a message'],
+  // A display name or label filled from an identifier: { name: m.uuid }, label: x.key (the subject picker showed a uuid this way).
+  [/\b(name|label|title)\s*:\s*[\w.?!]+\.(uuid|key)\b(?!\s*(===|!==|\)))/, 'names something by its identifier'],
   // An identifier printed in a template, unless it is shown on purpose as a code (class "ltr-value" on the same line).
   // `errors.key` is the validation message of a Key input, not a key.
   [/^(?!.*ltr-value).*\{\{\s*[\w.?!]*(?<![eE]rrors)\.(key|uuid)\s*\}\}/, 'prints an identifier'],
@@ -31,6 +33,7 @@ const LEAKS: [RegExp, string][] = [
 /** Deliberate uses, each with its reason: not shown to users, or a technical admin view of storage. */
 const ALLOWED: Record<string, string> = {
   'builder/document.ts': 'builds unique keys from keys; not displayed',
+  'builder/conditions/FormulaEditor.vue': 'formulas are written with field keys, so the autocomplete offers keys to type',
   'views/admin/TranslationsView.vue': 'row identity for the table; not displayed',
   'builder/DiffView.vue': 'the version diff for administrators shows the definition paths it compares',
   'views/admin/building/MigrationPlans.vue': 'the backup location on disk, for operators',
@@ -45,14 +48,15 @@ describe('the rules catch the leaks they were written for', () => {
   it.each([
     "t('formconfig.workflow.dead_end', { name: s.key })",
     "t('x.y', { status: t.uuid, n: 2 })",
-    "t(`x.y`, { key })",
+    't(`x.y`, { key })',
     '<span>{{ field.key }}</span>',
     'const label = props.label ?? field.key',
     'titles[u] ?? u)',
+    'picked.value = rows[0] ?? { uuid: m.uuid, name: m.uuid }',
   ])('%s', (line) => {
     expect(LEAKS.some(([re]) => re.test(line))).toBe(true)
   })
-  it.each(["t(`admin.area.${a.key}`)", '<span class="field-error">{{ errors.key }}</span>', '<code class="ltr-value">{{ s.key }}</code>'])('%s is not a leak', (line) => {
+  it.each(['t(`admin.area.${a.key}`)', '<span class="field-error">{{ errors.key }}</span>', '<code class="ltr-value">{{ s.key }}</code>'])('%s is not a leak', (line) => {
     expect(LEAKS.some(([re]) => re.test(line))).toBe(false)
   })
 })

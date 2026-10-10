@@ -76,8 +76,12 @@ final class BlueprintController extends Controller
             'names' => $blueprint->translationsFor('name'),
             'descriptions' => $blueprint->translationsFor('description'),
             'source' => match ($blueprint->source_type) {
-                'form' => Form::query()->whereKey($blueprint->source_id)->first(['uuid', 'key'])?->only(['uuid', 'key']),
-                'view' => ($v = DB::table('views')->where('id', $blueprint->source_id)->first(['uuid', 'key'])) === null ? null : ['uuid' => strtolower((string) $v->uuid), 'key' => $v->key, 'type' => 'view'],
+                'form' => ($f = Form::query()->whereKey($blueprint->source_id)->first()) === null ? null
+                    : ['uuid' => $f->uuid, 'key' => $f->key, 'name' => app(Translator::class)->labelOf($f->translationsFor('name'), (string) $f->key)],
+                'view' => ($v = DB::table('views')->where('id', $blueprint->source_id)->first(['id', 'uuid', 'key'])) === null ? null : [
+                    'uuid' => strtolower((string) $v->uuid), 'key' => $v->key, 'type' => 'view',
+                    'name' => app(Translator::class)->labelOf(app(Translator::class)->allMany('view', [(int) $v->id])[(int) $v->id]['name'] ?? null, (string) $v->key),
+                ],
                 default => null,
             },
             'versions' => BlueprintVersion::query()->where('blueprint_id', $blueprint->id)->orderByDesc('version')->get(['id', 'uuid', 'version', 'include_mode', 'changelog', 'content_hash', 'created_at', 'created_by'])

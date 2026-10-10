@@ -379,6 +379,7 @@
   "sla.working_time_desc": "Count only working hours of the calendar, skipping weekends and holidays.",
   "subjects.department": "Department",
   "subjects.everyone": "Everyone",
+  "subjects.not_found": "No longer exists",
   "subjects.pick_department": "Choose a department",
   "subjects.pick_everyone": "Everyone",
   "subjects.pick_role": "Choose a role",

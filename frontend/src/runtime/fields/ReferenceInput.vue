@@ -98,7 +98,11 @@ const previewKeys = computed(() => (props.field.options?.preview ?? []).map((p) 
 const preview = computed(() => {
   if (multiple.value || !selected.value[0] || !previewKeys.value.length) return null
   const p = previews[selected.value[0]]
-  return p ? previewKeys.value.filter((k) => p[k] !== null && p[k] !== undefined && p[k] !== '').map((k) => ({ key: k, label: previewLabels[k] ?? humanize(k), value: typeof p[k] === 'object' ? JSON.stringify(p[k]) : String(p[k]) })) : null
+  return p
+    ? previewKeys.value
+        .filter((k) => p[k] !== null && p[k] !== undefined && p[k] !== '')
+        .map((k) => ({ key: k, label: previewLabels[k] ?? humanize(k), value: typeof p[k] === 'object' ? JSON.stringify(p[k]) : String(p[k]) }))
+    : null
 })
 const drawer = ref<string | null>(null)
 

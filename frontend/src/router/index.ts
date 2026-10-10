@@ -57,6 +57,18 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/WorkAdminView.vue'),
         meta: { anyOf: ['system.manage_forms', 'system.manage_delegation'], title: 'admin.area.assignment_queues' },
       },
+      {
+        path: 'admin/notifications',
+        name: 'admin.notifications',
+        component: () => import('@/views/admin/notifications/TemplatesView.vue'),
+        meta: { anyOf: ['system.manage_notifications'], title: 'admin.area.notifications' },
+      },
+      {
+        path: 'admin/notifications/:template',
+        name: 'admin.notifications.template',
+        component: () => import('@/views/admin/notifications/TemplateEditor.vue'),
+        meta: { anyOf: ['system.manage_notifications'], title: 'admin.area.notifications' },
+      },
       { path: 'admin/audit', name: 'admin.audit', component: () => import('@/views/admin/AuditLogView.vue'), meta: { anyOf: ['system.view_audit_log'], title: 'admin.area.audit_log' } },
       { path: 'admin/errors', name: 'admin.errors', component: () => import('@/views/admin/ErrorsView.vue'), meta: { anyOf: ['system.view_errors'], title: 'admin.area.error_monitoring' } },
       ...buildingRoutes,

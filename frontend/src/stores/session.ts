@@ -27,7 +27,16 @@ export interface Me {
   permissions: string[]
   two_factor: { enabled: boolean; required: boolean; pending_confirmation: boolean }
   password_expired: boolean
-  preferences: { locale: string | null; theme_mode: string; timezone: string | null; calendar: string | null; digits: string | null; date_format: string | null; density: string | null }
+  preferences: {
+    locale: string | null
+    theme_mode: string
+    timezone: string | null
+    calendar: string | null
+    digits: string | null
+    date_format: string | null
+    density: string | null
+    notification_channels?: { email: boolean; in_app: boolean }
+  }
 }
 
 const LOCALE_KEY = 'lcf.locale'

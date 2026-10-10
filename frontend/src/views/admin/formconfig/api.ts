@@ -238,6 +238,32 @@ export interface PrintLayoutDoc {
   default: boolean
 }
 
+export type NotificationTrigger =
+  'record_created' | 'record_updated' | 'status_changed' | 'field_changed' | 'condition_met' | 'scheduled_reminder' | 'sla_warning' | 'sla_escalation' | 'approval_requested' | 'assigned'
+export type RecipientType = 'user' | 'role' | 'department' | 'field_user' | 'creator' | 'linked_record_users' | 'static'
+export interface RecipientDoc {
+  type: RecipientType
+  ref: string | null
+}
+export interface NotificationRuleDoc {
+  uuid: string
+  key: string
+  name: I18nMap
+  trigger: NotificationTrigger
+  fromStatus: string | null
+  toStatus: string | null
+  field: string | null
+  condition: Ast | null
+  schedule: { dateField: string; offsetMinutes: number } | null
+  template: string | null
+  channels: ('email' | 'in_app')[]
+  recipients: { to: RecipientDoc[]; cc: RecipientDoc[]; bcc: RecipientDoc[] }
+  attachments: { fields: string[]; documents: string[] } | null
+  delayMinutes: number | null
+  respectPreferences: boolean
+  active: boolean
+}
+
 /** GET/PUT of a hashed document at `path` whose payload key is `key`. */
 export function documentApi<T>(path: string, key: string) {
   return {
@@ -255,6 +281,7 @@ export function documentApi<T>(path: string, key: string) {
 export const recordRulesApi = documentApi<RecordRuleDoc[]>('record-access-rules', 'rules')
 export const justificationRulesApi = documentApi<JustificationRuleDoc[]>('justification-rules', 'rules')
 export const assignmentRulesApi = documentApi<AssignmentRuleDoc[]>('assignment-rules', 'rules')
+export const notificationRulesApi = documentApi<NotificationRuleDoc[]>('notification-rules', 'rules')
 export const viewsApi = documentApi<ViewDoc[]>('views', 'views')
 export const panelsApi = documentApi<PanelDoc[]>('view-panels', 'panels')
 export const printLayoutsApi = documentApi<PrintLayoutDoc[]>('print-layouts', 'layouts')

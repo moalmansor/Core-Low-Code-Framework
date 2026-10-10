@@ -111,7 +111,13 @@ const transforms = computed(() => (['none', 'trim', 'upper', 'lower'] as const).
 /** What a column can fill: nothing, a field, or (when updating) the record ID or version. */
 const targets = computed(() => {
   const fields = (inspection.value?.fields ?? []).map((f) => ({ value: `f:${f.uuid}`, label: f.required ? t('records.imp.required_field', { name: f.label }) : f.label }))
-  const system = mode.value === 'insert' ? [] : [{ value: 's:id', label: t('records.imp.system.id') }, { value: 's:version', label: t('records.imp.system.version') }]
+  const system =
+    mode.value === 'insert'
+      ? []
+      : [
+          { value: 's:id', label: t('records.imp.system.id') },
+          { value: 's:version', label: t('records.imp.system.version') },
+        ]
   return [{ value: '', label: t('records.imp.skip_column') }, ...system, ...fields]
 })
 const keyOptions = computed(() => [
@@ -287,9 +293,7 @@ function close(): void {
 onBeforeUnmount(() => timer && clearTimeout(timer))
 
 const errorRows = computed(() =>
-  (preview.value?.rows ?? []).flatMap((r) =>
-    r.errors.map((e, i) => ({ key: `${r.row}-${i}`, row: r.row, column: e.column ?? t('records.imp.whole_row'), messages: e.messages.join(' ') })),
-  ),
+  (preview.value?.rows ?? []).flatMap((r) => r.errors.map((e, i) => ({ key: `${r.row}-${i}`, row: r.row, column: e.column ?? t('records.imp.whole_row'), messages: e.messages.join(' ') }))),
 )
 const outcome = computed(() => {
   const j = job.value
@@ -312,7 +316,8 @@ const outcome = computed(() => {
   >
     <ol class="imp-steps" :aria-label="t('records.imp.steps')">
       <li v-for="(s, i) in steps" :key="s.key" :class="{ 'is-current': i === stepIndex, 'is-done': i < stepIndex }" :aria-current="i === stepIndex ? 'step' : undefined">
-        <span class="imp-step-n">{{ i + 1 }}</span>{{ s.label }}
+        <span class="imp-step-n">{{ i + 1 }}</span
+        >{{ s.label }}
       </li>
     </ol>
 
@@ -341,7 +346,10 @@ const outcome = computed(() => {
         <div class="flex flex-col gap-2">
           <label v-for="m in modes" :key="m.value" class="flex items-start gap-2">
             <RadioButton v-model="mode" :value="m.value" :input-id="`imp-mode-${m.value}`" :data-testid="`import-mode-${m.value}`" />
-            <span><span class="font-medium">{{ m.label }}</span><span class="block text-sm text-muted-color">{{ m.help }}</span></span>
+            <span
+              ><span class="font-medium">{{ m.label }}</span
+              ><span class="block text-sm text-muted-color">{{ m.help }}</span></span
+            >
           </label>
         </div>
         <div v-if="mode !== 'insert'" class="mt-3 max-w-[20rem]">
@@ -363,7 +371,12 @@ const outcome = computed(() => {
           <Column :header="t('records.imp.file_column')" style="min-width: 12rem">
             <template #body="{ data }">
               <span class="font-medium" dir="auto">{{ data.header }}</span>
-              <span class="block text-xs text-muted-color truncate max-w-[16rem]" dir="auto">{{ data.samples.filter((s: string | null) => s).slice(0, 3).join(' · ') }}</span>
+              <span class="block text-xs text-muted-color truncate max-w-[16rem]" dir="auto">{{
+                data.samples
+                  .filter((s: string | null) => s)
+                  .slice(0, 3)
+                  .join(' · ')
+              }}</span>
             </template>
           </Column>
           <Column :header="t('records.imp.fills')" style="min-width: 14rem">
@@ -383,7 +396,15 @@ const outcome = computed(() => {
           </Column>
           <Column :header="t('records.imp.cleanup')" style="width: 11rem">
             <template #body="{ data }">
-              <Select v-model="data.transform" :options="transforms" option-label="label" option-value="value" class="w-full" :disabled="!data.field" :aria-label="t('records.imp.cleanup_for', { column: data.header })" />
+              <Select
+                v-model="data.transform"
+                :options="transforms"
+                option-label="label"
+                option-value="value"
+                class="w-full"
+                :disabled="!data.field"
+                :aria-label="t('records.imp.cleanup_for', { column: data.header })"
+              />
             </template>
           </Column>
         </DataTable>
@@ -401,7 +422,9 @@ const outcome = computed(() => {
       <DataTable v-if="errorRows.length" :value="errorRows" data-key="key" size="small" scrollable scroll-height="16rem">
         <Column field="row" :header="t('records.imp.row')" style="width: 5rem" />
         <Column :header="t('records.imp.column')">
-          <template #body="{ data }"><span dir="auto">{{ data.column }}</span></template>
+          <template #body="{ data }"
+            ><span dir="auto">{{ data.column }}</span></template
+          >
         </Column>
         <Column field="messages" :header="t('records.imp.problems')" />
       </DataTable>
