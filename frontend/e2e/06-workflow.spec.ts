@@ -34,7 +34,9 @@ test('a record moves through a workflow with a justification and lands in My Wor
   const form = forms.find((f) => f.key === 'visit_requests')!.uuid
   const me = ((await api(page, 'GET', '/me')).data as { uuid: string }).uuid
 
-  // Workflow: Draft → Submitted, the transition asks for a comment.
+  // Workflow: Draft → Submitted, the transition asks for a comment and needs the visit date.
+  const fields = ((await api(page, 'GET', `/forms/${form}/draft`)).data as { document: { fields: { uuid: string; key: string }[] } }).document.fields
+  const visitDate = fields.find((f) => f.key === 'visit_date')!.uuid
   const draft = { uuid: randomUUID(), key: 'draft', i18n: { name: { en: 'Draft', ar: 'مسودة' } }, color: '#64748b', icon: null, initial: true, final: false, order: 0, position: { x: 0, y: 0 } }
   const submitted = {
     uuid: randomUUID(),
@@ -54,7 +56,7 @@ test('a record moves through a workflow with a justification and lands in My Wor
     to: submitted.uuid,
     i18n: { name: { en: 'Submit', ar: 'تقديم' } },
     condition: null,
-    requiredFields: [],
+    requiredFields: [visitDate],
     comment: 'mandatory',
     attachments: 'none',
     approval: { mode: 'none', approvers: [], n: null, quorumWeight: null, dueInMinutes: null, rejection: 'immediate', rejectionStatus: null },
@@ -129,6 +131,17 @@ test('a record moves through a workflow with a justification and lands in My Wor
   await expect(page.locator('[data-empty="true"]').first()).toHaveText('Not filled in')
   await expect(page.getByTestId('sidebar').locator('.nav-active')).toHaveCount(1)
   const record = page.url().split(`/app/${form}/`)[1]!.split(/[/?]/)[0]!
+
+  // The transition names the empty required field by its label (never an identifier) and leads to it on the form.
+  await page.getByTestId('transition-submit').click()
+  await expect(page.getByTestId('transition-missing')).toContainText('Visit date')
+  await expect(page.getByTestId('transition-missing')).not.toContainText(visitDate)
+  await expect(page.getByTestId('transition-perform')).toBeDisabled()
+  await page.getByTestId('transition-fill').click()
+  await expect(page.getByTestId('field-visit_date')).toContainText('Needed to perform “Submit”')
+  await page.getByTestId('field-visit_date').locator('input').fill('2026-11-02')
+  await page.getByTestId('record-save').click()
+  await expect(page.getByTestId('record-view')).toBeVisible()
 
   // Submit: the comment is required, then the justification is asked for.
   await page.getByTestId('transition-submit').click()

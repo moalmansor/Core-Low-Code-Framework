@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { pathOf, useRenderer, valueOf } from './context'
 import { componentFor, DISPLAY_TYPES, INLINE_LABEL_TYPES, READ_ONLY_TYPES } from './fields'
 import ValueDisplay from './fields/ValueDisplay.vue'
-import { pickText } from './i18nText'
+import { labelOf, pickText } from './i18nText'
 import { fieldState, type RowRef } from './rules'
 import type { ClientField } from './types'
 
@@ -23,7 +23,7 @@ const path = computed(() => pathOf(props.field, props.row))
 const inputId = computed(() => `f-${path.value.replace(/\./g, '-')}`)
 const errors = computed(() => ctx.errorsAt(path.value))
 const locale = computed(() => ctx.locale.value)
-const label = computed(() => pickText(props.field.i18n.label, locale.value) ?? props.field.key)
+const label = computed(() => labelOf(props.field.i18n.label, locale.value, props.field.key))
 const help = computed(() => pickText(props.field.i18n.help, locale.value))
 const description = computed(() => pickText(props.field.i18n.description, locale.value))
 const tooltip = computed(() => pickText(props.field.i18n.tooltip, locale.value))

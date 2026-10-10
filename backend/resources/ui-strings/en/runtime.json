@@ -240,6 +240,7 @@
   "runtime.toggle_section": "Show or hide this section",
   "runtime.too_many_files": "At most {max} file(s) can be attached.",
   "runtime.unsupported_type": "This field type ({type}) cannot be shown here.",
+  "runtime.untitled_record": "Untitled record",
   "runtime.upload_failed": "{name} could not be uploaded.",
   "runtime.uploads_need_publish": "Uploads are available once the form is published.",
   "runtime.use_my_location": "Use my location",

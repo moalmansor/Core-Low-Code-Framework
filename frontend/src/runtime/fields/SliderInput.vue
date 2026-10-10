@@ -2,7 +2,7 @@
 import Slider from 'primevue/slider'
 import { computed } from 'vue'
 import { useRenderer } from '../context'
-import { pickText } from '../i18nText'
+import { labelOf as fieldLabel, pickText } from '../i18nText'
 import { prop, type InputProps } from './props'
 
 /** Slider / range with minimum, maximum and step (validation number rules, else ui props) and min/max labels. */
@@ -39,7 +39,7 @@ function set(v: number | number[]): void {
         :step="step"
         :disabled="disabled"
         class="flex-1"
-        :aria-label="pickText(field.i18n.label, ctx.locale.value) ?? field.key"
+        :aria-label="fieldLabel(field.i18n.label, ctx.locale.value, field.key)"
         @update:model-value="set"
       />
       <output :id="inputId" class="min-w-12 text-end font-medium ltr-value" :class="{ 'text-muted-color': !hasValue }">{{ hasValue ? modelValue : '—' }}</output>

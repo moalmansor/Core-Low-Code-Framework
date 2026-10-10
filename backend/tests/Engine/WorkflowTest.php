@@ -39,6 +39,8 @@ it('starts records in the initial status, moves them through permitted transitio
     expect($rec['system']['status']['key'])->toBe('draft');
     $state = $this->getJson("/api/v1/r/{$form}/{$rec['uuid']}/workflow")->assertOk()->json('data');
     expect(array_column($state['transitions'], 'key'))->toBe(['submit']);
+    // Required fields reach the browser as key and label, never as an internal identifier.
+    expect($state['transitions'][0]['required_fields'])->toBe([['key' => 'reason', 'label' => 'Reason', 'missing' => true]]);
 
     // Requirements: the reason field and a comment.
     $this->postJson("/api/v1/r/{$form}/{$rec['uuid']}/transitions/{$wf['submit']['uuid']}", ['row_version' => 1])

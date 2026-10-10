@@ -21,7 +21,7 @@ import { downloadBlob, fetchOptions, newUuid, type OptionItem } from '@/runtime/
 import { fieldType } from '@/runtime/fieldTypes'
 import { FormIndex } from '@/runtime/formIndex'
 import { formatDatetime, formatLoose, formatValue } from '@/runtime/format'
-import { pickText } from '@/runtime/i18nText'
+import { labelOf, pickText } from '@/runtime/i18nText'
 import JustificationDialog from '@/runtime/JustificationDialog.vue'
 import { useJustification } from '@/runtime/useJustification'
 import StatusBadge from '@/runtime/workflow/StatusBadge.vue'
@@ -77,13 +77,13 @@ const totals = ref<Record<string, unknown>>({})
 const savedViews = ref<SavedView[]>([])
 const currentSaved = ref<SavedView | null>(null)
 const savingView = ref(false)
-const viewOptions = computed(() => views.value.map((v) => ({ value: v.uuid, label: pickText(v.name, locale.value) ?? v.key })))
+const viewOptions = computed(() => views.value.map((v) => ({ value: v.uuid, label: labelOf(v.name, locale.value, v.key) })))
 const viewColumns = computed(() => (activeView.value ? shownColumns(activeView.value, chosenColumns.value) : []))
 const rowOptions = computed(() => activeView.value?.row_options ?? { view: true, edit: true, log: true })
 
 const index = computed(() => (definition.value ? new FormIndex(definition.value) : null))
 const title = computed(() =>
-  definition.value ? (pickText(definition.value.names, locale.value) ?? definition.value.name ?? pickText(definition.value.form.i18n.name, locale.value) ?? definition.value.form.key) : '',
+  definition.value ? (pickText(definition.value.names, locale.value) ?? definition.value.name ?? labelOf(definition.value.form.i18n.name, locale.value, definition.value.form.key)) : '',
 )
 const can = (ability: string) => session.can(`form.${formUuid.value}.${ability}`)
 const canCreate = computed(() => definition.value?.access.modes.create === true && definition.value.form.settings.modes?.create !== false)
@@ -96,7 +96,7 @@ const canImport = computed(() => can('import'))
 const listable = (f: ClientField) => index.value !== null && index.value.isStored(f) && !index.value.fieldRepeater.has(f.uuid)
 const columns = computed(() => (definition.value?.fields ?? []).filter((f) => listable(f) && f.table?.visible === true).sort((a, b) => a.order - b.order))
 const filterable = computed(() => (definition.value?.fields ?? []).filter((f) => listable(f) && f.table?.filterable === true && (fieldType(f.type)?.filter ?? 'none') !== 'none'))
-const columnLabel = (f: ClientField) => pickText(f.i18n.columnLabel, locale.value) ?? pickText(f.i18n.label, locale.value) ?? f.key
+const columnLabel = (f: ClientField) => pickText(f.i18n.columnLabel, locale.value) ?? labelOf(f.i18n.label, locale.value, f.key)
 const fieldByKey = (key: string) => filterable.value.find((f) => f.key === key) ?? null
 // Number and title columns only when the form produces them.
 const showNumber = computed(() => rows.value.some((r) => r.system.record_number))
@@ -367,7 +367,10 @@ function cell(r: RecordPayload, f: ClientField): Cell {
   const relation = index.value?.relationOf(f)
   if (index.value?.isReference(f) && relation?.kind === 'reference' && storage === 'lookup') {
     const ids = (Array.isArray(value) ? value : [value]).map(String)
-    return { kind: 'links', links: ids.map((id) => ({ text: r.references?.[f.key]?.[id] ?? id, to: { name: 'records.view', params: { form: relation.target, record: id } } })) }
+    return {
+      kind: 'links',
+      links: ids.map((id) => ({ text: r.references?.[f.key]?.[id] ?? t('runtime.untitled_record'), to: { name: 'records.view', params: { form: relation.target, record: id } } })),
+    }
   }
   if ((storage === 'bool' || storage === 'consent') && typeof value === 'boolean') {
     return { kind: 'pills', pills: [{ text: value ? t('runtime.yes') : t('runtime.no'), class: value ? 'pill-yes' : 'pill-no' }] }
@@ -375,7 +378,11 @@ function cell(r: RecordPayload, f: ClientField): Cell {
   if ((storage === 'choice' || storage === 'multi_choice') && !index.value?.isReference(f)) {
     return { kind: 'pills', pills: (Array.isArray(value) ? value : [value]).map((v) => optionPill(f, String(v))) }
   }
-  return { kind: 'text', text: formatValue(index.value, f, value, { locale: locale.value, references: r.references, files: r.files, yes: t('runtime.yes'), no: t('runtime.no') }) || '—' }
+  return {
+    kind: 'text',
+    text:
+      formatValue(index.value, f, value, { locale: locale.value, references: r.references, files: r.files, yes: t('runtime.yes'), no: t('runtime.no'), untitled: t('runtime.untitled_record') }) || '—',
+  }
 }
 
 /** A view column's cell: own fields keep their typed rendering; linked and system paths show their value. */

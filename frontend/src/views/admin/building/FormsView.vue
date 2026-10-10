@@ -21,6 +21,7 @@ import { get, send } from '@/api/http'
 import { useSession } from '@/stores/session'
 import LocaleFields from './LocaleFields.vue'
 import { INCLUDE_MODES, errorText, fieldErrors, filledLocales, formatDateTime, type FormSummary, type IncludeMode } from './shared'
+import { humanize } from '@/runtime/i18nText'
 
 interface AppOption {
   uuid: string
@@ -352,7 +353,7 @@ function openMenu(event: Event, f: FormSummary): void {
       <template #body="{ data }">{{ t(`building.kind.${data.kind}`) }}</template>
     </Column>
     <Column :header="t('building.application')">
-      <template #body="{ data }">{{ appName(data.application?.uuid) || data.application?.key || '—' }}</template>
+      <template #body="{ data }">{{ appName(data.application?.uuid) || (data.application ? humanize(data.application.key) : '') || '—' }}</template>
     </Column>
     <Column :header="t('building.status')">
       <template #body="{ data }">

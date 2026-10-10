@@ -274,7 +274,7 @@ final class JustificationGate
             foreach ($change['fields'] ?? [] as $key) {
                 $uuid = $rt->keys[$key] ?? ($rt->repeaterKeys[$key] ?? null);
                 $f = $uuid === null ? null : ($rt->fields[$uuid] ?? null);
-                $label = $f === null ? ($this->translator->pick($rt->groups[$uuid ?? '']['i18n']['title'] ?? null) ?? $key) : ($this->translator->pick($f['i18n']['label'] ?? null) ?? $key);
+                $label = $f === null ? ($this->translator->labelOf($rt->groups[$uuid ?? '']['i18n']['title'] ?? null, $key)) : ($this->translator->labelOf($f['i18n']['label'] ?? null, $key));
                 $mask = $f !== null && (($f['flags']['sensitive'] ?? false) || ($f['flags']['encrypted'] ?? false));
                 $summary[] = ['field' => $key, 'label' => $label, 'old' => $mask ? '«masked»' : ($change['old'][$key] ?? null), 'new' => $mask ? '«masked»' : ($change['values'][$key] ?? null)];
             }

@@ -3,7 +3,7 @@ import { parseDate, weekday } from '@/expressions/civil'
 import { matches } from '@/expressions/safeRegex'
 import { asciiDigits, length as textLength } from '@/expressions/unicode'
 import type { FormIndex } from './formIndex'
-import { pickText } from './i18nText'
+import { labelOf, pickText } from './i18nText'
 import { isGroupHidden, isHidden, RuleState, type RowRef } from './rules'
 import type { ClientField, I18nText, Row, Values } from './types'
 import { isEmpty, ValuesRecord } from './values'
@@ -105,7 +105,7 @@ function truthy(ast: unknown, ctx: Context): boolean {
 function validateField(input: ValidationInput, f: ClientField, v: unknown, scope: Values | Row, row: RowRef | null, path: string, ctx: Context, add: (path: string, message: string) => void): void {
   const { index, state, locale } = input
   if (!index.isStored(f) || index.isCalculated(f) || index.storage(f) === 'auto_number' || f.serverComputed) return
-  const label = pickText(f.i18n.label, locale) ?? f.key
+  const label = labelOf(f.i18n.label, locale, f.key)
   const msg = (rule: string, params: Record<string, unknown> = {}) => {
     const custom = pickText(f.i18n.messages?.[rule], locale)
     if (custom !== null) return custom
@@ -184,7 +184,7 @@ function validateField(input: ValidationInput, f: ClientField, v: unknown, scope
     const db = Decimal.parse(String(b ?? ''))
     const c = da !== null && db !== null ? da.compare(db) : Math.sign(String(a).localeCompare(String(b), 'en'))
     const ok = { gt: c > 0, after: c > 0, gte: c >= 0, lt: c < 0, before: c < 0, lte: c <= 0, eq: c === 0, neq: c !== 0 }[cmp.op]
-    if (!ok) add(path, msg('compare', { op: input.t(`runtime.compare.${cmp.op}`), other: pickText(other.i18n.label, locale) ?? other.key }))
+    if (!ok) add(path, msg('compare', { op: input.t(`runtime.compare.${cmp.op}`), other: labelOf(other.i18n.label, locale, other.key) }))
   }
 
   for (const custom of rules.custom ?? []) {

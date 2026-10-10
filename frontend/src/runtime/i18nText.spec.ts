@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { pickText, setDefaultTextLocale } from './i18nText'
+import { humanize, labelOf, pickText, setDefaultTextLocale } from './i18nText'
 
 describe('pickText', () => {
   afterEach(() => setDefaultTextLocale('en'))
@@ -11,5 +11,12 @@ describe('pickText', () => {
     expect(pickText({ fr: 'Code FR' }, 'en')).toBe('Code FR')
     expect(pickText({ en: '', ar: '' }, 'en')).toBeNull()
     expect(pickText(null, 'en')).toBeNull()
+  })
+
+  it('never returns a raw key: a missing label becomes a readable phrase', () => {
+    expect(labelOf({ en: 'Visit date' }, 'ar', 'visit_date')).toBe('Visit date')
+    expect(labelOf({}, 'en', 'visit_date')).toBe('Visit date')
+    expect(humanize('contact-email')).toBe('Contact email')
+    expect(humanize('VAT_no')).toBe('VAT no')
   })
 })

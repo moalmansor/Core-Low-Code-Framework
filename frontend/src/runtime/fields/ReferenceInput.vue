@@ -203,7 +203,7 @@ const cardValue = (v: unknown) => (v === null || v === undefined || v === '' ? '
       </template>
     </dl>
     <div v-if="multiple && targetForm && selected.length" class="flex flex-wrap gap-1 mt-1">
-      <Button v-for="u in selected" :key="u" type="button" :label="titles[u] ?? u" icon="pi pi-window-maximize" text size="small" @click="drawer = u" />
+      <Button v-for="u in selected" :key="u" type="button" :label="titles[u] ?? t('runtime.untitled_record')" icon="pi pi-window-maximize" text size="small" @click="drawer = u" />
     </div>
     <ReferenceDrawer v-if="targetForm && drawer" :form="targetForm" :record="drawer" @close="drawer = null" />
   </div>

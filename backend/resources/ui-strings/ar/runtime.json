@@ -240,6 +240,7 @@
   "runtime.toggle_section": "إظهار هذا القسم أو إخفاؤه",
   "runtime.too_many_files": "يمكن إرفاق {max} ملف كحد أقصى.",
   "runtime.unsupported_type": "لا يمكن عرض نوع الحقل ({type}) هنا.",
+  "runtime.untitled_record": "سجل بلا عنوان",
   "runtime.upload_failed": "تعذّر رفع {name}.",
   "runtime.uploads_need_publish": "يتوفر الرفع بعد نشر النموذج.",
   "runtime.use_my_location": "استخدام موقعي",

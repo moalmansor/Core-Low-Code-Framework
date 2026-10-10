@@ -23,7 +23,8 @@ export interface TransitionOption {
   to: StatusPayload | null
   comment: 'none' | 'optional' | 'mandatory'
   attachments: 'none' | 'optional' | 'mandatory'
-  required_fields: string[]
+  /** Fields the transition needs filled: key (to highlight the field), label in the user's language, and whether it is empty. */
+  required_fields: { key: string; label: string; missing: boolean }[]
   confirmation: boolean
   style: { color?: string; icon?: string } | null
   approval: { mode: string } | null

@@ -129,7 +129,7 @@ final class PrintRenderer
             }
             $table = $this->fieldTable($rt, $byGroup[$g['uuid']] ?? [], $presented, $levels);
             if ($table !== '') {
-                $out .= '<h2>'.e($this->pick((array) ($g['i18n']['title'] ?? [])) ?? $g['key']).'</h2>'.$table;
+                $out .= '<h2>'.e($this->translator->labelOf($g['i18n']['title'] ?? null, $g['key'])).'</h2>'.$table;
             }
         }
 
@@ -148,7 +148,7 @@ final class PrintRenderer
             if (($levels[$f['uuid']] ?? 'hidden') === 'hidden' || ! $rt->isStored($f) || isset($rt->fieldRepeater[$f['uuid']])) {
                 continue;
             }
-            $rows .= '<tr><th>'.e($this->pick((array) ($f['i18n']['label'] ?? [])) ?? $f['key']).'</th><td>'.$this->value($rt, $f, $presented['values'][$f['key']] ?? null, $presented).'</td></tr>';
+            $rows .= '<tr><th>'.e($this->translator->labelOf($f['i18n']['label'] ?? null, $f['key'])).'</th><td>'.$this->value($rt, $f, $presented['values'][$f['key']] ?? null, $presented).'</td></tr>';
         }
 
         return $rows === '' ? '' : '<table class="fields">'.$rows.'</table>';
@@ -166,13 +166,13 @@ final class PrintRenderer
         if ($fields === []) {
             return '';
         }
-        $head = implode('', array_map(fn ($f) => '<th>'.e($this->pick((array) ($f['i18n']['label'] ?? [])) ?? $f['key']).'</th>', $fields));
+        $head = implode('', array_map(fn ($f) => '<th>'.e($this->translator->labelOf($f['i18n']['label'] ?? null, $f['key'])).'</th>', $fields));
         $body = '';
         foreach ($rows as $row) {
             $body .= '<tr>'.implode('', array_map(fn ($f) => '<td>'.$this->value($rt, $f, $row[$f['key']] ?? null, $presented).'</td>', $fields)).'</tr>';
         }
 
-        return '<h2>'.e($this->pick((array) ($g['i18n']['title'] ?? [])) ?? $g['key']).'</h2><table class="grid"><thead><tr>'.$head.'</tr></thead><tbody>'.$body.'</tbody></table>';
+        return '<h2>'.e($this->translator->labelOf($g['i18n']['title'] ?? null, $g['key'])).'</h2><table class="grid"><thead><tr>'.$head.'</tr></thead><tbody>'.$body.'</tbody></table>';
     }
 
     /**

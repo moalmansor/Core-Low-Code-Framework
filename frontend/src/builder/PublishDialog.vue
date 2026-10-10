@@ -21,7 +21,9 @@ import { useSession } from '@/stores/session'
 import { workflowApi } from '@/views/admin/formconfig/api'
 import { builderApi, referenceApi, type DepartmentTreeNode, type ImpactResponse, type MenuNode, type NamedOption, type PlanStatus } from './api'
 import DiffView from './DiffView.vue'
+import { labelOf } from '@/runtime/i18nText'
 import I18nInput from './I18nInput.vue'
+import { issueText } from './issues'
 import type { I18nText } from './types'
 import { useBuilder } from './useBuilder'
 
@@ -33,7 +35,17 @@ import { useBuilder } from './useBuilder'
 const props = withDefaults(defineProps<{ rollbackOf?: number | null }>(), { rollbackOf: null })
 const visible = defineModel<boolean>('visible', { required: true })
 const emit = defineEmits<{ published: [version: number] }>()
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+/** A blocking item in words: the element it concerns by its label, and the problem in the interface language — never a raw path. */
+function blockingText(b: { code: string; path?: string | null; message: string; detail?: string | null }): string {
+  const text = b.code === 'draft_problem' && b.detail ? issueText(t, te, { code: b.detail, message: b.message, path: b.path ?? '' }) : b.message
+  const m = /^(fields|groups)\.(\d+)(\.|$)/.exec(b.path ?? '')
+  const el = m && builder.doc ? (m[1] === 'fields' ? builder.doc.fields[Number(m[2])] : builder.doc.groups[Number(m[2])]) : null
+  if (!el) return text
+  const i18n = (el as { i18n?: { label?: I18nText; title?: I18nText } }).i18n
+  return `${labelOf(m![1] === 'fields' ? i18n?.label : i18n?.title, builder.locale, el.key)}: ${text}`
+}
 const builder = useBuilder()
 const session = useSession()
 
@@ -288,7 +300,7 @@ const dependents = computed(() => Object.entries(impact.value?.dependents ?? {})
             <div class="font-semibold">{{ t('builder.publish.blocking') }}</div>
             <ul class="list-disc ps-5 text-sm">
               <li v-for="(b, i) in impact.blocking" :key="i">
-                {{ b.message }} <span class="text-xs ltr-value">{{ b.path }}</span>
+                <span dir="auto">{{ blockingText(b) }}</span>
               </li>
             </ul>
           </Message>

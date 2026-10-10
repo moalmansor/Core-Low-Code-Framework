@@ -49,6 +49,7 @@ import {
   type Target,
 } from './accessMatrix'
 import { errorText } from './shared'
+import { humanize } from '@/runtime/i18nText'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -98,7 +99,7 @@ const levelLabel = (l: Level | null) => (l ? t(`building.level.${l}`) : '—')
 const levelIcon: Record<Level, string> = { hidden: 'pi pi-eye-slash', read_only: 'pi pi-eye', editable: 'pi pi-pencil', required: 'pi pi-asterisk' }
 const modeOptions = computed(() => MODES.map((m) => ({ value: m, label: t(`building.access.mode.${m}`) })))
 const effectOptions = computed(() => (['allow', 'deny', 'hard_deny'] as const).map((v) => ({ value: v, label: t(`access.effect.${v}`) })))
-const targetName = (tg: Target) => tg.label || tg.key
+const targetName = (tg: Target) => tg.label || humanize(tg.key)
 
 // ── Form-level grants (permission assignments on form.{uuid}.*) ──────────
 

@@ -23,6 +23,7 @@ import TabIntro from '@/components/config/TabIntro.vue'
 import { errorText } from '../building/shared'
 import ErrorList from './ErrorList.vue'
 import { labelOf, newUuid, type EscalationDoc, type SlaDoc, type StatusDoc, type TransitionDoc } from './api'
+import { humanize } from '@/runtime/i18nText'
 
 /**
  * SLA rules of a form (specification §4.12): time allowed in a status
@@ -51,7 +52,7 @@ const scope = computed(() => (builder.doc ? buildScope(builder.doc, builder.cata
 const defaultLocale = computed(() => session.boot?.default_locale ?? 'en')
 const statusOptions = computed(() => statuses.value.map((s) => ({ value: s.uuid, label: labelOf(s.i18n.name, locale.value, s.key, defaultLocale.value) })))
 const transitionOptions = computed(() => transitions.value.map((x) => ({ value: x.uuid, label: labelOf(x.i18n.name, locale.value, x.key, defaultLocale.value) })))
-const calendarOptions = computed(() => calendars.value.map((c) => ({ value: c.uuid, label: c.name || c.key })))
+const calendarOptions = computed(() => calendars.value.map((c) => ({ value: c.uuid, label: c.name || humanize(c.key) })))
 const actions = computed(() => (['notify', 'reassign', 'transition'] as const).map((v) => ({ value: v, label: t(`sla.action.${v}`) })))
 
 function apply(data: { sla: SlaDoc[]; statuses: StatusDoc[]; transitions: TransitionDoc[]; hash: string }): void {

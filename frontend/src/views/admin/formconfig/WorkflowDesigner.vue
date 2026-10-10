@@ -477,7 +477,7 @@ defineExpose({ dirty, save })
       </div>
     </template>
 
-    <ErrorList :errors="errors" />
+    <ErrorList :errors="errors" :name="(c, i) => (c === 'statuses' && doc.statuses[i] ? nameOf(doc.statuses[i]) : c === 'transitions' && doc.transitions[i] ? nameOf(doc.transitions[i]) : null)" />
     <ConfigSaveBar :dirty="dirty" :saving="saving" testid="wf" @save="save" @discard="discard" />
   </div>
 </template>

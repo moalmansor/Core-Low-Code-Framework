@@ -9,6 +9,7 @@ use App\Modules\Assignment\ApprovalService;
 use App\Modules\Assignment\AssignmentService;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\Correlation\CorrelationId;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\Models\StoredFile;
@@ -38,6 +39,7 @@ final class WorkflowEngine
         private readonly OutboxWriter $outbox,
         private readonly CorrelationId $correlation,
         private readonly RecordStore $store,
+        private readonly Translator $translator,
     ) {}
 
     /**
@@ -62,7 +64,7 @@ final class WorkflowEngine
             if (($t['condition'] ?? null) !== null && ! $this->rules->holds($rt, $t['condition'], $record['values'], $user)) {
                 continue;
             }
-            $out[] = $this->present($wf, $t);
+            $out[] = $this->present($wf, $t, $rt, $record['values']);
         }
 
         return $out;
@@ -253,15 +255,26 @@ final class WorkflowEngine
 
     /**
      * @param  array<string, mixed>  $t
+     * @param  array<string, mixed>  $values
      * @return array<string, mixed>
      */
-    public function present(WorkflowRuntime $wf, array $t): array
+    public function present(WorkflowRuntime $wf, array $t, FormRuntime $rt, array $values): array
     {
+        // Required fields as the user knows them: key (to highlight the field), label in their language, and whether it is still empty.
+        $required = [];
+        foreach ($t['requiredFields'] ?? [] as $uuid) {
+            $f = $rt->fields[$uuid] ?? null;
+            if ($f !== null) {
+                $v = $values[$f['key']] ?? null;
+                $required[] = ['key' => $f['key'], 'label' => $this->translator->labelOf($f['i18n']['label'] ?? null, $f['key']), 'missing' => $v === null || $v === '' || $v === []];
+            }
+        }
+
         return [
             'uuid' => $t['uuid'], 'key' => $t['key'], 'name' => WorkflowRuntime::label($t),
             'to' => $this->statusPayload($wf, $t['toId']),
             'comment' => $t['comment'] ?? 'none', 'attachments' => $t['attachments'] ?? 'none',
-            'required_fields' => array_values($t['requiredFields'] ?? []),
+            'required_fields' => $required,
             'confirmation' => (bool) ($t['confirmation'] ?? false),
             'style' => $t['style'] ?? null,
             'approval' => ($t['approval']['mode'] ?? 'none') === 'none' ? null : ['mode' => $t['approval']['mode']],

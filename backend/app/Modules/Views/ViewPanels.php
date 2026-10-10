@@ -375,9 +375,9 @@ final class ViewPanels
         }
         $parts = [];
         foreach ($r['hops'] as $hop) {
-            $parts[] = $this->pick((array) ($hop['field']['i18n']['label'] ?? [])) ?? $hop['field']['key'];
+            $parts[] = $this->translator->labelOf($hop['field']['i18n']['label'] ?? null, $hop['field']['key']);
         }
-        $parts[] = $this->pick((array) ($r['field']['i18n']['label'] ?? [])) ?? $r['field']['key'];
+        $parts[] = $this->translator->labelOf($r['field']['i18n']['label'] ?? null, $r['field']['key']);
 
         return implode(' › ', $parts);
     }

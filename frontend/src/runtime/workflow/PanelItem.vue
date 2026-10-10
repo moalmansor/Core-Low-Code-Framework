@@ -93,7 +93,9 @@ const cell = (v: unknown) => formatLoose(v) || '—'
               <tbody>
                 <tr v-for="r in related.rows" :key="r.uuid" class="border-b border-line">
                   <td class="p-2">
-                    <RouterLink :to="{ name: 'records.view', params: { form: related.form.uuid, record: r.uuid } }" class="text-link" dir="auto">{{ r.title ?? r.uuid.slice(0, 8) }}</RouterLink>
+                    <RouterLink :to="{ name: 'records.view', params: { form: related.form.uuid, record: r.uuid } }" class="text-link" dir="auto">{{
+                      r.title ?? t('runtime.untitled_record')
+                    }}</RouterLink>
                   </td>
                   <td class="p-2"><StatusBadge :status="r.status" size="sm" /></td>
                   <td v-for="c in related.columns" :key="c.key" class="p-2" dir="auto">{{ cell(r.cells[c.key]) }}</td>

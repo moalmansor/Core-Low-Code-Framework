@@ -9,7 +9,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRenderer } from './context'
 import GroupBody from './GroupBody.vue'
-import { pickText } from './i18nText'
+import { labelOf, pickText } from './i18nText'
 import RepeaterGroup from './RepeaterGroup.vue'
 import { isGroupHidden, type RowRef } from './rules'
 import SubformGroup from './SubformGroup.vue'
@@ -97,14 +97,14 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
     <h3 v-if="title" class="text-base font-semibold mb-2">{{ title }}</h3>
     <template v-if="printing">
       <div v-for="tab in children" :key="tab.uuid" class="mb-4">
-        <h4 class="font-semibold mb-2">{{ pickText(tab.i18n?.title, ctx.locale.value) ?? tab.key }}</h4>
+        <h4 class="font-semibold mb-2">{{ labelOf(tab.i18n?.title, ctx.locale.value, tab.key) }}</h4>
         <GroupBody :group="tab" :row="row" />
       </div>
     </template>
     <Tabs v-else v-model:value="activeTab" scrollable>
       <TabList>
         <Tab v-for="tab in children" :key="tab.uuid" :value="tab.uuid" :data-testid="`tab-${tab.key}`">
-          <i v-if="tab.layout?.icon" :class="`${tab.layout.icon} me-2`" />{{ pickText(tab.i18n?.title, ctx.locale.value) ?? tab.key }}
+          <i v-if="tab.layout?.icon" :class="`${tab.layout.icon} me-2`" />{{ labelOf(tab.i18n?.title, ctx.locale.value, tab.key) }}
           <span v-if="hasErrors(tab)" class="ms-2 inline-block w-2 h-2 rounded-full bg-danger" :aria-label="t('runtime.has_errors')" />
         </Tab>
       </TabList>
@@ -121,7 +121,7 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
     <h3 v-if="title" class="text-base font-semibold mb-2">{{ title }}</h3>
     <template v-if="ctx.mode.value === 'view' || printing">
       <div v-for="s in children" :key="s.uuid" class="mb-4">
-        <h4 class="font-semibold mb-2">{{ pickText(s.i18n?.title, ctx.locale.value) ?? s.key }}</h4>
+        <h4 class="font-semibold mb-2">{{ labelOf(s.i18n?.title, ctx.locale.value, s.key) }}</h4>
         <GroupBody :group="s" :row="row" />
       </div>
     </template>
@@ -138,7 +138,7 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
             @click="goTo(i)"
           >
             <span class="font-semibold">{{ i + 1 }}</span>
-            <span>{{ pickText(s.i18n?.title, ctx.locale.value) ?? s.key }}</span>
+            <span>{{ labelOf(s.i18n?.title, ctx.locale.value, s.key) }}</span>
             <span v-if="hasErrors(s)" class="inline-block w-2 h-2 rounded-full bg-danger" :aria-label="t('runtime.has_errors')" />
           </button>
         </li>

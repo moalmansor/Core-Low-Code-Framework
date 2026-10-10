@@ -491,7 +491,7 @@ final class RecordValidator
 
     private function label(array $f): string
     {
-        return app(Translator::class)->pick($f['i18n']['label'] ?? null) ?? $f['key'];
+        return app(Translator::class)->labelOf($f['i18n']['label'] ?? null, $f['key']);
     }
 
     /** Translated message: the field's custom message for the rule, else the default. */

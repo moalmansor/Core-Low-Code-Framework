@@ -419,11 +419,28 @@ edit and create pages, and View Mode panels that show the form.
 - **Empty values:** shown as *Not filled in*, small, italic and muted, never
   as a bare dash; in compact places (table cells) a muted dash with the same
   words for screen readers.
-- **Labels are never keys:** text per language is read in the user's
-  language, then the default language, then any filled language; blank
-  entries count as missing (`Translator::pick` on the server, `pickText` in
-  the browser). Publishing requires a label in the default language for
-  every field that holds a value.
+- **Internal identifiers never reach the interface.** No UUID, key, id or
+  document path appears in a label, message, dialog or table cell.
+  - Text per language is read in the user's language, then the default
+    language, then any filled language; blank entries count as missing.
+  - When no language has a label, the key is shown made readable
+    ("visit_date" → "Visit date"), never as-is: `Translator::labelOf` on the
+    server, `labelOf` / `humanize` in the browser. A linked record without a
+    title reads *Untitled record*.
+  - Messages that name a field, status, transition or form take its label
+    (for example the workflow's publish checks and record-rule errors).
+  - Validation lists say where in words ("Transition 2 › Column 1", or the
+    status's name), not as a path.
+  - Publishing requires a label in the default language for every field
+    that holds a value.
+  - `src/i18n/identifiers.spec.ts` fails when the source falls back to a key,
+    id or raw path; the few technical admin views that show definition paths
+    or storage locations are listed there with their reason.
+- **Transition requirements:** a transition that needs fields filled names
+  them by label and offers *Fill them in*, which opens the edit page with
+  those fields marked and the first in view. The server enforces the same
+  fields and refuses the transition (422, one error per field) while any is
+  empty.
 - **Edit and create:** the same header (back link, *Edit {title}* or
   *New record: {form}*), the form in one card, and the save bar of §5.5 at the bottom
   (*Unsaved changes* / *No changes*, Cancel, Save); leaving with unsaved

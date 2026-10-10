@@ -17,6 +17,7 @@ import { searchForms } from '@/builder/targets'
 import SubjectPicker from '@/components/SubjectPicker.vue'
 import { useSession } from '@/stores/session'
 import { errorText, fieldErrors } from '@/views/admin/building/shared'
+import { humanize } from '@/runtime/i18nText'
 
 /**
  * Delegation and out-of-office cover (specification §4.25). On its own a user
@@ -57,7 +58,7 @@ async function load(): Promise<void> {
 }
 onMounted(async () => {
   await load()
-  if (canPickForms.value) formOptions.value = (await searchForms('').catch(() => [])).map((f) => ({ uuid: f.uuid, label: f.name ?? f.key }))
+  if (canPickForms.value) formOptions.value = (await searchForms('').catch(() => [])).map((f) => ({ uuid: f.uuid, label: f.name ?? humanize(f.key) }))
 })
 
 const editing = ref<{

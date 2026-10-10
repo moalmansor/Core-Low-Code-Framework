@@ -39,7 +39,7 @@ const rows = ref<Sequence[]>([])
 const loading = ref(false)
 const forms = ref<FormOption[]>([])
 const canForms = FORM_OPTION_PERMISSIONS.some((p) => session.can(p))
-const formKey = (uuid: string | null) => (uuid ? (forms.value.find((f) => f.uuid === uuid)?.key ?? uuid) : '—')
+const formKey = (uuid: string | null) => (uuid ? (forms.value.find((f) => f.uuid === uuid)?.key ?? '—') : '—')
 
 async function load(): Promise<void> {
   loading.value = true

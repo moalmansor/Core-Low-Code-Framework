@@ -6,7 +6,7 @@ import { computed, ref, watch } from 'vue'
 import { fileUrl } from '../api'
 import { useRenderer } from '../context'
 import { formatDecimal } from '../format'
-import { pickText } from '../i18nText'
+import { pickText, humanize } from '../i18nText'
 import type { RowRef } from '../rules'
 import SafeHtml, { safeHref } from '../SafeHtml'
 import type { ClientField } from '../types'
@@ -107,7 +107,7 @@ const width = computed(() => {
     </div>
     <div v-else-if="field.type === 'progress'" class="flex flex-col gap-1">
       <span class="text-sm font-medium">{{ label }}</span>
-      <ProgressBar :value="Math.min(100, Math.max(0, percent))" :aria-label="label ?? field.key" />
+      <ProgressBar :value="Math.min(100, Math.max(0, percent))" :aria-label="label ?? humanize(field.key)" />
     </div>
     <div v-else-if="field.type === 'meter'" class="flex flex-col gap-1">
       <span class="text-sm font-medium">{{ label }}</span>
@@ -119,7 +119,7 @@ const width = computed(() => {
         :high="prop(field, 'high', max)"
         :optimum="prop(field, 'optimum', max)"
         :value="numeric ?? min"
-        :aria-label="label ?? field.key"
+        :aria-label="label ?? humanize(field.key)"
       >
         {{ outputText }}
       </meter>

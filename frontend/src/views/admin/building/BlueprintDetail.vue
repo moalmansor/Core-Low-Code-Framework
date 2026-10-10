@@ -23,6 +23,7 @@ import FormPicker from '@/builder/FormPicker.vue'
 import { useSession } from '@/stores/session'
 import LocaleFields from './LocaleFields.vue'
 import { INCLUDE_MODES, errorText, fieldErrors, filledLocales, formatDateTime, saveBlob, type FormSummary, type IncludeMode } from './shared'
+import { humanize } from '@/runtime/i18nText'
 
 interface Version {
   uuid: string
@@ -215,7 +216,7 @@ async function submitInstantiate(): Promise<void> {
 // Instances
 function detach(i: Instance): void {
   confirm.require({
-    message: t('building.blueprints.detach_confirm', { name: i.form?.name ?? i.form?.key ?? '' }),
+    message: t('building.blueprints.detach_confirm', { name: i.form?.name ?? (i.form ? humanize(i.form.key) : '') }),
     header: t('common.confirm'),
     acceptProps: { label: t('building.blueprints.detach'), severity: 'warn' },
     rejectProps: { label: t('common.cancel'), severity: 'secondary' },
@@ -374,7 +375,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
         <div v-else class="rounded-lg border border-line divide-y divide-line">
           <div v-for="i in bp.instances" :key="i.uuid" class="flex flex-wrap items-center gap-3 p-2" :data-testid="`bp-instance-${i.form?.key}`">
             <div class="flex-1 min-w-48">
-              <div class="font-medium">{{ i.form?.name ?? i.form?.key ?? t('building.blueprints.form_removed') }}</div>
+              <div class="font-medium">{{ i.form?.name ?? (i.form ? humanize(i.form.key) : null) ?? t('building.blueprints.form_removed') }}</div>
               <div class="text-xs text-muted-color ltr-value">{{ i.form?.key }}</div>
             </div>
             <Tag v-if="i.form" severity="secondary" :value="t(`building.form_state.${i.form.state}`)" />
@@ -419,7 +420,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
         <p v-if="preview && !preview.length" class="text-muted-color">{{ t('building.blueprints.up_to_date') }}</p>
         <div v-for="p in preview ?? []" :key="p.instance" class="rounded-xl border border-line p-3 mb-3" :data-testid="`bp-preview-${p.form.key}`">
           <div class="flex flex-wrap items-center gap-2 mb-2">
-            <span class="font-semibold">{{ p.form.name ?? p.form.key }}</span>
+            <span class="font-semibold">{{ p.form.name ?? humanize(p.form.key) }}</span>
             <span class="text-xs text-muted-color ltr-value">{{ p.form.key }}</span>
             <span class="text-sm">v{{ p.from_version }} → v{{ bp.version }}</span>
             <Tag severity="success" :value="t('building.blueprints.change_counts.apply', { n: counts(p.changes).apply })" />

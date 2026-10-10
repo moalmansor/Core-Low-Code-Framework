@@ -185,7 +185,7 @@ final class MyWorkController extends Controller
             if ($r === null) {
                 continue;
             }
-            $label = $r['field'] === null ? __('assignment.column_'.$r['system']) : ($this->translator->pick($r['field']['i18n']['label'] ?? null) ?? end($path));
+            $label = $r['field'] === null ? __('assignment.column_'.$r['system']) : ($this->translator->labelOf($r['field']['i18n']['label'] ?? null, end($path)));
             $out[] = ['path' => $path, 'label' => (string) $label];
         }
 

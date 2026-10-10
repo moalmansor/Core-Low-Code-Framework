@@ -23,8 +23,8 @@ import type { TransitionOption, WorkflowState } from './types'
  * confirmation and justification as the transition asks), the pending
  * approval and its decisions, the assignment, the claim and the SLA.
  */
-const props = defineProps<{ form: string; record: string; rowVersion: number; fieldLabel: (key: string) => string; missing: (keys: string[]) => string[] }>()
-const emit = defineEmits<{ changed: []; enabled: [on: boolean] }>()
+const props = defineProps<{ form: string; record: string; rowVersion: number; fieldLabel: (key: string) => string; missing: (keys: string[]) => string[]; canEdit?: boolean }>()
+const emit = defineEmits<{ changed: []; enabled: [on: boolean]; fill: [keys: string[], transition: string] }>()
 const { t, locale } = useI18n()
 const toast = useToast()
 const session = useSession()
@@ -53,7 +53,10 @@ const sla = computed(() => state.value?.sla[0] ?? null)
 
 function fail(e: unknown): void {
   if (!(e instanceof ApiError)) return
-  toast.add({ severity: 'error', summary: Object.values(e.fieldErrors)[0] ?? e.message, life: 8000 })
+  // Field errors name the fields by their labels, never by key.
+  const fields = Object.keys(e.fieldErrors).filter((k) => !['transition', 'comment', 'attachments'].includes(k))
+  const summary = fields.length ? `${t('workflow_run.fill_first')} ${fields.map(props.fieldLabel).join(', ')}` : (Object.values(e.fieldErrors)[0] ?? e.message)
+  toast.add({ severity: 'error', summary, life: 8000 })
   if (e.status === 409) emit('changed')
 }
 
@@ -63,7 +66,15 @@ const comment = ref('')
 const files = ref<{ uuid: string; name: string }[]>([])
 const uploading = ref(false)
 const performing = ref(false)
-const missingFields = computed(() => (moving.value ? props.missing(moving.value.required_fields) : []))
+// Required fields still empty in the record as shown (labels come from the server, in the user's language).
+const missingFields = computed(() => (moving.value ? moving.value.required_fields.filter((f) => props.missing([f.key]).length > 0) : []))
+function fillIn(): void {
+  const m = moving.value
+  if (!m) return
+  const keys = missingFields.value.map((f) => f.key)
+  moving.value = null
+  emit('fill', keys, m.name)
+}
 const canSubmit = computed(() => {
   const m = moving.value
   if (!m || missingFields.value.length) return false
@@ -251,7 +262,13 @@ async function claim(release: boolean): Promise<void> {
       <form v-if="moving" class="flex flex-col gap-3" data-testid="transition-dialog" @submit.prevent="perform">
         <p class="flex items-center gap-2 text-sm">{{ t('workflow_run.moves_to') }} <StatusBadge :status="moving.to" size="sm" /></p>
         <Message v-if="moving.approval" severity="info" size="small" :closable="false">{{ t('workflow_run.needs_approval') }}</Message>
-        <Message v-if="missingFields.length" severity="warn" :closable="false"> {{ t('workflow_run.fill_first') }} {{ missingFields.map(fieldLabel).join(', ') }} </Message>
+        <Message v-if="missingFields.length" severity="warn" :closable="false" data-testid="transition-missing">
+          <p class="m-0">{{ t('workflow_run.fill_first') }}</p>
+          <ul class="m-0 mt-1 ps-5 list-disc">
+            <li v-for="f in missingFields" :key="f.key" dir="auto">{{ f.label }}</li>
+          </ul>
+          <Button v-if="canEdit" type="button" icon="pi pi-pencil" :label="t('workflow_run.fill_in')" size="small" class="mt-2" data-testid="transition-fill" @click="fillIn" />
+        </Message>
         <Message v-if="moving.on_behalf_of" severity="secondary" size="small" :closable="false">{{ t('workflow_run.acting_for', { name: moving.on_behalf_of }) }}</Message>
         <div v-if="moving.comment !== 'none'" class="field">
           <label for="tr-comment">{{ t('workflow.comment') }}<span v-if="moving.comment === 'mandatory'" class="text-danger ms-1" aria-hidden="true">*</span></label>

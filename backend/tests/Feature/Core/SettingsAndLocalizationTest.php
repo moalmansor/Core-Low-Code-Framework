@@ -171,3 +171,12 @@ it('picks per-locale text in the request locale, then the default, skipping blan
         ->and($translator->pick([$other => '', $default => '']))->toBeNull()
         ->and($translator->pick(null))->toBeNull();
 });
+
+it('never returns a raw key as a label: a missing label becomes a readable phrase', function () {
+    $translator = app(Translator::class);
+
+    expect($translator->labelOf(['en' => 'Visit date'], 'visit_date'))->toBe('Visit date')
+        ->and($translator->labelOf([], 'visit_date'))->toBe('Visit date')
+        ->and($translator->labelOf(null, 'contact-email'))->toBe('Contact email')
+        ->and(Translator::humanize('VAT_no'))->toBe('VAT no');
+});

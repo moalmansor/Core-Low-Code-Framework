@@ -8,6 +8,7 @@ use App\Expressions\Calendars\Civil;
 use App\Expressions\Evaluation\Context;
 use App\Expressions\Evaluation\Evaluator;
 use App\Infrastructure\Database\Contracts\DatabaseDriver;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\Runtime\ExpressionContext;
 use App\Modules\Records\Runtime\FormRuntime;
@@ -42,7 +43,7 @@ final class ScopePredicate
         self::walk($ast, static function (string $key) use ($fieldsByKey): void {
             $f = $fieldsByKey[$key] ?? null;
             if ($f === null || ($f['flags']['encrypted'] ?? false)) {
-                throw new InvalidArgumentException(__('access.scope_field_unsupported', ['key' => $key]));
+                throw new InvalidArgumentException(__('access.scope_field_unsupported', ['name' => app(Translator::class)->labelOf($f['i18n']['label'] ?? null, $key)]));
             }
         });
     }

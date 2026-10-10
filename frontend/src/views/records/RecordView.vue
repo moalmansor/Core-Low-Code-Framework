@@ -20,7 +20,7 @@ import { RECORD_FILES, RECORD_UUID } from '@/runtime/context'
 import { FormIndex } from '@/runtime/formIndex'
 import { formatDatetime, formatLoose, formatValue } from '@/runtime/format'
 import FormRenderer from '@/runtime/FormRenderer.vue'
-import { pickText } from '@/runtime/i18nText'
+import { labelOf, pickText, humanize } from '@/runtime/i18nText'
 import JustificationDialog from '@/runtime/JustificationDialog.vue'
 import type { ClientDefinition, FileMeta, RecordPayload } from '@/runtime/types'
 import { useJustification } from '@/runtime/useJustification'
@@ -72,7 +72,7 @@ const attachmentCount = ref(0)
 const workflowShown = ref(false)
 
 const index = computed(() => (definition.value ? new FormIndex(definition.value) : null))
-const name = computed(() => (definition.value ? (pickText(definition.value.names, locale.value) ?? definition.value.name ?? definition.value.form.key) : ''))
+const name = computed(() => (definition.value ? (pickText(definition.value.names, locale.value) ?? definition.value.name ?? humanize(definition.value.form.key)) : ''))
 const perms = computed(() => record.value?.permissions ?? { edit: false, delete: false, restore: false, print: false, view_log: false })
 const deleted = computed(() => !!record.value?.system.deleted_at)
 const allowComments = computed(() => definition.value?.form.settings.allowComments !== false && !deleted.value)
@@ -194,15 +194,24 @@ function eventLabel(event: string): string {
 }
 function fieldLabel(key: string): string {
   const f = index.value?.fieldByKey(key)
-  if (f) return pickText(f.i18n.label, locale.value) ?? key
+  if (f) return labelOf(f.i18n.label, locale.value, key)
   const rep = index.value?.repeaterKeys.get(key)
-  return (rep && pickText(index.value?.groups.get(rep)?.i18n?.title, locale.value)) || key
+  return (rep && pickText(index.value?.groups.get(rep)?.i18n?.title, locale.value)) || humanize(key)
 }
 function changeValue(key: string, v: unknown): string {
   const f = index.value?.fieldByKey(key)
   if (v === '«masked»') return t('records.masked')
   const text =
-    f && index.value ? formatValue(index.value, f, v, { locale: locale.value, references: record.value?.references, files: files.value, yes: t('runtime.yes'), no: t('runtime.no') }) : formatLoose(v)
+    f && index.value
+      ? formatValue(index.value, f, v, {
+          locale: locale.value,
+          references: record.value?.references,
+          files: files.value,
+          yes: t('runtime.yes'),
+          no: t('runtime.no'),
+          untitled: t('runtime.untitled_record'),
+        })
+      : formatLoose(v)
   return text === '' ? '—' : text
 }
 
@@ -266,7 +275,17 @@ watch(
       </div>
     </header>
 
-    <WorkflowPanel :form="formUuid" :record="recordUuid" :row-version="record.row_version" :field-label="fieldLabel" :missing="missing" @changed="load" @enabled="(v) => (workflowShown = v)" />
+    <WorkflowPanel
+      :form="formUuid"
+      :record="recordUuid"
+      :row-version="record.row_version"
+      :field-label="fieldLabel"
+      :missing="missing"
+      :can-edit="perms.edit"
+      @changed="load"
+      @enabled="(v) => (workflowShown = v)"
+      @fill="(keys, name) => router.push({ name: 'records.edit', params: { form: formUuid, record: recordUuid }, query: { require: keys.join(','), for: name } })"
+    />
 
     <Tabs v-model:value="tab">
       <TabList>

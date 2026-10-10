@@ -56,6 +56,17 @@ All notable changes to this project are documented here, one section per phase.
   English) when the user's language held a blank entry; they now fall back to
   the default language, then any filled language.
 - Number inputs overlapped neighbouring controls in dialogs.
+- A transition with required fields listed them as identifiers and, because
+  the record page looked them up by the wrong name, treated filled fields as
+  empty and blocked the transition. It now names them by label, offers to
+  open the edit page with those fields marked, and the server's enforcement
+  is unchanged (422 while any is empty).
+- Internal identifiers no longer reach the interface: workflow publish
+  checks and record-rule errors name statuses, transitions and fields;
+  configuration error lists say where in words; the publish dialog shows
+  translated problems without paths; linked records without a title read
+  "Untitled record"; a missing label shows the key made readable. A test
+  guards the source against new fallbacks to keys, ids or paths.
 
 ## [Unreleased] — Interface (before Phase 3)
 

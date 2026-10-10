@@ -156,7 +156,7 @@ final class WorkflowDocument
         }
         foreach ($doc['transitions'] ?? [] as $i => $t) {
             if ($t['from'] !== null && isset($final[$t['from']])) {
-                $problems[] = ['path' => "transitions.{$i}.from", 'code' => 'final_outgoing', 'message' => __('workflow.final_outgoing', ['key' => $t['key']])];
+                $problems[] = ['path' => "transitions.{$i}.from", 'code' => 'final_outgoing', 'message' => __('workflow.final_outgoing', ['name' => $this->translator->labelOf($t['i18n']['name'] ?? null, $t['key'])])];
             }
         }
         if ($initial !== []) {
@@ -175,7 +175,7 @@ final class WorkflowDocument
             } while ($grew);
             foreach ($statuses as $i => $s) {
                 if (! isset($reached[$s['uuid']])) {
-                    $warnings[] = ['path' => "statuses.{$i}", 'code' => 'unreachable', 'message' => __('workflow.unreachable', ['key' => $s['key']])];
+                    $warnings[] = ['path' => "statuses.{$i}", 'code' => 'unreachable', 'message' => __('workflow.unreachable', ['name' => $this->translator->labelOf($s['i18n']['name'] ?? null, $s['key'])])];
                 }
             }
         }

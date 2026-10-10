@@ -8,7 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { conflictRows, defaultChoices, type Choice, type ConflictPayload } from '@/runtime/conflict'
 import { FormIndex } from '@/runtime/formIndex'
 import { formatDatetime, formatLoose, formatValue } from '@/runtime/format'
-import { pickText } from '@/runtime/i18nText'
+import { labelOf, pickText, humanize } from '@/runtime/i18nText'
 import type { ClientDefinition, References, Values } from '@/runtime/types'
 
 /**
@@ -31,15 +31,17 @@ const unchangedMine = computed(() => Object.keys(props.submitted).filter((k) => 
 
 function label(key: string): string {
   const f = index.value.fieldByKey(key)
-  if (f) return pickText(f.i18n.label, locale.value) ?? key
+  if (f) return labelOf(f.i18n.label, locale.value, key)
   const rep = index.value.repeaterKeys.get(key)
   const g = rep ? index.value.groups.get(rep) : undefined
-  return (g && pickText(g.i18n?.title, locale.value)) ?? key
+  return (g && pickText(g.i18n?.title, locale.value)) ?? humanize(key)
 }
 function show(key: string, value: unknown): string {
   const f = index.value.fieldByKey(key)
   if (index.value.repeaterKeys.has(key)) return Array.isArray(value) ? t('runtime.rows_count', { count: value.length }) : formatLoose(value)
-  const text = f ? formatValue(index.value, f, value, { locale: locale.value, references: props.references, yes: t('runtime.yes'), no: t('runtime.no') }) : formatLoose(value)
+  const text = f
+    ? formatValue(index.value, f, value, { locale: locale.value, references: props.references, yes: t('runtime.yes'), no: t('runtime.no'), untitled: t('runtime.untitled_record') })
+    : formatLoose(value)
   return text === '' ? '—' : text
 }
 const who = computed(() => props.payload.changed_by ?? t('records.conflict_someone'))

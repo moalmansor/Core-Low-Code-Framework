@@ -135,7 +135,7 @@ final class ReferencePreviews
                 if ($r === null) {
                     continue;
                 }
-                $label = $r['field'] === null ? __('views.system_'.$r['system']) : (app(Translator::class)->pick($r['field']['i18n']['label'] ?? null) ?? $r['field']['key']);
+                $label = $r['field'] === null ? __('views.system_'.$r['system']) : (app(Translator::class)->labelOf($r['field']['i18n']['label'] ?? null, $r['field']['key']));
                 $items[] = ['label' => $label, 'value' => $this->paths->values($trt, $path, [(int) $row->id], $user)[(int) $row->id] ?? null];
             }
             foreach (json_decode((string) ($config->autofill_map ?? 'null'), true) ?: [] as $a) {

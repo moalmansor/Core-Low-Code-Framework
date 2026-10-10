@@ -361,6 +361,15 @@ Decided by the owner:
     language (`Translator::pick`, `pickText`), fixing fields shown by key;
   - recorded in design system §5.1, §5.5, §5.6 (record pages) and §5.7 (a
     checklist for new screens), specification §4.1, §4.6, §4.24, ADR-0037.
+- Owner report 10 (2026-10-10): transition required fields were sent as field
+  identifiers and looked up by key in the browser, so they were listed as
+  UUIDs and filled fields counted as empty. The server now sends key, label
+  and state; the dialog names the fields and opens the edit page with them
+  marked. Server enforcement verified (`WorkflowTest`: 422 while empty). An
+  audit of every message naming a field, status, transition, role or form
+  fixed the remaining leaks (publish checks, record-rule errors, error lists,
+  publish dialog, untitled linked records, formatter fallbacks) and added
+  `identifiers.spec.ts` as a guard; design system §5.6 updated.
 
 ## Resume point
 

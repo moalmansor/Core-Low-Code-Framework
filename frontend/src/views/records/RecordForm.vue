@@ -11,7 +11,7 @@ import { newUuid } from '@/runtime/api'
 import { changedValues, conflictRows, isConflictPayload, mergeAfterResolution, resolvedSubmission, type Choice, type ConflictPayload } from '@/runtime/conflict'
 import { RECORD_FILES, RECORD_UUID } from '@/runtime/context'
 import FormRenderer from '@/runtime/FormRenderer.vue'
-import { pickText } from '@/runtime/i18nText'
+import { pickText, humanize } from '@/runtime/i18nText'
 import { submissionValues } from '@/runtime/submission'
 import type { ClientDefinition, FileMeta, RecordPayload, References, Values } from '@/runtime/types'
 import { same } from '@/runtime/values'
@@ -56,7 +56,7 @@ const banner = ref('')
 const renderer = ref<InstanceType<typeof FormRenderer> | null>(null)
 const renderKey = ref(0)
 
-const name = computed(() => (definition.value ? (pickText(definition.value.names, locale.value) ?? definition.value.name ?? definition.value.form.key) : ''))
+const name = computed(() => (definition.value ? (pickText(definition.value.names, locale.value) ?? definition.value.name ?? humanize(definition.value.form.key)) : ''))
 const submitLabel = computed(() => pickText(definition.value?.form.i18n.submitButtonLabel, locale.value) ?? t('common.save'))
 const heading = computed(() => (mode.value === 'create' ? t('records.new_in', { name: name.value }) : t('records.edit_title', { title: recordTitle.value ?? name.value })))
 
@@ -85,10 +85,27 @@ async function load(): Promise<void> {
     }
     definition.value = def
     renderKey.value++
+    markRequired()
     document.title = [heading.value, session.systemName].filter(Boolean).join(' · ')
   } catch (e) {
     loadError.value = e instanceof ApiError && e.status !== 0 ? e.message : t('records.load_failed')
   }
+}
+
+/**
+ * Opened from a transition that needs fields filled (`?require=a,b&for=Submit`):
+ * those fields are marked on the form and the first one is brought into view.
+ */
+function markRequired(): void {
+  const keys = typeof route.query.require === 'string' ? route.query.require.split(',').filter((k) => definition.value?.fields.some((f) => f.key === k)) : []
+  if (!keys.length) return
+  const name = typeof route.query.for === 'string' ? route.query.for : ''
+  banner.value = t('workflow_run.fill_to_move', { name })
+  // After the form has rendered and settled its own values, so the marks are not cleared as edits.
+  void nextTick(() => {
+    serverErrors.value = Object.fromEntries(keys.map((k) => [k, [t('workflow_run.needed_for', { name })]]))
+    focusFirstError()
+  })
 }
 
 function applyRecord(rec: RecordPayload): void {

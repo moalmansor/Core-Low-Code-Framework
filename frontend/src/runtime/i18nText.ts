@@ -20,3 +20,14 @@ export function pickText(map: I18nText | null | undefined, locale: string): stri
   }
   return null
 }
+
+/** "visit_date" → "Visit date": a key made readable, the last resort when no label exists in any language. */
+export function humanize(key: string): string {
+  const text = key.replace(/[_\-\s]+/g, ' ').trim()
+  return text === '' ? key : text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+/** A label for display: the text in the best language, else the key made readable. An internal identifier is never shown as-is. */
+export function labelOf(map: I18nText | null | undefined, locale: string, key: string): string {
+  return pickText(map, locale) ?? humanize(key)
+}

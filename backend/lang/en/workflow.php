@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 return [
     'initial_count' => 'A workflow needs exactly one initial status.',
-    'final_outgoing' => 'The transition :key leaves a final status; final statuses cannot have outgoing transitions.',
-    'unreachable' => 'The status :key cannot be reached from the initial status.',
+    'final_outgoing' => 'The transition :name leaves a final status; final statuses cannot have outgoing transitions.',
+    'unreachable' => 'The status :name cannot be reached from the initial status.',
     'too_large' => 'The workflow has too many statuses, transitions or SLA rules.',
     'duplicate_uuid' => 'This identifier is already used by another item.',
     'invalid_key' => 'Use a lowercase key that starts with a letter (letters, digits and underscores, up to 48 characters).',
@@ -31,7 +31,7 @@ return [
     'escalation_target_required' => 'Choose who the escalation goes to.',
     'name_required' => 'Enter a name in the default language.',
     'mapping_not_removed' => 'This status is not being removed.',
-    'mapping_required' => 'Choose where the :count record(s) in the removed status :key should go.',
+    'mapping_required' => 'Choose where the :count record(s) in the removed status :name should go.',
     'changed_elsewhere' => 'The workflow was changed by someone else. Review the latest version and apply your changes again.',
     'transition_not_found' => 'This transition does not exist in the published workflow.',
     'transition_forbidden' => 'You are not allowed to perform this transition.',

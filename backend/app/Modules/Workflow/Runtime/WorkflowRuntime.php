@@ -112,6 +112,6 @@ final class WorkflowRuntime
      */
     public static function label(array $status, string $field = 'name'): string
     {
-        return app(Translator::class)->pick($status['i18n'][$field] ?? null) ?? (string) ($status['key'] ?? '');
+        return app(Translator::class)->labelOf($status['i18n'][$field] ?? null, (string) ($status['key'] ?? ''));
     }
 }

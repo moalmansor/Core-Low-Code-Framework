@@ -101,7 +101,7 @@ final class ViewRuntime
         }
 
         return [
-            'uuid' => $view['uuid'], 'key' => $view['key'], 'name' => $this->pickLocale((array) $view['i18n']['name']) ?? $view['key'],
+            'uuid' => $view['uuid'], 'key' => $view['key'], 'name' => $this->translator->labelOf($view['i18n']['name'], $view['key']),
             'page_size' => $view['pageSize'], 'default_sort' => $view['defaultSort'], 'show_totals' => $view['showTotals'],
             'column_chooser' => $view['columnChooser'], 'global_search' => $view['globalSearch'], 'row_options' => $view['rowOptions'],
             'columns' => $columns, 'filters' => $filters,
@@ -288,9 +288,9 @@ final class ViewRuntime
         }
         $parts = [];
         foreach ($r['hops'] as $hop) {
-            $parts[] = $this->pickLocale((array) ($hop['field']['i18n']['label'] ?? [])) ?? $hop['field']['key'];
+            $parts[] = $this->translator->labelOf($hop['field']['i18n']['label'] ?? null, $hop['field']['key']);
         }
-        $parts[] = $this->pickLocale((array) ($r['field']['i18n']['label'] ?? [])) ?? $r['field']['key'];
+        $parts[] = $this->translator->labelOf($r['field']['i18n']['label'] ?? null, $r['field']['key']);
 
         return implode(' › ', $parts);
     }
