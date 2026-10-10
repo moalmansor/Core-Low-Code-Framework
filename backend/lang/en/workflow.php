@@ -6,6 +6,8 @@ return [
     'initial_count' => 'A workflow needs exactly one initial status.',
     'final_outgoing' => 'The transition :name leaves a final status; final statuses cannot have outgoing transitions.',
     'unreachable' => 'The status :name cannot be reached from the initial status.',
+    'dead_end' => 'The status :name has no way out and is not final; records reaching it get stuck.',
+    'no_entry' => 'No transition leads to the status :name, and it is not the initial status.',
     'too_large' => 'The workflow has too many statuses, transitions or SLA rules.',
     'duplicate_uuid' => 'This identifier is already used by another item.',
     'invalid_key' => 'Use a lowercase key that starts with a letter (letters, digits and underscores, up to 48 characters).',

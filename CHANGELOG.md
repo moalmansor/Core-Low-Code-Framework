@@ -41,6 +41,10 @@ All notable changes to this project are documented here, one section per phase.
   sections and tabs carried through, an aligned header and workflow bar
   (ADR-0037).
 - A checklist for new screens (design system §5.7).
+- Workflow designer: *Tidy up* layout by flow order, transition labels that
+  never overlap, highlighted selection with both endpoint statuses, a checks
+  strip (unreachable, no way out, no way in), a compact outline instead of
+  the duplicate lists, and no keys on the canvas (design system §5.6a).
 
 ### Changed
 - The "Workflows, statuses & views" sidebar entry is removed; a form's
@@ -67,6 +71,12 @@ All notable changes to this project are documented here, one section per phase.
   translated problems without paths; linked records without a title read
   "Untitled record"; a missing label shows the key made readable. A test
   guards the source against new fallbacks to keys, ids or paths.
+- Workflow designer: a transition's name and key were generated once from its
+  first target and never followed a later route change, so the panel could
+  show a key and label that no longer matched the canvas. Routes now change
+  only on the canvas (drag the arrow's end or *Re-route*), the panel shows
+  them read-only, and a managed name and key follow the route and name until
+  edited; a saved key is locked behind *Change key* (owner report 11).
 
 ## [Unreleased] — Interface (before Phase 3)
 

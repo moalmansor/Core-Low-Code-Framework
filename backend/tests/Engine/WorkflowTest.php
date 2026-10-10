@@ -22,7 +22,9 @@ it('reports workflow problems in the designer and blocks publishing until they a
     $c = statusDoc('c');
     $res = saveWorkflow($this, $form, [$a, $b, $c], [transitionDoc('back', $b, $a)])->assertOk();
     expect(array_column($res->json('data.problems'), 'code'))->toContain('initial_count', 'final_outgoing')
-        ->and(array_column($res->json('data.warnings'), 'code'))->toContain('unreachable');
+        ->and(array_column($res->json('data.warnings'), 'code'))->toContain('unreachable', 'dead_end', 'no_entry');
+    // Messages name statuses by their name, never by key.
+    expect(array_column($res->json('data.warnings'), 'message'))->toContain('The status C has no way out and is not final; records reaching it get stuck.');
     $impact = $this->postJson("/api/v1/forms/{$form}/impact")->assertOk()->json('data.impact.blocking');
     expect(array_column($impact, 'detail'))->toContain('initial_count');
 

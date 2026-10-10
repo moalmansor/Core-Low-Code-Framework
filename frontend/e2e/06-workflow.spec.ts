@@ -75,6 +75,15 @@ test('a record moves through a workflow with a justification and lands in My Wor
   // The designer shows it.
   await page.goto(`/admin/forms/${form}/configure/workflow`)
   await expect(page.getByTestId('workflow-designer')).toContainText('Submitted')
+  // Designer (owner report 11): the checks name what would break, a saved transition's route is read-only
+  // and its key is locked behind "Change key"; statuses never show their keys on the canvas.
+  await expect(page.getByTestId('wf-checks')).toBeVisible()
+  await expect(page.getByTestId('wf-node-draft')).not.toContainText('draft')
+  await page.getByTestId(`wf-edge-label-${submitUuid}`).click()
+  await expect(page.getByTestId('wf-tr-route')).toContainText('Draft')
+  await expect(page.getByTestId('wf-tr-route')).toContainText('Submitted')
+  await expect(page.getByTestId('wf-tr-key-locked')).toHaveText('submit')
+  await expect(page.locator('#wf-tr-from')).toHaveCount(0)
 
   // Configuration screens share one frame (design system §5.5): quiet intro,
   // an empty state holding the add action, and a save bar with Discard.

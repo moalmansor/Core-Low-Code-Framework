@@ -561,13 +561,13 @@ All access control lives in **one** interface.
   - conditions and required fields;
   - optional mandatory comment and attachments;
   - linked actions and notifications.
-- **Visual designer:** Vue Flow, for drag-and-drop editing of statuses and transitions.
+- **Visual designer:** Vue Flow, for drag-and-drop editing of statuses and transitions. The canvas is the only place a transition's route is set: drawn by dragging between statuses, changed by dragging an arrow's end or with *Re-route*; the properties panel shows the route read-only, so the two never disagree. A new transition is named after its target and a new item's key follows its name until edited; once saved, a key is changed only through *Change key*, which warns that links and API calls using it will break. *Tidy up* arranges statuses left to right by flow order. A checks strip lists statuses that cannot be reached, that have no way out and are not final, or no way in and are not initial.
 - **SLA timers:** per status, with escalation rules (notify, reassign, auto-transition).
 - **History:** full status history per record, with comments.
 
 **Behavior (ADR-0031, ADR-0033)**
 - The workflow (statuses, transitions, SLA rules) is part of the form definition: it is saved with the draft's concurrency check and takes effect when the form is published, together with any field changes, and every version keeps the workflow it was published with.
-- Publishing checks the workflow: it is blocked unless there is exactly one initial status and no transition leaves a final status; a status that cannot be reached from the initial one is shown as a warning.
+- Publishing checks the workflow: it is blocked unless there is exactly one initial status and no transition leaves a final status; a status that cannot be reached from the initial one, one with no way out that is not final, and one with no way in that is not initial are shown as warnings.
 - **Status mapping:** when a published status that still holds records is removed or merged, publishing is blocked until the admin chooses, on the publish screen, the status those records move to. The moves run as steps of the migration plan, are reversible with it, and are written to each record's status history as "when the workflow changed". Records without a status (created before the form had a workflow) move to the initial status.
 - Statuses, transitions, and SLA rules that were ever published are archived rather than deleted, so history keeps their names; adding one back with the same key restores it.
 - A transition is offered only when the user holds its permission, the record is in its "from" status (or the transition starts from any status), its condition holds, and no approval is pending on the record. Performing it re-checks all of this on the server, together with optimistic concurrency, required fields, comment and attachment rules, and the justification rules of 4.24.

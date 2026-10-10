@@ -5,12 +5,11 @@ import '@vue-flow/core/dist/theme-default.css'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
-import Message from 'primevue/message'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, markRaw, nextTick, onMounted, provide, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ApiError } from '@/api/http'
 import ExpressionInput from '@/builder/conditions/ExpressionInput.vue'
@@ -29,7 +28,9 @@ import LocaleFields from '../building/LocaleFields.vue'
 import { errorText } from '../building/shared'
 import { labelOf, newUuid, workflowApi, type StatusDoc, type TransitionDoc, type WorkflowDocument, type WorkflowState } from './api'
 import ErrorList from './ErrorList.vue'
-import { STATUS_COLORS, checkWorkflow, layoutStatuses, newStatus, newTransition, suggestKey } from './workflowGraph'
+import { EDGE_LABELS, createEdgeLabels } from './edgeLabels'
+import WorkflowEdge from './WorkflowEdge.vue'
+import { STATUS_COLORS, checkWorkflow, keyFor, layoutStatuses, newStatus, newTransition, reroute, statusRenamed, transitionRenamed, type AutoState } from './workflowGraph'
 
 /**
  * The visual workflow designer (specification §4.12, architecture §19.2):
@@ -63,7 +64,6 @@ const statusById = computed(() => new Map(doc.value.statuses.map((s) => [s.uuid,
 const scope = computed(() => (builder.doc ? buildScope(builder.doc, builder.catalog.fields) : { fields: [], repeaters: [], rows: null }))
 const fieldOptions = computed(() => (builder.doc?.fields ?? []).map((f) => ({ value: f.uuid, label: labelOf(f.i18n?.label ?? {}, locale.value, f.key, defaultLocale.value) })))
 const statusOptions = computed(() => doc.value.statuses.map((s) => ({ value: s.uuid, label: nameOf(s) })))
-const fromOptions = computed(() => [{ value: null, label: t('workflow.any_status') }, ...statusOptions.value])
 const levels = computed(() => (['none', 'optional', 'mandatory'] as const).map((v) => ({ value: v, label: t(`workflow.level.${v}`) })))
 const approvalModes = computed(() => (['none', 'all', 'any_n', 'quorum'] as const).map((v) => ({ value: v, label: t(`workflow.approval.${v}`) })))
 const rejections = computed(() => (['immediate', 'wait_all'] as const).map((v) => ({ value: v, label: t(`workflow.rejection.${v}`) })))
@@ -82,6 +82,96 @@ function apply(s: WorkflowState): void {
   doc.value = JSON.parse(JSON.stringify(s.document)) as WorkflowDocument
   for (const st of doc.value.statuses) st.position ??= positions.get(st.uuid) ?? { x: 0, y: 0 }
   saved.value = JSON.stringify(doc.value)
+  // Saved items keep their keys: links and the API use them. Names typed by people stay theirs.
+  auto.key.clear()
+  auto.name.clear()
+  unlocked.clear()
+  routing.value = null
+  if (selected.value && !doc.value.statuses.some((x) => x.uuid === selected.value!.uuid) && !doc.value.transitions.some((x) => x.uuid === selected.value!.uuid)) selected.value = null
+}
+
+// ── Names, keys and routes (owner report 11a–c) ──
+// The designer names a new transition after its target and keeps a new item's key in step with its name,
+// until the person edits them; a saved key is locked behind "Change key". The canvas is the only place a route changes.
+const auto = reactive<AutoState>({ name: new Set(), key: new Set() })
+const unlocked = reactive(new Set<string>())
+const savedUuids = computed(() => {
+  const d = JSON.parse(saved.value || '{"statuses":[],"transitions":[]}') as WorkflowDocument
+  return new Set([...d.statuses.map((x) => x.uuid), ...d.transitions.map((x) => x.uuid)])
+})
+const keyLocked = (uuid: string) => savedUuids.value.has(uuid) && !unlocked.has(uuid)
+const nameFor = (target: StatusDoc | undefined): Record<string, string> => ({
+  [defaultLocale.value]: target ? t('workflow.move_to', { status: nameOf(target) }, { locale: defaultLocale.value }) : t('workflow.new_transition', {}, { locale: defaultLocale.value }),
+})
+let internal = false
+function managed(fn: () => void): void {
+  internal = true
+  try {
+    fn()
+  } finally {
+    void nextTick(() => (internal = false))
+  }
+}
+// A name typed by the person: a status carries its key and managed transition names along; a transition's name becomes theirs.
+watch(
+  () => [selected.value?.uuid, JSON.stringify(current.value?.i18n.name ?? {})] as const,
+  ([uuid], [prevUuid]) => {
+    if (internal || uuid !== prevUuid || !uuid) return
+    managed(() => {
+      if (status.value) statusRenamed(doc.value, status.value, auto, nameFor, defaultLocale.value)
+      else if (transition.value) transitionRenamed(doc.value, transition.value, auto, defaultLocale.value)
+    })
+  },
+)
+function keyEdited(): void {
+  if (selected.value) auto.key.delete(selected.value.uuid)
+}
+function changeKey(): void {
+  const s = selected.value
+  if (!s) return
+  confirm.require({
+    message: t('workflow.change_key_confirm'),
+    header: t('workflow.change_key'),
+    acceptProps: { severity: 'warn', label: t('workflow.change_key') },
+    rejectProps: { label: t('workflow.cancel'), severity: 'secondary' },
+    accept: () => unlocked.add(s.uuid),
+  })
+}
+
+// Choosing a route on the canvas, for a new transition or to re-route the selected one: status clicks (canvas or outline) answer the prompt.
+const routing = ref<{ uuid: string | null; step: 'from' | 'to'; from: string | null } | null>(null)
+function startRoute(uuid: string | null): void {
+  routing.value = { uuid, step: 'from', from: null }
+}
+function pickStatus(id: string): void {
+  const r = routing.value
+  if (!r) {
+    if (id !== ANY) selected.value = { kind: 'status', uuid: id }
+    return
+  }
+  if (r.step === 'from') {
+    routing.value = { ...r, step: 'to', from: id === ANY ? null : id }
+    return
+  }
+  if (id === ANY || id === r.from) return
+  routing.value = null
+  if (r.uuid === null) addTransition(r.from, id)
+  else {
+    const tr = doc.value.transitions.find((x) => x.uuid === r.uuid)
+    if (tr) managed(() => reroute(doc.value, tr, r.from, id, auto, nameFor, defaultLocale.value))
+    selected.value = { kind: 'transition', uuid: r.uuid }
+  }
+}
+function onEdgeUpdate({ edge, connection }: { edge: Edge; connection: Connection }): void {
+  const tr = doc.value.transitions.find((x) => x.uuid === edge.id)
+  if (!tr || !connection.target || connection.target === ANY || connection.source === connection.target) return
+  managed(() => reroute(doc.value, tr, connection.source === ANY ? null : connection.source, connection.target, auto, nameFor, defaultLocale.value))
+  selected.value = { kind: 'transition', uuid: tr.uuid }
+}
+function tidy(): void {
+  const positions = layoutStatuses(doc.value)
+  for (const st of doc.value.statuses) st.position = positions.get(st.uuid) ?? st.position
+  void nextTick(() => flow.fitView({ padding: 0.2 }))
 }
 
 async function load(): Promise<void> {
@@ -117,27 +207,24 @@ async function save(): Promise<void> {
 
 function addStatus(): void {
   const index = doc.value.statuses.length
-  const name = t('workflow.new_status', { n: index + 1 })
-  const key = suggestKey(
-    `status ${index + 1}`,
-    doc.value.statuses.map((s) => s.key),
-  )
-  const s = newStatus(newUuid(), key, { [defaultLocale.value]: name }, index, { x: 240 * index, y: 0 })
-  doc.value.statuses.push(s)
-  selected.value = { kind: 'status', uuid: s.uuid }
+  const s = newStatus(newUuid(), '', { [defaultLocale.value]: t('workflow.new_status', { n: index + 1 }, { locale: defaultLocale.value }) }, index, { x: 260 * index, y: 0 })
+  s.key = keyFor(s, doc.value.statuses, defaultLocale.value, 's')
+  managed(() => {
+    doc.value.statuses.push(s)
+    auto.key.add(s.uuid)
+    selected.value = { kind: 'status', uuid: s.uuid }
+  })
 }
 
 function addTransition(from: string | null, to: string): void {
-  const target = statusById.value.get(to)
-  const name = target ? t('workflow.move_to', { status: nameOf(target) }) : t('workflow.new_transition')
-  const key = suggestKey(
-    `to ${target?.key ?? 'status'}`,
-    doc.value.transitions.map((x) => x.key),
-    't',
-  )
-  const tr = newTransition(newUuid(), key, { [defaultLocale.value]: name }, from, to, doc.value.transitions.length)
-  doc.value.transitions.push(tr)
-  selected.value = { kind: 'transition', uuid: tr.uuid }
+  const tr = newTransition(newUuid(), '', nameFor(statusById.value.get(to)), from, to, doc.value.transitions.length)
+  tr.key = keyFor(tr, doc.value.transitions, defaultLocale.value, 't')
+  managed(() => {
+    doc.value.transitions.push(tr)
+    auto.name.add(tr.uuid)
+    auto.key.add(tr.uuid)
+    selected.value = { kind: 'transition', uuid: tr.uuid }
+  })
 }
 
 function removeSelected(): void {
@@ -168,29 +255,44 @@ function setInitial(s: StatusDoc, value: boolean): void {
 }
 
 // ── Canvas ──
+// Statuses with a warning, and the endpoints of the selected transition, are marked on the canvas.
+const flagged = computed(() => new Set(check.value.warnings.map((w) => w.message)))
+const endpoints = computed(() => (transition.value ? new Set([transition.value.from ?? ANY, transition.value.to]) : new Set<string>()))
 const flowNodes = computed<Node[]>(() => {
   const nodes: Node[] = doc.value.statuses.map((s) => ({
     id: s.uuid,
     type: 'status',
     position: s.position ?? { x: 0, y: 0 },
-    data: { status: s, issue: check.value.warnings.some((w) => w.message === s.key) },
-    selected: selected.value?.uuid === s.uuid,
+    data: { status: s, issue: flagged.value.has(s.uuid), role: selected.value?.uuid === s.uuid ? 'selected' : endpoints.value.has(s.uuid) ? 'endpoint' : null },
   }))
-  if (doc.value.transitions.some((x) => x.from === null)) nodes.push({ id: ANY, type: 'any', position: { x: -220, y: -120 }, data: {}, draggable: false })
+  if (doc.value.transitions.some((x) => x.from === null))
+    nodes.push({ id: ANY, type: 'any', position: { x: -220, y: -120 }, data: { role: endpoints.value.has(ANY) ? 'endpoint' : null }, draggable: false })
   return nodes
 })
-const flowEdges = computed<Edge[]>(() =>
-  doc.value.transitions.map((x) => ({
-    id: x.uuid,
-    source: x.from ?? ANY,
-    target: x.to,
-    label: nameOf(x) + (x.approval.mode !== 'none' ? ' ✓' : ''),
-    type: 'smoothstep',
-    markerEnd: MarkerType.ArrowClosed,
-    animated: selected.value?.uuid === x.uuid,
-    labelBgPadding: [4, 2] as [number, number],
-    class: check.value.problems.some((p) => p.message === x.key) ? 'wf-edge-problem' : '',
-  })),
+const problemTransitions = computed(() => new Set(check.value.problems.map((p) => p.message)))
+const flowEdges = computed<Edge[]>(() => {
+  // Transitions between the same two statuses run side by side rather than on top of each other.
+  const pairs = new Map<string, number>()
+  return doc.value.transitions.map((x) => {
+    const pair = [x.from ?? ANY, x.to].sort().join('|')
+    const n = pairs.get(pair) ?? 0
+    pairs.set(pair, n + 1)
+    return {
+      id: x.uuid,
+      source: x.from ?? ANY,
+      target: x.to,
+      type: 'wf',
+      markerEnd: MarkerType.ArrowClosed,
+      updatable: true,
+      data: { label: nameOf(x) + (x.approval.mode !== 'none' ? ' ✓' : ''), offset: 20 + n * 18, selected: selected.value?.uuid === x.uuid, problem: problemTransitions.value.has(x.uuid) },
+    }
+  })
+})
+provide(
+  EDGE_LABELS,
+  createEdgeLabels((id) => {
+    if (!routing.value) selected.value = { kind: 'transition', uuid: id }
+  }),
 )
 function onConnect(c: Connection): void {
   if (!c.target || c.target === ANY || c.source === c.target) return
@@ -222,7 +324,33 @@ function setApprover(i: number, v: { type: string; uuid: string | null } | null)
   }
 }
 
-const issueText = (code: string, key: string) => t(`workflow.issue.${code}`, { key })
+// Issues name the status or transition they concern; clicking one selects it.
+function issueName(uuid: string): string {
+  const s = statusById.value.get(uuid)
+  if (s) return nameOf(s)
+  const tr = doc.value.transitions.find((x) => x.uuid === uuid)
+  return tr ? nameOf(tr) : ''
+}
+const strip = computed(() => {
+  const groups: { code: string; severity: 'error' | 'warn'; items: { uuid: string; name: string }[] }[] = []
+  for (const p of check.value.problems) {
+    if (p.code === 'initial_count') groups.push({ code: p.code, severity: 'error', items: [] })
+  }
+  for (const [code, severity, list] of [
+    ['final_outgoing', 'error', check.value.problems],
+    ['unreachable', 'warn', check.value.warnings],
+    ['dead_end', 'warn', check.value.warnings],
+    ['no_entry', 'warn', check.value.warnings],
+  ] as const) {
+    const items = list.filter((i) => i.code === code).map((i) => ({ uuid: i.message, name: issueName(i.message) }))
+    if (items.length) groups.push({ code, severity, items })
+  }
+  return groups
+})
+function selectIssue(uuid: string): void {
+  selected.value = statusById.value.has(uuid) ? { kind: 'status', uuid } : { kind: 'transition', uuid }
+}
+const routeName = (uuid: string | null) => (uuid === null ? t('workflow.any_status') : issueName(uuid))
 function discard(): void {
   doc.value = JSON.parse(saved.value) as WorkflowDocument
   selected.value = null
@@ -241,10 +369,16 @@ defineExpose({ dirty, save })
     </EmptyState>
 
     <template v-else>
-      <div v-if="check.problems.length || check.warnings.length" class="flex flex-col gap-2">
-        <Message v-for="p in check.problems" :key="p.path + p.code" severity="error" :closable="false" data-testid="wf-problem">{{ issueText(p.code, p.message) }}</Message>
-        <Message v-for="w in check.warnings" :key="w.path" severity="warn" :closable="false">{{ issueText(w.code, w.message) }}</Message>
-      </div>
+      <!-- Validation strip: what would break the workflow, by status, before publishing (owner report 11d). -->
+      <section class="wf-strip" :class="strip.length ? '' : 'is-ok'" data-testid="wf-checks" :aria-label="t('workflow.checks')">
+        <span v-if="!strip.length" class="text-sm flex items-center gap-2"><i class="pi pi-check-circle text-success" aria-hidden="true" />{{ t('workflow.checks_ok') }}</span>
+        <div v-for="g in strip" :key="g.code" class="wf-strip-row" :data-testid="`wf-check-${g.code}`">
+          <span class="wf-strip-label" :class="g.severity === 'error' ? 'text-danger' : 'text-warning'">
+            <i :class="g.severity === 'error' ? 'pi pi-times-circle' : 'pi pi-exclamation-triangle'" aria-hidden="true" />{{ t(`workflow.check.${g.code}`) }}
+          </span>
+          <button v-for="it in g.items" :key="it.uuid" type="button" class="wf-chip" dir="auto" @click="selectIssue(it.uuid)">{{ it.name }}</button>
+        </div>
+      </section>
 
       <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem] items-start">
         <div class="flex flex-col gap-4 min-w-0">
@@ -257,30 +391,40 @@ defineExpose({ dirty, save })
               size="small"
               outlined
               data-testid="wf-add-transition"
-              @click="addTransition(doc.statuses[0]!.uuid, doc.statuses[1]!.uuid)"
+              @click="startRoute(null)"
             />
             <span class="flex-1" />
+            <Button icon="pi pi-sitemap" :label="t('workflow.tidy')" size="small" text severity="secondary" data-testid="wf-tidy" @click="tidy" />
             <Button icon="pi pi-expand" :label="t('workflow.fit')" size="small" text severity="secondary" @click="flow.fitView({ padding: 0.2 })" />
           </div>
-          <div class="relative h-[28rem] rounded-xl border border-line bg-card" dir="ltr">
+          <div class="relative h-[30rem] rounded-xl border border-line bg-card" dir="ltr">
+            <div v-if="routing" class="wf-routing" :dir="session.direction" role="status" data-testid="wf-routing">
+              <i class="pi pi-directions" aria-hidden="true" />
+              <span class="flex-1">{{ routing.step === 'from' ? t('workflow.route_pick_from') : t('workflow.route_pick_to', { from: routeName(routing.from) }) }}</span>
+              <Button :label="t('workflow.cancel')" size="small" text severity="secondary" @click="routing = null" />
+            </div>
             <VueFlow
               id="workflow-designer"
               :nodes="flowNodes"
               :edges="flowEdges"
+              :edge-types="{ wf: markRaw(WorkflowEdge) }"
               :min-zoom="0.2"
               :max-zoom="2"
+              :delete-key-code="null"
+              :edges-updatable="true"
               fit-view-on-init
               @connect="onConnect"
+              @edge-update="onEdgeUpdate"
               @node-drag-stop="onDragStop"
-              @node-click="({ node }) => node.id !== ANY && (selected = { kind: 'status', uuid: node.id })"
-              @edge-click="({ edge }) => (selected = { kind: 'transition', uuid: edge.id })"
-              @pane-click="selected = null"
+              @node-click="({ node }) => pickStatus(node.id)"
+              @edge-click="({ edge }) => !routing && (selected = { kind: 'transition', uuid: edge.id })"
+              @pane-click="!routing && (selected = null)"
             >
               <template #node-status="{ data }">
                 <div
-                  class="rounded-lg border-2 bg-card px-3 py-2 text-sm shadow-sm min-w-36"
+                  class="wf-node"
+                  :class="[data.role === 'selected' ? 'is-selected' : '', data.role === 'endpoint' ? 'is-endpoint' : '', data.issue ? 'is-flagged' : '', routing ? 'is-pickable' : '']"
                   :style="{ borderColor: data.status.color }"
-                  :class="data.issue ? 'outline outline-2 outline-warning' : ''"
                   :dir="session.direction"
                   :data-testid="`wf-node-${data.status.key}`"
                 >
@@ -288,17 +432,17 @@ defineExpose({ dirty, save })
                   <div class="flex items-center gap-2">
                     <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: data.status.color }" aria-hidden="true" />
                     <span class="font-medium truncate">{{ nameOf(data.status) }}</span>
+                    <i v-if="data.issue" class="pi pi-exclamation-triangle text-warning text-xs" :aria-label="t('workflow.has_warning')" />
                   </div>
-                  <div class="flex gap-1 mt-1 text-[10px] text-muted-color">
+                  <div v-if="data.status.initial || data.status.final" class="flex gap-1 mt-1 text-[10px] text-muted-color">
                     <span v-if="data.status.initial" class="rounded bg-primary-subtle px-1">{{ t('workflow.initial') }}</span>
                     <span v-if="data.status.final" class="rounded bg-subtle px-1">{{ t('workflow.final') }}</span>
-                    <span class="ltr-value">{{ data.status.key }}</span>
                   </div>
                   <Handle type="source" :position="Position.Right" />
                 </div>
               </template>
-              <template #node-any>
-                <div class="rounded-full border border-dashed border-line-strong bg-subtle px-3 py-1 text-xs" :dir="session.direction">
+              <template #node-any="{ data }">
+                <div class="rounded-full border border-dashed border-line-strong bg-subtle px-3 py-1 text-xs" :class="data.role === 'endpoint' ? 'wf-any-endpoint' : ''" :dir="session.direction">
                   {{ t('workflow.any_status') }}
                   <Handle type="source" :position="Position.Right" />
                 </div>
@@ -306,43 +450,45 @@ defineExpose({ dirty, save })
             </VueFlow>
           </div>
 
-          <!-- Keyboard-friendly list of the same workflow. -->
+          <!-- Outline: the same workflow as a keyboard-friendly list; selecting here selects on the canvas. -->
           <div class="rounded-xl border border-line bg-card px-5">
-            <ConfigSection id="wf-statuses" :title="t('workflow.statuses')" :count="doc.statuses.length">
-              <ul class="flex flex-col gap-1 m-0 p-0 list-none">
-                <li v-for="s in doc.statuses" :key="s.uuid">
-                  <button
-                    type="button"
-                    class="w-full text-start flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-subtle"
-                    :class="selected?.uuid === s.uuid ? 'bg-primary-subtle' : ''"
-                    :aria-current="selected?.uuid === s.uuid ? 'true' : undefined"
-                    @click="selected = { kind: 'status', uuid: s.uuid }"
-                  >
-                    <span class="inline-block w-2.5 h-2.5 rounded-full" :style="{ background: s.color }" aria-hidden="true" />
-                    <span class="flex-1 truncate">{{ nameOf(s) }}</span>
-                    <span v-if="s.initial" class="text-xs text-muted-color">{{ t('workflow.initial') }}</span>
-                    <span v-if="s.final" class="text-xs text-muted-color">{{ t('workflow.final') }}</span>
+            <ConfigSection id="wf-outline" :title="t('workflow.outline')" :description="t('workflow.outline_desc')" :default-open="false">
+              <ul class="wf-outline">
+                <li v-for="st in doc.statuses" :key="st.uuid">
+                  <button type="button" class="wf-outline-item" :class="{ 'is-selected': selected?.uuid === st.uuid }" @click="pickStatus(st.uuid)">
+                    <span class="inline-block w-2 h-2 rounded-full" :style="{ background: st.color }" aria-hidden="true" />
+                    <span class="truncate" dir="auto">{{ nameOf(st) }}</span>
                   </button>
+                  <ul v-if="doc.transitions.some((x) => x.from === st.uuid)" class="wf-outline">
+                    <li v-for="x in doc.transitions.filter((x) => x.from === st.uuid)" :key="x.uuid">
+                      <button
+                        type="button"
+                        class="wf-outline-item is-transition"
+                        :class="{ 'is-selected': selected?.uuid === x.uuid }"
+                        @click="!routing && (selected = { kind: 'transition', uuid: x.uuid })"
+                      >
+                        <i class="pi pi-arrow-right rtl:rotate-180 text-xs text-muted-color" aria-hidden="true" />
+                        <span class="truncate" dir="auto">{{ nameOf(x) }}</span>
+                        <span class="text-muted-color truncate" dir="auto">→ {{ routeName(x.to) }}</span>
+                      </button>
+                    </li>
+                  </ul>
                 </li>
-              </ul>
-            </ConfigSection>
-            <ConfigSection id="wf-transitions" :title="t('workflow.transitions')" :count="doc.transitions.length">
-              <EmptyState v-if="!doc.transitions.length" icon="pi pi-arrow-right" :title="t('workflow.no_transitions')" :description="t('workflow.no_transitions_text')" />
-              <ul v-else class="flex flex-col gap-1 m-0 p-0 list-none">
-                <li v-for="x in doc.transitions" :key="x.uuid">
-                  <button
-                    type="button"
-                    class="w-full text-start rounded-md px-2 py-1.5 hover:bg-subtle text-sm"
-                    :class="selected?.uuid === x.uuid ? 'bg-primary-subtle' : ''"
-                    :aria-current="selected?.uuid === x.uuid ? 'true' : undefined"
-                    @click="selected = { kind: 'transition', uuid: x.uuid }"
-                  >
-                    <span class="font-medium">{{ nameOf(x) }}</span>
-                    <span class="text-muted-color">
-                      · {{ x.from ? nameOf(statusById.get(x.from) ?? { key: '?', i18n: { name: {} } }) : t('workflow.any_status') }} →
-                      {{ nameOf(statusById.get(x.to) ?? { key: '?', i18n: { name: {} } }) }}</span
-                    >
-                  </button>
+                <li v-if="doc.transitions.some((x) => x.from === null)">
+                  <span class="wf-outline-item text-muted-color">{{ t('workflow.any_status') }}</span>
+                  <ul class="wf-outline">
+                    <li v-for="x in doc.transitions.filter((x) => x.from === null)" :key="x.uuid">
+                      <button
+                        type="button"
+                        class="wf-outline-item is-transition"
+                        :class="{ 'is-selected': selected?.uuid === x.uuid }"
+                        @click="!routing && (selected = { kind: 'transition', uuid: x.uuid })"
+                      >
+                        <span class="truncate" dir="auto">{{ nameOf(x) }}</span>
+                        <span class="text-muted-color truncate" dir="auto">→ {{ routeName(x.to) }}</span>
+                      </button>
+                    </li>
+                  </ul>
                 </li>
               </ul>
             </ConfigSection>
@@ -359,8 +505,17 @@ defineExpose({ dirty, save })
             <h3 class="m-0 pt-4 text-base font-semibold">{{ t('workflow.status') }}: {{ nameOf(status) }}</h3>
             <ConfigSection id="wf-status-basics" :title="t('views.section.basics')">
               <LocaleFields v-model="status.i18n.name" :label="t('workflow.name')" field="name" id-prefix="wf-status-name" />
-              <ConfigField :label="t('workflow.key')" for="wf-status-key" width="sm" :hint="t('formconfig.key_hint')">
-                <InputText id="wf-status-key" v-model="status.key" class="ltr-value" size="small" />
+              <ConfigField
+                :label="t('workflow.key')"
+                for="wf-status-key"
+                width="sm"
+                :hint="keyLocked(status.uuid) ? t('workflow.key_locked_hint') : auto.key.has(status.uuid) ? t('workflow.key_auto_hint') : t('formconfig.key_hint')"
+              >
+                <div v-if="keyLocked(status.uuid)" class="flex items-center gap-2">
+                  <span class="ltr-value text-sm" data-testid="wf-status-key-locked">{{ status.key }}</span>
+                  <Button :label="t('workflow.change_key')" size="small" text @click="changeKey" />
+                </div>
+                <InputText v-else id="wf-status-key" v-model="status.key" class="ltr-value" size="small" @input="keyEdited" />
               </ConfigField>
             </ConfigSection>
             <ConfigSection id="wf-status-look" :title="t('workflow.section.appearance')">
@@ -403,14 +558,26 @@ defineExpose({ dirty, save })
             <h3 class="m-0 pt-4 text-base font-semibold">{{ t('workflow.transition') }}: {{ nameOf(transition) }}</h3>
             <ConfigSection id="wf-tr-basics" :title="t('views.section.basics')">
               <LocaleFields v-model="transition.i18n.name" :label="t('workflow.button_label')" field="name" id-prefix="wf-tr-name" />
-              <ConfigField :label="t('workflow.key')" for="wf-tr-key" width="sm" :hint="t('formconfig.key_hint')">
-                <InputText id="wf-tr-key" v-model="transition.key" class="ltr-value" size="small" />
+              <ConfigField
+                :label="t('workflow.key')"
+                for="wf-tr-key"
+                width="sm"
+                :hint="keyLocked(transition.uuid) ? t('workflow.key_locked_hint') : auto.key.has(transition.uuid) ? t('workflow.key_auto_hint') : t('formconfig.key_hint')"
+              >
+                <div v-if="keyLocked(transition.uuid)" class="flex items-center gap-2">
+                  <span class="ltr-value text-sm" data-testid="wf-tr-key-locked">{{ transition.key }}</span>
+                  <Button :label="t('workflow.change_key')" size="small" text data-testid="wf-tr-change-key" @click="changeKey" />
+                </div>
+                <InputText v-else id="wf-tr-key" v-model="transition.key" class="ltr-value" size="small" @input="keyEdited" />
               </ConfigField>
-              <ConfigField :label="t('workflow.from')" for="wf-tr-from" width="md">
-                <Select v-model="transition.from" input-id="wf-tr-from" :options="fromOptions" option-label="label" option-value="value" size="small" />
-              </ConfigField>
-              <ConfigField :label="t('workflow.to')" for="wf-tr-to" width="md">
-                <Select v-model="transition.to" input-id="wf-tr-to" :options="statusOptions" option-label="label" option-value="value" size="small" />
+              <!-- The route is what the canvas shows; it changes only on the canvas (owner report 11b). -->
+              <ConfigField :label="t('workflow.route')" width="lg" :hint="t('workflow.route_hint')">
+                <div class="flex flex-wrap items-center gap-2 text-sm" data-testid="wf-tr-route">
+                  <span class="wf-chip" dir="auto">{{ routeName(transition.from) }}</span>
+                  <i class="pi pi-arrow-right rtl:rotate-180 text-muted-color" aria-hidden="true" />
+                  <span class="wf-chip" dir="auto">{{ routeName(transition.to) }}</span>
+                  <Button icon="pi pi-directions" :label="t('workflow.reroute')" size="small" text data-testid="wf-tr-reroute" @click="startRoute(transition.uuid)" />
+                </div>
               </ConfigField>
               <p class="m-0 text-sm text-muted-color">{{ t('workflow.permission_hint') }}</p>
             </ConfigSection>
@@ -483,7 +650,114 @@ defineExpose({ dirty, save })
 </template>
 
 <style scoped>
-:deep(.wf-edge-problem path) {
-  stroke: var(--danger);
+.wf-node {
+  min-width: 9rem;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--text-size-sm);
+  background: var(--bg-surface);
+  border: 2px solid;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px var(--shadow-color);
+}
+.wf-node.is-selected {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+.wf-node.is-endpoint {
+  outline: 2px dashed var(--primary);
+  outline-offset: 2px;
+}
+.wf-node.is-flagged:not(.is-selected):not(.is-endpoint) {
+  outline: 2px solid var(--warning);
+  outline-offset: 2px;
+}
+.wf-node.is-pickable {
+  cursor: crosshair;
+}
+.wf-any-endpoint {
+  outline: 2px dashed var(--primary);
+  outline-offset: 2px;
+}
+.wf-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-surface);
+}
+.wf-strip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.5rem;
+}
+.wf-strip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 14rem;
+  font-size: var(--text-size-sm);
+  font-weight: 500;
+}
+.wf-chip {
+  padding: 0.125rem 0.625rem;
+  font-size: var(--text-size-sm);
+  color: var(--text);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+button.wf-chip:hover {
+  border-color: var(--primary);
+}
+.wf-routing {
+  position: absolute;
+  inset-inline: 0.75rem;
+  top: 0.75rem;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--text-size-sm);
+  color: var(--on-primary-subtle);
+  background: var(--primary-subtle);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-control);
+}
+.wf-outline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wf-outline .wf-outline {
+  padding-inline-start: 1.25rem;
+}
+.wf-outline-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--text-size-sm);
+  text-align: start;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+}
+button.wf-outline-item:hover {
+  background: var(--bg-subtle);
+}
+.wf-outline-item.is-selected {
+  background: var(--primary-subtle);
+  color: var(--on-primary-subtle);
+}
+.wf-outline-item.is-transition {
+  font-size: var(--text-size-xs);
 }
 </style>

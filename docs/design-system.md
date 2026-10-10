@@ -446,6 +446,33 @@ edit and create pages, and View Mode panels that show the form.
   (*Unsaved changes* / *No changes*, Cancel, Save); leaving with unsaved
   changes asks first.
 
+### 5.6a Workflow designer
+
+- **One source of truth for routes:** the canvas. A transition is drawn by
+  dragging from one status to another; its route changes by dragging the
+  arrow's end or with *Re-route on the canvas*, which asks for the start and
+  then the end status (clicks on the canvas or in the outline answer it). The
+  properties panel shows the route as read-only facts.
+- **Names and keys:** a new transition is named after its target ("Move to
+  Approved") and follows its route until its name is edited; a new item's key
+  follows its name until the key is edited or saved. A saved key shows
+  read-only with *Change key*, which warns that links and API calls will
+  break. The canvas never shows keys.
+- **Reading the canvas:** transition labels are small pills placed so they
+  never cover each other (`edgeLabels.ts`); transitions between the same two
+  statuses run side by side. The selected transition is drawn in the primary
+  colour and its two statuses are outlined; the selected status has a solid
+  outline; statuses with a warning have a warning outline and icon.
+- **Tidy up** places statuses left to right by flow order, ordering each
+  column to limit crossings; statuses the initial one cannot reach follow by
+  their own flow.
+- **Checks strip** above the canvas: blocking problems and the statuses that
+  cannot be reached, have no way out and are not final, or have no way in and
+  are not initial, each a chip that selects the status. When nothing is
+  wrong, one quiet line says so. The server reports the same checks.
+- **Outline** (folded by default): the same workflow as a list for the
+  keyboard; choosing an item selects it on the canvas.
+
 ### 5.7 Checklist for every new screen
 
 Flat stacks of controls with no hierarchy came up three times in review.

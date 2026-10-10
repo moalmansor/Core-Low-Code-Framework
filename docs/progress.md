@@ -370,6 +370,14 @@ Decided by the owner:
   fixed the remaining leaks (publish checks, record-rule errors, error lists,
   publish dialog, untitled linked records, formatter fallbacks) and added
   `identifiers.spec.ts` as a guard; design system §5.6 updated.
+- Owner report 11 (workflow designer): stale From/To/key/label traced to names
+  and keys generated once from the first target, plus a panel that could
+  change routes independently of the canvas. Routes now change only on the
+  canvas (drag or *Re-route*), names and keys follow until edited, saved keys
+  are locked behind *Change key*; tests in `workflowGraph.spec.ts` replay the
+  report. Canvas: non-overlapping labels, *Tidy up*, selection highlight with
+  endpoints, checks strip (client and server: unreachable, dead end, no
+  entry), outline, no keys on nodes. Spec §4.12, design system §5.6a.
 
 ## Resume point
 

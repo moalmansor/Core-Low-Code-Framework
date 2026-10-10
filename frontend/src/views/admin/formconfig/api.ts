@@ -1,5 +1,6 @@
 import { get, send } from '@/api/http'
 import type { Ast } from '@/builder/types'
+import { humanize } from '@/runtime/i18nText'
 
 /**
  * Types and calls of a form's Phase 3 configuration documents (architecture
@@ -267,5 +268,5 @@ export const previewsApi = {
 
 /** Label of a translatable map in the interface language, falling back to the default language, then the key. */
 export function labelOf(map: I18nMap | undefined | null, locale: string, fallback: string, defaultLocale = 'en'): string {
-  return map?.[locale] || map?.[defaultLocale] || Object.values(map ?? {}).find((v) => !!v) || fallback
+  return map?.[locale] || map?.[defaultLocale] || Object.values(map ?? {}).find((v) => !!v) || humanize(fallback)
 }

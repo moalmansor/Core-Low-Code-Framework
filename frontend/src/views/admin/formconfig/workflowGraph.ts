@@ -48,7 +48,12 @@ export function newTransition(uuid: string, key: string, name: Record<string, st
   }
 }
 
-/** Problems that block publishing, and warnings (the server repeats these checks). */
+/**
+ * Problems that block publishing, and warnings (the server repeats these
+ * checks). Each issue's `message` carries the uuid of the status or
+ * transition it concerns, so the designer can name and select it — never a
+ * key in front of the user.
+ */
 export function checkWorkflow(doc: WorkflowDocument): { problems: Issue[]; warnings: Issue[] } {
   const problems: Issue[] = []
   const warnings: Issue[] = []
@@ -57,8 +62,9 @@ export function checkWorkflow(doc: WorkflowDocument): { problems: Issue[]; warni
   if (initial.length !== 1) problems.push({ path: 'statuses', code: 'initial_count', message: '' })
   const finals = new Set(doc.statuses.filter((s) => s.final).map((s) => s.uuid))
   doc.transitions.forEach((t, i) => {
-    if (t.from !== null && finals.has(t.from)) problems.push({ path: `transitions.${i}.from`, code: 'final_outgoing', message: t.key })
+    if (t.from !== null && finals.has(t.from)) problems.push({ path: `transitions.${i}.from`, code: 'final_outgoing', message: t.uuid })
   })
+  const anyStatus = doc.transitions.filter((t) => t.from === null)
   if (initial.length > 0) {
     const reached = new Set(initial.map((s) => s.uuid))
     let grew = true
@@ -72,39 +78,119 @@ export function checkWorkflow(doc: WorkflowDocument): { problems: Issue[]; warni
       }
     }
     doc.statuses.forEach((s, i) => {
-      if (!reached.has(s.uuid)) warnings.push({ path: `statuses.${i}`, code: 'unreachable', message: s.key })
+      if (!reached.has(s.uuid)) warnings.push({ path: `statuses.${i}`, code: 'unreachable', message: s.uuid })
     })
   }
+  doc.statuses.forEach((s, i) => {
+    // No way out: a status that is not final but has no transition leaving it (an "any status" transition counts unless it only leads back here).
+    const out = doc.transitions.some((t) => t.from === s.uuid) || anyStatus.some((t) => t.to !== s.uuid)
+    if (!s.final && !out) warnings.push({ path: `statuses.${i}`, code: 'dead_end', message: s.uuid })
+    // No way in: a status that is not initial and no transition leads to.
+    if (!s.initial && !doc.transitions.some((t) => t.to === s.uuid)) warnings.push({ path: `statuses.${i}`, code: 'no_entry', message: s.uuid })
+  })
   return { problems, warnings }
 }
 
 /**
- * Positions for statuses without one: columns by distance from the initial
- * status (breadth-first), rows within a column.
+ * Positions for statuses, left to right by flow order: columns by distance
+ * from the initial status (breadth-first over transitions between statuses),
+ * and within a column, ordered by the average row of the statuses that lead
+ * there so arrows cross as little as possible. Statuses the initial one
+ * cannot reach follow to the right, laid out by their own flow.
  */
-export function layoutStatuses(doc: WorkflowDocument, spacingX = 240, spacingY = 120): Map<string, { x: number; y: number }> {
+export function layoutStatuses(doc: WorkflowDocument, spacingX = 260, spacingY = 130): Map<string, { x: number; y: number }> {
   const out = new Map<string, { x: number; y: number }>()
   const depth = new Map<string, number>()
   const start = doc.statuses.find((s) => s.initial) ?? doc.statuses[0]
   if (!start) return out
-  const queue = [start.uuid]
-  depth.set(start.uuid, 0)
-  while (queue.length) {
-    const u = queue.shift()!
-    for (const t of doc.transitions) {
-      if ((t.from === u || t.from === null) && !depth.has(t.to)) {
-        depth.set(t.to, depth.get(u)! + 1)
-        queue.push(t.to)
+  const walk = (root: string, base: number): void => {
+    const queue = [root]
+    depth.set(root, base)
+    while (queue.length) {
+      const u = queue.shift()!
+      for (const t of doc.transitions) {
+        if (t.from === u && !depth.has(t.to)) {
+          depth.set(t.to, depth.get(u)! + 1)
+          queue.push(t.to)
+        }
       }
     }
   }
-  const maxDepth = Math.max(0, ...depth.values())
-  const rows = new Map<number, number>()
+  walk(start.uuid, 0)
+  // Statuses the initial one cannot reach follow, each group laid out by its own flow from where it starts.
+  for (;;) {
+    const rest = doc.statuses.filter((s) => !depth.has(s.uuid))
+    if (!rest.length) break
+    const root = rest.find((s) => !doc.transitions.some((t) => t.to === s.uuid && t.from !== null && !depth.has(t.from) && t.from !== s.uuid)) ?? rest[0]!
+    walk(root.uuid, Math.max(0, ...depth.values()) + 1)
+  }
+  const columns = new Map<number, string[]>()
   for (const s of doc.statuses) {
-    const d = depth.get(s.uuid) ?? maxDepth + 1
-    const r = rows.get(d) ?? 0
-    rows.set(d, r + 1)
-    out.set(s.uuid, { x: d * spacingX, y: r * spacingY })
+    const d = depth.get(s.uuid)!
+    columns.set(d, [...(columns.get(d) ?? []), s.uuid])
+  }
+  const row = new Map<string, number>()
+  for (const d of [...columns.keys()].sort((a, b) => a - b)) {
+    const ids = columns.get(d)!
+    const order = (id: string): number => {
+      const preds = doc.transitions.filter((t) => t.to === id && t.from !== null && row.has(t.from)).map((t) => row.get(t.from!)!)
+      return preds.length ? preds.reduce((a, b) => a + b, 0) / preds.length : Number.MAX_SAFE_INTEGER
+    }
+    const sorted = d === 0 ? ids : [...ids].sort((a, b) => order(a) - order(b))
+    sorted.forEach((id, r) => {
+      row.set(id, r)
+      out.set(id, { x: d * spacingX, y: r * spacingY })
+    })
   }
   return out
+}
+
+/**
+ * Which names and keys the designer still manages itself (design system
+ * §5.6). A new transition is named after its target ("Move to Approved") and
+ * a new item's key follows its name until the person edits them; a key is
+ * locked once saved, because links and the API use it.
+ */
+export interface AutoState {
+  name: Set<string>
+  key: Set<string>
+}
+
+type Named = { uuid: string; key: string; i18n: { name: Record<string, string> } }
+
+/** The key a name suggests, unique among the other items of its kind. */
+export function keyFor(item: Named, siblings: Named[], defaultLocale: string, prefix: 's' | 't'): string {
+  return suggestKey(
+    item.i18n.name[defaultLocale] ?? Object.values(item.i18n.name)[0] ?? '',
+    siblings.filter((x) => x.uuid !== item.uuid).map((x) => x.key),
+    prefix,
+  )
+}
+
+/** Re-routes a transition; its name and key follow the new target while the designer still manages them. */
+export function reroute(
+  doc: WorkflowDocument,
+  tr: TransitionDoc,
+  from: string | null,
+  to: string,
+  auto: AutoState,
+  nameFor: (target: StatusDoc | undefined) => Record<string, string>,
+  defaultLocale: string,
+): void {
+  tr.from = from
+  tr.to = to
+  if (auto.name.has(tr.uuid)) tr.i18n.name = nameFor(doc.statuses.find((s) => s.uuid === to))
+  if (auto.key.has(tr.uuid)) tr.key = keyFor(tr, doc.transitions, defaultLocale, 't')
+}
+
+/** After a status is renamed: its key follows while managed, and so do the managed names of transitions leading to it. */
+export function statusRenamed(doc: WorkflowDocument, status: StatusDoc, auto: AutoState, nameFor: (target: StatusDoc | undefined) => Record<string, string>, defaultLocale: string): void {
+  if (auto.key.has(status.uuid)) status.key = keyFor(status, doc.statuses, defaultLocale, 's')
+  for (const t of doc.transitions) if (t.to === status.uuid && auto.name.has(t.uuid)) reroute(doc, t, t.from, t.to, auto, nameFor, defaultLocale)
+}
+
+/** After the person edits a transition's name: it is theirs now; the key still follows while managed. */
+export function transitionRenamed(doc: WorkflowDocument, tr: TransitionDoc, auto: AutoState, defaultLocale: string): void {
+  auto.name.delete(tr.uuid)
+  if (auto.key.has(tr.uuid)) tr.key = keyFor(tr, doc.transitions, defaultLocale, 't')
 }

@@ -129,9 +129,10 @@ final class WorkflowDocument
 
     /**
      * Problems that block publishing (the designer shows them while editing):
-     * exactly one initial status, no transitions out of a final status, and
-     * every status reachable from the initial one (unreachable ones are
-     * warnings, they do not block).
+     * exactly one initial status and no transitions out of a final status.
+     * Warnings do not block: a status the initial one cannot reach, one with
+     * no way out that is not final, and one with no way in that is not
+     * initial.
      *
      * @param  array<string, mixed>  $doc
      * @return array{problems: list<array{path: string, code: string, message: string}>, warnings: list<array{path: string, code: string, message: string}>}
@@ -177,6 +178,18 @@ final class WorkflowDocument
                 if (! isset($reached[$s['uuid']])) {
                     $warnings[] = ['path' => "statuses.{$i}", 'code' => 'unreachable', 'message' => __('workflow.unreachable', ['name' => $this->translator->labelOf($s['i18n']['name'] ?? null, $s['key'])])];
                 }
+            }
+        }
+        // A status with no way out that is not final, or no way in that is not initial (an "any status" transition is a way out of the others).
+        $transitions = $doc['transitions'] ?? [];
+        foreach ($statuses as $i => $s) {
+            $name = $this->translator->labelOf($s['i18n']['name'] ?? null, $s['key']);
+            $out = array_filter($transitions, static fn ($t) => $t['from'] === $s['uuid'] || ($t['from'] === null && $t['to'] !== $s['uuid'])) !== [];
+            if (! ($s['final'] ?? false) && ! $out) {
+                $warnings[] = ['path' => "statuses.{$i}", 'code' => 'dead_end', 'message' => __('workflow.dead_end', ['name' => $name])];
+            }
+            if (! ($s['initial'] ?? false) && array_filter($transitions, static fn ($t) => $t['to'] === $s['uuid']) === []) {
+                $warnings[] = ['path' => "statuses.{$i}", 'code' => 'no_entry', 'message' => __('workflow.no_entry', ['name' => $name])];
             }
         }
 
