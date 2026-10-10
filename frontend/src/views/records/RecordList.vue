@@ -17,7 +17,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError, ensureCsrf, get, http, send } from '@/api/http'
-import { downloadBlob, fetchOptions, newUuid, type OptionItem } from '@/runtime/api'
+import { fetchOptions, newUuid, type OptionItem } from '@/runtime/api'
 import { fieldType } from '@/runtime/fieldTypes'
 import { FormIndex } from '@/runtime/formIndex'
 import { formatDatetime, formatLoose, formatValue } from '@/runtime/format'
@@ -496,11 +496,33 @@ async function restore(r: RecordPayload): Promise<void> {
 }
 
 const exporting = ref(false)
-async function exportAs(format: 'xlsx' | 'csv', onlySelected = false): Promise<void> {
+interface ExportJob {
+  uuid: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'expired' | 'cancelled'
+  url: string | null
+  error: string | null
+}
+/**
+ * Exports what the table shows (§4.15): the view's visible columns, the
+ * filters and search, or only the selected records. Small exports download at
+ * once; larger ones are prepared in the background, followed here while the
+ * page stays open, and announced in the notifications center.
+ */
+async function exportAs(format: 'xlsx' | 'csv' | 'pdf', onlySelected = false): Promise<void> {
   exporting.value = true
   try {
     const extra = onlySelected ? { uuids: selected.value.map((r) => r.uuid) } : {}
-    await downloadBlob(`/r/${formUuid.value}/export`, { ...params(), ...extra, format }, `${definition.value?.form.key ?? 'records'}.${format}`)
+    const columns = activeView.value ? { columns: viewColumns.value.map((c) => c.key) } : {}
+    let job = (await send<{ data: ExportJob }>('post', `/r/${formUuid.value}/exports`, { ...params(), ...extra, ...columns, format })).data
+    if (!job.url) {
+      toast.add({ severity: 'info', summary: t('records.export_preparing'), life: 6000 })
+      for (let i = 0; i < 400 && (job.status === 'queued' || job.status === 'running'); i++) {
+        await new Promise((r) => setTimeout(r, 1500))
+        job = (await get<{ data: ExportJob }>(`/exports/${job.uuid}`)).data
+      }
+    }
+    if (job.url) window.location.assign(job.url)
+    else if (job.status === 'failed') toast.add({ severity: 'error', summary: job.error ?? t('records.export_failed'), life: 8000 })
   } catch (e) {
     toast.add({ severity: 'error', summary: e instanceof ApiError && e.status === 429 ? t('records.export_throttled') : t('records.export_failed'), life: 6000 })
   } finally {
@@ -515,6 +537,7 @@ const actionItems = computed(() => {
     { label: t('records.import'), icon: 'pi pi-upload', visible: canImport.value && !state.trashed, command: () => (importOpen.value = true) },
     { label: t('records.export_xlsx'), icon: 'pi pi-file-excel', visible: canExport.value, command: () => exportAs('xlsx') },
     { label: t('records.export_csv'), icon: 'pi pi-file', visible: canExport.value, command: () => exportAs('csv') },
+    { label: t('records.export_pdf'), icon: 'pi pi-file-pdf', visible: canExport.value, command: () => exportAs('pdf') },
     { separator: true, visible: n > 0 && (canExport.value || canDelete.value) },
     { label: t('records.export_selected', { n: number(n) }), icon: 'pi pi-file-excel', visible: n > 0 && canExport.value, command: () => exportAs('xlsx', true) },
     { label: t('records.delete_selected', { n: number(n) }), icon: 'pi pi-trash', class: 'text-danger', visible: n > 0 && canDelete.value && !state.trashed, command: () => bulk('delete') },

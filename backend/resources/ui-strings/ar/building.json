@@ -575,7 +575,10 @@
   "settings.group.records": "السجلات",
   "settings.group.schema": "تغييرات البنية",
   "settings.records.export_max_rows": "الحد الأقصى للصفوف في التصدير",
+  "settings.records.export_sync_rows": "التصدير حتى هذا العدد من الصفوف يُنزَّل فورًا",
   "settings.records.import_max_rows": "الحد الأقصى للصفوف في الاستيراد",
+  "settings.records.import_time_limit_minutes": "الحد الزمني لكل استيراد (بالدقائق)",
+  "settings.records.job_file_hours": "تُحفظ الملفات المصدَّرة لمدة (ساعات)",
   "settings.schema.blocking_confirmation_rows": "طلب تأكيد إضافي عند تجاوز هذا العدد من الصفوف",
   "settings.schema.reconcile_daily": "تشغيل فحص مطابقة البنية يوميًا",
   "settings.schema.snapshot_retention_days": "مدة الاحتفاظ بالنسخ الاحتياطية قبل النشر (بالأيام)"

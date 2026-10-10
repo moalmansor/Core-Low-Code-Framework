@@ -575,7 +575,10 @@
   "settings.group.records": "Records",
   "settings.group.schema": "Schema changes",
   "settings.records.export_max_rows": "Maximum rows per export",
+  "settings.records.export_sync_rows": "Exports up to this many rows download at once",
   "settings.records.import_max_rows": "Maximum rows per import",
+  "settings.records.import_time_limit_minutes": "Time limit per import (minutes)",
+  "settings.records.job_file_hours": "Exported files are kept for (hours)",
   "settings.schema.blocking_confirmation_rows": "Ask for extra confirmation above this many rows",
   "settings.schema.reconcile_daily": "Run the schema reconciliation check every day",
   "settings.schema.snapshot_retention_days": "Keep pre-publish backups for (days)"
