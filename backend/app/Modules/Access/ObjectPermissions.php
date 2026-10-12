@@ -65,6 +65,17 @@ final class ObjectPermissions
         $this->register('action.'.strtolower($uuid).'.run', 'action', $id, 'run', 'action', 'Run action', 'تنفيذ الإجراء', false);
     }
 
+    public function registerDownload(int $id, string $uuid): void
+    {
+        $this->register('download.'.strtolower($uuid).'.use', 'download_profile', $id, 'use', 'download', 'Use download profile', 'استخدام ملف التنزيل', false);
+    }
+
+    /** Seeing a sensitive field's value unmasked where values are otherwise masked (downloads, §4.23); granting it needs step-up. */
+    public function registerSensitiveField(int $id, string $uuid): void
+    {
+        $this->register('field.'.strtolower($uuid).'.view_sensitive', 'field', $id, 'view_sensitive', 'field', 'View sensitive value', 'عرض القيمة الحساسة', true);
+    }
+
     /** Removes an object's permissions and their grants (the object itself was deleted). */
     public function forget(string $prefix): void
     {

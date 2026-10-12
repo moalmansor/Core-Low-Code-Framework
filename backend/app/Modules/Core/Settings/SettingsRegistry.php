@@ -86,6 +86,15 @@ final class SettingsRegistry
         $d('actions', 'max_records', 500, ['required', 'integer', 'between:1,100000']);
         $d('actions', 'queue_threshold', 50, ['required', 'integer', 'between:1,10000']);
 
+        // Custom downloads (§4.23): how deep a profile's relation tree reaches, up to how many rows a download
+        // is produced at once (larger ones run in the background), the most rows a profile may produce unless it
+        // sets its own lower limit, and the largest file a scheduled download attaches to its email (larger ones
+        // are announced with a link that needs sign-in).
+        $d('downloads', 'max_depth', 5, ['required', 'integer', 'between:1,10']);
+        $d('downloads', 'sync_rows', 5000, ['required', 'integer', 'between:1,100000']);
+        $d('downloads', 'max_rows', 100000, ['required', 'integer', 'between:100,1000000']);
+        $d('downloads', 'email_attachment_mb', 10, ['required', 'integer', 'between:1,25']);
+
         // Document templates (§4.17): the size of an uploaded Word template, and how long one conversion to PDF may take.
         $d('documents', 'max_template_mb', 10, ['required', 'integer', 'between:1,50']);
         $d('documents', 'convert_timeout_seconds', 120, ['required', 'integer', 'between:10,600']);

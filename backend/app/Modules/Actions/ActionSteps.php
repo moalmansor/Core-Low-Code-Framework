@@ -11,6 +11,7 @@ use App\Modules\Assignment\Membership;
 use App\Modules\Documents\DocumentRenderer;
 use App\Modules\Documents\GeneratedDocuments;
 use App\Modules\Documents\Models\DocumentTemplate;
+use App\Modules\Downloads\DownloadJobs;
 use App\Modules\Identity\Models\User;
 use App\Modules\Notifications\Notifier;
 use App\Modules\Records\Runtime\FormRuntime;
@@ -49,6 +50,7 @@ final class ActionSteps
         private readonly Membership $members,
         private readonly AccessResolver $access,
         private readonly RecordScope $scope,
+        private readonly DownloadJobs $downloads,
     ) {}
 
     /**
@@ -106,6 +108,7 @@ final class ActionSteps
             'generate_document' => $this->document($c, $rt, $user, $found, $key, $justificationId),
             'create_linked_record' => $this->linked($c, $rt, $user, $found, $key),
             'assign' => $this->assign($c, $rt, $user, $found, $justificationId),
+            'run_download' => $this->download($c, $user, $found),
             default => throw new StepFailed(__('actions.not_runnable')),
         };
     }
@@ -224,6 +227,29 @@ final class ActionSteps
         $created = $this->pipeline->create($target, $user, $values, [], $key, 'action');
 
         return ($c['open'] ?? false) ? [['type' => 'open', 'url' => '/app/'.$target->form->uuid.'/'.$created['uuid']]] : [];
+    }
+
+    /**
+     * The record's download through a profile, under the runner's own
+     * permissions (the profile's grant, field access and record scope).
+     *
+     * @param  array<string, mixed>  $c
+     * @param  array<string, mixed>  $found
+     * @return list<array<string, mixed>>
+     */
+    private function download(array $c, User $user, array $found): array
+    {
+        $profile = DB::table('download_profiles')->where('uuid', (string) $c['profile'])->whereNull('deleted_at')->first();
+        if ($profile === null || ! $this->downloads->mayUse($profile, $user)) {
+            throw new StepFailed(__('actions.download_unavailable'));
+        }
+        $job = $this->downloads->start($profile, $user, (string) $c['format'], ['record' => $found['uuid']]);
+        $run = $this->downloads->present($job);
+        if ($run['status'] !== 'completed' || $run['file'] === null) {
+            throw new StepFailed((string) ($run['error'] ?? __('actions.download_unavailable')));
+        }
+
+        return [['type' => 'download', 'file' => $run['file'], 'name' => (string) DB::table('files')->where('uuid', $run['file'])->value('original_name')]];
     }
 
     /**

@@ -6,6 +6,7 @@ namespace App\Modules\Forms\Draft;
 
 use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Infrastructure\Database\Naming;
+use App\Modules\Access\ObjectPermissions;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Forms\Definition\TargetSchemaBuilder;
 use App\Modules\Forms\FieldTypes\FieldTypeRegistry;
@@ -488,6 +489,9 @@ final class DraftRepository
             $row->uuid = $fd['uuid'];
             $row->save();
             $fieldIds[$fd['uuid']] = $row->id;
+            if ($row->is_sensitive || $row->is_encrypted) {
+                app(ObjectPermissions::class)->registerSensitiveField($row->id, $row->uuid);
+            }
             $tr = $this->fromI18n($fd['i18n'] ?? [], self::FIELD_I18N);
             if (isset($tr['content'])) {
                 $tr['content'] = array_map(fn (?string $html): ?string => $html === null ? null : $this->sanitizer->clean($html), $tr['content']);

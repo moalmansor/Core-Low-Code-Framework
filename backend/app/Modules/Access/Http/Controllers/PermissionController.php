@@ -33,20 +33,22 @@ final class PermissionController extends Controller
         $data = $request->validate(['scope_type' => ['nullable', 'string', 'max:32'], 'form' => ['sometimes', 'nullable', 'uuid']]);
         $scope = $data['scope_type'] ?? 'system';
         $formId = isset($data['form']) ? DB::table('forms')->where('uuid', $data['form'])->value('id') : null;
-        // One form's objects: its own abilities, its transitions (status level), its views and its actions.
+        // One form's objects: its own abilities, its transitions (status level), its views, actions, download profiles and sensitive fields.
         $permissions = Permission::query()->where('scope_type', $scope)
             ->when($formId !== null, static fn ($q) => match ($scope) {
                 'form' => $q->where('scope_id', $formId),
                 'transition' => $q->whereIn('scope_id', DB::table('transitions')->where('form_id', $formId)->whereNull('archived_at')->select('id')),
                 'view' => $q->whereIn('scope_id', DB::table('views')->where('form_id', $formId)->select('id')),
                 'action' => $q->whereIn('scope_id', DB::table('actions')->where('form_id', $formId)->select('id')),
+                'download_profile' => $q->whereIn('scope_id', DB::table('download_profiles')->where('form_id', $formId)->whereNull('deleted_at')->where('is_personal', false)->select('id')),
+                'field' => $q->whereIn('scope_id', DB::table('fields')->where('form_id', $formId)->whereNull('archived_at')->select('id')),
                 default => $q,
             })
             ->orderBy('category')->orderBy('key')->get();
         $labels = $this->translator->many('permission', $permissions->pluck('id')->all(), ['label', 'description']);
-        // Transition, view and action permissions carry the name of their object.
-        $nameField = $scope === 'action' ? 'label' : 'name';
-        $objects = in_array($scope, ['transition', 'view', 'action'], true) ? $this->translator->many($scope, $permissions->pluck('scope_id')->filter()->map(static fn ($v) => (int) $v)->all(), [$nameField]) : [];
+        // Transition, view, action, download profile and field permissions carry the name of their object.
+        $nameField = in_array($scope, ['action', 'field'], true) ? 'label' : 'name';
+        $objects = in_array($scope, ['transition', 'view', 'action', 'download_profile', 'field'], true) ? $this->translator->many($scope, $permissions->pluck('scope_id')->filter()->map(static fn ($v) => (int) $v)->all(), [$nameField]) : [];
 
         return response()->json(['data' => $permissions->map(static fn (Permission $p): array => [
             'key' => $p->key,

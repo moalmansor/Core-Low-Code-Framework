@@ -591,5 +591,10 @@
   "settings.documents.convert_timeout_seconds": "Time limit for one PDF conversion (seconds)",
   "settings.group.actions": "Actions",
   "settings.actions.max_records": "Most records one action run may change",
-  "settings.actions.queue_threshold": "Runs on more records than this go to the background"
+  "settings.actions.queue_threshold": "Runs on more records than this go to the background",
+  "settings.group.downloads": "Downloads",
+  "settings.downloads.max_depth": "How many links deep a download profile may reach",
+  "settings.downloads.sync_rows": "Downloads of more records than this run in the background",
+  "settings.downloads.max_rows": "Most rows one download may contain",
+  "settings.downloads.email_attachment_mb": "Largest file attached to a scheduled download email (MB)"
 }

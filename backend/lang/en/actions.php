@@ -18,6 +18,8 @@ return [
     'unknown_template' => 'Choose an email template of this form.',
     'bad_recipient' => 'Choose who receives it.',
     'recipients_required' => 'Add at least one recipient.',
+    'unknown_download' => 'Choose a download profile of this form that is offered on the record page, and one of its formats.',
+    'download_unavailable' => 'The download profile is unavailable or you may not use it.',
     'unknown_document' => 'Choose a document template of this form and a format it produces.',
     'bad_header' => 'Use a header name of letters, digits and dashes, and a value on one line.',
     'too_many_headers' => 'A webhook can send at most 20 headers.',
@@ -45,6 +47,7 @@ return [
     'not_available' => 'This action is not available to you.',
     'condition_not_met' => 'This action is not available for this record.',
     'step' => [
+        'run_download' => 'Download',
         'update_fields' => 'Set fields',
         'change_status' => 'Change status',
         'send_email' => 'Send an email',

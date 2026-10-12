@@ -10,11 +10,13 @@ use App\Modules\Core\Outbox\OutboxRelay;
 use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Documents\GeneratedDocuments;
+use App\Modules\Downloads\DownloadJobs;
 use App\Modules\Monitoring\ErrorReporter;
 use App\Modules\Notifications\EmailQueue;
 use App\Modules\Notifications\Notifier;
 use App\Modules\Records\Exchange\ExportService;
 use App\Modules\Records\FileStore;
+use App\Modules\Scheduling\ScheduledTasks;
 use App\Modules\Schema\Execution\SchemaReconciler;
 use App\Modules\Schema\Execution\Snapshots;
 use App\Modules\Setup\SetupState;
@@ -34,6 +36,18 @@ Artisan::command('documents:expire', function (GeneratedDocuments $documents): i
 
     return 0;
 })->purpose('Delete downloaded documents past their expiry time');
+
+Artisan::command('downloads:expire', function (DownloadJobs $downloads): int {
+    $this->info('Expired downloads: '.$downloads->expire());
+
+    return 0;
+})->purpose('Delete download files past their time');
+
+Artisan::command('scheduler:run', function (ScheduledTasks $tasks): int {
+    $this->info('Scheduled tasks run: '.$tasks->runDue());
+
+    return 0;
+})->purpose('Run the scheduled tasks that are due (scheduled downloads, automations)');
 
 Artisan::command('notifications:reminders', function (Notifier $notifier): int {
     $this->info('Sent '.$notifier->reminders().' reminder(s).');
@@ -199,6 +213,8 @@ Schedule::command('work:maintain')->everyMinute()->withoutOverlapping()->onOneSe
 Schedule::command('files:purge-temporary')->hourly()->onOneServer();
 Schedule::command('records:expire-exports')->hourly()->onOneServer();
 Schedule::command('documents:expire')->hourly()->onOneServer();
+Schedule::command('downloads:expire')->hourly()->onOneServer();
+Schedule::command('scheduler:run')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('mail:dispatch-due')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('schema:purge-snapshots')->dailyAt('04:10')->onOneServer();

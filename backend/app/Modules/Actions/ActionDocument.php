@@ -51,7 +51,7 @@ final class ActionDocument
         'bulk_delete' => ['bulk', 'toolbar'],
     ];
 
-    public const STEPS = ['update_fields', 'change_status', 'send_email', 'send_notification', 'call_webhook', 'generate_document', 'create_linked_record', 'assign'];
+    public const STEPS = ['update_fields', 'change_status', 'send_email', 'send_notification', 'call_webhook', 'generate_document', 'create_linked_record', 'assign', 'run_download'];
 
     public const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
@@ -531,6 +531,18 @@ final class ActionDocument
                 }
 
                 return ['template' => $doc === null ? null : strtolower($doc->uuid), 'format' => (string) ($c['format'] ?? 'pdf'), 'attachToField' => $field['uuid'] ?? null];
+            })(),
+            'run_download' => (function () use ($rt, $c, $p, &$errors): array {
+                // A shared profile of this form offered on the record page; the runner still needs its permission.
+                $profile = is_string($c['profile'] ?? null) ? DB::table('download_profiles')->where('uuid', strtolower($c['profile']))->where('form_id', $rt->form->id)
+                    ->where('is_personal', false)->whereNull('deleted_at')->first() : null;
+                if ($profile === null || ! in_array('record_view', json_decode((string) $profile->available_in, true) ?: [], true)) {
+                    $errors["{$p}.profile"][] = __('actions.unknown_download');
+                } elseif (! in_array($c['format'] ?? null, json_decode((string) $profile->formats, true) ?: [], true)) {
+                    $errors["{$p}.format"][] = __('notifications.bad_attachment_format');
+                }
+
+                return ['profile' => $profile === null ? null : strtolower((string) $profile->uuid), 'format' => (string) ($c['format'] ?? 'xlsx')];
             })(),
             'create_linked_record' => (function () use ($rt, $c, $p, $expr, &$errors): array {
                 $target = is_string($c['form'] ?? null) ? $this->runtimes->forUuid(strtolower($c['form'])) : null;

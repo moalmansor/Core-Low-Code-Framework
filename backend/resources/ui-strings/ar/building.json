@@ -591,5 +591,10 @@
   "settings.documents.convert_timeout_seconds": "المدة القصوى لتحويل واحد إلى PDF (ثوانٍ)",
   "settings.group.actions": "الإجراءات",
   "settings.actions.max_records": "أقصى عدد من السجلات يغيّره تنفيذ واحد للإجراء",
-  "settings.actions.queue_threshold": "التنفيذ على سجلات أكثر من هذا العدد يتم في الخلفية"
+  "settings.actions.queue_threshold": "التنفيذ على سجلات أكثر من هذا العدد يتم في الخلفية",
+  "settings.group.downloads": "التنزيلات",
+  "settings.downloads.max_depth": "أقصى عدد من الروابط يصل إليه ملف التنزيل",
+  "settings.downloads.sync_rows": "تنزيلات السجلات الأكثر من هذا العدد تعمل في الخلفية",
+  "settings.downloads.max_rows": "أقصى عدد من الصفوف في التنزيل الواحد",
+  "settings.downloads.email_attachment_mb": "أكبر ملف يُرفق برسالة التنزيل المجدول (ميغابايت)"
 }
