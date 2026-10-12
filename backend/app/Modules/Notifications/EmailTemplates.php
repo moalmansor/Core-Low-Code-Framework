@@ -4,20 +4,15 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications;
 
-use App\Expressions\Checking\TypeChecker;
-use App\Expressions\StaticError;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\I18n\Translator;
-use App\Modules\Forms\Draft\DraftRepository;
-use App\Modules\Forms\Draft\DraftValidator;
 use App\Modules\Forms\Models\Application;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Notifications\Models\EmailTemplate;
 use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
-use App\Modules\Views\RelationPaths;
+use App\Modules\Records\Templating\BlockDesign;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -34,9 +29,7 @@ final class EmailTemplates
     public function __construct(
         private readonly Translator $translator,
         private readonly FormRuntimes $runtimes,
-        private readonly RelationPaths $paths,
-        private readonly DraftRepository $drafts,
-        private readonly DraftValidator $draftValidator,
+        private readonly BlockDesign $design,
         private readonly TemplateRenderer $renderer,
         private readonly AuditWriter $audit,
     ) {}
@@ -117,154 +110,26 @@ final class EmailTemplates
             }
         }
         $style = (array) ($design['style'] ?? []);
-        $accent = $style['accent'] ?? null;
-        if ($accent !== null && (! is_string($accent) || preg_match('/^#[0-9a-f]{6}$/i', $accent) !== 1)) {
-            $errors['design.style.accent'][] = __('notifications.bad_colour');
-        }
-        $blocks = array_values((array) ($design['blocks'] ?? []));
-        if (count($blocks) > 100) {
-            $errors['design.blocks'][] = __('notifications.too_many_blocks');
-        }
-        $resolver = $form === null ? null : $this->draftValidator->resolver($this->drafts->normalize($this->drafts->load($form)));
-        $out = [];
-        foreach ($blocks as $i => $b) {
-            $p = "design.blocks.{$i}";
-            $type = is_array($b) ? ($b['type'] ?? null) : null;
-            if (! in_array($type, self::BLOCKS, true)) {
-                $errors["{$p}.type"][] = __('validation.in', ['attribute' => 'type']);
-
-                continue;
-            }
-            $block = ['uuid' => is_string($b['uuid'] ?? null) ? strtolower($b['uuid']) : (string) Str::uuid7(), 'type' => $type];
-            if (in_array($type, ['heading', 'text'], true)) {
-                $block['text'] = $this->i18n($b['text'] ?? [], "{$p}.text", $rt, $errors, $type === 'text' ? 5000 : 255);
-            }
-            if ($type === 'button') {
-                $block['label'] = $this->i18n($b['label'] ?? [], "{$p}.label", $rt, $errors, 120);
-                $block['link'] = ($b['link'] ?? 'record') === 'url' ? 'url' : 'record';
-                $block['url'] = null;
-                if ($block['link'] === 'url') {
-                    $url = trim((string) ($b['url'] ?? ''));
-                    if (preg_match('#^https?://[^\s"<>]+$#i', $url) !== 1 || mb_strlen($url) > 2000) {
-                        $errors["{$p}.url"][] = __('notifications.bad_url');
-                    }
-                    $this->checkText($url, $rt, "{$p}.url", $errors);
-                    $block['url'] = $url;
-                }
-                if ($rt === null && $block['link'] === 'record') {
-                    $errors["{$p}.link"][] = __('notifications.record_link_needs_form');
-                }
-            }
-            if ($type === 'fields') {
-                $fields = array_values(array_filter((array) ($b['fields'] ?? []), 'is_string'));
-                foreach ($fields as $j => $path) {
-                    if (! $this->pathOk(strtolower($path), $rt)) {
-                        $errors["{$p}.fields.{$j}"][] = __('notifications.unknown_placeholder', ['placeholder' => $path]);
-                    }
-                }
-                $block['fields'] = array_map('strtolower', $fields);
-            }
-            if ($type === 'table') {
-                $repeater = null;
-                foreach ($rt === null ? [] : $rt->repeaters as $uuid => $rep) {
-                    if ($rep['group']['key'] === ($b['group'] ?? null)) {
-                        $repeater = $uuid;
-                    }
-                }
-                if ($repeater === null) {
-                    $errors["{$p}.group"][] = __('notifications.unknown_repeater');
-                } else {
-                    $keys = array_map(static fn ($f) => $f['key'], $rt->rowFields($repeater));
-                    foreach ((array) ($b['columns'] ?? []) as $j => $c) {
-                        if (! in_array($c, $keys, true)) {
-                            $errors["{$p}.columns.{$j}"][] = __('notifications.unknown_column');
-                        }
-                    }
-                }
-                $block['group'] = (string) ($b['group'] ?? '');
-                $block['columns'] = array_values(array_filter((array) ($b['columns'] ?? []), 'is_string'));
-            }
-            $condition = $b['condition'] ?? null;
-            if ($condition !== null) {
-                if ($resolver === null || ! is_array($condition)) {
-                    $errors["{$p}.condition"][] = __('notifications.condition_needs_form');
-                } else {
-                    try {
-                        TypeChecker::check($condition, $resolver, 'boolean');
-                    } catch (StaticError $e) {
-                        $errors["{$p}.condition"][] = $e->getMessage();
-                    }
-                }
-            }
-            $block['condition'] = is_array($condition) ? $condition : null;
-            $out[] = $block;
-        }
+        $accent = $this->design->colour($style['accent'] ?? null, 'design.style.accent', $errors);
+        $blocks = $this->design->blocks($form, $rt, $design['blocks'] ?? [], self::BLOCKS, 'design.blocks', $errors);
         if ($errors !== []) {
             throw ValidationException::withMessages($errors);
         }
 
-        return ['style' => ['accent' => $accent, 'logo' => (bool) ($style['logo'] ?? true)], 'blocks' => $out];
+        return ['style' => ['accent' => $accent, 'logo' => (bool) ($style['logo'] ?? true)], 'blocks' => $blocks];
     }
 
     /**
-     * Placeholders of a text must be well formed and, for a form's template, exist in the form.
-     *
      * @param  array<string, list<array<mixed>|string>>  $errors  messages by path, as validation errors
      */
     private function checkText(string $text, ?FormRuntime $rt, string $path, array &$errors): void
     {
-        foreach (TemplateRenderer::tokens($text) as $token) {
-            if (! $this->pathOk($token, $rt)) {
-                $errors[$path][] = __('notifications.unknown_placeholder', ['placeholder' => $token]);
-            }
-        }
-    }
-
-    private function pathOk(string $token, ?FormRuntime $rt): bool
-    {
-        if (! TemplateRenderer::wellFormed($token)) {
-            return false;
-        }
-        if (str_starts_with($token, '@')) {
-            return true;
-        }
-
-        return $rt !== null && $this->paths->resolve($rt, explode('.', $token)) !== null;
-    }
-
-    /**
-     * @param  array<string, list<array<mixed>|string>>  $errors  messages by path, as validation errors
-     * @return array<string, string>
-     */
-    private function i18n(mixed $map, string $path, ?FormRuntime $rt, array &$errors, int $max): array
-    {
-        $out = [];
-        foreach ((array) $map as $locale => $text) {
-            if (! is_string($text) || trim($text) === '') {
-                continue;
-            }
-            if (mb_strlen($text) > $max) {
-                $errors["{$path}.{$locale}"][] = __('validation.max.string', ['attribute' => 'text', 'max' => $max]);
-            }
-            $this->checkText($text, $rt, "{$path}.{$locale}", $errors);
-            $out[(string) $locale] = $text;
-        }
-        if (($out[$this->translator->defaultLocale()] ?? '') === '') {
-            $errors["{$path}.{$this->translator->defaultLocale()}"][] = __('notifications.text_required');
-        }
-
-        return $out;
+        $this->design->checkText($text, $rt, $path, $errors);
     }
 
     /** @param  array<string, mixed>  $map @return array<string, string|null> */
     private function locales(array $map): array
     {
-        $out = [];
-        foreach ($this->translator->enabledLocales() as $locale) {
-            $v = $map[$locale] ?? null;
-            $out[$locale] = is_string($v) && trim($v) !== '' ? $v : null;
-        }
-
-        return $out;
+        return $this->design->locales($map);
     }
 }

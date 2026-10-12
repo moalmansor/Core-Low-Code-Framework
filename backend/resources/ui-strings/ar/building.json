@@ -581,5 +581,12 @@
   "settings.records.job_file_hours": "تُحفظ الملفات المصدَّرة لمدة (ساعات)",
   "settings.schema.blocking_confirmation_rows": "طلب تأكيد إضافي عند تجاوز هذا العدد من الصفوف",
   "settings.schema.reconcile_daily": "تشغيل فحص مطابقة البنية يوميًا",
-  "settings.schema.snapshot_retention_days": "مدة الاحتفاظ بالنسخ الاحتياطية قبل النشر (بالأيام)"
+  "settings.schema.snapshot_retention_days": "مدة الاحتفاظ بالنسخ الاحتياطية قبل النشر (بالأيام)",
+  "settings.group.notifications": "الإشعارات",
+  "settings.notifications.email_max_attempts": "عدد المحاولات قبل اعتبار البريد فاشلًا",
+  "settings.group.operations": "العمليات",
+  "settings.operations.stuck_email_minutes": "يُعد البريد عالقًا إذا انتظر أكثر من (دقائق)",
+  "settings.group.documents": "المستندات",
+  "settings.documents.max_template_mb": "أكبر حجم لقالب Word (ميغابايت)",
+  "settings.documents.convert_timeout_seconds": "المدة القصوى لتحويل واحد إلى PDF (ثوانٍ)"
 }

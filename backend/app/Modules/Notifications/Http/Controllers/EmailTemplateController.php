@@ -4,18 +4,16 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Http\Controllers;
 
-use App\Modules\Access\AccessResolver;
-use App\Modules\Access\RecordScope;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
 use App\Modules\Notifications\EmailQueue;
 use App\Modules\Notifications\EmailTemplates;
-use App\Modules\Notifications\HtmlPreviews;
 use App\Modules\Notifications\Models\EmailTemplate;
 use App\Modules\Notifications\TemplateRenderer;
 use App\Modules\Records\Runtime\FormRuntime;
-use App\Modules\Records\Runtime\FormRuntimes;
+use App\Modules\Records\Templating\HtmlPreviews;
+use App\Modules\Records\Templating\TemplatePlaceholders;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -36,7 +34,6 @@ final class EmailTemplateController extends Controller
         private readonly EmailTemplates $templates,
         private readonly TemplateRenderer $renderer,
         private readonly Translator $translator,
-        private readonly FormRuntimes $runtimes,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -141,42 +138,12 @@ final class EmailTemplateController extends Controller
         return response()->json(['data' => ['status' => DB::table('email_queue')->where('id', $id)->value('status'), 'to' => $user->email]], 202);
     }
 
-    /**
-     * What a template may show: system values, the form's fields, fields of
-     * records linked from it (one hop; longer paths can be typed), and the
-     * repeaters with their columns.
-     */
-    public function placeholders(Request $request): JsonResponse
+    /** What a template may show (TemplatePlaceholders). */
+    public function placeholders(Request $request, TemplatePlaceholders $placeholders): JsonResponse
     {
         Gate::authorize('system.manage_notifications');
-        $system = array_map(fn (string $s) => ['token' => $s, 'label' => __('notifications.placeholder.'.ltrim($s, '@')), 'group' => 'system'], TemplateRenderer::SYSTEM);
-        $form = $request->filled('form') ? Form::query()->where('uuid', strtolower((string) $request->query('form')))->first() : null;
-        $rt = $form === null ? null : $this->runtimes->forForm($form);
-        $fields = [];
-        $repeaters = [];
-        if ($rt !== null) {
-            foreach ($rt->mainFields() as $f) {
-                if (! $rt->isStored($f) || ($f['flags']['encrypted'] ?? false)) {
-                    continue;
-                }
-                $label = $this->translator->labelOf($f['i18n']['label'] ?? null, (string) $f['key']);
-                $fields[] = ['token' => $f['key'], 'label' => $label, 'group' => 'form', 'user' => $rt->targetTable($f) === 'users', 'date' => in_array($rt->type($f)?->storage, ['date', 'datetime'], true), 'file' => in_array($rt->type($f)?->storage, ['file', 'files'], true)];
-                $target = ($t = $rt->targetFormUuid($f)) === null ? null : $this->runtimes->forUuid($t);
-                foreach ($target?->mainFields() ?? [] as $g) {
-                    if ($target->isStored($g) && ! ($g['flags']['encrypted'] ?? false)) {
-                        $fields[] = ['token' => $f['key'].'.'.$g['key'], 'label' => $label.' › '.$this->translator->labelOf($g['i18n']['label'] ?? null, (string) $g['key']), 'group' => 'linked', 'user' => $target->targetTable($g) === 'users', 'date' => false, 'file' => false];
-                    }
-                }
-            }
-            foreach ($rt->repeaters as $uuid => $rep) {
-                $repeaters[] = [
-                    'key' => $rep['group']['key'], 'label' => $this->translator->labelOf($rep['group']['i18n']['title'] ?? null, (string) $rep['group']['key']),
-                    'columns' => array_map(fn ($f) => ['key' => $f['key'], 'label' => $this->translator->labelOf($f['i18n']['label'] ?? null, (string) $f['key'])], $rt->rowFields($uuid)),
-                ];
-            }
-        }
 
-        return response()->json(['data' => ['system' => $system, 'fields' => $fields, 'repeaters' => $repeaters]]);
+        return response()->json(['data' => $placeholders->catalog($request->filled('form') ? (string) $request->query('form') : null)]);
     }
 
     /**
@@ -187,16 +154,7 @@ final class EmailTemplateController extends Controller
      */
     private function target(array $data): array
     {
-        $form = isset($data['form']) ? Form::query()->where('uuid', strtolower((string) $data['form']))->first() : null;
-        $rt = $form === null ? null : $this->runtimes->forForm($form);
-        if ($rt === null || ! isset($data['record'])) {
-            return [$rt, null];
-        }
-        abort_unless(app(AccessResolver::class)->allows($this->user(), "form.{$rt->form->uuid}.view"), 404);
-        $id = DB::table($rt->table)->where('uuid', strtolower((string) $data['record']))->whereNull('deleted_at')->value('id');
-        abort_if($id === null || ! app(RecordScope::class)->allows($rt, $this->user(), 'view', (int) $id), 404, __('records.not_found'));
-
-        return [$rt, (int) $id];
+        return app(TemplatePlaceholders::class)->target(isset($data['form']) ? (string) $data['form'] : null, isset($data['record']) ? (string) $data['record'] : null, $this->user());
     }
 
     /** @return array<string, mixed> */

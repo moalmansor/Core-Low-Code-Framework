@@ -108,10 +108,13 @@ final class FileStore
      *
      * @param  list<string>|null  $types  extensions the field allows (null = installation default)
      */
-    public function storeUpload(UploadedFile $upload, ?array $types = null, ?int $maxKb = null): StoredFile
+    public function storeUpload(UploadedFile $upload, ?array $types = null, ?int $maxKb = null, bool $exact = false): StoredFile
     {
         $allowed = array_map('strtolower', (array) $this->settings->get('files', 'allowed_file_types'));
-        if ($types !== null) {
+        if ($types !== null && $exact) {
+            // A configuration upload (a Word template) takes its own types, not those allowed on records.
+            $allowed = array_map('strtolower', $types);
+        } elseif ($types !== null) {
             $allowed = array_values(array_intersect($allowed, array_map('strtolower', $types)));
         }
         $extension = strtolower($upload->getClientOriginalExtension());

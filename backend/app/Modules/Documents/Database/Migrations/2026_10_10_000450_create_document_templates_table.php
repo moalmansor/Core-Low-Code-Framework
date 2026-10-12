@@ -27,6 +27,7 @@ return new class extends Migration
             Columns::enum($t, 'type', ['docx', 'html']);
             Columns::fk($t, 'file_id', 'files');
             Columns::json($t, 'locale_files', nullable: true);
+            Columns::json($t, 'design', nullable: true);
             Columns::json($t, 'output_formats');
             Columns::json($t, 'paper');
             Columns::json($t, 'placeholders_detected');

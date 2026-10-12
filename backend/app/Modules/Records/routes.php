@@ -7,6 +7,8 @@ use App\Modules\Records\Http\Controllers\FileController;
 use App\Modules\Records\Http\Controllers\RecordController;
 use App\Modules\Records\Http\Controllers\RecordExchangeController;
 use App\Modules\Records\Http\Controllers\SubformController;
+use App\Modules\Records\Templating\HtmlPreviews;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
@@ -46,3 +48,12 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
 });
 
 Route::get('/files/download/{file}', [FileController::class, 'download'])->whereUuid('file')->name('files.download')->middleware('throttle:120,1');
+
+// Rendered email and document HTML for a sandboxed frame, behind a short-lived signed link.
+Route::get('/html-previews/{preview}', function (string $preview, Request $request, HtmlPreviews $previews) {
+    abort_unless($request->hasValidSignature(), 403);
+    $html = $previews->get($preview);
+    abort_if($html === null, 404);
+
+    return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8', HtmlPreviews::HEADER => '1', 'Cache-Control' => 'no-store, private']);
+})->whereUuid('preview')->name('html-previews.show')->middleware('throttle:120,1');

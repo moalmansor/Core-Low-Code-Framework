@@ -581,5 +581,12 @@
   "settings.records.job_file_hours": "Exported files are kept for (hours)",
   "settings.schema.blocking_confirmation_rows": "Ask for extra confirmation above this many rows",
   "settings.schema.reconcile_daily": "Run the schema reconciliation check every day",
-  "settings.schema.snapshot_retention_days": "Keep pre-publish backups for (days)"
+  "settings.schema.snapshot_retention_days": "Keep pre-publish backups for (days)",
+  "settings.group.notifications": "Notifications",
+  "settings.notifications.email_max_attempts": "Attempts before an email is marked failed",
+  "settings.group.operations": "Operations",
+  "settings.operations.stuck_email_minutes": "An email waiting longer than this is stuck (minutes)",
+  "settings.group.documents": "Documents",
+  "settings.documents.max_template_mb": "Largest Word template (MB)",
+  "settings.documents.convert_timeout_seconds": "Time limit for one PDF conversion (seconds)"
 }

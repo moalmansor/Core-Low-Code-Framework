@@ -9,6 +9,7 @@ use App\Modules\Audit\ChainVerifier;
 use App\Modules\Core\Outbox\OutboxRelay;
 use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\Core\Settings\SettingsService;
+use App\Modules\Documents\GeneratedDocuments;
 use App\Modules\Monitoring\ErrorReporter;
 use App\Modules\Notifications\EmailQueue;
 use App\Modules\Notifications\Notifier;
@@ -27,6 +28,12 @@ Artisan::command('records:expire-exports', function (ExportService $exports): in
 
     return 0;
 })->purpose('Delete export files past their expiry time');
+
+Artisan::command('documents:expire', function (GeneratedDocuments $documents): int {
+    $this->info('Removed '.$documents->expire().' generated document(s).');
+
+    return 0;
+})->purpose('Delete downloaded documents past their expiry time');
 
 Artisan::command('notifications:reminders', function (Notifier $notifier): int {
     $this->info('Sent '.$notifier->reminders().' reminder(s).');
@@ -191,6 +198,7 @@ Schedule::command('sla:tick')->everyMinute()->withoutOverlapping()->onOneServer(
 Schedule::command('work:maintain')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('files:purge-temporary')->hourly()->onOneServer();
 Schedule::command('records:expire-exports')->hourly()->onOneServer();
+Schedule::command('documents:expire')->hourly()->onOneServer();
 Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('mail:dispatch-due')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('schema:purge-snapshots')->dailyAt('04:10')->onOneServer();

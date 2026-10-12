@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Modules\Notifications;
+namespace App\Modules\Records\Templating;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\URL;

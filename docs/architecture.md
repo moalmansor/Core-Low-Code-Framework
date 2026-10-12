@@ -3930,6 +3930,7 @@ erDiagram
 | `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `docx`, `html` |
 | `file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` NO ACTION (DOCX source, per locale via `locale_files`) |
 | `locale_files` | JSON | NVARCHAR(MAX) | NULL | — | `{locale: file_uuid}` |
+| `design` | JSON | NVARCHAR(MAX) | NULL | — | `type=html`: block design (headings, texts, field lists, repeater tables, page breaks, conditional blocks) with per-locale texts |
 | `output_formats` | JSON | NVARCHAR(MAX) | NOT NULL | — | `docx`, `pdf` |
 | `paper` | JSON | NVARCHAR(MAX) | NOT NULL | — | size, orientation, margins |
 | `placeholders_detected` | JSON | NVARCHAR(MAX) | NOT NULL | — | validated against the form definition |
@@ -3949,10 +3950,11 @@ erDiagram
 - **Foreign key:** `fk_document_templates_file_id`: `file_id` → `files`(`id`) ON DELETE NO ACTION
 - **Check:** `ck_document_templates_type`: `type IN ('docx', 'html')` (both engines)
 - **Check (SQL Server):** `ck_document_templates_locale_files_json`: `ISJSON(locale_files) = 1`
+- **Check (SQL Server):** `ck_document_templates_design_json`: `ISJSON(design) = 1`
 - **Check (SQL Server):** `ck_document_templates_output_formats_json`: `ISJSON(output_formats) = 1`
 - **Check (SQL Server):** `ck_document_templates_paper_json`: `ISJSON(paper) = 1`
 - **Check (SQL Server):** `ck_document_templates_placeholders_detected_json`: `ISJSON(placeholders_detected) = 1`
-- Translatable: `name`, `html` (for `type=html`).
+- Translatable: `name`, `html` (for `type=html`: the design compiled per locale with its placeholders, for reading and search).
 
 **`reports`**
 

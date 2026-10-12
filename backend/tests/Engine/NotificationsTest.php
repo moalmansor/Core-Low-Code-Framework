@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 use App\Modules\Notifications\EmailQueue;
-use App\Modules\Notifications\HtmlPreviews;
 use App\Modules\Notifications\InAppNotifier;
 use App\Modules\Notifications\Notifier;
+use App\Modules\Records\Templating\HtmlPreviews;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Testing\TestResponse;

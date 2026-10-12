@@ -82,6 +82,10 @@ final class SettingsRegistry
         $d('notifications', 'email_max_attempts', 5, ['required', 'integer', 'between:1,20']);
         $d('operations', 'stuck_email_minutes', 15, ['required', 'integer', 'between:1,1440']);
 
+        // Document templates (§4.17): the size of an uploaded Word template, and how long one conversion to PDF may take.
+        $d('documents', 'max_template_mb', 10, ['required', 'integer', 'between:1,50']);
+        $d('documents', 'convert_timeout_seconds', 120, ['required', 'integer', 'between:10,600']);
+
         // Formats and calendar (§2)
         $d('formats', 'timezone', 'UTC', ['required', 'timezone:all']);
         $d('formats', 'date_format', 'yyyy-MM-dd', ['required', 'string', 'max:32', 'regex:/^[yMdHhmsaEG\/\-\.\s,]+$/']);

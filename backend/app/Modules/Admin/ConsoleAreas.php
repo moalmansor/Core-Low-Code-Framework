@@ -25,6 +25,7 @@ final class ConsoleAreas
         'forms' => ['building', ['system.manage_forms'], '/admin/forms'],
         'blueprints' => ['building', ['system.manage_blueprints'], '/admin/blueprints'],
         'notifications' => ['building', ['system.manage_notifications'], '/admin/notifications'],
+        'documents' => ['building', ['system.manage_document_templates'], '/admin/documents'],
         'reference_data' => ['building', ['system.manage_reference_data', 'system.manage_calendars', 'system.manage_numbering', 'system.manage_currencies'], '/admin/reference'],
         'assignment_queues' => ['people', ['system.manage_forms', 'system.manage_delegation'], '/admin/work'],
         'appearance_branding' => ['configuration', ['system.manage_branding'], '/admin/settings/branding'],

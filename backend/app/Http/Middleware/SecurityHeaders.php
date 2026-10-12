@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
-use App\Modules\Notifications\HtmlPreviews;
+use App\Modules\Records\Templating\HtmlPreviews;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Vite;

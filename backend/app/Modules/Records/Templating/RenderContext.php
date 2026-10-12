@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace App\Modules\Notifications;
+namespace App\Modules\Records\Templating;
 
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\Runtime\FormRuntime;
 
-/** One rendering of a template for the recipients of one message, with its memoized values. */
+/** One rendering of a template (an email, a document) for its viewers, with its memoized values. */
 final class RenderContext
 {
     /** @var array<string, string> placeholder => text */

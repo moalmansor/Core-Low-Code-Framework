@@ -7,6 +7,9 @@ namespace App\Modules\Notifications;
 use App\Modules\Assignment\Membership;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Tenancy\TenantContext;
+use App\Modules\Documents\DocumentRenderer;
+use App\Modules\Documents\GeneratedDocuments;
+use App\Modules\Documents\Models\DocumentTemplate;
 use App\Modules\Forms\Conditions\OwnedConditions;
 use App\Modules\Identity\Models\User;
 use App\Modules\Notifications\Jobs\FireNotificationRule;
@@ -44,6 +47,8 @@ final class Notifier
         private readonly EmailQueue $emails,
         private readonly InAppNotifier $inApp,
         private readonly Translator $translator,
+        private readonly DocumentRenderer $documents,
+        private readonly GeneratedDocuments $generated,
     ) {}
 
     /**
@@ -178,6 +183,9 @@ final class Notifier
             }
         }
         $author = $rule->created_by === null ? null : User::query()->find($rule->created_by);
+        // Every message and its documents are prepared before any is queued: a document that
+        // fails to generate fails the whole delivery, which retries without sending anyone twice.
+        $messages = [];
         foreach ($groups as $locale => $g) {
             $viewers = $g['viewers'] ?? [];
             if (($g['static'] ?? false) === true) {
@@ -191,12 +199,16 @@ final class Notifier
             }
             $out = $this->renderer->render($template->design, $template->translationsFor('subject'), $template->translationsFor('preheader'), $rt, $recordId, $viewers, (string) $locale,
                 count($viewers) === 1 ? $viewers[0]->name : null);
-            $this->emails->enqueue([
+            $messages[] = [
                 'source' => 'rule', 'locale' => (string) $locale, 'to' => array_values(array_unique($g['to'] ?? [])),
                 'cc' => array_values(array_unique($g['cc'] ?? [])), 'bcc' => array_values(array_unique($g['bcc'] ?? [])),
                 'subject' => $out['subject'], 'html' => $out['html'], 'rule_id' => $context['rule_id'], 'template_id' => $template->id,
-                'form_id' => $context['form_id'], 'record_id' => $context['record_id'], 'attachments' => $this->attachments($rule, $rt, $recordId),
-            ]);
+                'form_id' => $context['form_id'], 'record_id' => $context['record_id'],
+                'attachments' => [...$this->attachments($rule, $rt, $recordId), ...$this->documents($rule, $rt, $recordId, $viewers, (string) $locale)],
+            ];
+        }
+        foreach ($messages as $m) {
+            $this->emails->enqueue($m);
         }
     }
 
@@ -218,6 +230,28 @@ final class Notifier
         }
 
         return $uuids === [] ? [] : DB::table('files')->whereIn('uuid', $uuids)->whereNull('deleted_at')->pluck('id')->map(static fn ($v) => (int) $v)->all();
+    }
+
+    /**
+     * The rule's documents, generated for this message's readers in its language.
+     *
+     * @param  list<User>  $viewers
+     * @return list<int> file ids
+     */
+    private function documents(object $rule, FormRuntime $rt, int $recordId, array $viewers, string $locale): array
+    {
+        $spec = $rule->attachments === null ? null : json_decode((string) $rule->attachments, true);
+        $ids = [];
+        foreach (is_array($spec) ? (array) ($spec['documents'] ?? []) : [] as $d) {
+            $template = DocumentTemplate::query()->where('uuid', (string) ($d['template'] ?? ''))->where('is_active', true)->first();
+            if ($template === null || ! in_array($d['format'] ?? null, $template->output_formats, true)) {
+                continue;
+            }
+            $out = $this->documents->render($template, $rt, $recordId, $viewers, $locale, (string) $d['format']);
+            $ids[] = $this->generated->store($out, GeneratedDocuments::OWNER_EMAIL, $rt->form->id, $recordId, null)->id;
+        }
+
+        return $ids;
     }
 
     /**

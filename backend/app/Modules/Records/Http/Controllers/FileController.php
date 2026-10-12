@@ -28,7 +28,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 final class FileController extends Controller
 {
     /** Files a job produced for one user (imports, their error reports, exports, downloads): only that user reads them. */
-    public const PERSONAL = ['import_job', 'import_report', 'export_job', 'download_job'];
+    public const PERSONAL = ['import_job', 'import_report', 'export_job', 'download_job', 'document'];
 
     public function upload(Request $request, FileStore $files): JsonResponse
     {
@@ -89,6 +89,10 @@ final class FileController extends Controller
             $uuid = DB::table('forms')->where('id', $file->form_id)->value('uuid');
 
             return $uuid !== null && app(AccessResolver::class)->allows($user, "form.{$uuid}.view");
+        }
+
+        if ($file->owner_type === 'document_template') {
+            return app(AccessResolver::class)->allows($user, 'system.manage_document_templates');
         }
 
         return in_array($file->owner_type, ['branding'], true);

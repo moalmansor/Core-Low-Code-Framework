@@ -9,6 +9,7 @@ use App\Expressions\StaticError;
 use App\Modules\Assignment\Membership;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\I18n\Translator;
+use App\Modules\Documents\Models\DocumentTemplate;
 use App\Modules\Forms\Conditions\OwnedConditions;
 use App\Modules\Forms\Definition\DefinitionCompiler;
 use App\Modules\Forms\Draft\DraftRepository;
@@ -228,9 +229,9 @@ final class NotificationRules
                 $errors["{$p}.recipients.to"][] = __('notifications.recipients_required');
             }
             $att = $r['attachments'] ?? null;
-            if (is_array($att) && ($att['fields'] ?? []) !== []) {
+            if (is_array($att) && (($att['fields'] ?? []) !== [] || ($att['documents'] ?? []) !== [])) {
                 $fileFields = [];
-                foreach ((array) $att['fields'] as $k) {
+                foreach ((array) ($att['fields'] ?? []) as $k) {
                     $uuid = $rt?->keys[$k] ?? null;
                     if ($uuid === null || ! in_array($rt->type($rt->fields[$uuid])?->storage, ['file', 'files'], true)) {
                         $errors["{$p}.attachments.fields"][] = __('notifications.bad_attachment_field');
@@ -238,7 +239,26 @@ final class NotificationRules
                         $fileFields[] = $k;
                     }
                 }
-                $ids['attachments'] = ['fields' => $fileFields, 'documents' => array_values(array_filter((array) ($att['documents'] ?? []), 'is_string'))];
+                $documents = [];
+                foreach (array_values((array) ($att['documents'] ?? [])) as $j => $d) {
+                    $doc = is_array($d) && is_string($d['template'] ?? null) ? DocumentTemplate::query()->where('uuid', strtolower($d['template']))->first() : null;
+                    if ($doc === null || ! $doc->is_active || ($doc->form_id !== null && $doc->form_id !== $rt?->form->id)) {
+                        $errors["{$p}.attachments.documents.{$j}"][] = __('notifications.bad_attachment_document');
+
+                        continue;
+                    }
+                    $format = (string) ($d['format'] ?? '');
+                    if (! in_array($format, $doc->output_formats, true)) {
+                        $errors["{$p}.attachments.documents.{$j}"][] = __('notifications.bad_attachment_format');
+
+                        continue;
+                    }
+                    $documents[] = ['template' => strtolower($doc->uuid), 'format' => $format];
+                }
+                if (count($documents) > 5) {
+                    $errors["{$p}.attachments.documents"][] = __('notifications.too_many_documents');
+                }
+                $ids['attachments'] = ['fields' => $fileFields, 'documents' => $documents];
             }
             $delay = $r['delayMinutes'] ?? null;
             if ($delay !== null && (! is_int($delay) || $delay < 0 || $delay > 43200)) {

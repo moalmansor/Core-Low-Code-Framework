@@ -81,6 +81,11 @@ jobs:
             sudo ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive apt-get install -y msodbcsql18 unixodbc-dev
           fi
           odbcinst -q -d || true
+      - name: LibreOffice Writer (document templates convert Word files to PDF)
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-writer-nogui fonts-dejavu-core fonts-noto-core
+          soffice --version
       - uses: shivammathur/setup-php@v2
         with: { php-version: '${{ env.PHP_VERSION }}', extensions: '${{ env.PHP_EXTENSIONS }}', coverage: none, tools: composer:v2 }
       - run: composer install --no-interaction --no-progress --prefer-dist
@@ -180,6 +185,11 @@ jobs:
             sudo ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive apt-get install -y msodbcsql18 unixodbc-dev
           fi
           odbcinst -q -d || true
+      - name: LibreOffice Writer (document templates convert Word files to PDF)
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-writer-nogui fonts-dejavu-core fonts-noto-core
+          soffice --version
       # PHP's built-in server runs with OPcache; keep the JIT off as the production image does
       # (setup-php enables it, and PHP 8.3.35's JIT segfaults on the publish analysis).
       - uses: shivammathur/setup-php@v2

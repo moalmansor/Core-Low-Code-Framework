@@ -2,11 +2,9 @@
 
 declare(strict_types=1);
 
-use App\Modules\Notifications\HtmlPreviews;
 use App\Modules\Notifications\Http\Controllers\EmailTemplateController;
 use App\Modules\Notifications\Http\Controllers\InboxController;
 use App\Modules\Notifications\Http\Controllers\NotificationRuleController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
@@ -28,12 +26,3 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::get('/forms/{form}/notification-rules', [NotificationRuleController::class, 'show']);
     Route::put('/forms/{form}/notification-rules', [NotificationRuleController::class, 'save']);
 });
-
-// Rendered email HTML for a sandboxed frame, behind a short-lived signed link.
-Route::get('/html-previews/{preview}', function (string $preview, Request $request, HtmlPreviews $previews) {
-    abort_unless($request->hasValidSignature(), 403);
-    $html = $previews->get($preview);
-    abort_if($html === null, 404);
-
-    return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8', HtmlPreviews::HEADER => '1', 'Cache-Control' => 'no-store, private']);
-})->whereUuid('preview')->name('html-previews.show')->middleware('throttle:120,1');

@@ -2,6 +2,7 @@
 
 use App\Infrastructure\Database\DatabaseServiceProvider;
 use App\Modules\Core\CoreServiceProvider;
+use App\Modules\Documents\DocumentsServiceProvider;
 use App\Modules\Forms\FormsServiceProvider;
 use App\Modules\Identity\IdentityServiceProvider;
 use App\Modules\ModulesServiceProvider;
@@ -14,6 +15,7 @@ return [
     CoreServiceProvider::class,
     IdentityServiceProvider::class,
     FormsServiceProvider::class,
+    DocumentsServiceProvider::class,
     NotificationsServiceProvider::class,
     ModulesServiceProvider::class,
 ];
