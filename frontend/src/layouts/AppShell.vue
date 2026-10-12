@@ -207,6 +207,7 @@ export const icons: Record<string, string> = {
   assignment_queues: 'pi-inbox',
   reason_codes: 'pi-comment',
   notifications: 'pi-envelope',
+  documents: 'pi-file',
 }
 </script>
 

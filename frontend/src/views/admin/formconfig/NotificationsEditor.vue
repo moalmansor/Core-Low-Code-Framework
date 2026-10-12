@@ -23,6 +23,7 @@ import { useSession } from '@/stores/session'
 import { templatesApi, type Placeholder, type TemplateSummary } from '../notifications/api'
 import { labelOf, newUuid, notificationRulesApi, workflowApi, type NotificationRuleDoc, type NotificationTrigger, type RecipientDoc, type StatusDoc } from './api'
 import ErrorList from './ErrorList.vue'
+import { documentsApi, type DocumentSummary } from '../documents/api'
 import { useHashedDocument } from './useHashedDocument'
 
 /**
@@ -43,7 +44,10 @@ const statuses = ref<StatusDoc[]>([])
 const templates = ref<TemplateSummary[]>([])
 const templatesHidden = ref(false)
 const linkedUsers = ref<Placeholder[]>([])
+const documents = ref<DocumentSummary[]>([])
 onMounted(async () => {
+  // Attaching documents needs to see them ("Manage document templates"); attached ones are kept either way.
+  documents.value = (await documentsApi.list(props.form).catch(() => null))?.rows.filter((d) => d.active) ?? []
   statuses.value = (await workflowApi.load(props.form).catch(() => null))?.document.statuses ?? []
   try {
     templates.value = await templatesApi.list(props.form)
@@ -131,7 +135,34 @@ function setOffset(r: NotificationRuleDoc, days: number | null, side: string): v
   r.schedule.offsetMinutes = (side === 'before' ? -1 : 1) * Math.max(0, days ?? 0) * 1440
 }
 function setAttachments(r: NotificationRuleDoc, keys: string[]): void {
-  r.attachments = keys.length ? { fields: keys, documents: r.attachments?.documents ?? [] } : null
+  const docs = r.attachments?.documents ?? []
+  r.attachments = keys.length || docs.length ? { fields: keys, documents: docs } : null
+}
+type AttachedDocument = { template: string; format: 'docx' | 'pdf' }
+function setDocuments(r: NotificationRuleDoc, docs: AttachedDocument[]): void {
+  const keys = r.attachments?.fields ?? []
+  r.attachments = keys.length || docs.length ? { fields: keys, documents: docs } : null
+}
+/** The first document and format this rule does not attach yet. */
+function nextDocument(r: NotificationRuleDoc): AttachedDocument | null {
+  const taken = new Set((r.attachments?.documents ?? []).map((d) => `${d.template}:${d.format}`))
+  for (const d of documents.value) {
+    for (const format of [...d.formats].sort((a, b) => (a === 'pdf' ? -1 : b === 'pdf' ? 1 : 0))) {
+      if (!taken.has(`${d.uuid}:${format}`)) return { template: d.uuid, format }
+    }
+  }
+  return null
+}
+function addDocument(r: NotificationRuleDoc): void {
+  const next = nextDocument(r)
+  if (next) setDocuments(r, [...(r.attachments?.documents ?? []), next])
+}
+const documentOptions = computed(() => documents.value.map((d) => ({ value: d.uuid, label: d.name })))
+const formatsOf = (uuid: string) => (documents.value.find((d) => d.uuid === uuid)?.formats ?? []).map((f) => ({ value: f, label: t(`doc.format_${f}`) }))
+function setDocumentTemplate(item: AttachedDocument, uuid: string): void {
+  item.template = uuid
+  const formats = documents.value.find((d) => d.uuid === uuid)?.formats ?? []
+  if (!formats.includes(item.format)) item.format = formats[0] ?? 'pdf'
 }
 </script>
 
@@ -287,6 +318,45 @@ function setAttachments(r: NotificationRuleDoc, keys: string[]): void {
                   @update:model-value="(v: boolean) => setAttachments(r, v ? [...(r.attachments?.fields ?? []), f.value] : (r.attachments?.fields ?? []).filter((x) => x !== f.value))"
                 />{{ f.label }}
               </label>
+            </div>
+          </ConfigField>
+          <ConfigField
+            v-if="r.channels.includes('email') && (documents.length || r.attachments?.documents.length)"
+            :label="t('notif.documents')"
+            width="lg"
+            :hint="t('notif.documents_hint')"
+            :error="err(`rules.${i}.attachments.documents`)"
+          >
+            <div class="flex flex-col gap-2">
+              <div v-for="(d, j) in r.attachments?.documents ?? []" :key="j" class="flex flex-wrap items-center gap-2" :data-testid="`nr-doc-${i}-${j}`">
+                <Select
+                  :model-value="d.template"
+                  :options="documentOptions"
+                  option-label="label"
+                  option-value="value"
+                  size="small"
+                  class="w-field-md"
+                  :aria-label="t('notif.document')"
+                  :invalid="!!err(`rules.${i}.attachments.documents.${j}`)"
+                  @update:model-value="(v: string) => setDocumentTemplate(d, v)"
+                />
+                <Select v-model="d.format" :options="formatsOf(d.template)" option-label="label" option-value="value" size="small" class="w-field-xs" :aria-label="t('doc.format')" />
+                <Button
+                  icon="pi pi-times"
+                  text
+                  rounded
+                  size="small"
+                  :aria-label="t('notif.remove_document')"
+                  @click="
+                    setDocuments(
+                      r,
+                      (r.attachments?.documents ?? []).filter((_, k) => k !== j),
+                    )
+                  "
+                />
+                <p v-if="err(`rules.${i}.attachments.documents.${j}`)" class="basis-full m-0 text-xs text-danger">{{ err(`rules.${i}.attachments.documents.${j}`) }}</p>
+              </div>
+              <Button v-if="documents.length" icon="pi pi-plus" :label="t('notif.add_document')" size="small" text class="self-start" :data-testid="`nr-add-doc-${i}`" @click="addDocument(r)" />
             </div>
           </ConfigField>
           <ConfigField :label="t('notif.delay')" :for="`nr-delay-${i}`" width="xs" :hint="t('notif.delay_hint')" :error="err(`rules.${i}.delayMinutes`)">

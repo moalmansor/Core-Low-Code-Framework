@@ -69,6 +69,18 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/notifications/TemplateEditor.vue'),
         meta: { anyOf: ['system.manage_notifications'], title: 'admin.area.notifications' },
       },
+      {
+        path: 'admin/documents',
+        name: 'admin.documents',
+        component: () => import('@/views/admin/documents/DocumentsView.vue'),
+        meta: { anyOf: ['system.manage_document_templates'], title: 'admin.area.documents' },
+      },
+      {
+        path: 'admin/documents/:template',
+        name: 'admin.documents.template',
+        component: () => import('@/views/admin/documents/DocumentEditor.vue'),
+        meta: { anyOf: ['system.manage_document_templates'], title: 'admin.area.documents' },
+      },
       { path: 'admin/audit', name: 'admin.audit', component: () => import('@/views/admin/AuditLogView.vue'), meta: { anyOf: ['system.view_audit_log'], title: 'admin.area.audit_log' } },
       { path: 'admin/errors', name: 'admin.errors', component: () => import('@/views/admin/ErrorsView.vue'), meta: { anyOf: ['system.view_errors'], title: 'admin.area.error_monitoring' } },
       ...buildingRoutes,

@@ -253,7 +253,13 @@ final class NotificationRules
 
                         continue;
                     }
-                    $documents[] = ['template' => strtolower($doc->uuid), 'format' => $format];
+                    $item = ['template' => strtolower($doc->uuid), 'format' => $format];
+                    if (in_array($item, $documents, true)) {
+                        $errors["{$p}.attachments.documents.{$j}"][] = __('notifications.duplicate_document');
+
+                        continue;
+                    }
+                    $documents[] = $item;
                 }
                 if (count($documents) > 5) {
                     $errors["{$p}.attachments.documents"][] = __('notifications.too_many_documents');

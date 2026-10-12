@@ -240,6 +240,10 @@ it('attaches documents generated for the recipients to notification emails, and 
     // A format the template does not produce is refused.
     $this->putJson("/api/v1/forms/{$form}/notification-rules", ['rules' => [$rule], 'base_hash' => $hash()])->assertStatus(422)->assertJsonValidationErrors(['rules.0.attachments.documents.0']);
     $rule['attachments']['documents'][0]['format'] = 'pdf';
+    // The same document twice is refused.
+    $twice = $rule;
+    $twice['attachments']['documents'][] = ['template' => $tpl['uuid'], 'format' => 'pdf'];
+    $this->putJson("/api/v1/forms/{$form}/notification-rules", ['rules' => [$twice], 'base_hash' => $hash()])->assertStatus(422)->assertJsonValidationErrors(['rules.0.attachments.documents.1']);
     $this->putJson("/api/v1/forms/{$form}/notification-rules", ['rules' => [$rule], 'base_hash' => $hash()])->assertOk();
 
     $this->postJson("/api/v1/r/{$form}", ['values' => ['customer' => 'Acme']])->assertCreated();

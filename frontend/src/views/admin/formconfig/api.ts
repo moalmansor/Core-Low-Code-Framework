@@ -258,7 +258,7 @@ export interface NotificationRuleDoc {
   template: string | null
   channels: ('email' | 'in_app')[]
   recipients: { to: RecipientDoc[]; cc: RecipientDoc[]; bcc: RecipientDoc[] }
-  attachments: { fields: string[]; documents: string[] } | null
+  attachments: { fields: string[]; documents: { template: string; format: 'docx' | 'pdf' }[] } | null
   delayMinutes: number | null
   respectPreferences: boolean
   active: boolean

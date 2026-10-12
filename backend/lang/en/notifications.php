@@ -18,6 +18,7 @@ return [
     'bad_attachment_field' => 'Choose file fields of this form.',
     'bad_attachment_document' => 'Choose an active document template of this form.',
     'bad_attachment_format' => 'This document template does not produce that format.',
+    'duplicate_document' => 'This document is already attached in this format.',
     'too_many_documents' => 'Attach at most 5 documents.',
     'bad_delay' => 'The delay is between 0 and 43200 minutes.',
     'changed_elsewhere' => 'Someone else changed this after you opened it. Review their version.',

@@ -3,7 +3,7 @@ import type { Ast } from '@/builder/types'
 
 /** Email templates and their placeholders (specification §4.16). */
 export type I18nMap = Record<string, string>
-export type BlockType = 'heading' | 'text' | 'button' | 'fields' | 'table' | 'divider' | 'spacer'
+export type BlockType = 'heading' | 'text' | 'button' | 'fields' | 'table' | 'divider' | 'spacer' | 'page_break'
 export interface TemplateBlock {
   uuid: string
   type: BlockType

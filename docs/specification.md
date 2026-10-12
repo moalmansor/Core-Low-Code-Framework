@@ -662,6 +662,8 @@ All access control lives in **one** interface.
 - Uploaded spreadsheets are parsed with external entities and remote references disabled; formulas in imported cells are read as text and never evaluated.
 - Exported CSV and Excel cells beginning with `=`, `+`, `-`, `@`, tab, or carriage return are escaped so spreadsheet software cannot execute them.
 - Imports run inside a transaction per batch, are idempotent on retry, and produce a downloadable error report that names the row and the reason.
+- Batches hold 500 rows. The row and time limits are System Settings (`records.import_max_rows`, `records.import_time_limit_minutes`); a job past its time limit stops between batches and reports how far it got, and a cancelled job keeps its finished batches. Mappings are saved by name per form (ADR-0038).
+- Exports up to `records.export_sync_rows` rows download at once; larger ones run as background jobs and are announced in the notifications center. Exported and generated files belong to their requester alone and expire after `records.job_file_hours`.
 
 **Execution**
 - Placement: row, bulk, toolbar, or view page.
@@ -689,11 +691,18 @@ All access control lives in **one** interface.
   - AR/EN versions and attachments (including generated documents);
   - preview with a real record and test send.
 - Every email is tracked in the Operations Center.
+- **Rendering for several recipients** (ADR-0039): recipients are grouped by language, one message per language; a value, linked record or conditional block appears only when every reader of that message may see it. Addresses outside the system are rendered with the rule author's access in the default language. Values are escaped and `**bold**` markup is read from the template only.
+- **Delivery:** failed sends retry with backoff up to `notifications.email_max_attempts`, then fail with the exact reason; all messages of a delivery and their generated documents are prepared before any is queued, so a retry never sends anyone a second copy. Rendered email is previewed through a short-lived signed link with its own restrictive Content-Security-Policy, inside a sandboxed frame.
 
 ### 4.17 Document Templates
 - Upload DOCX templates with placeholders, or design HTML templates.
 - Generate DOCX or PDF from any record, including repeater tables and linked data.
 - Usable in actions and email attachments.
+- **Word templates** (ADR-0040): one file per language. Placeholders are the email templates' (fields, relation paths, system values); a table row whose placeholders name a repeater's columns repeats once per row, and placeholders Word split across runs still fill. Every placeholder is checked on save, and one the form later loses is reported on the template.
+- **Uploaded Word files are untrusted input:** macros, embedded objects, links to outside content, external fields (INCLUDE, LINK, DDE), document type declarations, and oversized archives are refused; values are inserted as text, never as markup.
+- **Designed templates** are blocks (heading, text, field list, repeater table, divider, space, page break), each optionally conditional, with per-language texts, on a chosen paper size, orientation and margins, previewed live for a real record.
+- **Conversion:** designed templates become Word directly and PDF through the print engine (Arabic shaping, right to left); Word templates become PDF through LibreOffice, isolated per conversion with a time limit (`documents.convert_timeout_seconds`). Where LibreOffice is not installed the screen says so and PDF cannot be chosen for Word templates.
+- **Readers:** a document shows a value only when everyone who will receive it may see it. A downloaded document belongs to its requester and expires with other generated files; an email attachment stays with its email for resends.
 
 ### 4.18 Reports & Dashboards
 - **Report builder:**

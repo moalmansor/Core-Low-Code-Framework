@@ -402,9 +402,30 @@ Decided by the owner:
   (default 100 000, up to 1 000 000) and `records.import_time_limit_minutes`.
   Exports: xlsx / csv / pdf of the table as shown, export jobs above
   `records.export_sync_rows`, expiring personal files.
-- **Next:** notifications (email templates, rules, email queue, in-app
-  center, preferences), then documents, actions, downloads, automations,
-  data quality, Operations Center, Phase 4 e2e, docs and the pull request.
+- **Notifications** (ADR-0039): email templates designed from blocks with a
+  live preview through a sandboxed signed link, test send; notification rules
+  per form (record created/updated, status change, field changed, condition
+  met, date reminders, SLA escalations, assignment, approvals) with To/CC/BCC
+  from users, roles, departments, user fields, the creator, linked records'
+  users and static addresses; one message per language showing only what all
+  its readers may see; email queue with backoff, resend and cancel; in-app
+  notifications center (bell) and per-user channel preferences. e2e
+  `07-notifications`.
+- **Document templates** (ADR-0040): Word templates per language (untrusted
+  input checks, run-split placeholders, repeating table rows) and designed
+  templates (blocks, paper, live preview) producing Word and PDF; LibreOffice
+  conversion for Word to PDF (in the image and CI); documents attached to
+  notification emails, generated per message for its readers. The email and
+  document designers share `Records/Templating` (values, block validation,
+  placeholders, HTML previews) and the `BlockListEditor` component.
+  e2e `08-documents`.
+- **System Settings** gained Notifications, Documents and Operations tabs; a
+  test now fails when a registry setting has no field on the settings screen.
+- **Next:** actions (built-in bulk operations, duplicate, print; custom
+  actions with chained steps, per-action permission, egress-gateway webhooks,
+  generate-document step), then custom downloads, automations and scheduler,
+  data quality, Operations Center, the rest of the Phase 4 e2e, docs and the
+  pull request.
 
 ## Resume point
 

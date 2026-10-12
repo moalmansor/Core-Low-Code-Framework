@@ -40,3 +40,7 @@ One short record per significant decision (specification §8.1). New records are
 | [0034](0034-table-views-and-view-blueprints.md) | Table views as relation paths; view blueprints apply directly |
 | [0035](0035-justification-scope-in-phase-3.md) | Justification scopes delivered in Phase 3, and how rules combine |
 | [0036](0036-assignment-delegation-and-approvals.md) | Assignment, queues, delegation and approvals |
+| [0037](0037-record-pages-and-labels.md) | Record page layout, labels and sidebar entries |
+| [0038](0038-background-import-and-export.md) | Imports and large exports run as background jobs |
+| [0039](0039-notification-rendering-and-delivery.md) | How notifications are rendered for several recipients, and delivered |
+| [0040](0040-document-templates.md) | Document templates — Word files, designed templates, and conversion |

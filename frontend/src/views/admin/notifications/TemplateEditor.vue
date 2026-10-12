@@ -2,30 +2,26 @@
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
-import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ApiError, get } from '@/api/http'
-import ExpressionInput from '@/builder/conditions/ExpressionInput.vue'
 import FormPicker from '@/builder/FormPicker.vue'
 import I18nInput from '@/builder/I18nInput.vue'
 import ConfigField from '@/components/config/ConfigField.vue'
-import ConfigItem from '@/components/config/ConfigItem.vue'
 import ConfigSaveBar from '@/components/config/ConfigSaveBar.vue'
 import ConfigSection from '@/components/config/ConfigSection.vue'
-import EmptyState from '@/components/config/EmptyState.vue'
 import SettingSwitch from '@/components/config/SettingSwitch.vue'
+import BlockListEditor from '@/components/templates/BlockListEditor.vue'
+import PlaceholderList from '@/components/templates/PlaceholderList.vue'
 import { provideConfigScreen } from '@/components/config/configScreen'
 import UserPicker from '@/components/UserPicker.vue'
 import { useSession } from '@/stores/session'
 import { errorText } from '../building/shared'
 import ErrorList from '../formconfig/ErrorList.vue'
-import { newUuid } from '../formconfig/api'
-import { templatesApi, type BlockType, type Placeholders, type TemplateBlock, type TemplateDoc } from './api'
-import FormScope from './FormScope.vue'
+import { templatesApi, type BlockType, type Placeholders, type TemplateDoc } from './api'
 
 /**
  * The email template designer (specification §4.16): basics, subject and
@@ -55,12 +51,7 @@ const dirty = computed(() => doc.value !== null && JSON.stringify(doc.value) !==
 const dl = computed(() => session.boot?.default_locale ?? 'en')
 const locales = computed(() => (session.boot?.locales ?? []).map((l) => ({ value: l.code, label: l.native_name })))
 
-const blockTypes = computed(() => (['heading', 'text', 'button', 'fields', 'table', 'divider', 'spacer'] as const).map((v) => ({ value: v, label: t(`tpl.block.${v}`) })))
-const newBlockType = ref<BlockType>('text')
-const fieldTokens = computed(() => [...placeholders.value.fields, ...placeholders.value.system.filter((s) => ['@record_number', '@status', '@created_at', '@updated_at'].includes(s.token))])
-const allTokens = computed(() => [...placeholders.value.system, ...placeholders.value.fields])
-const repeaterOptions = computed(() => placeholders.value.repeaters.map((r) => ({ value: r.key, label: r.label })))
-const columnsOf = (group: string | undefined) => placeholders.value.repeaters.find((r) => r.key === group)?.columns.map((c) => ({ value: c.key, label: c.label })) ?? []
+const blockTypes: BlockType[] = ['heading', 'text', 'button', 'fields', 'table', 'divider', 'spacer']
 
 function empty(): TemplateDoc {
   return { key: '', form: null, design: { style: { accent: null, logo: true }, blocks: [] }, subject: {}, preheader: {}, active: true }
@@ -89,30 +80,6 @@ watch(
     placeholders.value = await templatesApi.placeholders(form ?? null).catch(() => ({ system: [], fields: [], repeaters: [] }))
   },
 )
-
-function addBlock(): void {
-  const type = newBlockType.value
-  const b: TemplateBlock = { uuid: newUuid(), type, condition: null }
-  if (type === 'heading' || type === 'text') b.text = {}
-  if (type === 'button') Object.assign(b, { label: {}, link: doc.value?.form ? 'record' : 'url', url: '' })
-  if (type === 'fields') b.fields = []
-  if (type === 'table') Object.assign(b, { group: placeholders.value.repeaters[0]?.key ?? '', columns: [] })
-  doc.value?.design.blocks.push(b)
-}
-function move(i: number, d: -1 | 1): void {
-  const list = doc.value!.design.blocks
-  const j = i + d
-  if (j < 0 || j >= list.length) return
-  ;[list[i], list[j]] = [list[j]!, list[i]!]
-}
-async function copyToken(token: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(`{{ ${token} }}`)
-    toast.add({ severity: 'info', summary: t('tpl.copied'), life: 2500 })
-  } catch {
-    toast.add({ severity: 'warn', summary: t('tpl.copy_manually', { text: `{{ ${token} }}` }), life: 6000 })
-  }
-}
 
 async function save(): Promise<void> {
   if (!doc.value) return
@@ -196,14 +163,6 @@ const brandAccent = computed(() => session.boot?.branding.primary_color || getCo
 function setAccent(v: string): void {
   if (doc.value) doc.value.design.style.accent = v
 }
-const urlPlaceholder = 'https://'
-const linkOptions = computed(() => [
-  { value: 'record', label: t('tpl.link_record') },
-  { value: 'url', label: t('tpl.link_url') },
-])
-const tokenText = (token: string) => `{{ ${token} }}`
-const blockTitle = (b: TemplateBlock, i: number) => `${i + 1}. ${t(`tpl.block.${b.type}`)}`
-const blockSummary = (b: TemplateBlock) => (b.condition ? t('tpl.conditional') : undefined)
 </script>
 
 <template>
@@ -256,77 +215,11 @@ const blockSummary = (b: TemplateBlock) => (b.condition ? t('tpl.conditional') :
         </ConfigSection>
 
         <ConfigSection id="tpl-blocks" :title="t('tpl.section.content')" :count="doc.design.blocks.length">
-          <EmptyState v-if="!doc.design.blocks.length" icon="pi pi-align-left" :title="t('tpl.blocks_empty_title')" :description="t('tpl.blocks_empty_text')" />
-          <FormScope :key="doc.form ?? 'none'" v-slot="{ scope }" :form="doc.form">
-            <ConfigItem
-              v-for="(b, i) in doc.design.blocks"
-              :key="b.uuid"
-              :title="blockTitle(b, i)"
-              :subtitle="blockSummary(b)"
-              :index="i"
-              :count="doc.design.blocks.length"
-              movable
-              :invalid="Object.keys(errors).some((k) => k.startsWith(`design.blocks.${i}.`))"
-              :testid="`tpl-block-${i}`"
-              @move="(d: -1 | 1) => move(i, d)"
-              @remove="doc!.design.blocks.splice(i, 1)"
-            >
-              <div class="flex flex-col gap-4">
-                <I18nInput v-if="b.type === 'heading'" v-model="b.text" class="w-field-lg" :label="t('tpl.heading_text')" :maxlength="255" :invalid="!!err(`design.blocks.${i}.text.${dl}`)" />
-                <I18nInput
-                  v-if="b.type === 'text'"
-                  v-model="b.text"
-                  class="w-field-lg"
-                  multiline
-                  :rows="5"
-                  :label="t('tpl.text')"
-                  :maxlength="5000"
-                  :invalid="!!err(`design.blocks.${i}.text.${dl}`)"
-                />
-                <p v-if="b.type === 'text'" class="m-0 text-xs text-muted-color">{{ t('tpl.text_hint') }}</p>
-                <template v-if="b.type === 'button'">
-                  <I18nInput v-model="b.label" class="w-field-md" :label="t('tpl.button_label')" :maxlength="120" />
-                  <ConfigField :label="t('tpl.button_link')" :for="`tpl-link-${i}`" width="sm">
-                    <Select v-model="b.link" :input-id="`tpl-link-${i}`" :options="linkOptions" option-label="label" option-value="value" size="small" />
-                  </ConfigField>
-                  <ConfigField v-if="b.link === 'url'" :label="t('tpl.url')" :for="`tpl-url-${i}`" width="lg" :error="err(`design.blocks.${i}.url`)">
-                    <InputText :id="`tpl-url-${i}`" v-model="b.url as never" dir="ltr" size="small" :placeholder="urlPlaceholder" />
-                  </ConfigField>
-                </template>
-                <ConfigField v-if="b.type === 'fields'" :label="t('tpl.fields')" :for="`tpl-fields-${i}`" width="lg" :hint="t('tpl.fields_hint')">
-                  <MultiSelect v-model="b.fields" :input-id="`tpl-fields-${i}`" :options="fieldTokens" option-label="label" option-value="token" filter display="chip" size="small" />
-                </ConfigField>
-                <template v-if="b.type === 'table'">
-                  <ConfigField :label="t('tpl.table')" :for="`tpl-group-${i}`" width="md" :error="err(`design.blocks.${i}.group`)">
-                    <Select v-model="b.group" :input-id="`tpl-group-${i}`" :options="repeaterOptions" option-label="label" option-value="value" size="small" @update:model-value="b.columns = []" />
-                  </ConfigField>
-                  <ConfigField :label="t('tpl.columns')" :for="`tpl-cols-${i}`" width="lg">
-                    <MultiSelect v-model="b.columns" :input-id="`tpl-cols-${i}`" :options="columnsOf(b.group)" option-label="label" option-value="value" display="chip" size="small" />
-                  </ConfigField>
-                </template>
-                <div v-if="doc!.form && scope" class="flex flex-col gap-1">
-                  <h4 class="m-0 text-sm font-semibold">{{ t('tpl.show_when') }}</h4>
-                  <ExpressionInput v-model="b.condition" :scope="scope" expected="boolean" allow-empty :label="t('tpl.show_when')" />
-                  <p class="m-0 text-xs text-muted-color">{{ t('tpl.show_when_hint') }}</p>
-                </div>
-              </div>
-            </ConfigItem>
-          </FormScope>
-          <div class="flex flex-wrap items-center gap-2">
-            <Select v-model="newBlockType" :options="blockTypes" option-label="label" option-value="value" size="small" class="w-field-sm" :aria-label="t('tpl.block_type')" />
-            <Button icon="pi pi-plus" :label="t('tpl.add_block')" size="small" outlined data-testid="tpl-add-block" @click="addBlock" />
-          </div>
+          <BlockListEditor v-model="doc.design.blocks" :types="blockTypes" :form="doc.form" :placeholders="placeholders" :errors="errors" />
         </ConfigSection>
 
         <ConfigSection id="tpl-placeholders" :title="t('tpl.section.placeholders')" :description="t('tpl.placeholders_hint')" :default-open="false">
-          <ul class="tpl-tokens">
-            <li v-for="p in allTokens" :key="p.token">
-              <button type="button" class="tpl-token" :title="t('tpl.copy')" @click="copyToken(p.token)">
-                <span>{{ p.label }}</span
-                ><code class="ltr-value">{{ tokenText(p.token) }}</code>
-              </button>
-            </li>
-          </ul>
+          <PlaceholderList :placeholders="placeholders" />
         </ConfigSection>
 
         <ErrorList :errors="errors" />
@@ -387,30 +280,5 @@ const blockSummary = (b: TemplateBlock) => (b.condition ? t('tpl.conditional') :
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--paper);
-}
-.tpl-tokens {
-  display: grid;
-  gap: 0.25rem;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-}
-.tpl-token {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  width: 100%;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-surface);
-  text-align: start;
-  font-size: 0.8125rem;
-  cursor: pointer;
-}
-.tpl-token:hover {
-  border-color: var(--primary);
-}
-.tpl-token code {
-  color: var(--text-muted);
-  font-size: 0.75rem;
 }
 </style>

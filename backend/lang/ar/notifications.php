@@ -18,6 +18,7 @@ return [
     'bad_attachment_field' => 'اختر حقول ملفات من هذا النموذج.',
     'bad_attachment_document' => 'اختر قالب مستند نشطًا من هذا النموذج.',
     'bad_attachment_format' => 'قالب المستند هذا لا ينتج تلك الصيغة.',
+    'duplicate_document' => 'هذا المستند مرفق بالفعل بهذه الصيغة.',
     'too_many_documents' => 'أرفق 5 مستندات على الأكثر.',
     'bad_delay' => 'التأخير بين 0 و43200 دقيقة.',
     'changed_elsewhere' => 'غيّر شخص آخر هذا بعد أن فتحته. راجع نسخته.',
