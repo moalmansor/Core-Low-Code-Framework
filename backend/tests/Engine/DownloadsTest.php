@@ -91,7 +91,7 @@ function runDownload(TestCase $t, string $form, string $profile, string $format,
 }
 
 /** @return array<string, list<list<mixed>>> rows of each sheet by sheet name */
-function readXlsx(string $fileUuid): array
+function downloadSheets(string $fileUuid): array
 {
     $file = StoredFile::query()->withoutGlobalScopes()->where('uuid', $fileUuid)->firstOrFail();
     $path = tempnam(sys_get_temp_dir(), 'xlsx');
@@ -155,7 +155,7 @@ it('downloads linked data at several levels, in both directions, with one row pe
 
     $job = runDownload($this, $w['tickets'], $uuid, 'xlsx')->assertCreated()->json('data');
     expect($job['status'])->toBe('completed')->and($job['rows'])->toBe(3);
-    $sheets = readXlsx($job['file']);
+    $sheets = downloadSheets($job['file']);
     [$main, $lines] = array_values($sheets);
     // The repeating section's rows get a sheet named after the section.
     expect(array_keys($sheets))->toBe(['Full', 'Lines']);
@@ -222,7 +222,7 @@ it('gives each user only the columns, records and values they may see, at every 
     expect($this->getJson("/api/v1/r/{$w['tickets']}/downloads?place=record_view")->json('data'))->toBe([]);
     $job = runDownload($this, $w['tickets'], $uuid, 'xlsx')->assertCreated()->json('data');
     expect($job['omitted'])->toBe(['Customer › Tier', 'Tier again']);
-    $rows = array_values(readXlsx($job['file']))[0];
+    $rows = array_values(downloadSheets($job['file']))[0];
     $byTicket = collect(array_slice($rows, 2))->keyBy(0);
     // The hidden column is gone, the out-of-scope customer reads empty, the sensitive note is masked.
     expect($rows[1])->toBe(['Subject', 'Customer › Name', 'Customer › Note'])
@@ -231,7 +231,7 @@ it('gives each user only the columns, records and values they may see, at every 
     // An explicit grant shows sensitive values.
     grantPermission($clerk->id, 'field.'.$w['c']['note']['uuid'].'.view_sensitive');
     $job = runDownload($this, $w['tickets'], $uuid, 'xlsx')->assertCreated()->json('data');
-    expect(collect(array_slice(array_values(readXlsx($job['file']))[0], 2))->keyBy(0)['Scanner'][2])->toBe('VIP');
+    expect(collect(array_slice(array_values(downloadSheets($job['file']))[0], 2))->keyBy(0)['Scanner'][2])->toBe('VIP');
 });
 
 it('applies fixed filters and parameters, and follows the table filters and selection when allowed', function () {
@@ -348,6 +348,6 @@ it('runs a profile from an action step for the record, under the runner\'s permi
 
     $run = $this->postJson("/api/v1/r/{$w['tickets']}/actions/{$action['uuid']}/run", ['items' => [['uuid' => $w['scanner']['uuid']]]])->assertCreated()->json('data');
     expect($run['status'])->toBe('completed')->and($run['outputs'][0]['type'])->toBe('download');
-    $rows = array_values(readXlsx($run['outputs'][0]['file']))[0];
+    $rows = array_values(downloadSheets($run['outputs'][0]['file']))[0];
     expect(array_slice($rows, 2))->toBe([['Scanner', 'Globex']]);
 });
