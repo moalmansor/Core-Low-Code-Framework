@@ -16,6 +16,7 @@ use App\Modules\Records\Runtime\RuleRuntime;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -437,7 +438,7 @@ final class DownloadEngine
         if ($table === null || $value === null) {
             return $value;
         }
-        $uuids = array_values(array_filter(array_map(static fn ($v) => is_string($v) ? strtolower($v) : null, (array) $value)));
+        $uuids = array_values(array_filter(array_map(static fn ($v) => is_string($v) && Str::isUuid($v) ? strtolower($v) : null, (array) $value)));
         $ids = $uuids === [] ? [] : DB::table($table)->whereIn('uuid', $uuids)->pluck('id')->map(static fn ($v) => (int) $v)->all();
 
         return is_array($value) ? $ids : ($ids[0] ?? -1);

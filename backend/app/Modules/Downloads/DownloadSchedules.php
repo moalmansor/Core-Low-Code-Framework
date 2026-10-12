@@ -118,12 +118,16 @@ final class DownloadSchedules
         }
         $users = array_values(array_unique(array_map('strtolower', array_filter((array) ($d['recipients']['users'] ?? []), 'is_string'))));
         $roles = array_values(array_unique(array_map('strtolower', array_filter((array) ($d['recipients']['roles'] ?? []), 'is_string'))));
+        // Anything that is not a UUID is rejected before it reaches a uniqueidentifier column (SQL Server).
+        $malformed = array_filter([...$users, ...$roles], static fn (string $u) => ! Str::isUuid($u)) !== [];
         if ($profile->is_personal) {
             // A personal profile is only ever sent to its owner.
             $users = [strtolower((string) DB::table('users')->where('id', $profile->owner_user_id)->value('uuid'))];
             $roles = [];
         }
-        if (count($users) !== DB::table('users')->whereIn('uuid', $users ?: ['-'])->whereNull('deleted_at')->count() || count($roles) !== DB::table('roles')->whereIn('uuid', $roles ?: ['-'])->count()) {
+        if (($malformed && ! $profile->is_personal)
+            || ($users !== [] && count($users) !== DB::table('users')->whereIn('uuid', $users)->whereNull('deleted_at')->count())
+            || ($roles !== [] && count($roles) !== DB::table('roles')->whereIn('uuid', $roles)->count())) {
             $errors['recipients'][] = __('downloads.bad_recipients');
         } elseif ($users === [] && $roles === []) {
             $errors['recipients'][] = __('downloads.recipients_required');

@@ -290,6 +290,8 @@ it('emails scheduled downloads to each recipient with their own data, and keeps 
 
     $this->postJson("/api/v1/download-profiles/{$uuid}/schedules", ['schedule' => ['frequency' => 'weekly', 'time' => '25:00', 'timezone' => 'Asia/Riyadh', 'format' => 'xlsx', 'recipients' => ['users' => []]]])
         ->assertStatus(422)->assertJsonValidationErrors(['time', 'recipients']);
+    $this->postJson("/api/v1/download-profiles/{$uuid}/schedules", ['schedule' => ['frequency' => 'weekly', 'time' => '07:30', 'timezone' => 'Asia/Riyadh', 'format' => 'xlsx', 'recipients' => ['users' => ['not-a-user'], 'roles' => ['x']]]])
+        ->assertStatus(422)->assertJsonValidationErrors(['recipients']);
     $s = $this->postJson("/api/v1/download-profiles/{$uuid}/schedules", ['schedule' => [
         'frequency' => 'weekly', 'time' => '07:30', 'weekday' => 0, 'timezone' => 'Asia/Riyadh', 'format' => 'xlsx',
         'recipients' => ['users' => [$outsider->uuid], 'roles' => [$role->uuid]],
