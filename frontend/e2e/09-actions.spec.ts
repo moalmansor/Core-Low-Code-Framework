@@ -108,7 +108,7 @@ test('a built-in bulk update runs on a selection, a custom action runs from the 
   await expect(page.getByTestId('record-view')).toBeVisible()
   await page.getByTestId('record-action').filter({ hasText: label }).click()
   await expect(page.getByText(`Stamped ${tag}`)).toBeVisible()
-  await expect(page.getByTestId('record-title')).toContainText(`Act ${tag} stamped`)
+  await expect.poll(async () => ((await api(page, 'GET', `/r/${form}/${b}`)).data as Rec).values.visitor).toBe(`Act ${tag} stamped`)
   await page.screenshot({ path: 'test-results/actions-record-page.png' })
 
   expect(problems).toEqual([])

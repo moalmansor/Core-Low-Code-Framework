@@ -451,6 +451,7 @@ See the Phase 4 section above for what is done and where to continue.
 
 ### Local development notes
 
+- Local e2e: after `migrate:fresh` of `lcf_e2e`, also run `CACHE_STORE=file php artisan cache:clear`; the file cache outlives the database and can serve a published definition from the previous run. Run Playwright with `DB_DATABASE=lcf_e2e` so `setup:token` reaches the e2e database.
 - Dev container / Codespaces: everything is prepared by `.devcontainer/post-create.sh`;
   the application runs on port 8000; `cd backend && php artisan setup:token`.
 - Without a container: `cd backend && cp .env.example .env && php artisan key:generate && php artisan db:ensure && php artisan migrate --seed && php artisan setup:token`
