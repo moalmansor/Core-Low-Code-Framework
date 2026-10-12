@@ -4324,7 +4324,7 @@ admin-created, never seeded.
 | `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
 | `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
 | `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
-| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `update`, `reassign`, `status_change`, `delete`, `restore`, `duplicate_sweep`, `validation_sweep`, `orphan_scan`, `repair` |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `update`, `reassign`, `status_change`, `delete`, `restore`, `duplicate_sweep`, `validation_sweep`, `orphan_scan`, `repair`, `action` |
 | `criteria` | JSON | NVARCHAR(MAX) | NOT NULL | — | filter AST or explicit ids |
 | `payload` | JSON | NVARCHAR(MAX) | NULL | — | values / target status / assignee |
 | `dry_run` | TINYINT(1) | BIT | NOT NULL | 0 |  |
@@ -4342,6 +4342,7 @@ admin-created, never seeded.
 | `finished_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 | `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
 | `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `action_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `actions.id` NO ACTION (type `action`: the custom action run) |
 
 - **Primary key:** `pk_bulk_operations` (`id`); SQL Server clustered.
 - **Unique:** `uq_bulk_operations_uuid` (`uuid`)
@@ -4353,7 +4354,9 @@ admin-created, never seeded.
 - **Foreign key:** `fk_bulk_operations_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_bulk_operations_justification_id`: `justification_id` → `justifications`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_bulk_operations_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
-- **Check:** `ck_bulk_operations_type`: `type IN ('update', 'reassign', 'status_change', 'delete', 'restore', 'duplicate_sweep', 'validation_sweep', 'orphan_scan', 'repair')` (both engines)
+- **Index:** `ix_bulk_operations_action_id` (`action_id`) — supports FK
+- **Foreign key:** `fk_bulk_operations_action_id`: `action_id` → `actions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_bulk_operations_type`: `type IN ('update', 'reassign', 'status_change', 'delete', 'restore', 'duplicate_sweep', 'validation_sweep', 'orphan_scan', 'repair', 'action')` (both engines)
 - **Check:** `ck_bulk_operations_status`: `status IN ('previewing', 'awaiting_confirmation', 'queued', 'running', 'completed', 'completed_with_errors', 'failed', 'cancelled')` (both engines)
 - **Check (SQL Server):** `ck_bulk_operations_criteria_json`: `ISJSON(criteria) = 1`
 - **Check (SQL Server):** `ck_bulk_operations_payload_json`: `ISJSON(payload) = 1`

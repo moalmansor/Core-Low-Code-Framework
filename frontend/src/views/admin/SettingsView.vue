@@ -30,7 +30,7 @@ const tabs = computed(() => {
   const list: string[] = []
   if (session.can('system.manage_branding')) list.push('branding')
   if (session.can('system.manage_settings'))
-    list.push('formats', 'calendar', 'mail', 'files', 'records', 'notifications', 'documents', 'operations', 'schema', 'clamav', 'security', 'sso', 'ldap', 'monitoring', 'egress')
+    list.push('formats', 'calendar', 'mail', 'files', 'records', 'actions', 'notifications', 'documents', 'operations', 'schema', 'clamav', 'security', 'sso', 'ldap', 'monitoring', 'egress')
   if (session.can('system.manage_translations')) list.push('locales')
   return list
 })

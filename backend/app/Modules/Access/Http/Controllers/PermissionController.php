@@ -33,24 +33,26 @@ final class PermissionController extends Controller
         $data = $request->validate(['scope_type' => ['nullable', 'string', 'max:32'], 'form' => ['sometimes', 'nullable', 'uuid']]);
         $scope = $data['scope_type'] ?? 'system';
         $formId = isset($data['form']) ? DB::table('forms')->where('uuid', $data['form'])->value('id') : null;
-        // One form's objects: its own abilities, its transitions (status level) and its views.
+        // One form's objects: its own abilities, its transitions (status level), its views and its actions.
         $permissions = Permission::query()->where('scope_type', $scope)
             ->when($formId !== null, static fn ($q) => match ($scope) {
                 'form' => $q->where('scope_id', $formId),
                 'transition' => $q->whereIn('scope_id', DB::table('transitions')->where('form_id', $formId)->whereNull('archived_at')->select('id')),
                 'view' => $q->whereIn('scope_id', DB::table('views')->where('form_id', $formId)->select('id')),
+                'action' => $q->whereIn('scope_id', DB::table('actions')->where('form_id', $formId)->select('id')),
                 default => $q,
             })
             ->orderBy('category')->orderBy('key')->get();
         $labels = $this->translator->many('permission', $permissions->pluck('id')->all(), ['label', 'description']);
-        // Transition and view permissions carry the name of their object.
-        $objects = in_array($scope, ['transition', 'view'], true) ? $this->translator->many($scope, $permissions->pluck('scope_id')->filter()->map(static fn ($v) => (int) $v)->all(), ['name']) : [];
+        // Transition, view and action permissions carry the name of their object.
+        $nameField = $scope === 'action' ? 'label' : 'name';
+        $objects = in_array($scope, ['transition', 'view', 'action'], true) ? $this->translator->many($scope, $permissions->pluck('scope_id')->filter()->map(static fn ($v) => (int) $v)->all(), [$nameField]) : [];
 
         return response()->json(['data' => $permissions->map(static fn (Permission $p): array => [
             'key' => $p->key,
             'category' => $p->category,
             'is_dangerous' => $p->is_dangerous,
-            'label' => ($labels[$p->id]['label'] ?? Translator::humanize((string) $p->key)).(isset($objects[(int) $p->scope_id]['name']) ? ': '.$objects[(int) $p->scope_id]['name'] : ''),
+            'label' => ($labels[$p->id]['label'] ?? Translator::humanize((string) $p->key)).(isset($objects[(int) $p->scope_id][$nameField]) ? ': '.$objects[(int) $p->scope_id][$nameField] : ''),
             'description' => $labels[$p->id]['description'] ?? null,
         ])->values()]);
     }

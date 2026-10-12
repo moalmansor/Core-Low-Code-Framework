@@ -43,6 +43,7 @@ export const settingsSchema: Record<string, FieldDef[]> = {
   records: [n('export_max_rows', 100, 1000000), n('export_sync_rows', 0, 100000), n('job_file_hours', 1, 2160), n('import_max_rows', 10, 1000000), n('import_time_limit_minutes', 1, 1440)],
   notifications: [n('email_max_attempts', 1, 20)],
   operations: [n('stuck_email_minutes', 1, 1440)],
+  actions: [n('max_records', 1, 100000), n('queue_threshold', 1, 10000)],
   documents: [n('max_template_mb', 1, 50), n('convert_timeout_seconds', 10, 600)],
   clamav: [b('enabled'), s('host', true), n('port', 1, 65535), n('timeout_seconds', 1, 300)],
   security: [

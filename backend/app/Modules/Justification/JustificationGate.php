@@ -54,7 +54,7 @@ final class JustificationGate
      * The merged requirement for a change, or null when no justification is
      * asked for.
      *
-     * @param  array{fields?: list<string>, status?: int|null, transition?: int|null, values?: array<string, mixed>, old?: array<string, mixed>|null}  $change
+     * @param  array{fields?: list<string>, status?: int|null, transition?: int|null, action?: int|null, actionUuid?: string, actionLevel?: string, values?: array<string, mixed>, old?: array<string, mixed>|null}  $change
      * @return array<string, mixed>|null
      */
     public function requirement(FormRuntime $rt, User $user, string $context, array $change): ?array
@@ -127,7 +127,53 @@ final class JustificationGate
      */
     public function enforce(FormRuntime $rt, User $user, string $context, array $change, ?array $payload): ?array
     {
-        $req = $this->requirement($rt, $user, $context, $change);
+        return $this->check($rt, $user, $this->requirement($rt, $user, $context, $change), $change, $payload);
+    }
+
+    /**
+     * The strictest of two requirements (an action run that both edits and
+     * moves records asks once, for everything it does).
+     *
+     * @param  array<string, mixed>|null  $a
+     * @param  array<string, mixed>|null  $b
+     * @return array<string, mixed>|null
+     */
+    public function strictest(?array $a, ?array $b): ?array
+    {
+        if ($a === null || $b === null) {
+            return $a ?? $b;
+        }
+        $out = self::RANK[$b['level']] > self::RANK[$a['level']] ? $b : $a;
+        $out['min'] = $a['min'] === null ? $b['min'] : ($b['min'] === null ? $a['min'] : max($a['min'], $b['min']));
+        $out['max'] = $a['max'] === null ? $b['max'] : ($b['max'] === null ? $a['max'] : min($a['max'], $b['max']));
+        $out['codes'] = self::MODE_RANK[$b['codes']] > self::MODE_RANK[$a['codes']] ? $b['codes'] : $a['codes'];
+        $out['sets'] = $a['sets'] + $b['sets'];
+        $out['collections'] = $a['collections'] + $b['collections'];
+        $out['attachments'] = self::MODE_RANK[$b['attachments']] > self::MODE_RANK[$a['attachments']] ? $b['attachments'] : $a['attachments'];
+        $out['maxAttachments'] = $a['maxAttachments'] === null ? $b['maxAttachments'] : ($b['maxAttachments'] === null ? $a['maxAttachments'] : min($a['maxAttachments'], $b['maxAttachments']));
+        $out['attachmentRules'] = $this->mergeFileRules((array) $a['attachmentRules'], (array) $b['attachmentRules']);
+        $out['rules'] = array_values(array_unique([...$a['rules'], ...$b['rules']]));
+        $out['summary'] = $a['summary'] || $b['summary'];
+        $out['title'] ??= $a['title'] ?? $b['title'];
+        $out['help'] ??= $a['help'] ?? $b['help'];
+        if ($out['min'] !== null && $out['max'] !== null && $out['min'] > $out['max']) {
+            $out['min'] = $out['max'];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Checks a justification against a requirement already worked out (see
+     * enforce()). Returns what to save, or null when nothing is saved.
+     *
+     * @param  array<string, mixed>|null  $req
+     * @param  array<string, mixed>  $change
+     * @param  array<string, mixed>|null  $payload
+     * @return array<string, mixed>|null
+     */
+    public function check(FormRuntime $rt, User $user, ?array $req, array $change, ?array $payload): ?array
+    {
         $given = $payload !== null && (trim((string) ($payload['reason_text'] ?? '')) !== '' || ($payload['reason_code'] ?? null) !== null || ($payload['attachments'] ?? []) !== []);
         if ($req === null) {
             return null;
@@ -322,7 +368,8 @@ final class JustificationGate
                 $g = $rt->groups[$g]['parent'] ?? null;
             }
         }
-        $editLike = $changedFields !== [] && in_array($context, ['edit', 'transition'], true);
+        // An action that changes fields answers to the same field, group and form rules as an edit.
+        $editLike = $changedFields !== [] && in_array($context, ['edit', 'transition', 'action'], true);
         $wanted = static function (array $r) use ($context, $change, $editLike, $changedFields, $changedGroups): bool {
             return match ($r['scope']) {
                 'form' => $editLike,
@@ -330,6 +377,7 @@ final class JustificationGate
                 'field' => $editLike && isset($changedFields[$r['target']]),
                 'status' => $editLike && $r['statusId'] !== null && $r['statusId'] === ($change['status'] ?? null),
                 'transition' => $context === 'transition' && $r['transitionId'] !== null && $r['transitionId'] === ($change['transition'] ?? null),
+                'action' => $context === 'action' && $r['actionId'] !== null && $r['actionId'] === ($change['action'] ?? null),
                 'delete', 'restore', 'reassign', 'import', 'bulk', 'merge' => $context === $r['scope'],
                 default => false,
             };
@@ -340,6 +388,10 @@ final class JustificationGate
             if ($r['active'] && $wanted($r) && $this->subjectMatches($user, $r['subject_type'], $r['subject_id'])) {
                 $candidates[] = $r;
             }
+        }
+        // The action's own justification setting counts as a rule for everyone.
+        if ($context === 'action' && in_array($change['actionLevel'] ?? null, self::LEVELS_SET, true) && ($change['actionLevel'] ?? null) !== 'not_required') {
+            $candidates[] = $this->implicit('action', (string) ($change['actionUuid'] ?? ''), (string) $change['actionLevel']);
         }
         if ($editLike) {
             foreach ($rt->fields as $uuid => $f) {
@@ -401,6 +453,7 @@ final class JustificationGate
             },
             'statusId' => $r->status_id === null ? null : (int) $r->status_id,
             'transitionId' => $r->transition_id === null ? null : (int) $r->transition_id,
+            'actionId' => $r->action_id === null ? null : (int) $r->action_id,
             'subject_type' => $r->subject_type, 'subject_id' => $r->subject_id === null ? null : (int) $r->subject_id,
             'level' => $r->level, 'condition' => $r->condition_id === null ? null : ($asts[(int) $r->condition_id] ?? null), 'levelWhen' => $r->level_when_condition,
             'text' => ['min' => $r->min_length, 'max' => $r->max_length],

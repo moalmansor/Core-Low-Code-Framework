@@ -139,7 +139,7 @@ final class RecordPipeline
      * @param  array<string, mixed>  $input  only the submitted keys change
      * @return array{id: int, uuid: string, changed: list<string>}
      */
-    public function update(FormRuntime $rt, User $user, string $uuid, int $expectedVersion, array $input, string $key, string $source = 'ui', ?array $justification = null): array
+    public function update(FormRuntime $rt, User $user, string $uuid, int $expectedVersion, array $input, string $key, string $source = 'ui', ?array $justification = null, ?int $justifiedBy = null): array
     {
         $onBehalf = $this->guardForm($rt, $user, 'edit');
         $current = $this->store->find($rt, $uuid) ?? throw new RecordException(404, 'not_found', __('records.not_found'));
@@ -177,14 +177,15 @@ final class RecordPipeline
                     $changed[] = (string) $k;
                 }
             }
-            $validated = $changed === [] ? null : $this->justifications->enforce($rt, $user, 'edit', [
+            // An action or bulk edit asks once: the caller passes the justification it already saved.
+            $validated = $changed === [] || $justifiedBy !== null ? null : $this->justifications->enforce($rt, $user, 'edit', [
                 'fields' => $changed, 'status' => $statusId, 'values' => $values, 'old' => $current['values'],
             ], $justification);
             if ($changed !== []) {
-                DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $input, $levels, $validated, $onBehalf): void {
+                DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $input, $levels, $validated, $onBehalf, $justifiedBy): void {
                     $values = $this->assignNumbers($rt, $values, $current['values']);
                     $diff = $this->diff($rt, $current['values'], $values);
-                    $justificationId = $validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'edit', $validated, $this->justified($diff), 1, $onBehalf);
+                    $justificationId = $justifiedBy ?? ($validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'edit', $validated, $this->justified($diff), 1, $onBehalf));
                     $ok = $this->store->update($rt, $current['id'], $expectedVersion, $values, $changed, [
                         'updated_by' => $user->id, 'form_version_id' => $rt->versionId, 'search_text' => $this->searchText($rt, $values),
                     ], $rt->form->organization_id, $user->id);
@@ -221,7 +222,7 @@ final class RecordPipeline
      * @param  array{values?: array<string, mixed>, comment?: string|null, attachments?: list<string>, justification?: array<string, mixed>|null}  $input
      * @return array{state: string, approval: string|null, row_version: int, status: array<string, mixed>|null}
      */
-    public function transition(FormRuntime $rt, User $user, string $uuid, string $transitionUuid, int $expectedVersion, array $input, string $key, string $source = 'ui'): array
+    public function transition(FormRuntime $rt, User $user, string $uuid, string $transitionUuid, int $expectedVersion, array $input, string $key, string $source = 'ui', ?int $justifiedBy = null): array
     {
         $onBehalf = $this->guardForm($rt, $user, 'view');
         $current = $this->store->find($rt, $uuid) ?? throw new RecordException(404, 'not_found', __('records.not_found'));
@@ -289,12 +290,12 @@ final class RecordPipeline
                     $changed[] = (string) $k;
                 }
             }
-            $validated = $this->justifications->enforce($rt, $user, 'transition', [
+            $validated = $justifiedBy !== null ? null : $this->justifications->enforce($rt, $user, 'transition', [
                 'fields' => $changed, 'status' => $statusId, 'transition' => $t['id'], 'values' => $values, 'old' => $current['values'],
             ], $input['justification'] ?? null);
-            $result = DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $levels, $t, $validated, $onBehalf, $comment, $attachments, $source): array {
+            $result = DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $levels, $t, $validated, $onBehalf, $comment, $attachments, $source, $justifiedBy): array {
                 $diff = $this->diff($rt, $current['values'], $values);
-                $justificationId = $validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'transition', $validated, $this->justified($diff), 1, $onBehalf);
+                $justificationId = $justifiedBy ?? ($validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'transition', $validated, $this->justified($diff), 1, $onBehalf));
                 $version = $expectedVersion;
                 if ($changed !== []) {
                     $values = $this->assignNumbers($rt, $values, $current['values']);

@@ -588,5 +588,8 @@
   "settings.operations.stuck_email_minutes": "يُعد البريد عالقًا إذا انتظر أكثر من (دقائق)",
   "settings.group.documents": "المستندات",
   "settings.documents.max_template_mb": "أكبر حجم لقالب Word (ميغابايت)",
-  "settings.documents.convert_timeout_seconds": "المدة القصوى لتحويل واحد إلى PDF (ثوانٍ)"
+  "settings.documents.convert_timeout_seconds": "المدة القصوى لتحويل واحد إلى PDF (ثوانٍ)",
+  "settings.group.actions": "الإجراءات",
+  "settings.actions.max_records": "أقصى عدد من السجلات يغيّره تنفيذ واحد للإجراء",
+  "settings.actions.queue_threshold": "التنفيذ على سجلات أكثر من هذا العدد يتم في الخلفية"
 }

@@ -23,7 +23,7 @@ return new class extends Migration
             Columns::dt($t, 'created_at');
             Columns::dt($t, 'updated_at');
             Columns::fk($t, 'form_id', 'forms', nullable: false, index: false);
-            Columns::enum($t, 'type', ['update', 'reassign', 'status_change', 'delete', 'restore', 'duplicate_sweep', 'validation_sweep', 'orphan_scan', 'repair']);
+            Columns::enum($t, 'type', ['update', 'reassign', 'status_change', 'delete', 'restore', 'duplicate_sweep', 'validation_sweep', 'orphan_scan', 'repair', 'action']);
             Columns::json($t, 'criteria');
             Columns::json($t, 'payload', nullable: true);
             $t->boolean('dry_run')->default(false);
@@ -92,10 +92,20 @@ return new class extends Migration
         Schema::table('justifications', function (Blueprint $t): void {
             Columns::fk($t, 'bulk_operation_id', 'bulk_operations');
         });
+
+        // A run of a custom action is tracked as a bulk operation of type `action`.
+        Schema::table('bulk_operations', function (Blueprint $t): void {
+            Columns::fk($t, 'action_id', 'actions');
+        });
     }
 
     public function down(): void
     {
+        Schema::table('bulk_operations', function (Blueprint $t): void {
+            $t->dropForeign('fk_bulk_operations_action_id');
+            $t->dropIndex('ix_bulk_operations_action_id');
+            $t->dropColumn('action_id');
+        });
         Schema::table('justifications', function (Blueprint $t): void {
             $t->dropForeign('fk_justifications_bulk_operation_id');
             $t->dropIndex('ix_justifications_bulk_operation_id');

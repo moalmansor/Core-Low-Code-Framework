@@ -123,6 +123,39 @@ final class Notifier
                 return;
             }
         }
+        $this->send($rule, $rt, $recordId, $record, ['form_id' => $rt->form->id, 'record_id' => $recordId, 'rule_id' => (int) $rule->id, 'source' => 'rule']);
+    }
+
+    /**
+     * An action's "send an email" or "notify" step (§4.15): the same
+     * recipients, per-language rendering and attachments as a rule, sent now
+     * on the actor's behalf. Addresses outside the system see what the actor
+     * may see.
+     *
+     * @param  array{channels: list<string>, template: string|null, recipients: array<string, mixed>, attachments?: array<string, mixed>|null, respectPreferences?: bool}  $spec
+     */
+    public function sendForAction(array $spec, FormRuntime $rt, int $recordId, User $actor, string $actionUuid, string $title): void
+    {
+        $record = $this->store->findById($rt, $recordId);
+        if ($record === null) {
+            return;
+        }
+        $template = $spec['template'] === null ? null : EmailTemplate::query()->where('uuid', strtolower($spec['template']))->first();
+        $rule = (object) [
+            'id' => null, 'uuid' => $actionUuid, 'trigger' => 'action', 'condition_id' => null,
+            'channels' => json_encode($spec['channels']), 'recipients' => json_encode($spec['recipients']),
+            'respect_user_preferences' => $spec['respectPreferences'] ?? true, 'email_template_id' => $template?->id,
+            'attachments' => ($spec['attachments'] ?? null) === null ? null : json_encode($spec['attachments']), 'created_by' => $actor->id,
+        ];
+        $this->send($rule, $rt, $recordId, $record, ['form_id' => $rt->form->id, 'record_id' => $recordId, 'rule_id' => null, 'source' => 'action', 'title' => $title]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $record
+     * @param  array{form_id: int, record_id: int, rule_id: int|null, source: string, title?: string}  $context
+     */
+    private function send(object $rule, FormRuntime $rt, int $recordId, array $record, array $context): void
+    {
         $channels = json_decode((string) $rule->channels, true) ?: [];
         $who = $this->recipients($rt, $recordId, $record, json_decode((string) $rule->recipients, true) ?: []);
         $respect = (bool) $rule->respect_user_preferences;
@@ -130,7 +163,6 @@ final class Notifier
         if ($template !== null && ! $template->is_active) {
             $template = null;
         }
-        $context = ['form_id' => $rt->form->id, 'record_id' => $recordId, 'rule_id' => (int) $rule->id];
         $link = '/app/'.$rt->form->uuid.'/'.$record['uuid'];
         if (in_array('in_app', $channels, true)) {
             foreach (array_unique([...$who['to'], ...$who['cc'], ...$who['bcc']]) as $userId) {
@@ -141,8 +173,8 @@ final class Notifier
                 $locale = $this->localeOf($userId);
                 [$title, $body] = $template !== null
                     ? $this->titleAndBody($template, $rt, $recordId, [$user], $locale)
-                    : [$this->defaultTitle($rule, $rt, $record, $locale), null];
-                $this->inApp->notifyText($userId, 'rule.'.$rule->trigger, $title, $body, $link, ['rule' => strtolower((string) $rule->uuid)], $context);
+                    : [$context['title'] ?? $this->defaultTitle($rule, $rt, $record, $locale), null];
+                $this->inApp->notifyText($userId, $context['source'] === 'action' ? 'action' : 'rule.'.$rule->trigger, $title, $body, $link, [$context['source'] === 'action' ? 'action' : 'rule' => strtolower((string) $rule->uuid)], $context);
             }
         }
         if (in_array('email', $channels, true) && $template !== null) {
@@ -156,7 +188,7 @@ final class Notifier
      * language (rendered with the rule author's access).
      *
      * @param  array{to: list<int>, cc: list<int>, bcc: list<int>, static: array{to: list<string>, cc: list<string>, bcc: list<string>}}  $who
-     * @param  array<string, int>  $context
+     * @param  array{form_id: int, record_id: int, rule_id: int|null, source: string, title?: string}  $context
      */
     private function email(object $rule, EmailTemplate $template, FormRuntime $rt, int $recordId, array $who, bool $respect, array $context): void
     {
@@ -200,7 +232,7 @@ final class Notifier
             $out = $this->renderer->render($template->design, $template->translationsFor('subject'), $template->translationsFor('preheader'), $rt, $recordId, $viewers, (string) $locale,
                 count($viewers) === 1 ? $viewers[0]->name : null);
             $messages[] = [
-                'source' => 'rule', 'locale' => (string) $locale, 'to' => array_values(array_unique($g['to'] ?? [])),
+                'source' => $context['source'], 'locale' => (string) $locale, 'to' => array_values(array_unique($g['to'] ?? [])),
                 'cc' => array_values(array_unique($g['cc'] ?? [])), 'bcc' => array_values(array_unique($g['bcc'] ?? [])),
                 'subject' => $out['subject'], 'html' => $out['html'], 'rule_id' => $context['rule_id'], 'template_id' => $template->id,
                 'form_id' => $context['form_id'], 'record_id' => $context['record_id'],

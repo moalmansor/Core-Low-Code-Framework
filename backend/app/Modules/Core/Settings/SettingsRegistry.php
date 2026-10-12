@@ -82,6 +82,10 @@ final class SettingsRegistry
         $d('notifications', 'email_max_attempts', 5, ['required', 'integer', 'between:1,20']);
         $d('operations', 'stuck_email_minutes', 15, ['required', 'integer', 'between:1,1440']);
 
+        // Actions (§4.15): the most records one run may touch, and above how many it runs in the background (each action may set its own).
+        $d('actions', 'max_records', 500, ['required', 'integer', 'between:1,100000']);
+        $d('actions', 'queue_threshold', 50, ['required', 'integer', 'between:1,10000']);
+
         // Document templates (§4.17): the size of an uploaded Word template, and how long one conversion to PDF may take.
         $d('documents', 'max_template_mb', 10, ['required', 'integer', 'between:1,50']);
         $d('documents', 'convert_timeout_seconds', 120, ['required', 'integer', 'between:10,600']);

@@ -588,5 +588,8 @@
   "settings.operations.stuck_email_minutes": "An email waiting longer than this is stuck (minutes)",
   "settings.group.documents": "Documents",
   "settings.documents.max_template_mb": "Largest Word template (MB)",
-  "settings.documents.convert_timeout_seconds": "Time limit for one PDF conversion (seconds)"
+  "settings.documents.convert_timeout_seconds": "Time limit for one PDF conversion (seconds)",
+  "settings.group.actions": "Actions",
+  "settings.actions.max_records": "Most records one action run may change",
+  "settings.actions.queue_threshold": "Runs on more records than this go to the background"
 }
