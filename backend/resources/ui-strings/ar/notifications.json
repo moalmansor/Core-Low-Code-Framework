@@ -43,6 +43,7 @@
   "notif.no_template": "بلا قالب",
   "notif.only_if": "فقط إذا",
   "notif.only_if_desc": "الإرسال فقط للسجلات التي يتحقق فيها هذا الشرط.",
+  "notif.recipient.actor": "الشخص الذي يشغّل الإجراء",
   "notif.recipient.creator": "منشئ السجل",
   "notif.recipient.department": "قسم",
   "notif.recipient.field_user": "المستخدم في حقل",

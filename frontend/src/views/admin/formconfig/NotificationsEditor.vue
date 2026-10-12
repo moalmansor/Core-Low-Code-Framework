@@ -18,11 +18,11 @@ import ConfigSection from '@/components/config/ConfigSection.vue'
 import EmptyState from '@/components/config/EmptyState.vue'
 import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import TabIntro from '@/components/config/TabIntro.vue'
-import SubjectPicker from '@/components/SubjectPicker.vue'
 import { useSession } from '@/stores/session'
 import { templatesApi, type Placeholder, type TemplateSummary } from '../notifications/api'
-import { labelOf, newUuid, notificationRulesApi, workflowApi, type NotificationRuleDoc, type NotificationTrigger, type RecipientDoc, type StatusDoc } from './api'
+import { labelOf, newUuid, notificationRulesApi, workflowApi, type NotificationRuleDoc, type NotificationTrigger, type RecipientType, type StatusDoc } from './api'
 import ErrorList from './ErrorList.vue'
+import RecipientList from './RecipientList.vue'
 import { documentsApi, type DocumentSummary } from '../documents/api'
 import { useHashedDocument } from './useHashedDocument'
 
@@ -78,11 +78,7 @@ const triggers = computed(() =>
   ),
 )
 const templateOptions = computed(() => [{ value: null, label: t('notif.no_template') }, ...templates.value.map((x) => ({ value: x.uuid as string | null, label: x.subject }))])
-const recipientTypes = computed(() =>
-  (['user', 'role', 'department', 'field_user', 'linked_record_users', 'creator', 'static'] as const)
-    .filter((v) => (v !== 'field_user' || userFields.value.length) && (v !== 'linked_record_users' || linkedUsers.value.length))
-    .map((v) => ({ value: v, label: t(`notif.recipient.${v}`) })),
-)
+const recipientTypes: RecipientType[] = ['user', 'role', 'department', 'field_user', 'linked_record_users', 'creator', 'static']
 const slots = ['to', 'cc', 'bcc'] as const
 const offsetUnits = computed(() => [
   { value: 'before', label: t('notif.before') },
@@ -120,12 +116,6 @@ function setTrigger(r: NotificationRuleDoc, v: NotificationTrigger): void {
 }
 function toggleChannel(r: NotificationRuleDoc, c: 'email' | 'in_app', on: boolean): void {
   r.channels = on ? [...new Set([...r.channels, c])] : r.channels.filter((x) => x !== c)
-}
-function addRecipient(r: NotificationRuleDoc, slot: (typeof slots)[number]): void {
-  r.recipients[slot].push({ type: 'role', ref: null })
-}
-function subjectOf(item: RecipientDoc): { type: string; uuid: string | null } | null {
-  return item.ref ? { type: item.type, uuid: item.ref } : { type: item.type, uuid: null }
 }
 /** The reminder's offset as days before or after the date. */
 const offsetDays = (r: NotificationRuleDoc) => Math.abs(Math.round((r.schedule?.offsetMinutes ?? 0) / 1440))
@@ -244,57 +234,17 @@ function setDocumentTemplate(item: AttachedDocument, uuid: string): void {
         </ConfigSection>
 
         <ConfigSection id="nr-who" :title="t('notif.section.who')" :description="t('notif.who_hint')">
-          <div v-for="slot in slots" :key="slot" class="flex flex-col gap-2" :data-testid="`nr-${slot}-${i}`">
+          <div v-for="slot in slots" :key="slot" class="flex flex-col gap-2">
             <h4 class="m-0 text-sm font-semibold">{{ t(`notif.slot.${slot}`) }}</h4>
-            <p v-if="err(`rules.${i}.recipients.${slot}`)" class="m-0 text-xs text-danger">{{ err(`rules.${i}.recipients.${slot}`) }}</p>
-            <div v-for="(item, j) in r.recipients[slot]" :key="j" class="flex flex-wrap items-start gap-2">
-              <Select
-                v-model="item.type"
-                :options="recipientTypes"
-                option-label="label"
-                option-value="value"
-                size="small"
-                class="w-field-sm"
-                :aria-label="t('notif.recipient_type')"
-                @update:model-value="item.ref = null"
-              />
-              <div v-if="['user', 'role', 'department'].includes(item.type)" class="w-field-md">
-                <SubjectPicker :model-value="subjectOf(item) as never" :types="[item.type as 'user']" @update:model-value="(v: { uuid: string | null } | null) => (item.ref = v?.uuid ?? null)" />
-              </div>
-              <Select
-                v-else-if="item.type === 'field_user'"
-                v-model="item.ref"
-                :options="userFields"
-                option-label="label"
-                option-value="value"
-                size="small"
-                class="w-field-md"
-                :aria-label="t('notif.recipient.field_user')"
-              />
-              <Select
-                v-else-if="item.type === 'linked_record_users'"
-                v-model="item.ref"
-                :options="linkedUsers"
-                option-label="label"
-                option-value="token"
-                size="small"
-                class="w-field-md"
-                :aria-label="t('notif.recipient.linked_record_users')"
-              />
-              <InputText
-                v-else-if="item.type === 'static'"
-                v-model="item.ref as string"
-                type="email"
-                dir="ltr"
-                size="small"
-                class="w-field-md"
-                :placeholder="t('notif.address')"
-                :aria-label="t('notif.address')"
-              />
-              <Button icon="pi pi-times" text rounded size="small" severity="secondary" :aria-label="t('notif.remove_recipient')" @click="r.recipients[slot].splice(j, 1)" />
-              <p v-if="err(`rules.${i}.recipients.${slot}.${j}`)" class="basis-full m-0 text-xs text-danger">{{ err(`rules.${i}.recipients.${slot}.${j}`) }}</p>
-            </div>
-            <Button icon="pi pi-plus" :label="t('notif.add_recipient')" size="small" text class="self-start" :data-testid="`nr-add-${slot}-${i}`" @click="addRecipient(r, slot)" />
+            <RecipientList
+              v-model="r.recipients[slot]"
+              :types="recipientTypes"
+              :user-fields="userFields"
+              :linked-users="linkedUsers"
+              :errors="doc.errors.value"
+              :path="`rules.${i}.recipients.${slot}`"
+              :testid="`nr-${slot}-${i}`"
+            />
           </div>
         </ConfigSection>
 
@@ -356,7 +306,7 @@ function setDocumentTemplate(item: AttachedDocument, uuid: string): void {
                 />
                 <p v-if="err(`rules.${i}.attachments.documents.${j}`)" class="basis-full m-0 text-xs text-danger">{{ err(`rules.${i}.attachments.documents.${j}`) }}</p>
               </div>
-              <Button v-if="documents.length" icon="pi pi-plus" :label="t('notif.add_document')" size="small" text class="self-start" :data-testid="`nr-add-doc-${i}`" @click="addDocument(r)" />
+              <Button v-if="nextDocument(r)" icon="pi pi-plus" :label="t('notif.add_document')" size="small" text class="self-start" :data-testid="`nr-add-doc-${i}`" @click="addDocument(r)" />
             </div>
           </ConfigField>
           <ConfigField :label="t('notif.delay')" :for="`nr-delay-${i}`" width="xs" :hint="t('notif.delay_hint')" :error="err(`rules.${i}.delayMinutes`)">

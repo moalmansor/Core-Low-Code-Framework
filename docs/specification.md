@@ -670,6 +670,11 @@ All access control lives in **one** interface.
 - Each action has its own permission and optional confirmation dialog.
 - Heavy actions run as background jobs with a progress indicator and a completion notification.
 - The runtime engine always reads configured actions and rules, so no redeployment is ever needed.
+- Actions are configured per form on its "Actions" tab. Built-in actions are added and placed there like custom ones; export and import remain governed by the form's own abilities.
+- Running an action needs its permission (`action.{uuid}.run`) **and** the form ability its work needs (create to duplicate, print to print, edit to bulk update, delete to bulk delete, view otherwise). Every change goes through the record pipeline, so field access, record scope, status access, validation and optimistic concurrency apply as in the form; an action never widens a user's rights.
+- An optional availability condition decides which records offer an action, checked again on the server for every record of a run; each step may have its own condition. Steps run in order per record and see the changes of earlier steps; a failing step stops that record's remaining steps unless set to continue. Steps also include in-app notifications and assignment.
+- A run asks one justification at the strictest level any of its records needs (the action's own level, action-scope rules, and the edit, transition and delete rules it triggers), saved once with the record count.
+- A run is tracked with its progress and per-record result, and holds at most `actions.max_records` records; runs above `actions.queue_threshold` go to the background. Both defaults can be overridden per action. Webhook requests are signed with `X-LCF-Timestamp` and `X-LCF-Signature` (HMAC-SHA256 of timestamp and body) and retried up to three attempts on network errors, 5xx and 429 (ADR-0041).
 
 ### 4.16 Email Notifications
 - **Triggers:**

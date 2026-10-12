@@ -7,6 +7,7 @@ import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
 import Menu from 'primevue/menu'
+import type { MenuItem } from 'primevue/menuitem'
 import Message from 'primevue/message'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
@@ -17,6 +18,8 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError, ensureCsrf, get, http, send } from '@/api/http'
+import ActionRunDialog from '@/runtime/actions/ActionRunDialog.vue'
+import { actionsRuntimeApi, type AvailableAction } from '@/runtime/actions/api'
 import { fetchOptions, newUuid, type OptionItem } from '@/runtime/api'
 import { fieldType } from '@/runtime/fieldTypes'
 import { FormIndex } from '@/runtime/formIndex'
@@ -65,6 +68,10 @@ const filtersOpen = ref(true)
 const importOpen = ref(false)
 const selected = ref<RecordPayload[]>([])
 const justification = useJustification()
+// The form's actions (§4.15): bulk and toolbar ones for the list, row ones per record.
+const runner = ref<InstanceType<typeof ActionRunDialog> | null>(null)
+const rowActions = ref<AvailableAction[]>([])
+const listActions = ref<AvailableAction[]>([])
 
 // Table views
 type Row = RecordPayload & { linked?: Record<string, unknown> }
@@ -168,7 +175,9 @@ watch(
     chosenColumns.value = null
     currentSaved.value = null
     savedViews.value = []
+    listActions.value = []
     await loadDefinition()
+    if (definition.value) void loadActions()
     Object.assign(
       state,
       decodeQuery(
@@ -407,7 +416,7 @@ function onRowClick(e: DataTableRowClickEvent): void {
 
 const rowMenu = ref<InstanceType<typeof Menu> | null>(null)
 const actionsFor = ref<RecordPayload | null>(null)
-const rowItems = computed(() => {
+const rowItems = computed<MenuItem[]>(() => {
   const r = actionsFor.value
   if (!r) return []
   if (state.trashed) return [{ label: t('records.restore'), icon: 'pi pi-replay', visible: canRestore.value, command: () => restore(r) }]
@@ -419,13 +428,37 @@ const rowItems = computed(() => {
       visible: canEdit.value && rowOptions.value.edit,
       command: () => router.push({ name: 'records.edit', params: { form: formUuid.value, record: r.uuid } }),
     },
+    { separator: true, visible: rowActions.value.length > 0 },
+    ...rowActions.value.map((a) => actionItem(a, () => ({ items: [{ uuid: r.uuid, row_version: r.row_version }] }))),
     { separator: true, visible: canDelete.value },
     { label: t('common.delete'), icon: 'pi pi-trash', class: 'text-danger', visible: canDelete.value, command: () => remove(r) },
   ]
 })
-function openRowMenu(e: Event, r: RecordPayload): void {
+async function openRowMenu(e: Event, r: RecordPayload): Promise<void> {
+  const anchor = e.currentTarget
   actionsFor.value = r
-  rowMenu.value?.toggle(e)
+  // A row action's condition is decided for that record, so the menu asks when it opens.
+  rowActions.value = []
+  if (!state.trashed) rowActions.value = await actionsRuntimeApi.list(formUuid.value, 'row', r.uuid).catch(() => [])
+  rowMenu.value?.show(e, anchor)
+}
+
+// ---------------------------------------------------------------- the form's actions (§4.15)
+
+async function loadActions(): Promise<void> {
+  const [bulkList, toolbar] = await Promise.all([actionsRuntimeApi.list(formUuid.value, 'bulk').catch(() => []), actionsRuntimeApi.list(formUuid.value, 'toolbar').catch(() => [])])
+  const seen = new Set<string>()
+  listActions.value = [...bulkList.map((a) => ({ ...a, placements: ['bulk' as const] })), ...toolbar.map((a) => ({ ...a, placements: ['toolbar' as const] }))].filter((a) => {
+    const id = `${a.uuid}:${a.placements[0]}`
+    return !seen.has(id) && seen.add(id) !== undefined
+  })
+}
+function actionItem(a: AvailableAction, target: () => Parameters<NonNullable<typeof runner.value>['start']>[2], label = a.label): MenuItem {
+  return { label, icon: a.icon ? `pi ${a.icon}` : 'pi pi-bolt', class: a.color === 'danger' ? 'text-danger' : undefined, command: () => runner.value?.start(formUuid.value, a, target()) }
+}
+function actionsDone(): void {
+  selected.value = []
+  void load()
 }
 
 function remove(r: RecordPayload): void {
@@ -531,14 +564,23 @@ async function exportAs(format: 'xlsx' | 'csv' | 'pdf', onlySelected = false): P
 }
 
 const actionsMenu = ref<InstanceType<typeof Menu> | null>(null)
-const actionItems = computed(() => {
+const bulkActions = computed(() => listActions.value.filter((a) => a.placements[0] === 'bulk'))
+const toolbarActions = computed(() => listActions.value.filter((a) => a.placements[0] === 'toolbar'))
+const actionItems = computed<MenuItem[]>(() => {
   const n = selected.value.length
   return [
     { label: t('records.import'), icon: 'pi pi-upload', visible: canImport.value && !state.trashed, command: () => (importOpen.value = true) },
     { label: t('records.export_xlsx'), icon: 'pi pi-file-excel', visible: canExport.value, command: () => exportAs('xlsx') },
     { label: t('records.export_csv'), icon: 'pi pi-file', visible: canExport.value, command: () => exportAs('csv') },
     { label: t('records.export_pdf'), icon: 'pi pi-file-pdf', visible: canExport.value, command: () => exportAs('pdf') },
-    { separator: true, visible: n > 0 && (canExport.value || canDelete.value) },
+    { separator: true, visible: !state.trashed && toolbarActions.value.length > 0 },
+    ...(state.trashed ? [] : toolbarActions.value.map((a) => actionItem(a, () => ({ filters: params() }), t('act.run.all', { label: a.label })))),
+    { separator: true, visible: n > 0 && (canExport.value || canDelete.value || bulkActions.value.length > 0) },
+    ...(state.trashed || n === 0
+      ? []
+      : bulkActions.value.map((a) =>
+          actionItem(a, () => ({ items: selected.value.map((r) => ({ uuid: r.uuid, row_version: r.row_version })) }), t('act.run.selected', { label: a.label, n: number(n) })),
+        )),
     { label: t('records.export_selected', { n: number(n) }), icon: 'pi pi-file-excel', visible: n > 0 && canExport.value, command: () => exportAs('xlsx', true) },
     { label: t('records.delete_selected', { n: number(n) }), icon: 'pi pi-trash', class: 'text-danger', visible: n > 0 && canDelete.value && !state.trashed, command: () => bulk('delete') },
     { label: t('records.restore_selected', { n: number(n) }), icon: 'pi pi-replay', visible: n > 0 && canRestore.value && state.trashed, command: () => bulk('restore') },
@@ -864,6 +906,7 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
       </template>
     </DataTable>
     <Menu ref="rowMenu" :model="rowItems" popup />
+    <ActionRunDialog ref="runner" @done="actionsDone" />
     <SavedViewDialog v-if="savingView && activeView" :form="formUuid" :view="activeView.uuid" :state="savedState" :current="currentSaved" @saved="onSavedView" @close="savingView = false" />
     <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
     <ImportDialog v-if="importOpen" :form="formUuid" :form-key="definition.form.key" @close="importOpen = false" @imported="load" />

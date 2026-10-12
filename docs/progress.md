@@ -421,10 +421,20 @@ Decided by the owner:
   e2e `08-documents`.
 - **System Settings** gained Notifications, Documents and Operations tabs; a
   test now fails when a registry setting has no field on the settings screen.
-- **Next:** actions (built-in bulk operations, duplicate, print; custom
-  actions with chained steps, per-action permission, egress-gateway webhooks,
-  generate-document step), then custom downloads, automations and scheduler,
-  data quality, Operations Center, the rest of the Phase 4 e2e, docs and the
+- **Actions** (ADR-0041): one actions document per form on its "Actions"
+  tab. Built-ins (duplicate, print, bulk field update, bulk status change,
+  bulk delete) and custom actions with chained, conditional steps (set
+  fields, change status, email, in-app notification, signed webhook through
+  the egress gateway, generate a document, create a linked record, assign).
+  Each action has its own `action.{uuid}.run` permission in the access
+  matrix plus the form ability its work needs; every change goes through the
+  record pipeline. One justification per run at the strictest level needed;
+  runs tracked in `bulk_operations` with progress and per-record results,
+  in the background above the threshold. Runtime: row menu, selection and
+  table actions menu in the records list, buttons on the record page, a run
+  dialog with inputs, progress and results. e2e `09-actions`.
+- **Next:** custom downloads (§4.23), automations and scheduler, data
+  quality, Operations Center, the rest of the Phase 4 e2e, docs and the
   pull request.
 
 ## Resume point

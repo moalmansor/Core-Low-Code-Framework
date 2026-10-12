@@ -44,3 +44,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0038](0038-background-import-and-export.md) | Imports and large exports run as background jobs |
 | [0039](0039-notification-rendering-and-delivery.md) | How notifications are rendered for several recipients, and delivered |
 | [0040](0040-document-templates.md) | Document templates — Word files, designed templates, and conversion |
+| [0041](0041-actions.md) | Actions — built-ins, custom steps, runs and permissions |

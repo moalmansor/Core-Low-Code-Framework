@@ -13,6 +13,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { pick } from '@/builder/conditions/scope'
 import { createBuilder, provideBuilder } from '@/builder/useBuilder'
 import { provideConfigScreen } from '@/components/config/configScreen'
+import ActionsEditor from './ActionsEditor.vue'
 import AssignmentEditor from './AssignmentEditor.vue'
 import NotificationsEditor from './NotificationsEditor.vue'
 import JustificationEditor from './JustificationEditor.vue'
@@ -38,7 +39,7 @@ const formUuid = String(route.params.form)
 const builder = createBuilder(formUuid)
 provideBuilder(builder)
 
-const TABS = ['workflow', 'sla', 'record_access', 'justification', 'assignment', 'notifications', 'views', 'panels', 'previews', 'print'] as const
+const TABS = ['workflow', 'sla', 'record_access', 'justification', 'assignment', 'notifications', 'actions', 'views', 'panels', 'previews', 'print'] as const
 type TabKey = (typeof TABS)[number]
 const screen = provideConfigScreen()
 const current = ref<TabKey>(TABS.includes(route.params.tab as TabKey) ? (route.params.tab as TabKey) : 'workflow')
@@ -93,6 +94,7 @@ onBeforeUnmount(() => builder.cancelTimers())
             <JustificationEditor v-else-if="k === 'justification'" :form="formUuid" />
             <AssignmentEditor v-else-if="k === 'assignment'" :form="formUuid" />
             <NotificationsEditor v-else-if="k === 'notifications'" :form="formUuid" />
+            <ActionsEditor v-else-if="k === 'actions'" :form="formUuid" />
             <ViewsEditor v-else-if="k === 'views'" :form="formUuid" />
             <PanelsEditor v-else-if="k === 'panels'" :form="formUuid" />
             <PreviewsEditor v-else-if="k === 'previews'" :form="formUuid" />

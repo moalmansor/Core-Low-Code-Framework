@@ -183,7 +183,7 @@ final class ActionRunner
                 'form_id' => $rt->form->id, 'type' => match ($action->builtin) {
                     'bulk_update' => 'update', 'bulk_status' => 'status_change', 'bulk_delete' => 'delete', default => 'action',
                 }, 'action_id' => (int) $action->id,
-                'criteria' => json_encode(['records' => $targets]), 'payload' => json_encode($inputs === [] ? null : $inputs),
+                'criteria' => json_encode(['records' => $targets]), 'payload' => $inputs === [] ? null : json_encode($inputs),
                 'dry_run' => false, 'preview_count' => count($targets), 'max_count' => $this->maxRecords($action), 'confirmed_above_max' => false,
                 'status' => $queued ? 'queued' : 'running', 'progress' => 0, 'affected_count' => 0, 'failed_count' => 0,
                 'justification_id' => $justificationId, 'created_by' => $user->id, 'correlation_id' => $this->correlation->get(),

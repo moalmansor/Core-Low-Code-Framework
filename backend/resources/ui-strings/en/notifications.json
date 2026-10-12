@@ -43,6 +43,7 @@
   "notif.no_template": "No template",
   "notif.only_if": "Only if",
   "notif.only_if_desc": "Send only for records where this condition holds.",
+  "notif.recipient.actor": "The person running the action",
   "notif.recipient.creator": "Whoever created the record",
   "notif.recipient.department": "A department",
   "notif.recipient.field_user": "The user in a field",

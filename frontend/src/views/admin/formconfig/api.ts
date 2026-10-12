@@ -133,7 +133,7 @@ export interface RecordRuleDoc {
 
 export interface JustificationRuleDoc {
   uuid: string
-  scope: 'form' | 'group' | 'field' | 'status' | 'transition' | 'delete' | 'restore' | 'reassign'
+  scope: 'form' | 'group' | 'field' | 'status' | 'transition' | 'action' | 'delete' | 'restore' | 'reassign' | 'import' | 'bulk'
   target: string | null
   subject: SubjectRef
   level: 'not_required' | 'optional' | 'mandatory'
@@ -240,7 +240,7 @@ export interface PrintLayoutDoc {
 
 export type NotificationTrigger =
   'record_created' | 'record_updated' | 'status_changed' | 'field_changed' | 'condition_met' | 'scheduled_reminder' | 'sla_warning' | 'sla_escalation' | 'approval_requested' | 'assigned'
-export type RecipientType = 'user' | 'role' | 'department' | 'field_user' | 'creator' | 'linked_record_users' | 'static'
+export type RecipientType = 'user' | 'role' | 'department' | 'field_user' | 'creator' | 'linked_record_users' | 'static' | 'actor'
 export interface RecipientDoc {
   type: RecipientType
   ref: string | null
@@ -282,6 +282,61 @@ export const recordRulesApi = documentApi<RecordRuleDoc[]>('record-access-rules'
 export const justificationRulesApi = documentApi<JustificationRuleDoc[]>('justification-rules', 'rules')
 export const assignmentRulesApi = documentApi<AssignmentRuleDoc[]>('assignment-rules', 'rules')
 export const notificationRulesApi = documentApi<NotificationRuleDoc[]>('notification-rules', 'rules')
+
+/** Actions (specification §4.15, architecture §14.9). */
+export type ActionPlacement = 'row' | 'bulk' | 'toolbar' | 'view_page'
+export type ActionBuiltin = 'duplicate' | 'print' | 'bulk_update' | 'bulk_status' | 'bulk_delete'
+export type StepType = 'update_fields' | 'change_status' | 'send_email' | 'send_notification' | 'call_webhook' | 'generate_document' | 'create_linked_record' | 'assign'
+export interface FieldValueDoc {
+  field: string
+  value: Ast | null
+}
+export interface StepConfig {
+  set?: FieldValueDoc[]
+  transition?: string
+  template?: string | null
+  recipients?: { to: RecipientDoc[]; cc: RecipientDoc[]; bcc: RecipientDoc[] }
+  documents?: { template: string; format: 'docx' | 'pdf' }[]
+  url?: string
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  format?: string
+  headers?: { name: string; value: string | null; set?: boolean }[]
+  body?: string
+  secret?: string | null
+  secretSet?: boolean
+  attachToField?: string | null
+  form?: string | null
+  linkField?: string | null
+  prefill?: FieldValueDoc[]
+  open?: boolean
+  to?: { type: 'user' | 'role' | 'department'; uuid: string | null }
+}
+export interface ActionStepDoc {
+  uuid: string
+  type: StepType
+  config: StepConfig
+  condition: Ast | null
+  onFailure: 'stop' | 'continue'
+}
+export interface ActionDoc {
+  uuid: string
+  key: string
+  kind: 'builtin' | 'custom'
+  builtin: ActionBuiltin | null
+  i18n: { label: I18nMap; confirmation: I18nMap; success: I18nMap }
+  placements: ActionPlacement[]
+  condition: Ast | null
+  confirm: boolean
+  runMode: 'sync' | 'queued' | 'auto'
+  queueThreshold: number | null
+  maxRecords: number | null
+  justification: 'not_required' | 'optional' | 'mandatory'
+  icon: string | null
+  color: string | null
+  active: boolean
+  steps: ActionStepDoc[]
+}
+export const actionsApi = documentApi<ActionDoc[]>('actions', 'actions')
 export const viewsApi = documentApi<ViewDoc[]>('views', 'views')
 export const panelsApi = documentApi<PanelDoc[]>('view-panels', 'panels')
 export const printLayoutsApi = documentApi<PrintLayoutDoc[]>('print-layouts', 'layouts')
