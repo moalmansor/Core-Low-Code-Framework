@@ -438,6 +438,7 @@
   "translations.type.currency": "Currencies",
   "translations.type.department": "Department names",
   "translations.type.document_template": "Document templates",
+  "translations.type.automation": "Automations",
   "translations.type.email_template": "Email templates",
   "translations.type.field": "Field labels",
   "translations.type.field_group": "Group titles",

@@ -180,7 +180,7 @@ final class WorkflowEngine
         ] + ($ctx['extra'] ?? []), $ctx['actor'], null, $rt->form->id, $recordId, $ctx['onBehalfOf'] ?? null, $ctx['justification'] ?? null);
         $this->outbox->publish('record.transitioned', [
             'form' => $rt->form->uuid, 'record' => strtolower((string) $row->uuid), 'transition' => $t['uuid'],
-            'from' => $wf->status($from)['uuid'] ?? null, 'to' => $t['to'], 'source' => $ctx['source'] ?? 'user',
+            'from' => $wf->status($from)['uuid'] ?? null, 'to' => $t['to'], 'source' => $ctx['source'] ?? 'user', 'actor' => $ctx['actor'],
         ]);
 
         return $historyId;

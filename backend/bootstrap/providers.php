@@ -1,6 +1,7 @@
 <?php
 
 use App\Infrastructure\Database\DatabaseServiceProvider;
+use App\Modules\Automation\AutomationServiceProvider;
 use App\Modules\Core\CoreServiceProvider;
 use App\Modules\Documents\DocumentsServiceProvider;
 use App\Modules\Downloads\DownloadsServiceProvider;
@@ -20,6 +21,7 @@ return [
     SchedulingServiceProvider::class,
     DocumentsServiceProvider::class,
     DownloadsServiceProvider::class,
+    AutomationServiceProvider::class,
     NotificationsServiceProvider::class,
     ModulesServiceProvider::class,
 ];

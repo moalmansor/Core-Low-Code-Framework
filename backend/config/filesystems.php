@@ -30,6 +30,18 @@ return [
 
     'disks' => [
 
+        // Watched folders (specification §4.31): automations pick up files
+        // placed under this root, in the folders admins name. Mount a shared
+        // drive here; the application never reads outside it.
+        'watched' => [
+            'driver' => 'local',
+            'root' => env('WATCHED_FOLDERS_ROOT', storage_path('app/watched')),
+            'visibility' => 'private',
+            'serve' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
         // Uploaded files (specification §5): outside the public root, never
         // served directly; downloads go through authorized controllers.
         'private' => [

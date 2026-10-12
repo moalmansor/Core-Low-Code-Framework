@@ -317,7 +317,7 @@ final class RecordPipeline
                 }
                 $this->workflow->move($rt, $current['id'], $t, [
                     'actor' => $user->id, 'onBehalfOf' => $onBehalf, 'justification' => $justificationId, 'comment' => $comment,
-                    'attachments' => $attachments, 'source' => $source === 'api' ? 'api' : 'user', 'expectedVersion' => $version,
+                    'attachments' => $attachments, 'source' => in_array($source, ['api', 'automation'], true) ? $source : 'user', 'expectedVersion' => $version,
                 ]);
 
                 return ['state' => 'moved', 'approval' => null, 'row_version' => $version + 1];
@@ -403,7 +403,7 @@ final class RecordPipeline
                 $this->claims->releaseAll($rt->form->id, $current['id'], 'admin');
                 $this->sla->complete($rt->form->id, $current['id'], SlaTimers::nowUtc(), 'cancelled');
                 $this->audit->record('record.deleted', 'data', null, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $expectedVersion + 1], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
-                $this->outbox->publish('record.deleted', ['form' => $rt->form->uuid, 'record' => $current['uuid']]);
+                $this->outbox->publish('record.deleted', ['form' => $rt->form->uuid, 'record' => $current['uuid'], 'actor' => $user->id]);
             });
             $this->journal->processed($entry['id'], $current['id']);
         } catch (RecordException $e) {

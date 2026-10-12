@@ -46,3 +46,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0040](0040-document-templates.md) | Document templates — Word files, designed templates, and conversion |
 | [0041](0041-actions.md) | Actions — built-ins, custom steps, runs and permissions |
 | [0042](0042-custom-downloads.md) | Custom downloads — paths, one-to-many handling, security and scheduling |
+| [0043](0043-automations.md) | Automations — runs, run-as user, loop protection, waits and test runs |

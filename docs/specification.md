@@ -958,6 +958,28 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Controls:** enable and disable, run now, test against a sample record, concurrency limits, retry policy, loop protection (an automation cannot re-trigger itself indefinitely), and a maximum affected-record count per run with a confirmation above it.
 - A **run history** per automation showing trigger, records affected, steps executed, duration, and errors, with failures surfacing in the Operations Center.
 - A scheduled-task manager listing everything scheduled across the system, with next and last run times.
+- **How runs work** (ADR-0043):
+  - Each automation belongs to one form.
+  - Record events, a date reached and a watched-folder file start one run for one record. A schedule or a manual run covers every record that meets the condition at that moment.
+  - Above the maximum affected-record count the run does not start. Above the confirmation threshold it waits for someone with "Run automations manually" to confirm or cancel it.
+  - Waits are available only when every trigger runs for one record.
+  - After a record is deleted, an automation can only send messages and call webhooks.
+  - A failed run can be retried: the records whose steps failed run again from their first step, along with any records the run had not reached.
+- **Run as:**
+  - Every run acts as a user, either the person who caused the event (record-event and manual triggers only) or a specific active user. Every step obeys that user's permissions, record rules and field access.
+  - Schedules, dates and watched folders need a specific user. A dedicated service account is an ordinary user granted the roles it needs.
+  - Setting up or changing an automation that runs as another user requires "Manage permissions".
+- **Loop protection:** events caused by a run's steps carry that run. A run started that way is one level deeper, and past the automation's maximum chain depth (default 3) it is recorded as stopped by loop protection, with a link to the run that caused it.
+- **Test run:**
+  - Data steps run against the sample record inside a transaction that is rolled back.
+  - E-mails, notifications, webhooks, documents and downloads are only described. Waits are skipped.
+  - A test can run while the automation is turned off.
+- **Downloads in automations:** each recipient receives their own run of the profile, under their own permissions, by e-mail. A run covers either the record or the profile's records.
+- **Watched folders:**
+  - Folders live under a root mounted by the operator (`WATCHED_FOLDERS_ROOT`), and admins name a folder inside it.
+  - Each new file is checked like an upload and becomes a record, saved as the run-as user, with the file in a chosen file field and, optionally, its name in a text field.
+  - Processed files move to `processed/`. Rejected ones move to `failed/` with a note saying why.
+- Inbound-webhook triggers arrive with inbound endpoints (Phase 5).
 
 ### 4.32 External Access & Public Portals
 - Any form can be published as an **external form** reachable without an internal account, with a dedicated URL, its own theme, and a defined status on submission.

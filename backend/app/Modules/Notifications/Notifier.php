@@ -134,7 +134,7 @@ final class Notifier
      *
      * @param  array{channels: list<string>, template: string|null, recipients: array<string, mixed>, attachments?: array<string, mixed>|null, respectPreferences?: bool}  $spec
      */
-    public function sendForAction(array $spec, FormRuntime $rt, int $recordId, User $actor, string $actionUuid, string $title): void
+    public function sendForAction(array $spec, FormRuntime $rt, int $recordId, User $actor, string $actionUuid, string $title, string $source = 'action'): void
     {
         $record = $this->store->findById($rt, $recordId);
         if ($record === null) {
@@ -142,12 +142,12 @@ final class Notifier
         }
         $template = $spec['template'] === null ? null : EmailTemplate::query()->where('uuid', strtolower($spec['template']))->first();
         $rule = (object) [
-            'id' => null, 'uuid' => $actionUuid, 'trigger' => 'action', 'condition_id' => null,
+            'id' => null, 'uuid' => $actionUuid, 'trigger' => $source, 'condition_id' => null,
             'channels' => json_encode($spec['channels']), 'recipients' => json_encode($spec['recipients']),
             'respect_user_preferences' => $spec['respectPreferences'] ?? true, 'email_template_id' => $template?->id,
             'attachments' => ($spec['attachments'] ?? null) === null ? null : json_encode($spec['attachments']), 'created_by' => $actor->id,
         ];
-        $this->send($rule, $rt, $recordId, $record, ['form_id' => $rt->form->id, 'record_id' => $recordId, 'rule_id' => null, 'source' => 'action', 'title' => $title]);
+        $this->send($rule, $rt, $recordId, $record, ['form_id' => $rt->form->id, 'record_id' => $recordId, 'rule_id' => null, 'source' => $source, 'title' => $title]);
     }
 
     /**
@@ -174,7 +174,8 @@ final class Notifier
                 [$title, $body] = $template !== null
                     ? $this->titleAndBody($template, $rt, $recordId, [$user], $locale)
                     : [$context['title'] ?? $this->defaultTitle($rule, $rt, $record, $locale), null];
-                $this->inApp->notifyText($userId, $context['source'] === 'action' ? 'action' : 'rule.'.$rule->trigger, $title, $body, $link, [$context['source'] === 'action' ? 'action' : 'rule' => strtolower((string) $rule->uuid)], $context);
+                $direct = in_array($context['source'], ['action', 'automation'], true);
+                $this->inApp->notifyText($userId, $direct ? $context['source'] : 'rule.'.$rule->trigger, $title, $body, $link, [$direct ? $context['source'] : 'rule' => strtolower((string) $rule->uuid)], $context);
             }
         }
         if (in_array('email', $channels, true) && $template !== null) {

@@ -225,7 +225,7 @@ final class ActionDocument
      * @param  array<string, mixed>  $config
      * @return array<string, mixed>
      */
-    private function sealWebhook(array $config, ?object $existing): array
+    public function sealWebhook(array $config, ?object $existing): array
     {
         $old = $existing === null ? [] : (json_decode((string) $existing->config, true) ?: []);
         $oldHeaders = [];
@@ -255,7 +255,7 @@ final class ActionDocument
      * @param  array<string, mixed>  $config
      * @return array<string, mixed>
      */
-    private function presentConfig(string $type, array $config): array
+    public function presentConfig(string $type, array $config): array
     {
         if ($type !== 'call_webhook') {
             return $config;
@@ -404,7 +404,7 @@ final class ActionDocument
      * @param  array<string, list<array<mixed>|string>>  $errors
      * @return array<string, mixed>
      */
-    private function stepConfig(Form $form, FormRuntime $rt, mixed $resolver, string $type, array $c, string $p, array &$errors): array
+    public function stepConfig(Form $form, FormRuntime $rt, mixed $resolver, string $type, array $c, string $p, array &$errors): array
     {
         $expr = function (mixed $ast, string $path) use ($resolver, &$errors): ?array {
             if (! is_array($ast)) {
@@ -441,7 +441,7 @@ final class ActionDocument
             })(),
             'change_status' => (function () use ($rt, $c, $p, &$errors): array {
                 $t = strtolower((string) ($c['transition'] ?? ''));
-                if (! DB::table('transitions')->where('form_id', $rt->form->id)->where('uuid', $t)->whereNull('archived_at')->exists()) {
+                if (! Str::isUuid($t) || ! DB::table('transitions')->where('form_id', $rt->form->id)->where('uuid', $t)->whereNull('archived_at')->exists()) {
                     $errors["{$p}.transition"][] = __('actions.unknown_transition');
                 }
 
@@ -449,7 +449,7 @@ final class ActionDocument
             })(),
             'send_email', 'send_notification' => (function () use ($rt, $c, $p, $type, &$errors): array {
                 $tpl = $c['template'] ?? null;
-                $template = is_string($tpl) ? EmailTemplate::query()->where('uuid', strtolower($tpl))->first() : null;
+                $template = is_string($tpl) && Str::isUuid($tpl) ? EmailTemplate::query()->where('uuid', strtolower($tpl))->first() : null;
                 if (($type === 'send_email' || $tpl !== null) && ($template === null || ($template->form_id !== null && $template->form_id !== $rt->form->id))) {
                     $errors["{$p}.template"][] = __('actions.unknown_template');
                 }
@@ -465,7 +465,7 @@ final class ActionDocument
                 }
                 $documents = [];
                 foreach ($type === 'send_email' ? array_values((array) ($c['documents'] ?? [])) : [] as $k => $d) {
-                    $doc = is_string($d['template'] ?? null) ? DocumentTemplate::query()->where('uuid', strtolower($d['template']))->first() : null;
+                    $doc = is_string($d['template'] ?? null) && Str::isUuid($d['template']) ? DocumentTemplate::query()->where('uuid', strtolower($d['template']))->first() : null;
                     if ($doc === null || ($doc->form_id !== null && $doc->form_id !== $rt->form->id) || ! in_array($d['format'] ?? null, $doc->output_formats, true)) {
                         $errors["{$p}.documents.{$k}"][] = __('actions.unknown_document');
 
@@ -519,7 +519,7 @@ final class ActionDocument
                 return ['url' => $url, 'method' => $method, 'headers' => $headers, 'body' => $body, 'format' => $format, 'secret' => $secret, 'keepSecret' => (bool) ($c['secretSet'] ?? false) && ($secret === null || $secret === '')];
             })(),
             'generate_document' => (function () use ($rt, $c, $p, &$errors): array {
-                $doc = is_string($c['template'] ?? null) ? DocumentTemplate::query()->where('uuid', strtolower($c['template']))->first() : null;
+                $doc = is_string($c['template'] ?? null) && Str::isUuid($c['template']) ? DocumentTemplate::query()->where('uuid', strtolower($c['template']))->first() : null;
                 if ($doc === null || ($doc->form_id !== null && $doc->form_id !== $rt->form->id)) {
                     $errors["{$p}.template"][] = __('actions.unknown_document');
                 } elseif (! in_array($c['format'] ?? null, $doc->output_formats, true)) {
@@ -534,7 +534,7 @@ final class ActionDocument
             })(),
             'run_download' => (function () use ($rt, $c, $p, &$errors): array {
                 // A shared profile of this form offered on the record page; the runner still needs its permission.
-                $profile = is_string($c['profile'] ?? null) ? DB::table('download_profiles')->where('uuid', strtolower($c['profile']))->where('form_id', $rt->form->id)
+                $profile = is_string($c['profile'] ?? null) && Str::isUuid($c['profile']) ? DB::table('download_profiles')->where('uuid', strtolower($c['profile']))->where('form_id', $rt->form->id)
                     ->where('is_personal', false)->whereNull('deleted_at')->first() : null;
                 if ($profile === null || ! in_array('record_view', json_decode((string) $profile->available_in, true) ?: [], true)) {
                     $errors["{$p}.profile"][] = __('actions.unknown_download');
@@ -545,7 +545,7 @@ final class ActionDocument
                 return ['profile' => $profile === null ? null : strtolower((string) $profile->uuid), 'format' => (string) ($c['format'] ?? 'xlsx')];
             })(),
             'create_linked_record' => (function () use ($rt, $c, $p, $expr, &$errors): array {
-                $target = is_string($c['form'] ?? null) ? $this->runtimes->forUuid(strtolower($c['form'])) : null;
+                $target = is_string($c['form'] ?? null) && Str::isUuid($c['form']) ? $this->runtimes->forUuid(strtolower($c['form'])) : null;
                 if ($target === null) {
                     $errors["{$p}.form"][] = __('actions.unknown_form');
 
@@ -574,7 +574,7 @@ final class ActionDocument
                 $table = match ($t) {
                     'user' => 'users', 'role' => 'roles', 'department' => 'departments', default => null,
                 };
-                if ($table === null || ! is_string($ref) || ! DB::table($table)->where('uuid', strtolower($ref))->exists()) {
+                if ($table === null || ! is_string($ref) || ! Str::isUuid($ref) || ! DB::table($table)->where('uuid', strtolower($ref))->exists()) {
                     $errors["{$p}.to"][] = __('actions.bad_assignee');
                 }
 
@@ -590,11 +590,13 @@ final class ActionDocument
             return false;
         }
         $ref = $r['ref'] ?? null;
+        // Checked for shape first: SQL Server rejects a non-UUID compared with a uniqueidentifier column.
+        $uuid = is_string($ref) && Str::isUuid($ref);
 
         return match ($r['type'] ?? null) {
-            'user' => is_string($ref) && DB::table('users')->where('uuid', strtolower($ref))->exists(),
-            'role' => is_string($ref) && DB::table('roles')->where('uuid', strtolower($ref))->exists(),
-            'department' => is_string($ref) && DB::table('departments')->where('uuid', strtolower($ref))->exists(),
+            'user' => $uuid && DB::table('users')->where('uuid', strtolower($ref))->exists(),
+            'role' => $uuid && DB::table('roles')->where('uuid', strtolower($ref))->exists(),
+            'department' => $uuid && DB::table('departments')->where('uuid', strtolower($ref))->exists(),
             'field_user' => is_string($ref) && isset($rt->keys[$ref]) && $rt->targetTable($rt->fields[$rt->keys[$ref]]) === 'users',
             'creator', 'actor' => true,
             'linked_record_users' => is_string($ref) && preg_match('/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,3}$/', $ref) === 1,

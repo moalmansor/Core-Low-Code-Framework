@@ -6,6 +6,8 @@ use App\Modules\Assignment\Claims;
 use App\Modules\Assignment\Http\Controllers\DelegationController;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Audit\ChainVerifier;
+use App\Modules\Automation\AutomationEngine;
+use App\Modules\Automation\WatchedFolders;
 use App\Modules\Core\Outbox\OutboxRelay;
 use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\Core\Settings\SettingsService;
@@ -48,6 +50,15 @@ Artisan::command('scheduler:run', function (ScheduledTasks $tasks): int {
 
     return 0;
 })->purpose('Run the scheduled tasks that are due (scheduled downloads, automations)');
+
+Artisan::command('automations:tick', function (AutomationEngine $engine, WatchedFolders $folders): int {
+    $resumed = $engine->resumeDue();
+    $dates = $engine->datesReached();
+    $files = $folders->scan();
+    $this->info("Automation runs resumed: {$resumed}, dates reached: {$dates}, files picked up: {$files}");
+
+    return 0;
+})->purpose('Resume waiting automation runs, fire date triggers and pick up files from watched folders');
 
 Artisan::command('notifications:reminders', function (Notifier $notifier): int {
     $this->info('Sent '.$notifier->reminders().' reminder(s).');
@@ -215,6 +226,7 @@ Schedule::command('records:expire-exports')->hourly()->onOneServer();
 Schedule::command('documents:expire')->hourly()->onOneServer();
 Schedule::command('downloads:expire')->hourly()->onOneServer();
 Schedule::command('scheduler:run')->everyMinute()->withoutOverlapping()->onOneServer();
+Schedule::command('automations:tick')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('mail:dispatch-due')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('schema:purge-snapshots')->dailyAt('04:10')->onOneServer();

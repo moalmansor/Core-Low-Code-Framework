@@ -101,7 +101,7 @@ final class DownloadJobs
      *
      * @param  array{filters?: array<string, mixed>|null, uuids?: list<string>|null, record?: string|null, parameters?: array<string, mixed>}  $input
      */
-    public function start(object $profile, User $user, string $format, array $input, ?int $scheduleId = null, bool $inline = true): object
+    public function start(object $profile, User $user, string $format, array $input, ?int $scheduleId = null, bool $inline = true, ?int $automationRunId = null): object
     {
         $form = Form::query()->findOrFail($profile->form_id);
         $rt = $this->runtimes->forForm($form) ?? abort(404);
@@ -112,7 +112,8 @@ final class DownloadJobs
         $selected = ($input['record'] ?? null) !== null ? [strtolower((string) $input['record'])] : (($input['uuids'] ?? []) === [] ? null : array_values((array) $input['uuids']));
         $id = (int) DB::table('download_jobs')->insertGetId([
             'uuid' => (string) Str::uuid7(), 'organization_id' => $form->organization_id, 'created_at' => $now, 'updated_at' => $now,
-            'download_profile_id' => $profile->id, 'download_schedule_id' => $scheduleId, 'user_id' => $user->id, 'format' => $format,
+            'download_profile_id' => $profile->id, 'download_schedule_id' => $scheduleId, 'automation_run_id' => $automationRunId,
+            'deliver_by_email' => $scheduleId !== null || $automationRunId !== null, 'user_id' => $user->id, 'format' => $format,
             'parameters' => json_encode((object) $plan['parameters'], JSON_UNESCAPED_UNICODE),
             // A run from the record page is remembered as such; otherwise the table filters it followed.
             'filters_snapshot' => ($input['record'] ?? null) !== null ? json_encode(['@record' => strtolower((string) $input['record'])])
@@ -201,7 +202,7 @@ final class DownloadJobs
             'parameters' => $plan['parameters'], 'filters' => array_keys((array) ($input['filters'] ?? [])), 'selected' => is_array($selected) ? count($selected) : null,
             'schedule' => $job->download_schedule_id === null ? null : (int) $job->download_schedule_id, 'duration_ms' => (int) round((microtime(true) - $started) * 1000),
         ], $user->id, null, $form->id);
-        if ($job->download_schedule_id !== null) {
+        if ((bool) $job->deliver_by_email) {
             app(DownloadSchedules::class)->deliver(DB::table('download_jobs')->where('id', $jobId)->first());
         } elseif ($notify) {
             $this->notifier->notify($user->id, 'download.ready', 'downloads.notify.ready', ['name' => $name, 'rows' => $written['rows']],

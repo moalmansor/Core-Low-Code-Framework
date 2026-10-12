@@ -80,6 +80,27 @@ final class ScheduledTasks
         }
     }
 
+    /**
+     * Notes a run of one of the system's own jobs (cleanups, reminders, the
+     * automation clock…), which Laravel's scheduler starts, so the
+     * scheduled-task manager lists them with their last and next run.
+     */
+    public function recordSystem(string $name, string $cron, string $timezone, string $status, int $durationMs, ?string $error): void
+    {
+        $name = mb_substr($name, 0, 255);
+        $now = Carbon::now('UTC');
+        $values = [
+            'updated_at' => $now->format('Y-m-d H:i:s.u'), 'cron_expression' => mb_substr($cron, 0, 64), 'timezone' => $timezone, 'is_enabled' => true,
+            'next_run_at' => (ScheduledTasks::valid($cron, $timezone) ? $this->next($cron, $timezone, $now) : $now)->format('Y-m-d H:i:s.u'),
+            'last_run_at' => $now->format('Y-m-d H:i:s.u'), 'last_status' => $status, 'last_duration_ms' => $durationMs, 'last_error' => $error === null ? null : mb_substr($error, 0, 2000),
+        ];
+        $org = $this->tenant->organizationId();
+        $existing = DB::table('scheduled_tasks')->where('kind', 'system')->where('organization_id', $org)->where('name', $name)->value('id');
+        $existing === null
+            ? DB::table('scheduled_tasks')->insert($values + ['uuid' => (string) Str::uuid7(), 'organization_id' => $org, 'created_at' => $values['updated_at'], 'kind' => 'system', 'name' => $name])
+            : DB::table('scheduled_tasks')->where('id', $existing)->update($values);
+    }
+
     /** Claims and runs every due task; returns how many ran. */
     public function runDue(?Carbon $now = null): int
     {
@@ -87,7 +108,7 @@ final class ScheduledTasks
         $stamp = $now->format('Y-m-d H:i:s.u');
         $host = mb_substr((string) gethostname().':'.getmypid(), 0, 128);
         $ran = 0;
-        $due = DB::table('scheduled_tasks')->where('is_enabled', true)->where('next_run_at', '<=', $stamp)
+        $due = DB::table('scheduled_tasks')->where('kind', '!=', 'system')->where('is_enabled', true)->where('next_run_at', '<=', $stamp)
             ->where(static fn ($q) => $q->whereNull('claimed_until')->orWhere('claimed_until', '<', $stamp))
             ->orderBy('next_run_at')->limit(100)->pluck('id');
         foreach ($due as $id) {

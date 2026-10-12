@@ -3206,6 +3206,8 @@ erDiagram
 | `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
 | `download_profile_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `download_profiles.id` NO ACTION |
 | `download_schedule_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `download_schedules.id` NO ACTION |
+| `automation_run_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `automation_runs.id` NO ACTION (a download step of an automation) |
+| `deliver_by_email` | TINYINT(1) | BIT | NOT NULL | 0 | email the file to its user when it is ready (scheduled runs and automation steps) |
 | `user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
 | `format` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `xlsx`, `csv`, `pdf` |
 | `parameters` | JSON | NVARCHAR(MAX) | NULL | — |  |
@@ -3230,11 +3232,13 @@ erDiagram
 - **Index:** `ix_download_jobs_download_profile_id_created_at` (`download_profile_id`, `created_at`)
 - **Index:** `ix_download_jobs_download_schedule_id` (`download_schedule_id`) — supports FK
 - **Index:** `ix_download_jobs_file_id` (`file_id`) — supports FK
+- **Index:** `ix_download_jobs_automation_run_id` (`automation_run_id`) — supports FK
 - **Foreign key:** `fk_download_jobs_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_download_jobs_download_profile_id`: `download_profile_id` → `download_profiles`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_download_jobs_download_schedule_id`: `download_schedule_id` → `download_schedules`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_download_jobs_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_download_jobs_file_id`: `file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_jobs_automation_run_id`: `automation_run_id` → `automation_runs`(`id`) ON DELETE NO ACTION
 - **Check:** `ck_download_jobs_format`: `format IN ('xlsx', 'csv', 'pdf')` (both engines)
 - **Check:** `ck_download_jobs_status`: `status IN ('queued', 'running', 'completed', 'failed', 'expired', 'cancelled')` (both engines)
 - **Check (SQL Server):** `ck_download_jobs_parameters_json`: `ISJSON(parameters) = 1`
@@ -7508,6 +7512,7 @@ object is configured by administrators.
 | **Import/Export** | `POST /r/{form}/imports` (file, mapping, mode, key, dry_run); `GET /imports/{uuid}`; `GET/POST /forms/{uuid}/import-mappings`; `POST /r/{form}/exports`; `GET /exports/{uuid}` | | `form.import` / `form.export` |
 | **Bulk & data quality** | `POST /r/{form}/bulk/preview`; `POST /r/{form}/bulk`; `GET /bulk-operations/{uuid}`; `GET/PUT /forms/{uuid}/duplicate-rules`; `POST /forms/{uuid}/duplicate-sweep`; `POST /r/{form}/merge`; `GET /recycle-bin`; `POST /recycle-bin/{id}/restore`; `POST /repair/orphans`, `/repair/validation-sweep` | | `bulk_update`, `merge_records`, `access_recycle_bin`, `repair_data` |
 | **Downloads** | `GET/POST /forms/{form}/download-profiles`; `GET/PUT/DELETE /download-profiles/{uuid}` (PUT with `base_hash`); `POST /download-profiles/{uuid}/duplicate`; `GET /forms/{form}/download-tree?path=`; `POST /forms/{form}/download-preview`; `POST /forms/{form}/download-effective` (role); `GET /r/{form}/downloads?place=`; `POST /r/{form}/downloads/{profile}` (format, parameters, filters, uuids or record) → job, produced at once when small; `GET /download-jobs/{uuid}`, `POST …/cancel`, `POST …/retry`; `GET/POST /download-profiles/{uuid}/schedules`, `PUT/DELETE /download-schedules/{uuid}` | §14.11 | `manage_download_profiles` / `create_personal_download_profiles` / `download.{uuid}.use` |
+| **Automations** | `GET /automations` (all forms); `GET/POST /forms/{form}/automations`; `GET/PUT/DELETE /automations/{uuid}` (PUT with `base_hash`); `POST /automations/{uuid}/enable`; `POST /automations/{uuid}/test` (record) → rolled-back run; `POST /automations/{uuid}/run` → run over the matching records; `GET /automations/{uuid}/runs?status=&page=`; `GET /automation-runs/{uuid}`; `POST /automation-runs/{uuid}/confirm`, `…/cancel`, `…/retry`; `GET /scheduled-tasks` | §19.9 | `manage_automations` / `run_automations` (scheduled tasks: also `manage_operations`) |
 | **Notifications** | `GET/POST/PATCH/DELETE /notification-rules`; `GET/POST/PATCH /email-templates`; `POST /email-templates/{uuid}/preview` (record, recipient); `POST /email-templates/{uuid}/test`; `GET /notifications` (bell); `POST /notifications/read` | | `manage_notifications` / authenticated |
 | **Documents** | `GET/POST/PATCH/DELETE /document-templates`; `POST /r/{form}/{uuid}/documents/{template}` | | `manage_document_templates` / form print |
 | **Automations & scheduler** | `GET/POST/PATCH/DELETE /automations`; `POST /automations/{uuid}/enable|disable|run|test`; `GET /automations/{uuid}/runs`; `POST /automation-runs/{uuid}/confirm|cancel`; `GET /scheduled-tasks` | | `manage_automations` / `run_automations` |

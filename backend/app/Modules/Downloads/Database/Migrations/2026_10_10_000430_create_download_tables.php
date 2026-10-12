@@ -108,6 +108,8 @@ return new class extends Migration
             Columns::dt($t, 'updated_at');
             Columns::fk($t, 'download_profile_id', 'download_profiles', nullable: false, index: false);
             Columns::fk($t, 'download_schedule_id', 'download_schedules');
+            Columns::fk($t, 'automation_run_id', 'automation_runs');
+            $t->boolean('deliver_by_email')->default(false);
             Columns::fk($t, 'user_id', 'users', nullable: false, index: false);
             Columns::enum($t, 'format', ['xlsx', 'csv', 'pdf']);
             Columns::json($t, 'parameters', nullable: true);

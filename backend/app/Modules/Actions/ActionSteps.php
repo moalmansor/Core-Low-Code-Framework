@@ -61,6 +61,7 @@ final class ActionSteps
      */
     public function runAll(array $steps, array $asts, FormRuntime $rt, User $user, array $target, string $key, ?int $justificationId, string $actionUuid, string $label): array
     {
+        $origin = new StepOrigin('action', $actionUuid, $label);
         $found = $this->store->find($rt, $target['uuid']) ?? throw new RecordException(404, 'not_found', __('records.not_found'));
         if (! $this->scope->allows($rt, $user, 'view', $found['id'])) {
             throw new RecordException(404, 'not_found', __('records.not_found'));
@@ -79,7 +80,7 @@ final class ActionSteps
                 continue;
             }
             try {
-                $outputs = [...$outputs, ...$this->run($step, $rt, $user, $found, "{$key}-{$i}", $justificationId, $actionUuid, $label)];
+                $outputs = [...$outputs, ...$this->one($step, $rt, $user, $found, "{$key}-{$i}", $justificationId, $origin)];
             } catch (RecordException|ValidationException|StepFailed $e) {
                 $message = __('actions.step_failed', ['step' => __('actions.step.'.$step->type), 'reason' => ActionRunner::message($e)]);
                 if ($step->on_failure === 'stop') {
@@ -93,20 +94,27 @@ final class ActionSteps
     }
 
     /**
+     * Runs one step for one record, as `$user`. Shared by actions and
+     * automations; when the origin simulates (an automation's test run),
+     * steps that reach outside the database say what they would do instead.
+     *
      * @param  array<string, mixed>  $found
      * @return list<array<string, mixed>>
      */
-    private function run(object $step, FormRuntime $rt, User $user, array $found, string $key, ?int $justificationId, string $actionUuid, string $label): array
+    public function one(object $step, FormRuntime $rt, User $user, array $found, string $key, ?int $justificationId, StepOrigin $origin): array
     {
         $c = ActionDocument::runtimeConfig($step);
+        if ($origin->simulate && in_array($step->type, StepOrigin::OUTSIDE, true)) {
+            return [['type' => 'simulated', 'message' => __('automations.simulated.'.$step->type)]];
+        }
 
         return match ($step->type) {
-            'update_fields' => $this->updateFields($c, $rt, $user, $found, $key, $justificationId),
-            'change_status' => $this->changeStatus($c, $rt, $user, $found, $key, $justificationId),
-            'send_email', 'send_notification' => $this->send($step->type, $c, $rt, $user, $found, $actionUuid, $label),
-            'call_webhook' => $this->webhook($c, $rt, $user, $found, $actionUuid),
-            'generate_document' => $this->document($c, $rt, $user, $found, $key, $justificationId),
-            'create_linked_record' => $this->linked($c, $rt, $user, $found, $key),
+            'update_fields' => $this->updateFields($c, $rt, $user, $found, $key, $justificationId, $origin),
+            'change_status' => $this->changeStatus($c, $rt, $user, $found, $key, $justificationId, $origin),
+            'send_email', 'send_notification' => $this->send($step->type, $c, $rt, $user, $found, $origin),
+            'call_webhook' => $this->webhook($c, $rt, $user, $found, $origin),
+            'generate_document' => $this->document($c, $rt, $user, $found, $key, $justificationId, $origin),
+            'create_linked_record' => $this->linked($c, $rt, $user, $found, $key, $origin),
             'assign' => $this->assign($c, $rt, $user, $found, $justificationId),
             'run_download' => $this->download($c, $user, $found),
             default => throw new StepFailed(__('actions.not_runnable')),
@@ -118,7 +126,7 @@ final class ActionSteps
      * @param  array<string, mixed>  $found
      * @return list<array<string, mixed>>
      */
-    private function updateFields(array $c, FormRuntime $rt, User $user, array $found, string $key, ?int $justificationId): array
+    private function updateFields(array $c, FormRuntime $rt, User $user, array $found, string $key, ?int $justificationId, StepOrigin $origin): array
     {
         $values = [];
         foreach ((array) $c['set'] as $item) {
@@ -128,7 +136,7 @@ final class ActionSteps
             }
             $values[$field['key']] = ValueBridge::toApi($rt, $field, $this->rules->evaluate($rt, (array) $item['value'], $found['values'], $user));
         }
-        $this->pipeline->update($rt, $user, $found['uuid'], $found['row_version'], $values, $key, 'action', null, $justificationId);
+        $this->pipeline->update($rt, $user, $found['uuid'], $found['row_version'], $values, $key, $origin->source, null, $justificationId);
 
         return [];
     }
@@ -138,9 +146,9 @@ final class ActionSteps
      * @param  array<string, mixed>  $found
      * @return list<array<string, mixed>>
      */
-    private function changeStatus(array $c, FormRuntime $rt, User $user, array $found, string $key, ?int $justificationId): array
+    private function changeStatus(array $c, FormRuntime $rt, User $user, array $found, string $key, ?int $justificationId, StepOrigin $origin): array
     {
-        $this->pipeline->transition($rt, $user, $found['uuid'], (string) $c['transition'], $found['row_version'], [], $key, 'action', $justificationId);
+        $this->pipeline->transition($rt, $user, $found['uuid'], (string) $c['transition'], $found['row_version'], [], $key, $origin->source, $justificationId);
 
         return [];
     }
@@ -150,7 +158,7 @@ final class ActionSteps
      * @param  array<string, mixed>  $found
      * @return list<array<string, mixed>>
      */
-    private function send(string $type, array $c, FormRuntime $rt, User $user, array $found, string $actionUuid, string $label): array
+    private function send(string $type, array $c, FormRuntime $rt, User $user, array $found, StepOrigin $origin): array
     {
         // "The person running the action" is a recipient the notifier knows as a user.
         $recipients = [];
@@ -160,7 +168,7 @@ final class ActionSteps
         $this->notifier->sendForAction([
             'channels' => [$type === 'send_email' ? 'email' : 'in_app'], 'template' => $c['template'] ?? null, 'recipients' => $recipients,
             'attachments' => ($c['documents'] ?? []) === [] ? null : ['fields' => [], 'documents' => $c['documents']],
-        ], $rt, $found['id'], $user, $actionUuid, $label);
+        ], $rt, $found['id'], $user, $origin->uuid, $origin->label, $origin->source);
 
         return [];
     }
@@ -170,10 +178,10 @@ final class ActionSteps
      * @param  array<string, mixed>  $found
      * @return list<array<string, mixed>>
      */
-    private function webhook(array $c, FormRuntime $rt, User $user, array $found, string $actionUuid): array
+    private function webhook(array $c, FormRuntime $rt, User $user, array $found, StepOrigin $origin): array
     {
         $ctx = $this->values->context($rt, $found['id'], [$user], app()->getLocale(), $user->name);
-        $this->webhooks->call($c, $ctx, ['form_id' => $rt->form->id, 'record_id' => $found['id'], 'user_id' => $user->id, 'action' => $actionUuid]);
+        $this->webhooks->call($c, $ctx, ['form_id' => $rt->form->id, 'record_id' => $found['id'], 'user_id' => $user->id, $origin->source => $origin->uuid]);
 
         return [];
     }
@@ -183,7 +191,7 @@ final class ActionSteps
      * @param  array<string, mixed>  $found
      * @return list<array<string, mixed>>
      */
-    private function document(array $c, FormRuntime $rt, User $user, array $found, string $key, ?int $justificationId): array
+    private function document(array $c, FormRuntime $rt, User $user, array $found, string $key, ?int $justificationId, StepOrigin $origin): array
     {
         $template = DocumentTemplate::query()->where('uuid', (string) $c['template'])->where('is_active', true)->first() ?? throw new StepFailed(__('actions.document_gone'));
         try {
@@ -203,7 +211,7 @@ final class ActionSteps
         $file->forceFill(['is_temporary' => true])->save();
         $current = $found['values'][$field['key']] ?? null;
         $value = $rt->type($field)?->storage === 'files' ? [...array_values((array) $current), strtolower($file->uuid)] : strtolower($file->uuid);
-        $this->pipeline->update($rt, $user, $found['uuid'], $found['row_version'], [$field['key'] => $value], $key, 'action', null, $justificationId);
+        $this->pipeline->update($rt, $user, $found['uuid'], $found['row_version'], [$field['key'] => $value], $key, $origin->source, null, $justificationId);
 
         return [];
     }
@@ -213,7 +221,7 @@ final class ActionSteps
      * @param  array<string, mixed>  $found
      * @return list<array<string, mixed>>
      */
-    private function linked(array $c, FormRuntime $rt, User $user, array $found, string $key): array
+    private function linked(array $c, FormRuntime $rt, User $user, array $found, string $key, StepOrigin $origin): array
     {
         $target = $this->runtimes->forUuid((string) $c['form']) ?? throw new StepFailed(__('actions.form_gone'));
         $link = $target->fields[(string) $c['linkField']] ?? throw new StepFailed(__('actions.field_gone'));
@@ -224,7 +232,7 @@ final class ActionSteps
                 $values[$field['key']] = ValueBridge::toApi($target, $field, $this->rules->evaluate($rt, (array) $item['value'], $found['values'], $user));
             }
         }
-        $created = $this->pipeline->create($target, $user, $values, [], $key, 'action');
+        $created = $this->pipeline->create($target, $user, $values, [], $key, $origin->source);
 
         return ($c['open'] ?? false) ? [['type' => 'open', 'url' => '/app/'.$target->form->uuid.'/'.$created['uuid']]] : [];
     }

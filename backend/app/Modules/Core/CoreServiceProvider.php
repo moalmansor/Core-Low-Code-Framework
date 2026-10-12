@@ -16,6 +16,7 @@ use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Mail\SettingsSmtpTransport;
 use App\Modules\Core\Models\Organization;
 use App\Modules\Core\Outbox\OutboxRelay;
+use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\Core\Settings\SettingsRegistry;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Core\Tenancy\TenantContext;
@@ -52,6 +53,7 @@ final class CoreServiceProvider extends ServiceProvider
         $this->app->singleton(SettingsRegistry::class);
         $this->app->singleton(TranslatableRegistry::class);
         $this->app->singleton(OutboxRelay::class);
+        $this->app->singleton(OutboxWriter::class);
         $this->app->bind(HostResolver::class, DnsHostResolver::class);
     }
 

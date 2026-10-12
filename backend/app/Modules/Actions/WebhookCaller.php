@@ -51,7 +51,7 @@ final class WebhookCaller
 
     /**
      * @param  array{url: string, method: string, headers: list<array{name: string, value: string}>, body: string, format: string, secret: string|null}  $config
-     * @param  array{form_id: int, record_id: int|null, user_id: int, action: string}  $context
+     * @param  array{form_id: int, record_id: int|null, user_id: int, action?: string, automation?: string}  $context
      * @return array{status: int, attempts: int}
      */
     public function call(array $config, RenderContext $ctx, array $context): array
@@ -119,11 +119,12 @@ final class WebhookCaller
         }, $template);
     }
 
-    /** @param  array{form_id: int, record_id: int|null, user_id: int, action: string}  $context */
+    /** @param  array{form_id: int, record_id: int|null, user_id: int, action?: string, automation?: string}  $context */
     private function log(array $context, string $host, string $method, ?int $status, int $attempt, float $started, ?string $error): void
     {
-        $this->audit->record('action.webhook_called', 'operations', null, 'action', null, [
-            'action' => $context['action'], 'host' => $host, 'method' => $method, 'status' => $status, 'attempt' => $attempt,
+        $automation = $context['automation'] ?? null;
+        $this->audit->record($automation === null ? 'action.webhook_called' : 'automation.webhook_called', 'operations', null, $automation === null ? 'action' : 'automation', null, [
+            ($automation === null ? 'action' : 'automation') => $automation ?? ($context['action'] ?? null), 'host' => $host, 'method' => $method, 'status' => $status, 'attempt' => $attempt,
             'ms' => (int) round((microtime(true) - $started) * 1000), 'error' => $error === null ? null : mb_substr($error, 0, 300),
         ], $context['user_id'], null, $context['form_id'], $context['record_id']);
     }
