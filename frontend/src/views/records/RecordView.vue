@@ -17,6 +17,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ApiError, ensureCsrf, get, http, send } from '@/api/http'
 import ActionRunDialog from '@/runtime/actions/ActionRunDialog.vue'
 import { actionsRuntimeApi, type AvailableAction } from '@/runtime/actions/api'
+import DownloadDialog from '@/runtime/downloads/DownloadDialog.vue'
 import { newUuid } from '@/runtime/api'
 import { RECORD_FILES, RECORD_UUID } from '@/runtime/context'
 import { FormIndex } from '@/runtime/formIndex'
@@ -32,6 +33,7 @@ import StatusTimeline from '@/runtime/workflow/StatusTimeline.vue'
 import WorkflowPanel from '@/runtime/workflow/WorkflowPanel.vue'
 import { isEmpty } from '@/runtime/values'
 import { useSession } from '@/stores/session'
+import { downloadsApi, type AvailableProfile } from '@/views/downloads/api'
 import RecordAttachments from './RecordAttachments.vue'
 import RecordComments from './RecordComments.vue'
 
@@ -94,6 +96,7 @@ async function load(): Promise<void> {
     document.title = [r.data.title ?? r.data.system.record_number ?? name.value, session.systemName].filter(Boolean).join(' · ')
     // An action's condition is decided for the record as it is now.
     actions.value = r.data.system.deleted_at ? [] : await actionsRuntimeApi.list(formUuid.value, 'view_page', recordUuid.value).catch(() => [])
+    downloads.value = r.data.system.deleted_at ? [] : await downloadsApi.available(formUuid.value, 'record_view').catch(() => [])
   } catch (e) {
     loadError.value = e instanceof ApiError && e.status !== 0 ? e.message : t('records.load_failed')
   }
@@ -109,6 +112,12 @@ function runAction(a: AvailableAction): void {
   const r = record.value
   if (r) void runner.value?.start(formUuid.value, a, { items: [{ uuid: r.uuid, row_version: r.row_version }] })
 }
+
+// Download profiles offered on the record page (§4.23): this record with its related data.
+const downloads = ref<AvailableProfile[]>([])
+const downloader = ref<InstanceType<typeof DownloadDialog> | null>(null)
+const downloadMenu = ref<InstanceType<typeof Menu> | null>(null)
+const downloadItems = computed(() => downloads.value.map((p) => ({ label: p.name, icon: 'pi pi-file-export', command: () => downloader.value?.open(formUuid.value, p, { record: recordUuid.value }) })))
 
 // Delete / restore (both may ask for a justification).
 function remove(): void {
@@ -271,6 +280,10 @@ watch(
         <RouterLink v-if="perms.edit" v-slot="{ navigate }" :to="{ name: 'records.edit', params: { form: formUuid, record: recordUuid } }" custom>
           <Button icon="pi pi-pencil" :label="t('common.edit')" data-testid="record-edit" @click="navigate" />
         </RouterLink>
+        <template v-if="downloads.length">
+          <Button icon="pi pi-download" :label="t('dl.download')" severity="secondary" outlined aria-haspopup="true" data-testid="record-download" @click="(e: Event) => downloadMenu?.toggle(e)" />
+          <Menu ref="downloadMenu" :model="downloadItems" popup />
+        </template>
         <template v-if="perms.print">
           <Button
             icon="pi pi-print"
@@ -381,6 +394,7 @@ watch(
     </Tabs>
     <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
     <ActionRunDialog ref="runner" @done="load" />
+    <DownloadDialog ref="downloader" />
   </div>
 </template>
 

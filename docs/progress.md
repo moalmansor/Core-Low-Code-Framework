@@ -433,9 +433,22 @@ Decided by the owner:
   in the background above the threshold. Runtime: row menu, selection and
   table actions menu in the records list, buttons on the record page, a run
   dialog with inputs, progress and results. e2e `09-actions`.
-- **Next:** custom downloads (§4.23), automations and scheduler, data
-  quality, Operations Center, the rest of the Phase 4 e2e, docs and the
-  pull request.
+- **Custom downloads** (ADR-0042): shared and personal download profiles
+  built from a lazy relation tree (forward links, child records, repeating
+  sections, system values) with a live preview and a "columns a role
+  receives" check; one row per related record, aggregates or separate
+  sheets; fixed filters, parameters, the table's filters and selection;
+  Excel (sheets, styled frozen header, title row with logo, RTL, number
+  formats), CSV with BOM, PDF with header, footer and page numbers. Runs
+  are download_jobs (inline or background, audited, expiring files);
+  field access, record scope and sensitive masking at every level. A
+  generic scheduler (`scheduled_tasks`, `scheduler:run`) runs scheduled
+  downloads per recipient and emails them. Action step `run_download`.
+  Download menus on the records table and record page; "Downloads" tab in
+  the form configuration; "My download profiles". e2e `10-downloads`.
+- **Next:** automations (reusing the scheduler), data quality, Operations
+  Center (including download failures and retry), the rest of the Phase 4
+  e2e, docs and the pull request.
 
 ## Resume point
 

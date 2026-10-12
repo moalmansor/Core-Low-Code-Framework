@@ -37,6 +37,12 @@ export const buildingRoutes: RouteRecordRaw[] = [
     meta: { anyOf: ['system.manage_forms'], title: 'formconfig.page_title' },
   },
   {
+    path: 'admin/forms/:form/downloads/:profile',
+    name: 'admin.downloads.profile',
+    component: () => import('@/views/downloads/ProfileEditor.vue'),
+    meta: { anyOf: ['system.manage_download_profiles'], title: 'dl.page_title' },
+  },
+  {
     path: 'admin/schema',
     name: 'admin.schema',
     component: () => import('@/views/admin/building/SchemaExplorer.vue'),

@@ -834,6 +834,9 @@ Admins create reusable **download profiles** for any form. A profile defines exa
 - Every download is audited: who, profile, filters, row count, time.
 - Failures appear in the Operations Center with a retry option.
 - Profiles can be duplicated and are included in configuration packages.
+- Paths reach linked forms in both directions and repeating sections, up to the depth set in `downloads.max_depth`; all "one row per related record" columns of a profile follow the same linked form; separate sheets are written to Excel and PDF (CSV holds the main sheet).
+- A calculated column is left out for anyone who cannot see a field its formula reads; personal profiles cannot contain formulas. Sensitive fields are masked unless the user holds `field.{uuid}.view_sensitive` (granted with step-up confirmation).
+- Downloads of up to `downloads.sync_rows` records are produced at once; larger ones run in the background. Scheduled downloads are produced per recipient and emailed as an attachment up to `downloads.email_attachment_mb`, otherwise as a link that needs sign-in. An action step can produce a profile's download for a record (ADR-0042).
 
 ### 4.24 Edit Justification & Change Control
 Admins can require users to state **why** a record was changed. The requirement is configurable, never hard-coded, and off by default.

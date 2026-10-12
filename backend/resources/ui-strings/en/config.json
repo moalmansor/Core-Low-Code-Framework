@@ -73,6 +73,7 @@
   "formconfig.subtitle": "How records of this form move, who sees what, and how they are listed, shown and printed.",
   "formconfig.tab.actions": "Actions",
   "formconfig.tab.assignment": "Assignment",
+  "formconfig.tab.downloads": "Downloads",
   "formconfig.tab.justification": "Justification",
   "formconfig.tab.panels": "View Mode",
   "formconfig.tab.previews": "Lookup previews",

@@ -11,6 +11,8 @@ declare module 'vue-router' {
     /** Any one of these permissions grants access (checked again server-side). */
     anyOf?: string[]
     title?: string
+    /** The download profile screens work on the user's own personal profiles. */
+    personalDownloads?: boolean
   }
 }
 

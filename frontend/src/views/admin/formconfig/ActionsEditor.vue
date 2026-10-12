@@ -23,6 +23,7 @@ import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import TabIntro from '@/components/config/TabIntro.vue'
 import SubjectPicker from '@/components/SubjectPicker.vue'
 import { useSession } from '@/stores/session'
+import { downloadsApi, type ProfileSummary } from '@/views/downloads/api'
 import { documentsApi, type DocumentSummary } from '../documents/api'
 import { templatesApi, type Placeholder, type TemplateSummary } from '../notifications/api'
 import {
@@ -74,13 +75,17 @@ const userFields = computed(() => mainFields.value.filter((f) => f.type === 'use
 const transitions = ref<TransitionDoc[]>([])
 const templates = ref<TemplateSummary[]>([])
 const documents = ref<DocumentSummary[]>([])
+const downloadProfiles = ref<ProfileSummary[]>([])
 const linkedUsers = ref<Placeholder[]>([])
 onMounted(async () => {
   transitions.value = (await workflowApi.load(props.form).catch(() => null))?.document.transitions ?? []
   templates.value = await templatesApi.list(props.form).catch(() => [])
   linkedUsers.value = (await templatesApi.placeholders(props.form).catch(() => ({ fields: [] as Placeholder[] }))).fields.filter((f) => f.user && f.group === 'linked')
   documents.value = (await documentsApi.list(props.form).catch(() => null))?.rows.filter((d) => d.active) ?? []
+  downloadProfiles.value = (await downloadsApi.list(props.form).catch(() => null))?.profiles.filter((p) => !p.personal && p.active) ?? []
 })
+const downloadOptions = computed(() => downloadProfiles.value.map((p) => ({ value: p.uuid, label: p.name })))
+const downloadFormats = (uuid: string | null | undefined) => (downloadProfiles.value.find((p) => p.uuid === uuid)?.formats ?? []).map((f) => ({ value: f, label: t(`dl.format.${f}`) }))
 const transitionOptions = computed(() => transitions.value.map((x) => ({ value: x.uuid, label: labelOf(x.i18n.name, locale.value, x.key, dl.value) })))
 const templateOptions = computed(() => templates.value.map((x) => ({ value: x.uuid, label: x.subject })))
 const documentOptions = computed(() => documents.value.map((d) => ({ value: d.uuid, label: d.name })))
@@ -98,7 +103,7 @@ const placesOf = (a: ActionDoc) => (a.kind === 'builtin' && a.builtin ? BUILTIN_
 const builtins = computed(() => (Object.keys(BUILTIN_PLACES) as ActionBuiltin[]).map((v) => ({ value: v, label: t(`act.builtin.${v}`) })))
 const newBuiltin = ref<ActionBuiltin>('bulk_update')
 const stepTypes = computed(() =>
-  (['update_fields', 'change_status', 'send_email', 'send_notification', 'call_webhook', 'generate_document', 'create_linked_record', 'assign'] as StepType[]).map((v) => ({
+  (['update_fields', 'change_status', 'send_email', 'send_notification', 'call_webhook', 'generate_document', 'create_linked_record', 'assign', 'run_download'] as StepType[]).map((v) => ({
     value: v,
     label: t(`act.step.${v}`),
   })),
@@ -175,6 +180,7 @@ function addStep(a: ActionDoc): void {
     generate_document: { template: documentOptions.value[0]?.value ?? null, format: documents.value[0]?.formats[0] ?? 'pdf', attachToField: null },
     create_linked_record: { form: null, linkField: null, prefill: [], open: true },
     assign: { to: { type: 'role', uuid: null } },
+    run_download: { profile: downloadProfiles.value[0]?.uuid ?? null, format: downloadProfiles.value[0]?.formats[0] ?? 'xlsx' },
   }[type] as ActionStepDoc['config']
   a.steps.push({ uuid: newUuid(), type, config, condition: null, onFailure: 'stop' })
 }
@@ -506,6 +512,16 @@ const tokenText = (token: string) => `{{ ${token} }}`
                 <Button icon="pi pi-plus" :label="t('act.add_field')" size="small" text class="self-start" @click="addValue(s.config.prefill!)" />
                 <SettingSwitch :id="`act-open-${i}-${j}`" v-model="s.config.open as boolean" :label="t('act.open')" :description="t('act.open_desc')" />
               </template>
+
+              <!-- Download -->
+              <div v-else-if="s.type === 'run_download'" class="cfg-row">
+                <ConfigField :label="t('act.download_profile')" :for="`act-dlp-${i}-${j}`" width="md" :hint="t('act.download_profile_hint')" :error="err(`actions.${i}.steps.${j}.config.profile`)">
+                  <Select v-model="s.config.profile" :input-id="`act-dlp-${i}-${j}`" :options="downloadOptions" option-label="label" option-value="value" size="small" />
+                </ConfigField>
+                <ConfigField :label="t('doc.format')" :for="`act-dlf-${i}-${j}`" width="xs" :error="err(`actions.${i}.steps.${j}.config.format`)">
+                  <Select v-model="s.config.format" :input-id="`act-dlf-${i}-${j}`" :options="downloadFormats(s.config.profile)" option-label="label" option-value="value" size="small" />
+                </ConfigField>
+              </div>
 
               <!-- Assign -->
               <div v-else-if="s.type === 'assign'" class="cfg-row">

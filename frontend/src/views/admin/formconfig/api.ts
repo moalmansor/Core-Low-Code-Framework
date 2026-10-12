@@ -286,7 +286,7 @@ export const notificationRulesApi = documentApi<NotificationRuleDoc[]>('notifica
 /** Actions (specification §4.15, architecture §14.9). */
 export type ActionPlacement = 'row' | 'bulk' | 'toolbar' | 'view_page'
 export type ActionBuiltin = 'duplicate' | 'print' | 'bulk_update' | 'bulk_status' | 'bulk_delete'
-export type StepType = 'update_fields' | 'change_status' | 'send_email' | 'send_notification' | 'call_webhook' | 'generate_document' | 'create_linked_record' | 'assign'
+export type StepType = 'update_fields' | 'change_status' | 'send_email' | 'send_notification' | 'call_webhook' | 'generate_document' | 'create_linked_record' | 'assign' | 'run_download'
 export interface FieldValueDoc {
   field: string
   value: Ast | null
@@ -310,6 +310,7 @@ export interface StepConfig {
   prefill?: FieldValueDoc[]
   open?: boolean
   to?: { type: 'user' | 'role' | 'department'; uuid: string | null }
+  profile?: string | null
 }
 export interface ActionStepDoc {
   uuid: string

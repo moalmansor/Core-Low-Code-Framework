@@ -14,12 +14,13 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError, ensureCsrf, get, http, send } from '@/api/http'
 import ActionRunDialog from '@/runtime/actions/ActionRunDialog.vue'
 import { actionsRuntimeApi, type AvailableAction } from '@/runtime/actions/api'
+import DownloadDialog from '@/runtime/downloads/DownloadDialog.vue'
 import { fetchOptions, newUuid, type OptionItem } from '@/runtime/api'
 import { fieldType } from '@/runtime/fieldTypes'
 import { FormIndex } from '@/runtime/formIndex'
@@ -33,6 +34,7 @@ import { useSession } from '@/stores/session'
 import { labelColor, parseHex } from '@/theme/color'
 import ImportDialog from './ImportDialog.vue'
 import SavedViewDialog from './SavedViewDialog.vue'
+import { downloadsApi, type AvailableProfile } from '@/views/downloads/api'
 import ViewFilters from './ViewFilters.vue'
 import { activeConditions, columnValue, decodeConditions, encodeConditions, shownColumns, type ActiveView, type SavedView, type ViewColumn, type ViewCondition } from './viewState'
 import { decodeQuery, DEFAULT_STATE, emptyRow, encodeQuery, isActive, operatorsFor, PER_PAGE, toApiFilter, type FilterOp, type FilterRow, type ListState } from './listState'
@@ -72,6 +74,9 @@ const justification = useJustification()
 const runner = ref<InstanceType<typeof ActionRunDialog> | null>(null)
 const rowActions = ref<AvailableAction[]>([])
 const listActions = ref<AvailableAction[]>([])
+// Download profiles (§4.23) offered on the table.
+const downloader = ref<InstanceType<typeof DownloadDialog> | null>(null)
+const downloads = ref<AvailableProfile[]>([])
 
 // Table views
 type Row = RecordPayload & { linked?: Record<string, unknown> }
@@ -176,8 +181,18 @@ watch(
     currentSaved.value = null
     savedViews.value = []
     listActions.value = []
+    downloads.value = []
     await loadDefinition()
-    if (definition.value) void loadActions()
+    if (definition.value) {
+      void loadActions()
+      void downloadsApi
+        .available(formUuid.value, 'table_toolbar')
+        .then((list) => (downloads.value = list))
+        .catch(() => undefined)
+      // A notification links back here to the finished download.
+      const job = route.query.download
+      if (typeof job === 'string') void nextTick(() => downloader.value?.follow(formUuid.value, job))
+    }
     Object.assign(
       state,
       decodeQuery(
@@ -563,6 +578,17 @@ async function exportAs(format: 'xlsx' | 'csv' | 'pdf', onlySelected = false): P
   }
 }
 
+const downloadMenu = ref<InstanceType<typeof Menu> | null>(null)
+const canPersonalDownloads = computed(() => session.can('system.create_personal_download_profiles'))
+const downloadItems = computed<MenuItem[]>(() => [
+  ...downloads.value.map((p) => ({
+    label: p.name,
+    icon: p.personal ? 'pi pi-user' : 'pi pi-file-export',
+    command: () => downloader.value?.open(formUuid.value, p, { filters: params(), selected: selected.value.map((r) => r.uuid) }),
+  })),
+  { separator: true, visible: downloads.value.length > 0 && canPersonalDownloads.value },
+  { label: t('dl.my_profiles'), icon: 'pi pi-sliders-h', visible: canPersonalDownloads.value, command: () => router.push({ name: 'records.downloads', params: { form: formUuid.value } }) },
+])
 const actionsMenu = ref<InstanceType<typeof Menu> | null>(null)
 const bulkActions = computed(() => listActions.value.filter((a) => a.placements[0] === 'bulk'))
 const toolbarActions = computed(() => listActions.value.filter((a) => a.placements[0] === 'toolbar'))
@@ -633,6 +659,10 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
         <RouterLink v-if="canCreate && !state.trashed" v-slot="{ navigate }" :to="{ name: 'records.create', params: { form: formUuid } }" custom>
           <Button icon="pi pi-plus" :label="t('records.new')" data-testid="records-new" @click="navigate" />
         </RouterLink>
+        <template v-if="!state.trashed && (downloads.length || canPersonalDownloads)">
+          <Button :label="t('dl.download')" icon="pi pi-download" severity="secondary" outlined aria-haspopup="true" data-testid="records-download" @click="(e: Event) => downloadMenu?.toggle(e)" />
+          <Menu ref="downloadMenu" :model="downloadItems" popup />
+        </template>
         <template v-if="hasActions">
           <Button
             :label="t('common.actions')"
@@ -907,6 +937,7 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
     </DataTable>
     <Menu ref="rowMenu" :model="rowItems" popup />
     <ActionRunDialog ref="runner" @done="actionsDone" />
+    <DownloadDialog ref="downloader" />
     <SavedViewDialog v-if="savingView && activeView" :form="formUuid" :view="activeView.uuid" :state="savedState" :current="currentSaved" @saved="onSavedView" @close="savingView = false" />
     <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
     <ImportDialog v-if="importOpen" :form="formUuid" :form-key="definition.form.key" @close="importOpen = false" @imported="load" />
