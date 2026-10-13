@@ -14,6 +14,7 @@ use App\Modules\Assignment\Claims;
 use App\Modules\Assignment\DelegationResolver;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\Outbox\OutboxWriter;
+use App\Modules\DataQuality\DuplicateGuard;
 use App\Modules\Identity\Models\User;
 use App\Modules\Justification\JustificationGate;
 use App\Modules\Records\Models\StoredFile;
@@ -92,6 +93,7 @@ final class RecordPipeline
             if ($errors !== []) {
                 throw new RecordException(422, 'invalid', __('records.invalid'), ['errors' => $errors]);
             }
+            app(DuplicateGuard::class)->check($rt, $user, $values, null, 'create', $source);
             // A crash between commit and journal update: the record exists under the journal's uuid.
             if (($existing = $this->store->find($rt, $entry['uuid'], true)) !== null) {
                 $this->journal->processed($entry['id'], $existing['id']);
@@ -176,6 +178,9 @@ final class RecordPipeline
                 if (! Canonical::same($v, $current['values'][$k] ?? null)) {
                     $changed[] = (string) $k;
                 }
+            }
+            if ($changed !== []) {
+                app(DuplicateGuard::class)->check($rt, $user, $values, $current['id'], 'update', $source);
             }
             // An action or bulk edit asks once: the caller passes the justification it already saved.
             $validated = $changed === [] || $justifiedBy !== null ? null : $this->justifications->enforce($rt, $user, 'edit', [
@@ -397,6 +402,7 @@ final class RecordPipeline
                     $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'edit');
                     throw $this->conflict($rt, $this->store->find($rt, $current['uuid'], true) ?? $current, $expectedVersion, [], $levels['fields']);
                 }
+                app(RecycleBin::class)->entered($rt, $current['id'], $user->id, $justificationId);
                 // Open work on a deleted record ends: approvals, assignments, claims and SLA timers.
                 app(ApprovalService::class)->cancelFor($rt, $current['id']);
                 app(AssignmentService::class)->close($rt->form->id, $current['id'], 'cancelled', true);
@@ -432,6 +438,7 @@ final class RecordPipeline
             DB::transaction(function () use ($rt, $user, $current, $validated, $onBehalf, $justifiedBy): void {
                 $justificationId = $justifiedBy ?? ($validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'restore', $validated, [], 1, $onBehalf));
                 $this->store->restore($rt, $current['id'], $user->id);
+                app(RecycleBin::class)->restored($rt, $current['id'], $user->id);
                 $this->audit->record('record.restored', 'data', null, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $current['row_version'] + 1], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
                 $this->outbox->publish('record.restored', ['form' => $rt->form->uuid, 'record' => $current['uuid']]);
             });

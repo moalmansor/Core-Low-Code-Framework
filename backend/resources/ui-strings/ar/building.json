@@ -596,5 +596,8 @@
   "settings.downloads.max_depth": "أقصى عدد من الروابط يصل إليه ملف التنزيل",
   "settings.downloads.sync_rows": "تنزيلات السجلات الأكثر من هذا العدد تعمل في الخلفية",
   "settings.downloads.max_rows": "أقصى عدد من الصفوف في التنزيل الواحد",
-  "settings.downloads.email_attachment_mb": "أكبر ملف يُرفق برسالة التنزيل المجدول (ميغابايت)"
+  "settings.downloads.email_attachment_mb": "أكبر ملف يُرفق برسالة التنزيل المجدول (ميغابايت)",
+  "settings.group.data_quality": "جودة البيانات",
+  "settings.data_quality.recycle_bin_days": "يمكن استعادة السجلات المحذوفة خلال (أيام)",
+  "settings.data_quality.duplicate_scan_limit": "يقارن فحص التكرار عند الحفظ بما يصل إلى (سجل)"
 }

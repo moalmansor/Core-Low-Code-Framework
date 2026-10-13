@@ -10,6 +10,7 @@ use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\RecordScope;
 use App\Modules\Core\I18n\Translator;
+use App\Modules\DataQuality\DuplicateGuard;
 use App\Modules\Forms\Definition\ClientDefinition;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
@@ -148,7 +149,8 @@ final class RecordController extends Controller
     public function store(Request $request, Form $form): JsonResponse
     {
         $rt = $this->runtime($form, 'create');
-        $data = $request->validate(['values' => ['present', 'array'], 'params' => ['sometimes', 'array', 'max:20'], 'params.*' => ['nullable', 'string', 'max:500']]);
+        $data = $request->validate(['values' => ['present', 'array'], 'params' => ['sometimes', 'array', 'max:20'], 'params.*' => ['nullable', 'string', 'max:500'], 'confirm_duplicates' => ['sometimes', 'boolean']]);
+        app(DuplicateGuard::class)->acknowledge((bool) ($data['confirm_duplicates'] ?? false));
 
         return $this->run(function () use ($rt, $data, $request, $form): JsonResponse {
             $result = $this->pipeline->create($rt, $this->user(), $data['values'], $data['params'] ?? [], $this->key($request));
@@ -162,7 +164,8 @@ final class RecordController extends Controller
     public function update(Request $request, Form $form, string $record): JsonResponse
     {
         $rt = $this->runtime($form, 'edit');
-        $data = $request->validate(['values' => ['present', 'array'], 'row_version' => ['required_without:If-Match', 'nullable', 'integer', 'min:1']] + self::justificationRules());
+        $data = $request->validate(['values' => ['present', 'array'], 'row_version' => ['required_without:If-Match', 'nullable', 'integer', 'min:1'], 'confirm_duplicates' => ['sometimes', 'boolean']] + self::justificationRules());
+        app(DuplicateGuard::class)->acknowledge((bool) ($data['confirm_duplicates'] ?? false));
         $expected = (int) ($data['row_version'] ?? $request->header('If-Match'));
         abort_if($expected < 1, 428, __('records.row_version_required'));
 

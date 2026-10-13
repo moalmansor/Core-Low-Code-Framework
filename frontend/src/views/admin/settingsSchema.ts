@@ -41,6 +41,7 @@ export const settingsSchema: Record<string, FieldDef[]> = {
   ],
   schema: [n('snapshot_retention_days', 1, 3650), n('blocking_confirmation_rows', 0, 1000000000), b('reconcile_daily')],
   records: [n('export_max_rows', 100, 1000000), n('export_sync_rows', 0, 100000), n('job_file_hours', 1, 2160), n('import_max_rows', 10, 1000000), n('import_time_limit_minutes', 1, 1440)],
+  data_quality: [n('recycle_bin_days', 1, 3650), n('duplicate_scan_limit', 100, 1000000)],
   notifications: [n('email_max_attempts', 1, 20)],
   operations: [n('stuck_email_minutes', 1, 1440)],
   actions: [n('max_records', 1, 100000), n('queue_threshold', 1, 10000)],

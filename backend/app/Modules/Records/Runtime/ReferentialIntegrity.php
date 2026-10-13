@@ -130,7 +130,7 @@ final class ReferentialIntegrity
      *
      * @return list<array<string, mixed>>
      */
-    private function referencesTo(string $formUuid): array
+    public function referencesTo(string $formUuid): array
     {
         if (isset($this->memo[$formUuid])) {
             return $this->memo[$formUuid];
@@ -202,6 +202,7 @@ final class ReferentialIntegrity
         $updated = DB::table($src->table)->where('id', $id)->whereNull('deleted_at')
             ->update(['deleted_at' => $now, 'deleted_by' => $userId, 'row_version' => DB::raw('row_version + 1')]);
         if ($updated === 1) {
+            app(RecycleBin::class)->entered($src, $id, $userId, null);
             $this->audit->record('record.deleted', 'data', null, 'record', $id, ['form' => $src->form->key, 'cascade_from' => $origin->form->key], $userId, null, $src->form->id, $id);
             $this->outbox->publish('record.deleted', ['form' => $src->form->uuid, 'record' => strtolower((string) DB::table($src->table)->where('id', $id)->value('uuid')), 'actor' => $userId]);
         }

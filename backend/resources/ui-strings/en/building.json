@@ -596,5 +596,8 @@
   "settings.downloads.max_depth": "How many links deep a download profile may reach",
   "settings.downloads.sync_rows": "Downloads of more records than this run in the background",
   "settings.downloads.max_rows": "Most rows one download may contain",
-  "settings.downloads.email_attachment_mb": "Largest file attached to a scheduled download email (MB)"
+  "settings.downloads.email_attachment_mb": "Largest file attached to a scheduled download email (MB)",
+  "settings.group.data_quality": "Data quality",
+  "settings.data_quality.recycle_bin_days": "Deleted records can be restored for (days)",
+  "settings.data_quality.duplicate_scan_limit": "Duplicate check while saving compares with up to (records)"
 }

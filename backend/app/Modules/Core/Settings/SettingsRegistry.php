@@ -78,6 +78,12 @@ final class SettingsRegistry
         // Exported and generated files (exports, error reports, downloads) expire after this many hours.
         $d('records', 'job_file_hours', 72, ['required', 'integer', 'between:1,2160']);
 
+        // Data quality (§4.35, ADR-0044)
+        // Deleted records can be restored for this many days; then the daily purge removes them.
+        $d('data_quality', 'recycle_bin_days', 90, ['required', 'integer', 'between:1,3650']);
+        // Duplicate checks while saving compare against at most this many records (the sweep covers all).
+        $d('data_quality', 'duplicate_scan_limit', 20000, ['required', 'integer', 'between:100,1000000']);
+
         // Notifications and the Operations Center (§4.2, §4.16)
         $d('notifications', 'email_max_attempts', 5, ['required', 'integer', 'between:1,20']);
         $d('operations', 'stuck_email_minutes', 15, ['required', 'integer', 'between:1,1440']);

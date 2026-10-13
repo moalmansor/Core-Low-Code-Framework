@@ -18,6 +18,7 @@ use App\Modules\Notifications\EmailQueue;
 use App\Modules\Notifications\Notifier;
 use App\Modules\Records\Exchange\ExportService;
 use App\Modules\Records\FileStore;
+use App\Modules\Records\Runtime\RecycleBin;
 use App\Modules\Scheduling\ScheduledTasks;
 use App\Modules\Schema\Execution\SchemaReconciler;
 use App\Modules\Schema\Execution\Snapshots;
@@ -50,6 +51,12 @@ Artisan::command('scheduler:run', function (ScheduledTasks $tasks): int {
 
     return 0;
 })->purpose('Run the scheduled tasks that are due (scheduled downloads, automations)');
+
+Artisan::command('records:purge-recycle-bin', function (RecycleBin $bin): int {
+    $this->info('Purged '.$bin->purgeDue().' record(s) past the recycle bin retention.');
+
+    return 0;
+})->purpose('Remove deleted records whose recycle bin retention has passed');
 
 Artisan::command('automations:tick', function (AutomationEngine $engine, WatchedFolders $folders): int {
     $resumed = $engine->resumeDue();
@@ -227,6 +234,7 @@ Schedule::command('documents:expire')->hourly()->onOneServer();
 Schedule::command('downloads:expire')->hourly()->onOneServer();
 Schedule::command('scheduler:run')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('automations:tick')->everyMinute()->withoutOverlapping()->onOneServer();
+Schedule::command('records:purge-recycle-bin')->dailyAt('03:25')->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('mail:dispatch-due')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('schema:purge-snapshots')->dailyAt('04:10')->onOneServer();

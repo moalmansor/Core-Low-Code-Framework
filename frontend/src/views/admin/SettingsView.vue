@@ -36,6 +36,7 @@ const tabs = computed(() => {
       'mail',
       'files',
       'records',
+      'data_quality',
       'actions',
       'downloads',
       'notifications',
