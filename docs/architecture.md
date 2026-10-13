@@ -5282,6 +5282,26 @@ admin-created, never seeded.
 - **Check:** `ck_operations_alert_rules_metric`: `metric IN ('failed_submissions', 'failed_jobs', 'failed_emails', 'stuck_emails', 'failed_webhooks', 'failed_integrations', 'queue_size', 'error_rate', 'storage_usage', 'scheduler_lag')` (both engines)
 - **Check (SQL Server):** `ck_operations_alert_rules_recipient_role_ids_json`: `ISJSON(recipient_role_ids) = 1`
 
+**`operations_dismissals`** (supporting — §4.2 failed jobs dismissed with a reason, ADR-0045)
+
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `import`, `export`, `download`, `action`, `automation`, `scheduled_task`, `webhook`, `queue_job` |
+| `reference_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | id of the failed row in its own table (`failed_jobs.id` for `queue_job`, `audit_logs.id` for `webhook`) |
+| `reason` | TEXT | NVARCHAR(MAX) | NOT NULL | — | mandatory |
+| `dismissed_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `dismissed_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+
+- **Primary key:** `pk_operations_dismissals` (`id`); SQL Server clustered.
+- **Unique:** `uq_operations_dismissals_kind_reference_id` (`kind`, `reference_id`)
+- **Index:** `ix_operations_dismissals_organization_id_dismissed_at` (`organization_id`, `dismissed_at`)
+- **Index:** `ix_operations_dismissals_dismissed_by` (`dismissed_by`) — supports FK
+- **Foreign key:** `fk_operations_dismissals_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_operations_dismissals_dismissed_by`: `dismissed_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_operations_dismissals_kind`: `kind IN ('import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'queue_job')` (both engines)
+
 Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tracking rows).
 
 ### 10.22 Extensibility & platform

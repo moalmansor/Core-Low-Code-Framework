@@ -24,6 +24,9 @@ final class RunDuplicateSweep implements ShouldQueue
     public function __construct(public readonly int $operationId)
     {
         $this->onQueue('heavy');
+        if (config('queue.default') === 'redis') {
+            $this->onConnection('redis_heavy');
+        }
     }
 
     public function handle(DuplicateRules $service, TenantContext $tenant): void

@@ -68,7 +68,8 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            // Longer than the longest job on these queues (an action run, 3600 s), so a running job is never handed out twice.
+            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 3700),
             'block_for' => null,
             'after_commit' => false,
         ],
@@ -81,6 +82,16 @@ return [
             'retry_after' => 3700,
             'block_for' => null,
             'after_commit' => true,
+        ],
+
+        // Imports, exports, downloads, data repair and duplicate sweeps run up to two hours.
+        'redis_heavy' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'heavy',
+            'retry_after' => 7300,
+            'block_for' => null,
+            'after_commit' => false,
         ],
 
         'deferred' => [

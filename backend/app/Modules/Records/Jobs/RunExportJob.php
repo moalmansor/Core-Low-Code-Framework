@@ -27,6 +27,9 @@ final class RunExportJob implements ShouldQueue
     public function __construct(public readonly int $exportJobId)
     {
         $this->onQueue('heavy');
+        if (config('queue.default') === 'redis') {
+            $this->onConnection('redis_heavy');
+        }
     }
 
     public function handle(ExportService $exports): void

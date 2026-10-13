@@ -207,7 +207,33 @@ return [
             'maxJobs' => 0,
             'memory' => 128,
             'tries' => 1,
-            'timeout' => 60,
+            'timeout' => 3600,
+            'nice' => 0,
+        ],
+        // Imports, exports, downloads, data repair and duplicate sweeps: long jobs, each with its own timeout.
+        'heavy-1' => [
+            'connection' => 'redis_heavy',
+            'queue' => ['heavy'],
+            'balance' => 'simple',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 512,
+            'tries' => 0,
+            'timeout' => 7200,
+            'nice' => 0,
+        ],
+        // Outgoing e-mail from the e-mail queue and error alerts.
+        'mail-1' => [
+            'connection' => 'redis',
+            'queue' => ['mail'],
+            'balance' => 'simple',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 0,
+            'timeout' => 150,
             'nice' => 0,
         ],
         'schema-1' => [
@@ -230,6 +256,12 @@ return [
                 'maxProcesses' => 10,
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
+            ],
+            'heavy-1' => [
+                'maxProcesses' => 2,
+            ],
+            'mail-1' => [
+                'maxProcesses' => 2,
             ],
         ],
 

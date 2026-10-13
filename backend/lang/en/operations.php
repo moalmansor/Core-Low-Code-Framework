@@ -1,0 +1,54 @@
+<?php
+
+declare(strict_types=1);
+
+// The Operations Center (specification §4.2, ADR-0045).
+return [
+    'not_editable' => 'Only the values of a failed create, update or status change can be edited.',
+    'form_unavailable' => 'The form is no longer published, so this submission cannot be retried.',
+    'unknown_field' => 'The form has no field ":field".',
+    'not_retryable' => 'This item cannot be retried here.',
+    'submitter_inactive' => 'The person who submitted this is no longer active, so it cannot be retried as them.',
+    'retry_failed' => 'The retry failed again. See Error Monitoring for details.',
+    'not_discardable' => 'Only a failed submission can be discarded.',
+    'not_found' => 'This failure was not found, or it was already handled.',
+    'records_failed' => 'Records that could not be changed: :n',
+    'steps_failed' => 'Some steps failed.',
+    'recipients_single' => 'Recipients can be changed for one e-mail at a time.',
+    'changed_elsewhere' => 'Someone else changed the alert rules. The latest version is shown.',
+    'too_many_rules' => 'At most :max alert rules.',
+    'bad_metric' => 'Choose what to watch.',
+    'bad_threshold' => 'Enter a threshold from 1 to :max.',
+    'bad_window' => 'Enter a period from 5 minutes to 7 days.',
+    'bad_cooldown' => 'Enter a quiet period from 5 minutes to 7 days.',
+    'roles_required' => 'Choose at least one role to alert.',
+    'metric' => [
+        'failed_submissions' => 'Failed submissions',
+        'failed_jobs' => 'Failed jobs',
+        'failed_emails' => 'Failed e-mails',
+        'stuck_emails' => 'Stuck e-mails',
+        'failed_webhooks' => 'Failed webhook calls',
+        'queue_size' => 'Waiting jobs',
+        'error_rate' => 'Errors',
+        'storage_usage' => 'Storage used (%)',
+        'scheduler_lag' => 'Minutes since the scheduler last ran',
+    ],
+    'operation' => [
+        'update' => 'Bulk update',
+        'reassign' => 'Bulk reassign',
+        'status_change' => 'Bulk status change',
+        'delete' => 'Bulk delete',
+        'restore' => 'Bulk restore',
+        'duplicate_sweep' => 'Duplicate search',
+        'validation_sweep' => 'Rule check',
+        'orphan_scan' => 'Broken-link scan',
+        'repair' => 'Repair',
+        'action' => 'Action',
+    ],
+    'alert' => [
+        'subject' => 'Alert: :measure reached :value',
+        'body' => ':measure reached :value in the last :window minutes (threshold :threshold).',
+        'body_now' => ':measure is :value (threshold :threshold).',
+        'open' => 'Open the Operations Center',
+    ],
+];

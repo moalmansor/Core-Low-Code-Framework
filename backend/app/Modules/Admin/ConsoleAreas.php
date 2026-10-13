@@ -34,6 +34,7 @@ final class ConsoleAreas
         'system_settings' => ['configuration', ['system.manage_settings'], '/admin/settings'],
         'audit_log' => ['compliance', ['system.view_audit_log'], '/admin/audit'],
         'reason_codes' => ['compliance', ['system.manage_justification_rules'], '/admin/reason-codes'],
+        'operations_center' => ['operations', ['system.manage_operations'], '/admin/operations'],
         'error_monitoring' => ['operations', ['system.view_errors'], '/admin/errors'],
         'schema' => ['operations', ['system.manage_forms'], '/admin/schema'],
         'scheduled_tasks' => ['operations', ['system.manage_automations', 'system.manage_operations'], '/admin/scheduled-tasks'],

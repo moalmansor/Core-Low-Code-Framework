@@ -16,6 +16,7 @@ use App\Modules\Downloads\DownloadJobs;
 use App\Modules\Monitoring\ErrorReporter;
 use App\Modules\Notifications\EmailQueue;
 use App\Modules\Notifications\Notifier;
+use App\Modules\Operations\AlertRules;
 use App\Modules\Records\Exchange\ExportService;
 use App\Modules\Records\FileStore;
 use App\Modules\Records\Runtime\RecycleBin;
@@ -78,6 +79,12 @@ Artisan::command('mail:dispatch-due', function (EmailQueue $queue): int {
 
     return 0;
 })->purpose('Send delayed emails and retries whose time has come');
+
+Artisan::command('ops:check-alerts', function (AlertRules $rules): int {
+    $this->info('Alerts sent: '.$rules->evaluate());
+
+    return 0;
+})->purpose('Alert the chosen roles when an Operations Center measure reaches its threshold');
 
 Artisan::command('outbox:relay {--limit=200}', function (OutboxRelay $relay): int {
     $count = $relay->relayPending((int) $this->option('limit'));
@@ -237,6 +244,7 @@ Schedule::command('automations:tick')->everyMinute()->withoutOverlapping()->onOn
 Schedule::command('records:purge-recycle-bin')->dailyAt('03:25')->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('mail:dispatch-due')->everyMinute()->withoutOverlapping()->onOneServer();
+Schedule::command('ops:check-alerts')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('schema:purge-snapshots')->dailyAt('04:10')->onOneServer();
 Schedule::command('schema:reconcile --scheduled')->dailyAt('01:40')->withoutOverlapping()->onOneServer();
 Schedule::command('outbox:relay')->everyMinute()->withoutOverlapping()->onOneServer();
