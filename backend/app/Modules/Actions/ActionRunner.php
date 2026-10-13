@@ -178,7 +178,7 @@ final class ActionRunner
     private function preview(FormRuntime $rt, array $targets): array
     {
         $uuids = array_column(array_slice($targets, 0, 20), 'uuid');
-        $rows = DB::table($rt->table)->whereIn('uuid', $uuids ?: ['-'])->get()->keyBy(static fn ($r) => strtolower((string) $r->uuid));
+        $rows = DB::table($rt->table)->whereIn('uuid', $uuids ?: ['00000000-0000-0000-0000-000000000000'])->get()->keyBy(static fn ($r) => strtolower((string) $r->uuid));
         $bin = app(RecycleBin::class);
         $out = [];
         foreach ($uuids as $u) {
@@ -236,7 +236,7 @@ final class ActionRunner
         ]);
         $this->audit->record('action.dry_run', 'data', null, 'action', (int) $action->id, ['action' => $action->key, 'records' => count($targets), 'tried' => count($tried), 'would_fail' => count($errors)], $user->id, null, $rt->form->id);
         $bin = app(RecycleBin::class);
-        $titles = DB::table($rt->table)->whereIn('uuid', array_column($errors, 'uuid') ?: ['-'])->get()->keyBy(static fn ($r) => strtolower((string) $r->uuid));
+        $titles = DB::table($rt->table)->whereIn('uuid', array_column($errors, 'uuid') ?: ['00000000-0000-0000-0000-000000000000'])->get()->keyBy(static fn ($r) => strtolower((string) $r->uuid));
 
         return [
             'count' => count($targets), 'tried' => count($tried), 'would_succeed' => $ok, 'would_fail' => count($errors),
