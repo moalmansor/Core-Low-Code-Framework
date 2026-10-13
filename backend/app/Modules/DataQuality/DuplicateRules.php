@@ -15,6 +15,7 @@ use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
+use App\Modules\Records\Runtime\RecycleBin;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -44,6 +45,7 @@ final class DuplicateRules
         private readonly CorrelationId $correlation,
         private readonly RecordScope $scope,
         private readonly AccessResolver $access,
+        private readonly RecycleBin $bin,
     ) {}
 
     /**
@@ -198,11 +200,11 @@ final class DuplicateRules
         $hidden = 0;
         if ($rt !== null && $this->access->allows($user, "form.{$rt->form->uuid}.view")) {
             foreach ((array) ($result['groups'] ?? []) as $g) {
-                $rows = DB::table($rt->table)->whereIn('uuid', $g)->whereNull('deleted_at')->get(['id', 'uuid', 'record_number']);
+                $rows = DB::table($rt->table)->whereIn('uuid', $g)->whereNull('deleted_at')->get();
                 $members = [];
                 foreach ($rows as $r) {
                     if ($this->scope->allows($rt, $user, 'view', (int) $r->id)) {
-                        $members[] = ['uuid' => strtolower((string) $r->uuid), 'number' => $r->record_number];
+                        $members[] = ['uuid' => strtolower((string) $r->uuid), 'number' => $r->record_number, 'title' => $this->bin->title($rt, $r)];
                     } else {
                         $hidden++;
                     }

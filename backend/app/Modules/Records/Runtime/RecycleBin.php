@@ -50,12 +50,23 @@ final class RecycleBin
             ->update(['restored_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u'), 'restored_by' => $userId]);
     }
 
-    /** When a deleted record will be purged, for the recycle bin list. */
-    public function purgeAfter(int $formId, int $recordId): ?string
+    /**
+     * When deleted records will be purged, for the recycle bin list.
+     *
+     * @param  list<int>  $recordIds
+     * @return array<int, string> record id => ISO time
+     */
+    public static function purgeDates(int $formId, array $recordIds): array
     {
-        $at = DB::table('recycle_bin')->where('form_id', $formId)->where('record_id', $recordId)->whereNull('restored_at')->whereNull('purged_at')->orderByDesc('id')->value('purge_after');
+        if ($recordIds === []) {
+            return [];
+        }
+        $out = [];
+        foreach (DB::table('recycle_bin')->where('form_id', $formId)->whereIn('record_id', $recordIds)->whereNull('restored_at')->whereNull('purged_at')->get(['record_id', 'purge_after']) as $e) {
+            $out[(int) $e->record_id] = Carbon::parse((string) $e->purge_after, 'UTC')->toIso8601ZuluString();
+        }
 
-        return $at === null ? null : Carbon::parse((string) $at, 'UTC')->toIso8601ZuluString();
+        return $out;
     }
 
     /**
@@ -115,8 +126,13 @@ final class RecycleBin
         return $purged;
     }
 
-    /** @param  object|null  $row  the record's row */
-    private function title(FormRuntime $rt, ?object $row): string
+    /**
+     * How a record is named where it is listed by itself: its number, else its
+     * first non-empty text value (never an encrypted one).
+     *
+     * @param  object|null  $row  the record's row
+     */
+    public function title(FormRuntime $rt, ?object $row): string
     {
         if ($row === null) {
             return '';
@@ -125,7 +141,8 @@ final class RecycleBin
             return (string) $row->record_number;
         }
         foreach ($rt->mainFields() as $f) {
-            $col = $rt->column($f['uuid'])['name'] ?? null;
+            $column = $rt->column($f['uuid']);
+            $col = $column === null || ($column['encrypted'] ?? false) ? null : ($column['name'] ?? null);
             $v = $col === null ? null : ($row->{$col} ?? null);
             if (in_array($rt->type($f)?->storage, ['string', 'text'], true) && is_string($v) && trim($v) !== '') {
                 return $v;

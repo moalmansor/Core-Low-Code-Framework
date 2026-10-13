@@ -84,7 +84,7 @@ it('warns about a likely duplicate while saving, lets the person save anyway, an
 
     $warned = $this->postJson("/api/v1/r/{$w['contacts']}", ['values' => ['name' => 'احمد  علي', 'city' => 'Riyad', 'code' => 'C-2']])->assertStatus(409);
     expect($warned->json('code'))->toBe('duplicate')->and($warned->json('blocking'))->toBeFalse()
-        ->and($warned->json('duplicates.0.uuid'))->toBe($first['uuid'])->and($warned->json('rules'))->toBe(['Same person']);
+        ->and($warned->json('duplicates.0.uuid'))->toBe($first['uuid'])->and($warned->json('duplicates.0.title'))->toBe('أحمد علي')->and($warned->json('rules'))->toBe(['Same person']);
     $this->postJson("/api/v1/r/{$w['contacts']}", ['values' => ['name' => 'احمد  علي', 'city' => 'Riyad', 'code' => 'C-2'], 'confirm_duplicates' => true])->assertCreated();
 
     // A blocking rule cannot be answered.
@@ -120,7 +120,8 @@ it('merges duplicates: chosen values, links moved to the survivor, the others in
     $note = $this->postJson("/api/v1/r/{$w['notes']}", ['values' => ['text' => 'Called', 'contact' => $dup['uuid']]])->assertCreated()->json('data');
 
     $preview = $this->postJson("/api/v1/r/{$w['contacts']}/merge/preview", ['records' => [$keep['uuid'], $dup['uuid']]])->assertOk()->json('data');
-    expect($preview['differ'])->toBe(['name', 'email', 'city'])->and($preview['links'][$dup['uuid']])->toBe(1);
+    expect($preview['differ'])->toBe(['name', 'email', 'city'])->and($preview['links'][$dup['uuid']])->toBe(1)
+        ->and(array_column($preview['records'], 'title'))->toBe(['Huda', 'Huda A.']);
     $body = ['survivor' => $keep['uuid'], 'merged' => [$dup['uuid']], 'choices' => ['email' => $dup['uuid'], 'city' => $keep['uuid']],
         'versions' => [$keep['uuid'] => $keep['row_version'], $dup['uuid'] => $dup['row_version']]];
     $this->postJson("/api/v1/r/{$w['contacts']}/merge", $body)->assertStatus(422)->assertJsonPath('code', 'justification_required');
@@ -174,6 +175,8 @@ it('keeps deleted records restorable for the retention period, then purges them'
     }
     $entry = DB::table('recycle_bin')->where('record_id', DB::table(qualityTable($w['contacts']))->where('uuid', $a['uuid'])->value('id'))->first();
     expect(Carbon::parse((string) $entry->purge_after)->toDateString())->toBe('2026-12-30')->and($entry->title_snapshot)->toBe('Old');
+    $bin = $this->getJson("/api/v1/r/{$w['contacts']}?trashed=1")->assertOk()->json('data');
+    expect(collect($bin)->firstWhere('uuid', $a['uuid'])['system']['purge_after'])->toStartWith('2026-12-30');
     $this->postJson("/api/v1/r/{$w['contacts']}/{$b['uuid']}/restore")->assertSuccessful();
 
     expect(app(RecycleBin::class)->purgeDue(Carbon::parse('2026-12-29', 'UTC')))->toBe(0)

@@ -39,6 +39,7 @@ final class RecordPresenter
     public function many(FormRuntime $rt, array $records, array $access, bool $withTitles = true): array
     {
         $hidden = array_flip(array_keys(array_filter($access, static fn ($l) => $l === 'hidden')));
+        $purges = RecycleBin::purgeDates($rt->form->id, array_values(array_map(static fn ($r) => (int) $r['id'], array_filter($records, static fn ($r) => ($r['system']['deleted_at'] ?? null) !== null))));
         $titles = [];
         $files = [];
         if ($withTitles) {
@@ -116,6 +117,7 @@ final class RecordPresenter
                     'updated_at' => $r['system']['updated_at'],
                     'updated_by' => $users[$r['system']['updated_by']] ?? null,
                     'deleted_at' => $r['system']['deleted_at'],
+                    'purge_after' => $purges[$r['id']] ?? null,
                     'status' => self::status($wf, $r['system']['status_id'] ?? null),
                     'status_changed_at' => $r['system']['status_changed_at'] ?? null,
                 ],

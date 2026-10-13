@@ -21,6 +21,12 @@ export const runtimeRoutes: RouteRecordRaw[] = [
     component: () => import('@/views/downloads/ProfileEditor.vue'),
     meta: { anyOf: ['system.create_personal_download_profiles'], title: 'dl.page_title', personalDownloads: true },
   },
+  {
+    path: `app/:form(${uuid})/merge`,
+    name: 'records.merge',
+    component: () => import('@/views/dataquality/MergeView.vue'),
+    meta: { anyOf: ['system.merge_records'], title: 'dq.merge_title' },
+  },
   { path: `app/:form(${uuid})/new`, name: 'records.create', component: () => import('@/views/records/RecordForm.vue'), meta: { title: 'records.new' } },
   { path: `app/:form(${uuid})/:record(${uuid})`, name: 'records.view', component: () => import('@/views/records/RecordView.vue'), meta: { title: 'records.view' } },
   { path: `app/:form(${uuid})/:record(${uuid})/edit`, name: 'records.edit', component: () => import('@/views/records/RecordForm.vue'), meta: { title: 'records.edit' } },

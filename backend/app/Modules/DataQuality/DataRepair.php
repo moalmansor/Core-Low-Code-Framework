@@ -16,6 +16,7 @@ use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RecordException;
 use App\Modules\Records\Runtime\RecordPipeline;
 use App\Modules\Records\Runtime\RecordStore;
+use App\Modules\Records\Runtime\RecycleBin;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -49,6 +50,7 @@ final class DataRepair
         private readonly Translator $translator,
         private readonly AuditWriter $audit,
         private readonly CorrelationId $correlation,
+        private readonly RecycleBin $bin,
     ) {}
 
     public function start(Form $form, string $type, User $user): object
@@ -117,7 +119,7 @@ final class DataRepair
         $hidden = 0;
         if ($rt !== null) {
             $ids = array_values(array_unique(array_map(static fn ($f) => (int) $f['record'], (array) ($result['findings'] ?? []))));
-            $live = DB::table($rt->table)->whereIn('id', $ids ?: [0])->whereNull('deleted_at')->get(['id', 'uuid', 'record_number'])->keyBy('id');
+            $live = DB::table($rt->table)->whereIn('id', $ids ?: [0])->whereNull('deleted_at')->get()->keyBy('id');
             foreach ((array) ($result['findings'] ?? []) as $f) {
                 $row = $live[(int) $f['record']] ?? null;
                 if ($row === null) {
@@ -130,7 +132,7 @@ final class DataRepair
                 }
                 $field = isset($rt->keys[$f['field'] ?? '']) ? ($rt->fields[$rt->keys[$f['field']]] ?? null) : null;
                 $rows[] = [
-                    'record' => strtolower((string) $row->uuid), 'number' => $row->record_number, 'field' => $f['field'] ?? null,
+                    'record' => strtolower((string) $row->uuid), 'number' => $row->record_number, 'title' => $this->bin->title($rt, $row), 'field' => $f['field'] ?? null,
                     'label' => $field === null ? null : $this->translator->labelOf((array) ($field['i18n']['label'] ?? []), (string) $field['key']),
                     'problem' => $f['problem'], 'message' => $f['message'] ?? null, 'fixable' => (bool) ($f['fixable'] ?? false),
                 ];

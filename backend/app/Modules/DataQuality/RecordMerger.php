@@ -13,6 +13,7 @@ use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\RecordException;
 use App\Modules\Records\Runtime\RecordPipeline;
 use App\Modules\Records\Runtime\RecordStore;
+use App\Modules\Records\Runtime\RecycleBin;
 use App\Modules\Records\Runtime\ReferentialIntegrity;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
@@ -47,6 +48,7 @@ final class RecordMerger
         private readonly JustificationGate $gate,
         private readonly AuditWriter $audit,
         private readonly DuplicateGuard $guard,
+        private readonly RecycleBin $bin,
     ) {}
 
     /**
@@ -61,7 +63,7 @@ final class RecordMerger
         $records = $this->records($rt, $user, $uuids, null);
         $differ = [];
         foreach ($rt->mainFields() as $f) {
-            if (! $rt->isStored($f) || $f['type'] === 'formula' || $f['type'] === 'autonumber') {
+            if (! $rt->isStored($f) || $f['type'] === 'formula' || $f['type'] === 'autonumber' || in_array($rt->type($f)?->storage, ['file', 'files'], true)) {
                 continue;
             }
             $vals = array_map(static fn ($r) => json_encode($r['values'][$f['key']] ?? null), $records);
@@ -74,7 +76,8 @@ final class RecordMerger
             $links[$r['uuid']] = $this->linkCount($rt, $r['id']);
         }
 
-        return ['records' => array_map(static fn ($r) => ['uuid' => $r['uuid'], 'row_version' => $r['row_version'], 'number' => $r['system']['record_number'] ?? null], $records),
+        return ['records' => array_map(fn ($r) => ['uuid' => $r['uuid'], 'row_version' => $r['row_version'], 'number' => $r['system']['record_number'] ?? null,
+            'title' => $this->bin->title($rt, DB::table($rt->table)->where('id', $r['id'])->first())], $records),
             'differ' => $differ, 'links' => $links,
             'justification' => $this->gate->prompt($rt, $this->requirement($rt, $user, $records[0]), ['fields' => $differ, 'values' => $records[0]['values'], 'old' => $records[0]['values']], $user)];
     }
@@ -102,7 +105,8 @@ final class RecordMerger
         foreach ($choices as $key => $from) {
             $field = isset($rt->keys[$key]) ? ($rt->fields[$rt->keys[$key]] ?? null) : null;
             $source = $byUuid[strtolower((string) $from)] ?? null;
-            if ($field === null || $source === null || isset($rt->fieldRepeater[$field['uuid']])) {
+            // Files belong to the record they were uploaded to: the survivor keeps its own.
+            if ($field === null || $source === null || isset($rt->fieldRepeater[$field['uuid']]) || in_array($rt->type($field)?->storage, ['file', 'files'], true)) {
                 throw new RecordException(422, 'invalid', __('data_quality.bad_choice'));
             }
             if ($source['uuid'] !== $keep['uuid'] && json_encode($source['values'][$key] ?? null) !== json_encode($keep['values'][$key] ?? null)) {

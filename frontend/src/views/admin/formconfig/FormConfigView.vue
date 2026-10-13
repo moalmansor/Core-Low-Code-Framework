@@ -14,6 +14,7 @@ import { pick } from '@/builder/conditions/scope'
 import { createBuilder, provideBuilder } from '@/builder/useBuilder'
 import { provideConfigScreen } from '@/components/config/configScreen'
 import AutomationList from '@/views/automations/AutomationList.vue'
+import DuplicateRulesEditor from '@/views/dataquality/DuplicateRulesEditor.vue'
 import ProfileList from '@/views/downloads/ProfileList.vue'
 import ActionsEditor from './ActionsEditor.vue'
 import AssignmentEditor from './AssignmentEditor.vue'
@@ -41,7 +42,22 @@ const formUuid = String(route.params.form)
 const builder = createBuilder(formUuid)
 provideBuilder(builder)
 
-const TABS = ['workflow', 'sla', 'record_access', 'justification', 'assignment', 'notifications', 'actions', 'downloads', 'automations', 'views', 'panels', 'previews', 'print'] as const
+const TABS = [
+  'workflow',
+  'sla',
+  'record_access',
+  'justification',
+  'assignment',
+  'notifications',
+  'actions',
+  'downloads',
+  'automations',
+  'data_quality',
+  'views',
+  'panels',
+  'previews',
+  'print',
+] as const
 type TabKey = (typeof TABS)[number]
 const screen = provideConfigScreen()
 const current = ref<TabKey>(TABS.includes(route.params.tab as TabKey) ? (route.params.tab as TabKey) : 'workflow')
@@ -99,6 +115,7 @@ onBeforeUnmount(() => builder.cancelTimers())
             <ActionsEditor v-else-if="k === 'actions'" :form="formUuid" />
             <ProfileList v-else-if="k === 'downloads'" :form="formUuid" :personal="false" />
             <AutomationList v-else-if="k === 'automations'" :form="formUuid" />
+            <DuplicateRulesEditor v-else-if="k === 'data_quality'" :form="formUuid" />
             <ViewsEditor v-else-if="k === 'views'" :form="formUuid" />
             <PanelsEditor v-else-if="k === 'panels'" :form="formUuid" />
             <PreviewsEditor v-else-if="k === 'previews'" :form="formUuid" />

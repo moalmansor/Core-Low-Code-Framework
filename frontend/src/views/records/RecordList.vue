@@ -589,6 +589,8 @@ const downloadItems = computed<MenuItem[]>(() => [
   { separator: true, visible: downloads.value.length > 0 && canPersonalDownloads.value },
   { label: t('dl.my_profiles'), icon: 'pi pi-sliders-h', visible: canPersonalDownloads.value, command: () => router.push({ name: 'records.downloads', params: { form: formUuid.value } }) },
 ])
+// A survivor and up to ten others are merged at once (the server's limit, specification §4.35).
+const MERGE_MAX = 11
 const actionsMenu = ref<InstanceType<typeof Menu> | null>(null)
 const bulkActions = computed(() => listActions.value.filter((a) => a.placements[0] === 'bulk'))
 const toolbarActions = computed(() => listActions.value.filter((a) => a.placements[0] === 'toolbar'))
@@ -608,6 +610,12 @@ const actionItems = computed<MenuItem[]>(() => {
           actionItem(a, () => ({ items: selected.value.map((r) => ({ uuid: r.uuid, row_version: r.row_version })) }), t('act.run.selected', { label: a.label, n: number(n) })),
         )),
     { label: t('records.export_selected', { n: number(n) }), icon: 'pi pi-file-excel', visible: n > 0 && canExport.value, command: () => exportAs('xlsx', true) },
+    {
+      label: t('dq.merge_selected', { n: number(n) }),
+      icon: 'pi pi-clone',
+      visible: n >= 2 && n <= MERGE_MAX && !state.trashed && session.can('system.merge_records'),
+      command: () => router.push({ name: 'records.merge', params: { form: formUuid.value }, query: { records: selected.value.map((r) => r.uuid).join(',') } }),
+    },
     { label: t('records.delete_selected', { n: number(n) }), icon: 'pi pi-trash', class: 'text-danger', visible: n > 0 && canDelete.value && !state.trashed, command: () => bulk('delete') },
     { label: t('records.restore_selected', { n: number(n) }), icon: 'pi pi-replay', visible: n > 0 && canRestore.value && state.trashed, command: () => bulk('restore') },
     { separator: true, visible: canRestore.value },
@@ -931,6 +939,13 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
         <Column field="updated_at" :header="t('records.updated_at')" sortable>
           <template #body="{ data }">
             <span class="text-sm whitespace-nowrap text-muted-color">{{ (data as RecordPayload).system.updated_at ? formatDatetime((data as RecordPayload).system.updated_at!, locale) : '—' }}</span>
+          </template>
+        </Column>
+        <Column v-if="state.trashed" field="purge_after" :header="t('dq.purge_after')">
+          <template #body="{ data }">
+            <span class="text-sm whitespace-nowrap text-muted-color" data-testid="purge-after">{{
+              (data as RecordPayload).system.purge_after ? formatDatetime((data as RecordPayload).system.purge_after!, locale) : '—'
+            }}</span>
           </template>
         </Column>
       </template>

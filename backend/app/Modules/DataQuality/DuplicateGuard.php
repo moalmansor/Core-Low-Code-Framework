@@ -11,6 +11,7 @@ use App\Modules\Identity\Models\User;
 use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\RecordException;
 use App\Modules\Records\Runtime\RecordStore;
+use App\Modules\Records\Runtime\RecycleBin;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -34,6 +35,7 @@ final class DuplicateGuard
         private readonly RecordScope $scope,
         private readonly AccessResolver $access,
         private readonly Translator $translator,
+        private readonly RecycleBin $bin,
     ) {}
 
     /** The person saving has seen the warning and saves anyway (for this request). */
@@ -78,7 +80,7 @@ final class DuplicateGuard
         $mayView = $this->access->allows($user, "form.{$rt->form->uuid}.view");
         foreach ($ids as $id) {
             if ($mayView && $this->scope->allows($rt, $user, 'view', $id) && ($found = $this->store->findById($rt, $id)) !== null) {
-                $visible[] = ['uuid' => $found['uuid'], 'number' => $found['system']['record_number'] ?? null];
+                $visible[] = ['uuid' => $found['uuid'], 'number' => $found['system']['record_number'] ?? null, 'title' => $this->bin->title($rt, DB::table($rt->table)->where('id', $id)->first())];
             } else {
                 $hidden++;
             }
