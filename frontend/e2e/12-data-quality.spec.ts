@@ -98,10 +98,20 @@ test('a duplicate is warned about, found by a sweep, merged with a justification
 
   // The repair scans run from the same tab.
   await page.goto(`/admin/forms/${form}/configure/data_quality`)
-  await page.getByTestId('dq-scan-orphan_scan').click()
-  await expect(page.getByTestId('dq-found-orphan_scan')).toBeVisible({ timeout: 20000 })
-  await page.getByTestId('dq-scan-validation_sweep').click()
-  await expect(page.getByTestId('dq-found-validation_sweep')).toBeVisible({ timeout: 20000 })
+  // A scan runs as a background job; when it does not finish, its own status and error say why.
+  for (const type of ['orphan_scan', 'validation_sweep'] as const) {
+    await page.getByTestId(`dq-scan-${type}`).click()
+    await expect
+      .poll(
+        async () => {
+          const scan = ((await api(page, 'GET', `/forms/${form}/repair`)).data as Record<string, { status: string; error: string | null } | null>)[type]
+          return scan ? `${scan.status}${scan.error ? `: ${scan.error}` : ''}` : 'none'
+        },
+        { timeout: 60_000 },
+      )
+      .toBe('completed')
+    await expect(page.getByTestId(`dq-found-${type}`)).toBeVisible({ timeout: 10_000 })
+  }
 
   // The rule is removed again so later runs start clean.
   const now = (await api(page, 'GET', `/forms/${form}/duplicate-rules`)).data as { hash: string }
