@@ -510,9 +510,16 @@ Decided by the owner:
     after 90 seconds. Long jobs now have connections that wait longer than
     their timeout.
   - Tests: `tests/Engine/OperationsTest.php`, e2e `13-operations`.
-- **Next:**
-  - Full verification on both engines (CI), the remaining e2e review, and
-    the pull request closing #7.
+- **Verification:** CI passes on both engines (backend, end-to-end with
+  `php artisan serve`, and the Docker stack from a Windows checkout).
+  CI on SQL Server caught a trial-run lookup that used a non-UUID
+  placeholder; it was fixed. One Docker/SQL Server run (152) timed out
+  waiting for a repair scan, and the next runs passed. The e2e now waits up
+  to 60 seconds and reports the scan's status, and CI prints the
+  application's errors and unfinished operations when the stack fails.
+- **Pull request** to `main` closing #7, with the verification report.
+  Phase 4 is complete pending the owner's review. Do not start Phase 5
+  until it is merged.
 
 ## Resume point
 
@@ -522,9 +529,11 @@ merge commit `e4c89ad`). The owner re-tested the workflow designer,
 transitions with required fields, removing a status that has records, and
 field access by status, and all behaved correctly.
 
-Phase 4 is in progress on branch `phase-4-actions`
-([moalmansor/Core-Low-Code-Framework#7](https://github.com/moalmansor/Core-Low-Code-Framework/issues/7)).
-See the Phase 4 section above for what is done and where to continue.
+Phase 4 is built on branch `phase-4-actions`
+([moalmansor/Core-Low-Code-Framework#7](https://github.com/moalmansor/Core-Low-Code-Framework/issues/7))
+and its pull request to `main` is open for the owner's review. Resume by
+addressing review comments on that pull request (push to the same branch,
+re-run CI, update the report). Phase 5 starts only after it is merged.
 
 ### Local development notes
 
