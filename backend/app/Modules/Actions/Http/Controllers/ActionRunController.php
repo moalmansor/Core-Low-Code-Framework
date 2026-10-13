@@ -42,6 +42,15 @@ final class ActionRunController extends Controller
         return $this->runRecord(fn () => response()->json(['data' => $this->runner->prepare($row, $rt, $this->currentUser(), $targets, (array) $request->input('inputs', []))]));
     }
 
+    /** Tries a bulk built-in on its records without keeping anything (specification §4.35). */
+    public function dryRun(Request $request, Form $form, string $action): JsonResponse
+    {
+        $request->validate(['inputs' => ['sometimes', 'array']]);
+        [$rt, $row, $targets] = $this->resolve($request, $form, $action);
+
+        return $this->runRecord(fn () => response()->json(['data' => $this->runner->dryRun($row, $rt, $this->currentUser(), $targets, (array) $request->input('inputs', []))]));
+    }
+
     public function run(Request $request, Form $form, string $action): JsonResponse
     {
         $request->validate(RecordController::justificationRules() + ['inputs' => ['sometimes', 'array']]);

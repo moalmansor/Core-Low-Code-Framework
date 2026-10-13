@@ -56,7 +56,7 @@ return new class extends Migration
             Columns::fk($t, 'form_id', 'forms', onDelete: 'cascade', nullable: false, index: false);
             Columns::code($t, 'key', 48);
             Columns::enum($t, 'kind', ['builtin', 'custom']);
-            Columns::enum($t, 'builtin', ['export', 'import', 'print', 'duplicate', 'bulk_delete', 'bulk_status', 'bulk_update', 'download'], nullable: true);
+            Columns::enum($t, 'builtin', ['export', 'import', 'print', 'duplicate', 'bulk_delete', 'bulk_status', 'bulk_update', 'bulk_reassign', 'download'], nullable: true);
             Columns::json($t, 'placements');
             Columns::fk($t, 'condition_id', 'conditions');
             $t->boolean('requires_confirmation')->default(false);

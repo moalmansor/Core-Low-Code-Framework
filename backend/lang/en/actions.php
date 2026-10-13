@@ -61,4 +61,5 @@ return [
         'finished' => '":name" finished on :count records.',
         'finished_with_errors' => '":name" finished: :count records done, :failed could not be changed.',
     ],
+    'no_dry_run' => 'A trial run is only available for bulk update, status change, delete and reassign.',
 ];

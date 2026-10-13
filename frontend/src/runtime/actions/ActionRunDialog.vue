@@ -7,20 +7,23 @@ import ProgressBar from 'primevue/progressbar'
 import Select from 'primevue/select'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { useToast } from 'primevue/usetoast'
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ApiError, get, http } from '@/api/http'
+import SubjectPicker from '@/components/SubjectPicker.vue'
 import { errorText } from '@/views/admin/building/shared'
 import JustificationDialog from '../JustificationDialog.vue'
 import { useJustification } from '../useJustification'
-import { actionsRuntimeApi, finished, type ActionRun, type ActionTarget, type AvailableAction, type Preparation, type RunOutput } from './api'
+import { actionsRuntimeApi, finished, type ActionRun, type ActionTarget, type AvailableAction, type DryRun, type Preparation, type RunOutput } from './api'
 
 /**
  * Runs an action (specification §4.15 "Execution"): asks for confirmation
  * and the inputs a built-in needs (the fields and values of a bulk update,
  * the transition of a status change), then for one justification for the
- * whole run when one is needed; follows a background run's progress; and
+ * whole run when one is needed; shows the first records it covers and,
+ * for the bulk built-ins, can try the run first without keeping anything
+ * (specification §4.35); follows a background run's progress; and
  * reports what happened — records it could not change and why, documents
  * to download, records to open.
  */
@@ -42,6 +45,9 @@ const error = ref('')
 const fieldKey = ref<string | null>(null)
 const fieldValue = ref<unknown>(null)
 const transition = ref<string | null>(null)
+const assignee = ref<{ type: string; uuid: string | null } | null>(null)
+const trial = ref<DryRun | null>(null)
+const trying = ref(false)
 const bulkFields = computed(() => prep.value?.inputs?.fields ?? [])
 const chosenField = computed(() => bulkFields.value.find((f) => f.key === fieldKey.value) ?? null)
 const fieldKind = computed(() => {
@@ -55,10 +61,13 @@ const fieldKind = computed(() => {
 const inputs = computed<Record<string, unknown>>(() => {
   if (action.value?.builtin === 'bulk_update') return fieldKey.value ? { values: { [fieldKey.value]: fieldValue.value === '' ? null : fieldValue.value } } : {}
   if (action.value?.builtin === 'bulk_status') return transition.value ? { transition: transition.value } : {}
+  if (action.value?.builtin === 'bulk_reassign') return assignee.value?.uuid ? { assignee: assignee.value } : {}
   return {}
 })
-const needsInputs = computed(() => action.value?.builtin === 'bulk_update' || action.value?.builtin === 'bulk_status')
+const needsInputs = computed(() => ['bulk_update', 'bulk_status', 'bulk_reassign'].includes(action.value?.builtin ?? ''))
 const ready = computed(() => !needsInputs.value || Object.keys(inputs.value).length > 0)
+// A trial run answers for the inputs it was tried with.
+watch(inputs, () => (trial.value = null), { deep: true })
 let poll: ReturnType<typeof setTimeout> | null = null
 onBeforeUnmount(() => poll && clearTimeout(poll))
 
@@ -73,6 +82,8 @@ async function start(formUuid: string, a: AvailableAction, on: ActionTarget): Pr
   fieldKey.value = null
   fieldValue.value = null
   transition.value = null
+  assignee.value = null
+  trial.value = null
   // Print opens the record's print page with the default layout, as the record page's own Print does.
   if (a.builtin === 'print') {
     await print(formUuid, on.items?.[0]?.uuid ?? '')
@@ -120,6 +131,20 @@ async function go(): Promise<void> {
     visible.value = true
   } finally {
     busy.value = false
+  }
+}
+
+/** Tries the run on its records without keeping anything. */
+async function tryFirst(): Promise<void> {
+  if (!action.value) return
+  trying.value = true
+  error.value = ''
+  try {
+    trial.value = await actionsRuntimeApi.dryRun(form.value, action.value.uuid, target.value, inputs.value)
+  } catch (e) {
+    error.value = e instanceof ApiError ? (Object.values(e.fieldErrors)[0] ?? e.message) : errorText(e, t('act.run.failed'))
+  } finally {
+    trying.value = false
   }
 }
 
@@ -174,6 +199,10 @@ defineExpose({ start })
       <!-- Before running -->
       <template v-if="!run && prep">
         <p class="m-0 text-sm">{{ t('act.run.count', { n: n(prep.count) }) }}</p>
+        <ul v-if="prep.preview.length > 1 || prep.count > 1" class="m-0 ps-5 text-sm max-h-32 overflow-auto" data-testid="action-preview">
+          <li v-for="r in prep.preview" :key="r.uuid" dir="auto">{{ r.title || t('act.run.record') }}</li>
+          <li v-if="prep.count > prep.preview.length" class="text-muted-color list-none">{{ t('act.run.and_more', { n: n(prep.count - prep.preview.length) }) }}</li>
+        </ul>
         <Message v-if="prep.queued" severity="info" :closable="false">{{ t('act.run.background') }}</Message>
         <p v-if="action?.confirmation" class="m-0 whitespace-pre-line" dir="auto">{{ action.confirmation }}</p>
         <template v-if="action?.builtin === 'bulk_update'">
@@ -225,6 +254,22 @@ defineExpose({ start })
           <Select v-model="transition" input-id="act-run-tr" :options="prep.inputs?.transitions ?? []" option-label="label" option-value="uuid" size="small" class="w-full" />
           <p v-if="!(prep.inputs?.transitions ?? []).length" class="m-0 mt-1 text-xs text-muted-color">{{ t('act.run.no_transitions') }}</p>
         </div>
+        <div v-if="action?.builtin === 'bulk_reassign'" class="field">
+          <label for="act-run-assignee" class="text-sm font-medium">{{ t('act.run.assignee') }}</label>
+          <SubjectPicker v-model="assignee" input-id="act-run-assignee" :types="prep.inputs?.assignees ?? ['user', 'role', 'department']" data-testid="action-assignee" />
+        </div>
+        <div v-if="trial" class="flex flex-col gap-1" data-testid="action-trial">
+          <Message :severity="trial.would_fail ? 'warn' : 'success'" :closable="false">
+            {{ t('act.run.trial_result', { ok: n(trial.would_succeed), failed: n(trial.would_fail), tried: n(trial.tried) }) }}
+            <template v-if="trial.tried < trial.count"> {{ t('act.run.trial_partial', { n: n(trial.count) }) }}</template>
+          </Message>
+          <ul v-if="trial.errors.length" class="m-0 ps-5 text-sm max-h-40 overflow-auto">
+            <li v-for="e in trial.errors" :key="e.uuid">
+              <RouterLink :to="`/app/${form}/${e.uuid}`" class="text-primary" dir="auto">{{ e.title || t('act.run.record') }}</RouterLink
+              >: {{ e.error }}
+            </li>
+          </ul>
+        </div>
         <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
       </template>
 
@@ -261,6 +306,17 @@ defineExpose({ start })
     <template #footer>
       <template v-if="!run">
         <Button :label="t('common.cancel')" text :disabled="busy" @click="visible = false" />
+        <Button
+          v-if="prep?.dry_run"
+          :label="t('act.run.try_first')"
+          icon="pi pi-eye"
+          severity="secondary"
+          outlined
+          :loading="trying"
+          :disabled="!ready || busy"
+          data-testid="action-try"
+          @click="tryFirst"
+        />
         <Button
           :label="action?.label"
           :icon="action?.icon ? `pi ${action.icon}` : undefined"

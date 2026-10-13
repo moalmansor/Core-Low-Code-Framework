@@ -285,7 +285,7 @@ export const notificationRulesApi = documentApi<NotificationRuleDoc[]>('notifica
 
 /** Actions (specification §4.15, architecture §14.9). */
 export type ActionPlacement = 'row' | 'bulk' | 'toolbar' | 'view_page'
-export type ActionBuiltin = 'duplicate' | 'print' | 'bulk_update' | 'bulk_status' | 'bulk_delete'
+export type ActionBuiltin = 'duplicate' | 'print' | 'bulk_update' | 'bulk_status' | 'bulk_delete' | 'bulk_reassign'
 export type StepType =
   'update_fields' | 'change_status' | 'send_email' | 'send_notification' | 'call_webhook' | 'generate_document' | 'create_linked_record' | 'assign' | 'run_download' | 'wait_delay' | 'wait_condition'
 export interface FieldValueDoc {

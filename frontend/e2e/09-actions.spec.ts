@@ -90,6 +90,11 @@ test('a built-in bulk update runs on a selection, a custom action runs from the 
   await page.getByTestId('action-field').click()
   await page.getByRole('option', { name: 'Visit date' }).click()
   await dialog.getByTestId('action-value').fill('2026-12-24')
+  // The dialog names the records and can try the run first without keeping anything (§4.35).
+  await expect(dialog.getByTestId('action-preview')).toContainText(`Act ${tag} one`)
+  await dialog.getByTestId('action-try').click()
+  await expect(dialog.getByTestId('action-trial')).toContainText('2 would change, 0 would not')
+  expect(((await api(page, 'GET', `/r/${form}/${a}`)).data as Rec).values.visit_date).not.toBe('2026-12-24')
   await page.screenshot({ path: 'test-results/actions-run-dialog.png' })
   await page.getByTestId('action-run').click()
   await expect(page.getByText('Done. Records changed: 2')).toBeVisible()

@@ -473,8 +473,26 @@ Decided by the owner:
     the action-step UUID lookups sent non-UUID input to SQL Server
     `uniqueidentifier` columns, which caused 500 errors; the branding e2e
     test raced its own save.
+- **Data quality and bulk tools** (ADR-0044):
+  - Duplicate rules per form (exact, normalized with Arabic folding,
+    similar), warn or block while saving, and background sweeps. The
+    record form shows likely duplicates and offers "Save anyway".
+  - Merge screen: the survivor, the value for each differing field, and a
+    mandatory justification. Links are repointed, the others go to the
+    recycle bin, and the history is immutable.
+  - Bulk reassign built-in; a preview of the records in every bulk run;
+    "Try first" dry runs in rolled-back transactions.
+  - Repair scans for broken links and records that break the current
+    rules, with the guided clearing of links.
+  - Recycle-bin retention (`data_quality.recycle_bin_days`, daily purge
+    that skips legal hold) and the purge date in the bin.
+  - Screens: a "Data quality" tab in the form configuration (rules,
+    sweeps, repair), the merge page, the duplicate dialog, "Merge selected"
+    in the records list.
+  - Tests: `tests/Engine/DataQualityTest.php`, the bulk test in
+    `ActionsTest.php`, e2e `12-data-quality` and the trial run in
+    `09-actions`.
 - **Next:**
-  - Data quality.
   - Operations Center, including download failures with retry and failed
     automation runs.
   - The rest of the Phase 4 e2e.

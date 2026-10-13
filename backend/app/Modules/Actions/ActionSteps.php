@@ -267,17 +267,30 @@ final class ActionSteps
      */
     private function assign(array $c, FormRuntime $rt, User $user, array $found, ?int $justificationId): array
     {
+        $this->assignRecord((array) ($c['to'] ?? []), $rt, $user, $found, $justificationId);
+
+        return [];
+    }
+
+    /**
+     * Assigns a record (or reassigns it) to a user, role or department, as the
+     * assign step and the bulk reassign built-in do: with the person's
+     * permission to assign or reassign and to edit the record.
+     *
+     * @param  array<string, mixed>  $to  {type, uuid}
+     * @param  array<string, mixed>  $found
+     */
+    public function assignRecord(array $to, FormRuntime $rt, User $user, array $found, ?int $justificationId): void
+    {
         $reassign = $this->assignments->hasActive($rt->form->id, $found['id']);
         if (! $this->access->allows($user, $reassign ? 'system.reassign_records' : 'system.assign_records') || ! $this->scope->allows($rt, $user, 'edit', $found['id'])) {
             throw new StepFailed(__('actions.no_assign_permission'));
         }
-        $type = (string) ($c['to']['type'] ?? '');
-        $id = $this->members->idOf($type, (string) ($c['to']['uuid'] ?? ''));
+        $type = (string) ($to['type'] ?? '');
+        $id = $this->members->idOf($type, (string) ($to['uuid'] ?? ''));
         if ($id === null || ($type === 'user' && ! DB::table('users')->where('id', $id)->where('status', 'active')->whereNull('deleted_at')->exists())) {
             throw new StepFailed(__('actions.bad_assignee'));
         }
         DB::transaction(fn () => $this->assignments->assign($rt, $found['id'], $type, $id, $user->id, ['justification' => $justificationId]));
-
-        return [];
     }
 }

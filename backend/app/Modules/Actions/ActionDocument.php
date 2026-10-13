@@ -49,6 +49,7 @@ final class ActionDocument
         'bulk_update' => ['bulk', 'toolbar'],
         'bulk_status' => ['bulk', 'toolbar'],
         'bulk_delete' => ['bulk', 'toolbar'],
+        'bulk_reassign' => ['bulk', 'toolbar'],
     ];
 
     public const STEPS = ['update_fields', 'change_status', 'send_email', 'send_notification', 'call_webhook', 'generate_document', 'create_linked_record', 'assign', 'run_download'];

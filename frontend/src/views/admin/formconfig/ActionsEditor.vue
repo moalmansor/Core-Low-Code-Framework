@@ -48,6 +48,7 @@ const BUILTIN_PLACES: Record<ActionBuiltin, ActionPlacement[]> = {
   bulk_update: ['bulk', 'toolbar'],
   bulk_status: ['bulk', 'toolbar'],
   bulk_delete: ['bulk', 'toolbar'],
+  bulk_reassign: ['bulk', 'toolbar'],
 }
 const ALL_PLACES: ActionPlacement[] = ['row', 'bulk', 'toolbar', 'view_page']
 const placesOf = (a: ActionDoc) => (a.kind === 'builtin' && a.builtin ? BUILTIN_PLACES[a.builtin] : ALL_PLACES)

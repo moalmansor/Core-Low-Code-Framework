@@ -1010,6 +1010,32 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Bulk update, bulk reassign, and bulk status change** with a preview of affected records, a dry run, a maximum-count guard, and a mandatory justification where configured.
 - **Data repair tools** for admins: find orphans, find records failing current validation after a rule change, and fix them in a guided screen rather than in the database.
 - **Recycle bin** with retention: soft-deleted records are restorable until the retention period expires, and restoration is audited.
+- **How it works** (ADR-0044):
+  - **Duplicate rules:**
+    - Rules are kept per form on its Data quality tab.
+    - A rule compares fields exactly, normalized (ignoring case, spacing, punctuation, Arabic letter forms, diacritics and Arabic-Indic digits) or by similarity from 0.50 to 1.00.
+    - A rule matches on all of its fields or any of them, and applies on create, update or both.
+  - **Block and warn:**
+    - A block rule refuses the save from every source.
+    - A warn rule asks only on a screen or through the API. The person sees the likely duplicates they may view and can save anyway. Saves nobody watches (imports, automations, actions) go ahead.
+    - Checks while saving compare with up to `data_quality.duplicate_scan_limit` recent records. A sweep compares them all in the background.
+  - **Merge:**
+    - Up to eleven records are merged at once.
+    - It needs view rights on all of them, edit rights on the survivor and delete rights on the others, each at the version the person saw.
+    - A justification is always required.
+    - File fields stay with their own record.
+    - Links move to the survivor, the others go to the recycle bin, and the chosen values are saved through the record pipeline, all in one transaction. The history keeps snapshots, encrypted when the form holds sensitive fields.
+  - **Bulk tools:**
+    - Bulk update, status change, delete and reassign are action built-ins.
+    - Preparing a run names its first records.
+    - Above the action's maximum the run is refused.
+    - "Try first" runs up to 200 records through the pipeline in rolled-back transactions and reports what would and would not change. It is not available for custom actions, whose steps can reach outside the system.
+  - **Repair:**
+    - Broken-link and current-validation scans run per form ("Repair data").
+    - Broken links in main-form fields are cleared by a normal, audited save. Other findings open the record for correction.
+  - **Recycle bin:**
+    - Deleted records are purged `data_quality.recycle_bin_days` after deletion (default 90) by a daily job, which skips records under legal hold or still linked.
+    - The bin shows each record's purge date.
 
 ### 4.36 User Self-Service, Impersonation & Access Policies
 - **User profile:** language, timezone, calendar preference, date and number format, theme (light, dark, system), density, notification channel preferences and digest frequency, and default landing page, all within limits the admin sets.

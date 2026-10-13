@@ -22,6 +22,7 @@ use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RecordException;
 use App\Modules\Records\Runtime\RecordPipeline;
 use App\Modules\Records\Runtime\RecordStore;
+use App\Modules\Records\Runtime\RecycleBin;
 use App\Modules\Records\Runtime\RuleRuntime;
 use App\Modules\Workflow\Runtime\WorkflowRuntime;
 use Illuminate\Support\Carbon;
@@ -47,7 +48,13 @@ use Throwable;
 final class ActionRunner
 {
     /** Built-in => form ability its work needs. */
-    public const ABILITY = ['duplicate' => 'create', 'print' => 'print', 'bulk_update' => 'edit', 'bulk_status' => 'view', 'bulk_delete' => 'delete'];
+    public const ABILITY = ['duplicate' => 'create', 'print' => 'print', 'bulk_update' => 'edit', 'bulk_status' => 'view', 'bulk_delete' => 'delete', 'bulk_reassign' => 'edit'];
+
+    /** A dry run tries at most this many records (in a transaction rolled back after each). */
+    public const DRY_RUN_LIMIT = 200;
+
+    /** Built-ins whose dry run tries each record: the bulk operations on the form's own data. */
+    public const BULK = ['bulk_update', 'bulk_status', 'bulk_delete', 'bulk_reassign'];
 
     public function __construct(
         private readonly FormRuntimes $runtimes,
@@ -156,6 +163,84 @@ final class ActionRunner
             'queued' => $this->queued($action, count($targets)),
             'justification' => $req === null ? null : $this->gate->prompt($rt, $req, $change, $user) + ['count' => count($targets)],
             'inputs' => $this->inputs($action, $rt, $user),
+            'preview' => $this->preview($rt, $targets),
+            'dry_run' => in_array($action->builtin, self::BULK, true),
+        ];
+    }
+
+    /**
+     * The first records a run covers, named as in the recycle bin, so the
+     * person sees what they are about to change.
+     *
+     * @param  list<array{uuid: string, row_version: int|null}>  $targets
+     * @return list<array{uuid: string, title: string}>
+     */
+    private function preview(FormRuntime $rt, array $targets): array
+    {
+        $uuids = array_column(array_slice($targets, 0, 20), 'uuid');
+        $rows = DB::table($rt->table)->whereIn('uuid', $uuids ?: ['-'])->get()->keyBy(static fn ($r) => strtolower((string) $r->uuid));
+        $bin = app(RecycleBin::class);
+        $out = [];
+        foreach ($uuids as $u) {
+            if (isset($rows[$u])) {
+                $out[] = ['uuid' => $u, 'title' => $bin->title($rt, $rows[$u])];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Tries a bulk built-in on its records without keeping anything: each
+     * record runs through the record pipeline (access, scope, validation,
+     * concurrency, legal hold) inside a transaction that is rolled back. The
+     * justification is asked when the run starts, so a record that only
+     * lacks one counts as one that would succeed.
+     *
+     * @param  list<array{uuid: string, row_version: int|null}>  $targets
+     * @param  array<string, mixed>  $inputs
+     * @return array<string, mixed>
+     */
+    public function dryRun(object $action, FormRuntime $rt, User $user, array $targets, array $inputs): array
+    {
+        if (! in_array($action->builtin, self::BULK, true)) {
+            throw ValidationException::withMessages(['action' => __('actions.no_dry_run')]);
+        }
+        $inputs = $this->checkInputs($action, $rt, $inputs);
+        $tried = array_slice($targets, 0, self::DRY_RUN_LIMIT);
+        $ok = 0;
+        $errors = [];
+        foreach ($tried as $target) {
+            DB::beginTransaction();
+            try {
+                $this->builtin($action, $rt, $user, $target, $inputs, 'dry-'.Str::uuid7(), null);
+                $ok++;
+            } catch (RecordException $e) {
+                in_array($e->reason, ['justification_required', 'justification_invalid'], true) ? $ok++ : $errors[] = ['uuid' => $target['uuid'], 'error' => self::message($e)];
+            } catch (ValidationException|StepFailed $e) {
+                $errors[] = ['uuid' => $target['uuid'], 'error' => self::message($e)];
+            } finally {
+                DB::rollBack();
+            }
+        }
+        $now = Carbon::now('UTC')->format('Y-m-d H:i:s.u');
+        DB::table('bulk_operations')->insert([
+            'uuid' => (string) Str::uuid7(), 'organization_id' => $rt->form->organization_id, 'created_at' => $now, 'updated_at' => $now, 'started_at' => $now, 'finished_at' => $now,
+            'form_id' => $rt->form->id, 'type' => match ($action->builtin) {
+                'bulk_update' => 'update', 'bulk_status' => 'status_change', 'bulk_delete' => 'delete', default => 'reassign',
+            }, 'action_id' => (int) $action->id,
+            'criteria' => json_encode(['records' => $targets]), 'payload' => $inputs === [] ? null : json_encode($inputs),
+            'dry_run' => true, 'preview_count' => count($targets), 'max_count' => $this->maxRecords($action), 'confirmed_above_max' => false,
+            'status' => 'completed', 'progress' => 100, 'affected_count' => $ok, 'failed_count' => count($errors),
+            'result' => json_encode(['records' => $errors, 'outputs' => []], JSON_UNESCAPED_UNICODE), 'created_by' => $user->id, 'correlation_id' => $this->correlation->get(),
+        ]);
+        $this->audit->record('action.dry_run', 'data', null, 'action', (int) $action->id, ['action' => $action->key, 'records' => count($targets), 'tried' => count($tried), 'would_fail' => count($errors)], $user->id, null, $rt->form->id);
+        $bin = app(RecycleBin::class);
+        $titles = DB::table($rt->table)->whereIn('uuid', array_column($errors, 'uuid') ?: ['-'])->get()->keyBy(static fn ($r) => strtolower((string) $r->uuid));
+
+        return [
+            'count' => count($targets), 'tried' => count($tried), 'would_succeed' => $ok, 'would_fail' => count($errors),
+            'errors' => array_map(static fn ($e) => $e + ['title' => isset($titles[$e['uuid']]) ? $bin->title($rt, $titles[$e['uuid']]) : ''], array_slice($errors, 0, 50)),
         ];
     }
 
@@ -181,7 +266,7 @@ final class ActionRunner
             $opId = (int) DB::table('bulk_operations')->insertGetId([
                 'uuid' => (string) Str::uuid7(), 'organization_id' => $rt->form->organization_id, 'created_at' => $now, 'updated_at' => $now,
                 'form_id' => $rt->form->id, 'type' => match ($action->builtin) {
-                    'bulk_update' => 'update', 'bulk_status' => 'status_change', 'bulk_delete' => 'delete', default => 'action',
+                    'bulk_update' => 'update', 'bulk_status' => 'status_change', 'bulk_delete' => 'delete', 'bulk_reassign' => 'reassign', default => 'action',
                 }, 'action_id' => (int) $action->id,
                 'criteria' => json_encode(['records' => $targets]), 'payload' => $inputs === [] ? null : json_encode($inputs),
                 'dry_run' => false, 'preview_count' => count($targets), 'max_count' => $this->maxRecords($action), 'confirmed_above_max' => false,
@@ -333,6 +418,13 @@ final class ActionRunner
                 $this->pipeline->delete($rt, $user, $target['uuid'], $version, $key, null, 'delete', $justificationId);
 
                 return [];
+            case 'bulk_reassign':
+                if ($target['row_version'] !== null && $target['row_version'] !== $found['row_version']) {
+                    throw new RecordException(409, 'conflict', __('records.conflict'));
+                }
+                $this->steps->assignRecord((array) $inputs['assignee'], $rt, $user, $found, $justificationId);
+
+                return [];
             case 'duplicate':
                 return $this->duplicate($rt, $user, $found, $key);
             default:
@@ -415,6 +507,8 @@ final class ActionRunner
             }
         } elseif ($action->builtin === 'bulk_update') {
             $fields = array_keys((array) ($inputs['values'] ?? []));
+        } elseif ($action->builtin === 'bulk_reassign') {
+            $reassigns = true;
         } elseif ($action->builtin === 'bulk_status' && isset($inputs['transition'])) {
             $id = DB::table('transitions')->where('uuid', strtolower((string) $inputs['transition']))->value('id');
             $transitions = $id === null ? [] : [(int) $id];
@@ -467,6 +561,9 @@ final class ActionRunner
 
             return ['fields' => $fields];
         }
+        if ($action->builtin === 'bulk_reassign') {
+            return ['assignees' => ['user', 'role', 'department']];
+        }
         if ($action->builtin === 'bulk_status') {
             $wf = WorkflowRuntime::for($rt);
 
@@ -493,6 +590,18 @@ final class ActionRunner
 
             return ['values' => $values];
         }
+        if ($action->builtin === 'bulk_reassign') {
+            $type = $inputs['assignee']['type'] ?? null;
+            $ref = $inputs['assignee']['uuid'] ?? null;
+            $table = match ($type) {
+                'user' => 'users', 'role' => 'roles', 'department' => 'departments', default => null,
+            };
+            if ($table === null || ! is_string($ref) || ! Str::isUuid($ref) || ! DB::table($table)->where('uuid', strtolower($ref))->exists()) {
+                throw ValidationException::withMessages(['inputs.assignee' => __('actions.bad_assignee')]);
+            }
+
+            return ['assignee' => ['type' => $type, 'uuid' => strtolower($ref)]];
+        }
         if ($action->builtin === 'bulk_status') {
             $t = strtolower((string) ($inputs['transition'] ?? ''));
             if (! DB::table('transitions')->where('form_id', $rt->form->id)->where('uuid', $t)->whereNull('archived_at')->exists()) {
@@ -508,7 +617,7 @@ final class ActionRunner
     /** The justification context of a run: bulk operations are `bulk`, everything else `action`. */
     private static function context(object $action): string
     {
-        return in_array($action->builtin, ['bulk_update', 'bulk_status', 'bulk_delete'], true) ? 'bulk' : 'action';
+        return in_array($action->builtin, self::BULK, true) ? 'bulk' : 'action';
     }
 
     private function queued(object $action, int $count): bool

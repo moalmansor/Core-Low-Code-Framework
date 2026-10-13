@@ -237,6 +237,40 @@ it('runs built-in bulk update, status change, delete and duplicate through the r
     expect(DB::table('f_tickets')->whereNull('deleted_at')->where('subject', 'A')->count())->toBe(2);
 });
 
+it('previews a bulk run, tries it without keeping anything, and reassigns records in bulk', function () {
+    $w = ticketForms($this);
+    $update = actionDoc('set_subject', ['kind' => 'builtin', 'builtin' => 'bulk_update', 'placements' => ['bulk'], 'steps' => []]);
+    $delete = actionDoc('remove', ['kind' => 'builtin', 'builtin' => 'bulk_delete', 'placements' => ['bulk'], 'steps' => [], 'justification' => 'mandatory']);
+    $reassign = actionDoc('hand_over', ['kind' => 'builtin', 'builtin' => 'bulk_reassign', 'placements' => ['bulk', 'toolbar'], 'steps' => []]);
+    $custom = actionDoc('note', ['steps' => [stepDoc('update_fields', ['set' => [['field' => $w['f']['notes']['uuid'], 'value' => ['k' => 'lit', 't' => 'text', 'v' => 'x']]]])]]);
+    saveActions($this, $w['tickets'], [$update, $delete, $reassign, $custom])->assertOk();
+    $records = collect(['A', 'B', 'C'])->map(fn ($s) => $this->postJson("/api/v1/r/{$w['tickets']}", ['values' => ['subject' => $s]])->assertCreated()->json('data'))->all();
+    $items = array_map(static fn ($r) => ['uuid' => $r['uuid'], 'row_version' => $r['row_version']], $records);
+
+    // The preview names the records; a dry run of an emptied required field fails every record and keeps nothing.
+    $prepared = $this->postJson("/api/v1/r/{$w['tickets']}/actions/{$update['uuid']}/prepare", ['items' => $items])->assertOk()->json('data');
+    expect(array_column($prepared['preview'], 'title'))->toBe(['A', 'B', 'C'])->and($prepared['dry_run'])->toBeTrue();
+    $dry = $this->postJson("/api/v1/r/{$w['tickets']}/actions/{$update['uuid']}/dry-run", ['items' => $items, 'inputs' => ['values' => ['subject' => null]]])->assertOk()->json('data');
+    expect($dry)->toMatchArray(['count' => 3, 'tried' => 3, 'would_succeed' => 0, 'would_fail' => 3])->and($dry['errors'][0]['title'])->toBe('A');
+    $dry = $this->postJson("/api/v1/r/{$w['tickets']}/actions/{$update['uuid']}/dry-run", ['items' => $items, 'inputs' => ['values' => ['notes' => 'checked']]])->assertOk()->json('data');
+    expect($dry['would_succeed'])->toBe(3)->and(DB::table('f_tickets')->whereNotNull('notes')->count())->toBe(0)
+        ->and(DB::table('bulk_operations')->where('dry_run', true)->count())->toBe(2);
+    // A delete that needs a justification counts as one that would succeed; nothing is deleted or justified.
+    expect($this->postJson("/api/v1/r/{$w['tickets']}/actions/{$delete['uuid']}/dry-run", ['items' => $items])->json('data.would_succeed'))->toBe(3)
+        ->and(DB::table('f_tickets')->whereNull('deleted_at')->count())->toBe(3)->and(DB::table('justifications')->count())->toBe(0);
+    // Only the bulk built-ins have a dry run.
+    $this->postJson("/api/v1/r/{$w['tickets']}/actions/{$custom['uuid']}/dry-run", ['items' => $items])->assertStatus(422);
+
+    // Bulk reassign: an unknown assignee is refused, a user is assigned every record.
+    expect($this->postJson("/api/v1/r/{$w['tickets']}/actions/{$reassign['uuid']}/prepare", ['items' => $items])->json('data.inputs.assignees'))->toBe(['user', 'role', 'department']);
+    $this->postJson("/api/v1/r/{$w['tickets']}/actions/{$reassign['uuid']}/run", ['items' => $items, 'inputs' => ['assignee' => ['type' => 'user', 'uuid' => uid()]]])->assertStatus(422);
+    $to = ['type' => 'user', 'uuid' => $this->admin->uuid];
+    $done = $this->postJson("/api/v1/r/{$w['tickets']}/actions/{$reassign['uuid']}/run", ['items' => $items, 'inputs' => ['assignee' => $to]])->assertCreated()->json('data');
+    expect($done['affected'])->toBe(3)
+        ->and(DB::table('assignments')->where('status', 'active')->where('assignee_type', 'user')->where('assignee_id', $this->admin->id)->count())->toBe(3)
+        ->and(DB::table('bulk_operations')->where('type', 'reassign')->where('dry_run', false)->count())->toBe(1);
+});
+
 it('runs large runs in the background, retries a failing webhook, and continues past a step set to continue', function () {
     $w = ticketForms($this);
     EgressAllowlistEntry::query()->create(['host_pattern' => 'hooks.example.com', 'ports' => [443], 'allow_http' => false, 'is_active' => true]);
