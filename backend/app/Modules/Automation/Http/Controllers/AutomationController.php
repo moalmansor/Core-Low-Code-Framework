@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -120,6 +121,7 @@ final class AutomationController extends Controller
             'hash' => $this->automations->hash($a),
             'form' => $form === null ? null : strtolower((string) $form->uuid),
             'can_run' => $this->access->allows($this->user(), 'system.run_automations'),
+            'run_as_name' => $a->run_as_user_id === null ? null : DB::table('users')->where('id', $a->run_as_user_id)->value('name'),
         ];
     }
 

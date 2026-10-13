@@ -409,3 +409,26 @@ it('rejects automations that cannot work, and deletes one with its history', fun
     expect(DB::table('automations')->count())->toBe(0)->and(DB::table('automation_runs')->count())->toBe(0)
         ->and(DB::table('audit_logs')->where('event', 'automation.deleted')->exists())->toBeTrue();
 });
+
+it('e-mails a download of the record to each recipient, run under their own permissions', function () {
+    $w = automationForms($this);
+    $profile = $this->postJson("/api/v1/forms/{$w['requests']}/download-profiles", ['profile' => [
+        'key' => 'sheet', 'i18n' => ['name' => ['en' => 'Sheet', 'ar' => 'ورقة']], 'formats' => ['csv'], 'fileName' => '{form}',
+        'xlsx' => ['styledHeader' => true, 'freezeHeader' => true, 'titleRow' => false], 'csv' => ['delimiter' => ',', 'bom' => true], 'pdf' => ['orientation' => 'landscape', 'pageNumbers' => true],
+        'applyUserFilters' => false, 'allowSelected' => false, 'availableIn' => ['record_view'], 'parameters' => [], 'maxRows' => 0, 'active' => true,
+        'columns' => [['kind' => 'field', 'path' => ['subject'], 'i18n' => ['header' => []]]], 'filters' => [],
+    ]])->assertCreated()->json('data.profile.uuid');
+    $outsider = $this->makeUser(['user']);
+    $a = createAutomation($this, $w['requests'], automationDoc('mail_sheet', [autoTrigger('record_created')], [
+        autoStep('run_download', ['profile' => $profile, 'format' => 'csv', 'scope' => 'record', 'deliverTo' => ['users' => [$this->admin->uuid, $outsider->uuid], 'roles' => []]]),
+    ]))->assertCreated()->json('data.automation.uuid');
+
+    $this->postJson("/api/v1/r/{$w['requests']}", ['values' => ['subject' => 'Report me']])->assertCreated();
+    $run = automationRuns($a)[0];
+    // Only the admin may use the profile: one run, theirs, e-mailed when ready; the outsider is skipped.
+    $jobs = DB::table('download_jobs')->where('automation_run_id', $run->id)->get();
+    expect($run->status)->toBe('succeeded')->and($jobs)->toHaveCount(1)
+        ->and((int) $jobs[0]->user_id)->toBe($this->admin->id)->and((bool) $jobs[0]->deliver_by_email)->toBeTrue()
+        ->and($jobs[0]->status)->toBe('completed')
+        ->and(DB::table('email_queue')->where('source', 'download')->where('to', 'like', '%'.$this->admin->email.'%')->exists())->toBeTrue();
+});

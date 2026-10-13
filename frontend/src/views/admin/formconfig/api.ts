@@ -286,7 +286,8 @@ export const notificationRulesApi = documentApi<NotificationRuleDoc[]>('notifica
 /** Actions (specification §4.15, architecture §14.9). */
 export type ActionPlacement = 'row' | 'bulk' | 'toolbar' | 'view_page'
 export type ActionBuiltin = 'duplicate' | 'print' | 'bulk_update' | 'bulk_status' | 'bulk_delete'
-export type StepType = 'update_fields' | 'change_status' | 'send_email' | 'send_notification' | 'call_webhook' | 'generate_document' | 'create_linked_record' | 'assign' | 'run_download'
+export type StepType =
+  'update_fields' | 'change_status' | 'send_email' | 'send_notification' | 'call_webhook' | 'generate_document' | 'create_linked_record' | 'assign' | 'run_download' | 'wait_delay' | 'wait_condition'
 export interface FieldValueDoc {
   field: string
   value: Ast | null
@@ -311,13 +312,20 @@ export interface StepConfig {
   open?: boolean
   to?: { type: 'user' | 'role' | 'department'; uuid: string | null }
   profile?: string | null
+  // Automations only (§4.31): waits, and a download e-mailed to users and roles.
+  minutes?: number
+  timeoutMinutes?: number
+  onTimeout?: 'stop' | 'continue'
+  condition?: Ast | null
+  scope?: 'record' | 'profile'
+  deliverTo?: { users: string[]; roles: string[] }
 }
 export interface ActionStepDoc {
   uuid: string
   type: StepType
   config: StepConfig
   condition: Ast | null
-  onFailure: 'stop' | 'continue'
+  onFailure: 'stop' | 'continue' | 'retry'
 }
 export interface ActionDoc {
   uuid: string

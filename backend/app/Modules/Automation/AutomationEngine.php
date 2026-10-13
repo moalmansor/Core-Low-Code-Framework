@@ -661,10 +661,10 @@ final class AutomationEngine
             return [['type' => 'simulated', 'message' => __('automations.simulated.run_download')]];
         }
         $ids = [];
-        foreach (DB::table('users')->whereIn('uuid', (array) ($c['recipients']['users'] ?? []))->pluck('id') as $id) {
+        foreach (DB::table('users')->whereIn('uuid', (array) ($c['deliverTo']['users'] ?? []))->pluck('id') as $id) {
             $ids[] = (int) $id;
         }
-        foreach (DB::table('roles')->whereIn('uuid', (array) ($c['recipients']['roles'] ?? []))->pluck('id') as $id) {
+        foreach (DB::table('roles')->whereIn('uuid', (array) ($c['deliverTo']['roles'] ?? []))->pluck('id') as $id) {
             $ids = [...$ids, ...$this->members->userIds('role', (int) $id)];
         }
         $sent = 0;

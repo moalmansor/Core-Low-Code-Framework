@@ -541,6 +541,10 @@ final class AutomationDocument
             if ($type === 'create_linked_record') {
                 unset($config['open']);
             }
+            // Nobody is there to download a generated document: it goes into a file field of the record.
+            if ($type === 'generate_document' && ($config['attachToField'] ?? null) === null) {
+                $errors["{$p}.config.attachToField"][] = __('automations.document_needs_field');
+            }
             $onFailure = in_array($s['onFailure'] ?? 'stop', ['stop', 'continue', 'retry'], true) ? (string) ($s['onFailure'] ?? 'stop') : 'stop';
             $steps[] = ['uuid' => $uuid, 'type' => $type, 'config' => $config, 'condition' => $boolean($s['condition'] ?? null, "{$p}.condition"), 'onFailure' => $onFailure];
         }
@@ -652,19 +656,19 @@ final class AutomationDocument
         if ($profile !== null && $scope === 'record' && ! in_array('record_view', json_decode((string) $profile->available_in, true) ?: [], true)) {
             $errors["{$p}.scope"][] = __('automations.download_not_for_record');
         }
-        $users = array_values(array_unique(array_map('strtolower', array_filter((array) ($c['recipients']['users'] ?? []), static fn ($u) => is_string($u) && Str::isUuid($u)))));
-        $roles = array_values(array_unique(array_map('strtolower', array_filter((array) ($c['recipients']['roles'] ?? []), static fn ($u) => is_string($u) && Str::isUuid($u)))));
-        $given = count((array) ($c['recipients']['users'] ?? [])) + count((array) ($c['recipients']['roles'] ?? []));
+        $users = array_values(array_unique(array_map('strtolower', array_filter((array) ($c['deliverTo']['users'] ?? []), static fn ($u) => is_string($u) && Str::isUuid($u)))));
+        $roles = array_values(array_unique(array_map('strtolower', array_filter((array) ($c['deliverTo']['roles'] ?? []), static fn ($u) => is_string($u) && Str::isUuid($u)))));
+        $given = count((array) ($c['deliverTo']['users'] ?? [])) + count((array) ($c['deliverTo']['roles'] ?? []));
         if ($given !== count($users) + count($roles)
             || ($users !== [] && DB::table('users')->whereIn('uuid', $users)->whereNull('deleted_at')->count() !== count($users))
             || ($roles !== [] && DB::table('roles')->whereIn('uuid', $roles)->count() !== count($roles))) {
-            $errors["{$p}.recipients"][] = __('downloads.bad_recipients');
+            $errors["{$p}.deliverTo"][] = __('downloads.bad_recipients');
         } elseif ($users === [] && $roles === []) {
-            $errors["{$p}.recipients"][] = __('downloads.recipients_required');
+            $errors["{$p}.deliverTo"][] = __('downloads.recipients_required');
         }
 
         return ['profile' => $profile === null ? null : strtolower((string) $profile->uuid), 'format' => (string) ($c['format'] ?? 'xlsx'), 'scope' => $scope,
-            'recipients' => ['users' => $users, 'roles' => $roles]];
+            'deliverTo' => ['users' => $users, 'roles' => $roles]];
     }
 
     /** @param  array<string, list<array<mixed>|string>>  $errors */

@@ -33,6 +33,7 @@ return [
     'not_after_delete' => 'After a record is deleted, an automation can only send messages and call webhooks.',
     'no_wait_for_sets' => 'Waiting is only possible for automations that run for one record at a time.',
     'download_not_for_record' => 'This download profile is not offered on the record page, so it cannot run for one record.',
+    'document_needs_field' => 'Choose the file field that receives the document: an automation has nobody to download it.',
     'bad_confirm_above' => 'Enter a whole number from 1 to :max, or leave it empty.',
     'bad_backoff' => 'Enter up to ten waiting times between 10 and 86400 seconds.',
 

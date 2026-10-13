@@ -446,9 +446,39 @@ Decided by the owner:
   downloads per recipient and emails them. Action step `run_download`.
   Download menus on the records table and record page; "Downloads" tab in
   the form configuration; "My download profiles". e2e `10-downloads`.
-- **Next:** automations (reusing the scheduler), data quality, Operations
-  Center (including download failures and retry), the rest of the Phase 4
-  e2e, docs and the pull request.
+- **Automations** (ADR-0043):
+  - Automations belong to a form. Triggers: record created, changed or
+    deleted; field changed; status changed; condition became true; a
+    schedule (hourly to cron, in a time zone); a date reached with an
+    offset; a file in a watched folder; manual.
+  - Steps are shared with actions through one step runner, plus "wait" and
+    "wait until".
+  - Runs act as the triggering user or a chosen user. Making one run as
+    someone else needs "Manage permissions".
+  - Schedule and manual runs cover the matching records, with a hard
+    maximum and a confirmation threshold.
+  - Loop protection through an outbox context; concurrency limit; retry
+    policy with back-off; manual retry of failed records.
+  - Test runs roll back data steps and only describe outside effects.
+  - The `automations:tick` clock resumes waits, fires date triggers and
+    picks up watched-folder files.
+  - Screens: run history; a scheduled-task manager listing automation
+    schedules, scheduled downloads and the system's own jobs; admin areas
+    "Automations" and "Scheduled tasks"; an "Automations" tab in the form
+    configuration with the builder.
+  - The action step editor is now a shared component used by both
+    builders.
+  - Tests: `tests/Engine/AutomationsTest.php`, e2e `11-automations`.
+  - Found and fixed on the way: the download-schedule recipient check and
+    the action-step UUID lookups sent non-UUID input to SQL Server
+    `uniqueidentifier` columns, which caused 500 errors; the branding e2e
+    test raced its own save.
+- **Next:**
+  - Data quality.
+  - Operations Center, including download failures with retry and failed
+    automation runs.
+  - The rest of the Phase 4 e2e.
+  - Docs and the pull request.
 
 ## Resume point
 

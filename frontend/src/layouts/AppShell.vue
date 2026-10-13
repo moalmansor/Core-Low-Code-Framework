@@ -208,6 +208,8 @@ export const icons: Record<string, string> = {
   reason_codes: 'pi-comment',
   notifications: 'pi-envelope',
   documents: 'pi-file',
+  automations: 'pi-bolt',
+  scheduled_tasks: 'pi-clock',
 }
 </script>
 
