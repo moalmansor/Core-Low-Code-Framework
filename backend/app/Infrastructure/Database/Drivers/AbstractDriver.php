@@ -114,11 +114,14 @@ abstract class AbstractDriver implements DatabaseDriver
         );
     }
 
+    /** Tables of this database only (on MySQL the server may hold other databases, which are never seen). */
     public function tables(): array
     {
+        $schema = $this->connection->getSchemaBuilder();
+
         return array_values(array_map(
             static fn (array $t): string => (string) $t['name'],
-            $this->connection->getSchemaBuilder()->getTables(),
+            $schema->getTables($schema->getCurrentSchemaListing()),
         ));
     }
 
