@@ -32,6 +32,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/SystemHealth.vue'),
         meta: { anyOf: ['system.view_errors', 'system.manage_operations'], title: 'admin.area.system_health' },
       },
+      {
+        path: 'admin/operations/:tab?',
+        name: 'admin.operations',
+        component: () => import('@/views/operations/OperationsCenter.vue'),
+        meta: { anyOf: ['system.manage_operations'], title: 'admin.area.operations_center' },
+      },
       { path: 'admin/users', name: 'admin.users', component: () => import('@/views/admin/UsersView.vue'), meta: { anyOf: ['system.manage_users'], title: 'admin.area.users' } },
       { path: 'admin/departments', name: 'admin.departments', component: () => import('@/views/admin/DepartmentsView.vue'), meta: { anyOf: ['system.manage_users'], title: 'admin.area.departments' } },
       { path: 'admin/roles', name: 'admin.roles', component: () => import('@/views/admin/RolesView.vue'), meta: { anyOf: ['system.manage_permissions'], title: 'admin.area.roles_permissions' } },

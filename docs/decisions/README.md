@@ -48,3 +48,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0042](0042-custom-downloads.md) | Custom downloads — paths, one-to-many handling, security and scheduling |
 | [0043](0043-automations.md) | Automations — runs, run-as user, loop protection, waits and test runs |
 | [0044](0044-data-quality.md) | Data quality — duplicate rules, merge, bulk tools, repair and recycle-bin retention |
+| [0045](0045-operations-center.md) | Operations Center — failures, retries, alerts and queue workers |

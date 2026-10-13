@@ -177,6 +177,24 @@ Workflows, statuses, views, panels, previews, print layouts, record rules, justi
 
 All Operations Center actions are audited.
 
+**How it works** (ADR-0045):
+- **Access:** "Manage operations" is needed for all of it, at Admin › Operations Center.
+- **Stuck e-mails:**
+  - An e-mail is stuck when it is pending past its due time, or sending, for longer than the threshold.
+  - Resend always queues a new copy. Changed recipients mean a resend of one e-mail.
+  - The HTML is shown in a sandboxed frame that runs nothing.
+- **Failed submissions** are saves the system could not complete. Input the person was told to fix is listed separately as rejected.
+- **Retrying a submission:**
+  - The save runs again as the person who submitted it, with the same idempotency key, so their permissions and the record's version apply and nothing is created twice.
+  - A submitter who is no longer active cannot be acted for.
+  - Corrected values are kept beside the original.
+  - Sensitive values stay masked.
+- **Failed jobs** gathers imports, exports, downloads, action runs, data-quality scans, automation runs, scheduled tasks, webhook calls and queue failures from the last 30 days. Each kind is retried in the way that is safe for it. Dismissing a failure needs a reason and keeps it on record.
+- **Health:** database, cache, Redis, an SMTP connection check, virus scanner, waiting jobs per queue, stuck and failed counts, the scheduler's last run and disk use.
+- **Alerts:**
+  - Rules choose a measure, a threshold, a counting period, a quiet period and roles. They are checked every five minutes.
+  - Alerts are e-mailed to the roles' active members in their own language.
+
 ### 4.3 Form Builder: Canvas & Drag-and-Drop
 - Three-panel layout:
   - **left:** palette of all inputs and layout elements, searchable and categorized;

@@ -492,11 +492,27 @@ Decided by the owner:
   - Tests: `tests/Engine/DataQualityTest.php`, the bulk test in
     `ActionsTest.php`, e2e `12-data-quality` and the trial run in
     `09-actions`.
+- **Operations Center** (ADR-0045):
+  - Admin › Operations Center with five tabs: overview (health widgets),
+    e-mail queue, failed submissions, failed jobs and alerts.
+  - E-mails: stuck detection, resend (bulk or to edited recipients),
+    cancel, and the rendered HTML in a sandboxed frame.
+  - Submissions: retry as the submitter with the same idempotency key,
+    corrected values kept beside the original, sensitive values masked,
+    discard with a reason.
+  - Jobs: imports, exports, downloads, action runs and scans, automation
+    runs, scheduled tasks, webhook calls and queue failures, each with a
+    safe retry; dismissal with a reason (`operations_dismissals`).
+  - Alerts: rules per measure with threshold, period, quiet period and
+    roles; `ops:check-alerts` every five minutes e-mails through the queue.
+  - Fixed on the way: Horizon had no workers for the `heavy` and `mail`
+    queues, and the `redis` connection would hand a running job out again
+    after 90 seconds. Long jobs now have connections that wait longer than
+    their timeout.
+  - Tests: `tests/Engine/OperationsTest.php`, e2e `13-operations`.
 - **Next:**
-  - Operations Center, including download failures with retry and failed
-    automation runs.
-  - The rest of the Phase 4 e2e.
-  - Docs and the pull request.
+  - Full verification on both engines (CI), the remaining e2e review, and
+    the pull request closing #7.
 
 ## Resume point
 

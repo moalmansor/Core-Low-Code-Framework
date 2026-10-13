@@ -280,7 +280,7 @@ module's models.
 | **Documents** | document_templates | `DocumentRenderer` | P4 |
 | **Automation** | automations, automation_triggers, automation_steps, automation_runs, scheduled_tasks | `AutomationEngine` | P4 |
 | **DataQuality** | duplicate_rules, merge_history, recycle_bin | `DuplicateDetector`, `MergeService` | P4 |
-| **Operations** | operations_alert_rules (reads the submission journal, the email queue, and Laravel failed jobs through their owners' contracts) | `HealthProbe` | P4 |
+| **Operations** | `GET /ops/health`; `GET /ops/emails?status=&search=&page=` (`stuck` computed); `GET /ops/emails/{uuid}/html` → signed sandboxed preview link; `POST /ops/emails/resend` (`emails[]`, optional `recipients{to,cc,bcc}` for one); `POST /ops/emails/cancel` (`emails[]`); `GET /ops/submissions?status=failed|rejected|discarded`; `GET /ops/submissions/{uuid}` (masked payload, trace); `PATCH /ops/submissions/{uuid}/payload`; `POST /ops/submissions/retry` (`submissions[]`, as the submitter, same idempotency key); `POST /ops/submissions/{uuid}/discard` (`reason`); `GET /ops/jobs?kind=`; `GET /ops/jobs/{kind}/{id}`; `POST /ops/jobs/{kind}/{id}/retry`; `POST /ops/jobs/{kind}/{id}/discard` (`reason`, `operations_dismissals`); `GET/PUT /ops/alert-rules` (`base_hash`, ADR-0045) | | `manage_operations` |
 | **Reports** | reports, dashboards, dashboard_widgets | `ReportEngine` | P5 |
 | **Platform** | api_tokens, webhooks, webhook_deliveries, inbound_endpoints, config_packages, environment_drift_reports | `OpenApiGenerator`, `PackageService` | P5 |
 | **Extensions** | extensions, extension_versions | `HookRunner` | P5 |
@@ -585,14 +585,17 @@ denied; every audit entry carries `actor_user_id` (admin) and
 
 ### 8.1 Queues (Horizon + Redis)
 
-| Queue | Workloads | Notes |
-|---|---|---|
-| `critical` | submission retries, approvals fan-out, publish (schema) jobs | low latency, `tries=3` |
-| `default` | notifications dispatch, automations (event-triggered), SLA evaluations | |
-| `mail` | `SendEmailJob` per `email_queue` row | rate-limited per SMTP settings |
-| `webhooks` | outbound webhook deliveries, integration calls | backoff, egress only |
-| `heavy` | imports, exports, custom downloads, document generation, bulk ops, merges, retention runs, reconciliation, logical backups | long timeout, `maxProcesses` capped |
-| `scheduled` | jobs dispatched by the scheduler tick | |
+| Queue | Connection (handed out again after) | Workloads | Horizon supervisor |
+|---|---|---|---|
+| `default` | `redis` (3,700 s) | action runs, automation runs and event handling, notification rules, SLA work | `supervisor-1` |
+| `heavy` | `redis_heavy` (7,300 s) | imports, exports, custom downloads, data repair scans, duplicate sweeps | `heavy-1` |
+| `mail` | `redis` (3,700 s) | `SendQueuedEmail` per `email_queue` row, error alerts | `mail-1` |
+| `schema` | `redis_schema` (3,700 s) | migration plans (publish) | `schema-1` |
+
+Each connection waits longer than the longest job on it before handing a
+running job to another worker, so a long job never runs twice (ADR-0045).
+Outbound webhooks run inside the action or automation step that calls them.
+Scheduled work is started by the scheduler's own commands.
 
 Every job implements `CorrelatedJob` (carries correlation ID, organization ID,
 acting user, on-behalf-of user) and `TracksProgress` where user-visible

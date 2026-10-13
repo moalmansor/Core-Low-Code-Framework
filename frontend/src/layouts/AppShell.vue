@@ -210,6 +210,7 @@ export const icons: Record<string, string> = {
   documents: 'pi-file',
   automations: 'pi-bolt',
   scheduled_tasks: 'pi-clock',
+  operations_center: 'pi-server',
 }
 </script>
 
