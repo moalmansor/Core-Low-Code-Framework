@@ -17,7 +17,8 @@ test.beforeEach(async ({ page }) => {
 })
 
 async function api(page: Page, path: string): Promise<Record<string, unknown>> {
-  const res = await page.request.get(`/api/v1${path}`, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+  const origin = new URL(page.url()).origin
+  const res = await page.request.get(`/api/v1${path}`, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', Origin: origin, Referer: page.url() } })
   expect(res.status(), `GET ${path}: ${await res.text()}`).toBeLessThan(300)
   return (await res.json()) as Record<string, unknown>
 }
@@ -40,7 +41,7 @@ test('a CSV is checked and imported in the background from the records list', as
     buffer: Buffer.from(`Visitor\nImported ${tag} one\nImported ${tag} two\n`, 'utf8'),
   })
   await expect(dialog.getByTestId('import-columns')).toBeVisible()
-  await expect(dialog.getByTestId('import-target-Visitor')).toContainText('Visitor')
+  await expect(dialog.getByTestId('import-target-0')).toContainText('Visitor')
   await page.screenshot({ path: 'test-results/import-columns.png', fullPage: true })
   await dialog.getByTestId('import-check').click()
   await expect(dialog.getByTestId('import-preview')).toContainText('2')
@@ -49,7 +50,12 @@ test('a CSV is checked and imported in the background from the records list', as
   await expect(dialog.getByTestId('import-progress')).toContainText('2 created')
   await page.screenshot({ path: 'test-results/import-done.png', fullPage: true })
 
-  const rows = (await api(page, `/r/${form}?q=${encodeURIComponent(`Imported ${tag}`)}`)).data as unknown[]
-  expect(rows).toHaveLength(2)
+  const rows = (await api(page, `/r/${form}?per_page=100`)).data as { values: { visitor: string } }[]
+  expect(
+    rows
+      .filter((r) => r.values.visitor.startsWith(`Imported ${tag}`))
+      .map((r) => r.values.visitor)
+      .sort(),
+  ).toEqual([`Imported ${tag} one`, `Imported ${tag} two`])
   expect(problems).toEqual([])
 })
