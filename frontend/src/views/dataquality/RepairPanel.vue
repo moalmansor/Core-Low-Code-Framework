@@ -25,6 +25,9 @@ const TYPES: ScanType[] = ['orphan_scan', 'validation_sweep']
 const scans = ref<Record<ScanType, RepairScan | null>>({ orphan_scan: null, validation_sweep: null })
 const failed = ref<Record<string, string>>({})
 const picked = ref<string[]>([])
+// The last scans are loaded first; a scan started meanwhile must not be overwritten by that older state.
+const loaded = ref(false)
+const started = new Set<ScanType>()
 const clearing = ref(false)
 const timers: ReturnType<typeof setTimeout>[] = []
 onBeforeUnmount(() => timers.forEach(clearTimeout))
@@ -34,14 +37,18 @@ const fixable = computed(() => (scans.value.orphan_scan?.findings ?? []).filter(
 
 onMounted(async () => {
   try {
-    scans.value = await dataQualityApi.repairState(props.form)
-    TYPES.forEach(poll)
+    const state = await dataQualityApi.repairState(props.form)
+    for (const type of TYPES) if (!started.has(type)) scans.value[type] = state[type]
+    TYPES.forEach((type) => !started.has(type) && poll(type))
   } catch (e) {
     toast.add({ severity: 'error', summary: errorText(e, t('dq.repair_load_failed')), life: 6000 })
+  } finally {
+    loaded.value = true
   }
 })
 
 async function scan(type: ScanType): Promise<void> {
+  started.add(type)
   try {
     scans.value[type] = await dataQualityApi.scan(props.form, type)
     if (type === 'orphan_scan') picked.value = []
@@ -99,7 +106,16 @@ const allPicked = computed({
   <div class="rounded-xl border border-line bg-card px-5" data-testid="dq-repair">
     <ConfigSection v-for="type in TYPES" :id="`dq-${type}`" :key="type" :title="t(`dq.scan.${type}`)" :description="t(`dq.scan_desc.${type}`)">
       <div class="flex flex-wrap items-center gap-2">
-        <Button icon="pi pi-search" :label="t('dq.run_scan')" size="small" outlined :loading="running(type)" :disabled="running(type)" :data-testid="`dq-scan-${type}`" @click="scan(type)" />
+        <Button
+          icon="pi pi-search"
+          :label="t('dq.run_scan')"
+          size="small"
+          outlined
+          :loading="running(type)"
+          :disabled="!loaded || running(type)"
+          :data-testid="`dq-scan-${type}`"
+          @click="scan(type)"
+        />
         <span v-if="scans[type]?.finished_at" class="text-sm text-muted-color">{{ t('dq.scanned', { at: formatDatetime(scans[type]!.finished_at!, locale), n: scans[type]!.scanned ?? 0 }) }}</span>
       </div>
       <Message v-if="scans[type]?.status === 'failed'" severity="error" :closable="false">{{ t('dq.scan_failed') }}</Message>
