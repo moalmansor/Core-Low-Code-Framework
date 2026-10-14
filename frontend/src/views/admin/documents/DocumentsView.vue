@@ -1,17 +1,25 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
 import Column from 'primevue/column'
+import Dialog from 'primevue/dialog'
+import InputText from 'primevue/inputtext'
+import Select from 'primevue/select'
 import DataTable from 'primevue/datatable'
 import Message from 'primevue/message'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import FormPicker from '@/builder/FormPicker.vue'
+import I18nInput from '@/builder/I18nInput.vue'
+import ConfigField from '@/components/config/ConfigField.vue'
 import EmptyState from '@/components/config/EmptyState.vue'
+import { ApiError } from '@/api/http'
+import { useSession } from '@/stores/session'
 import { errorText } from '../building/shared'
-import { documentsApi, type DocumentSummary } from './api'
+import { documentBlueprintsApi, documentsApi, type DocumentBlueprint, type DocumentSummary } from './api'
 
 /**
  * Document templates (specification §4.17): Word files with placeholders and
@@ -39,6 +47,37 @@ async function load(): Promise<void> {
   }
 }
 onMounted(load)
+
+// A template made from a blueprint (specification §4.30), for any form.
+const session = useSession()
+const canBlueprints = computed(() => session.can('system.manage_blueprints'))
+const blueprints = ref<DocumentBlueprint[]>([])
+const fromOpen = ref(false)
+const from = ref({ blueprint: null as string | null, form: null as string | null, key: '', name: {} as Record<string, string> })
+const fromErrors = ref<Record<string, string>>({})
+const making = ref(false)
+async function openFrom(): Promise<void> {
+  blueprints.value = await documentBlueprintsApi.list().catch(() => [])
+  from.value = { blueprint: blueprints.value[0]?.uuid ?? null, form: null, key: '', name: {} }
+  fromErrors.value = {}
+  fromOpen.value = true
+}
+async function makeFrom(): Promise<void> {
+  if (!from.value.blueprint) return
+  making.value = true
+  fromErrors.value = {}
+  try {
+    const made = await documentBlueprintsApi.instantiate(from.value.blueprint, from.value.form, from.value.key, from.value.name)
+    fromOpen.value = false
+    open(made.uuid)
+  } catch (e) {
+    fromErrors.value = e instanceof ApiError ? e.fieldErrors : {}
+    if (!Object.keys(fromErrors.value).length) toast.add({ severity: 'error', summary: errorText(e, t('doc.from_blueprint_failed')), life: 6000 })
+  } finally {
+    making.value = false
+  }
+}
+const blueprintOptions = computed(() => blueprints.value.map((b) => ({ value: b.uuid, label: b.name })))
 
 function open(uuid: string): void {
   void router.push({ name: 'admin.documents.template', params: { template: uuid } })
@@ -69,8 +108,39 @@ function remove(row: DocumentSummary): void {
         <h1 class="page-title !mb-1">{{ t('admin.area.documents') }}</h1>
         <p class="m-0 text-sm text-muted-color">{{ t('doc.subtitle') }}</p>
       </div>
+      <Button v-if="canBlueprints" icon="pi pi-clone" :label="t('doc.from_blueprint')" size="small" outlined data-testid="doc-from-blueprint" @click="openFrom" />
       <Button icon="pi pi-plus" :label="t('doc.new')" size="small" data-testid="doc-new" @click="open('new')" />
     </header>
+    <Dialog v-model:visible="fromOpen" modal :header="t('doc.from_blueprint')" :style="{ width: '34rem', maxWidth: 'calc(100vw - 2rem)' }" data-testid="doc-from-dialog">
+      <EmptyState v-if="!blueprints.length" icon="pi pi-clone" :title="t('doc.no_blueprints_title')" :description="t('doc.no_blueprints_text')" />
+      <div v-else class="flex flex-col gap-4">
+        <ConfigField :label="t('doc.blueprint')" for="doc-from-bp" width="md">
+          <Select v-model="from.blueprint" input-id="doc-from-bp" :options="blueprintOptions" option-label="label" option-value="value" size="small" />
+        </ConfigField>
+        <ConfigField :label="t('doc.form')" for="doc-from-form" width="md" :hint="t('doc.from_blueprint_form_hint')" :error="fromErrors.form">
+          <FormPicker v-model="from.form" input-id="doc-from-form" />
+        </ConfigField>
+        <ConfigField :label="t('doc.key')" for="doc-from-key" width="sm" :hint="t('doc.key_hint')" :error="fromErrors.key" required>
+          <InputText id="doc-from-key" v-model="from.key" dir="ltr" class="ltr-value" size="small" maxlength="48" data-testid="doc-from-key" />
+        </ConfigField>
+        <I18nInput v-model="from.name" class="w-field-md" :label="t('doc.from_blueprint_name')" :maxlength="255" />
+        <ul v-if="Object.keys(fromErrors).some((k) => !['form', 'key'].includes(k))" class="m-0 ps-5 text-sm text-danger">
+          <li v-for="(m, k) in fromErrors" v-show="!['form', 'key'].includes(String(k))" :key="k">{{ m }}</li>
+        </ul>
+      </div>
+      <template #footer>
+        <Button :label="t('common.cancel')" text @click="fromOpen = false" />
+        <Button
+          v-if="blueprints.length"
+          :label="t('doc.from_blueprint_make')"
+          icon="pi pi-check"
+          :loading="making"
+          :disabled="!from.blueprint || !from.key"
+          data-testid="doc-from-make"
+          @click="makeFrom"
+        />
+      </template>
+    </Dialog>
     <Message v-if="!pdfFromWord" severity="info">{{ t('doc.no_converter') }}</Message>
 
     <EmptyState v-if="!loading && !rows.length" icon="pi pi-file" :title="t('doc.empty_title')" :description="t('doc.empty_text')" testid="doc-empty">

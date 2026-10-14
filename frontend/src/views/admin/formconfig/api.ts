@@ -213,6 +213,16 @@ export interface PathNode {
   form?: { uuid: string; key: string }
 }
 
+/** Forms whose records link to a form's records, with the link fields they use (tables of linked records). */
+export interface LinkedFrom {
+  form: string
+  name: string
+  via: { key: string; label: string }[]
+}
+export const linkedFromApi = {
+  load: (form: string) => get<{ data: LinkedFrom[] }>(`/forms/${form}/linked-from`).then((r) => r.data),
+}
+
 /** The fields reachable from a form: its own, those of the forms it links to, and system values. */
 export const fieldTreeApi = {
   load: (form: string) => get<{ data: { published: boolean; fields: PathNode[] } }>(`/forms/${form}/field-tree`).then((r) => r.data.fields),

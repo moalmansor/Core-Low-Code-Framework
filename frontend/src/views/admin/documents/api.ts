@@ -14,13 +14,39 @@ export interface WordFile {
   name: string
   size: number
 }
+/** A designed template's design: its accent, title, running header and footer, and blocks. */
+export interface DocumentDesign {
+  style: { accent: string | null }
+  title: I18nMap
+  header: { enabled: boolean; logo: boolean; text: I18nMap }
+  footer: { enabled: boolean; text: I18nMap; pageNumbers: 'none' | 'page' | 'page_of' }
+  blocks: TemplateBlock[]
+}
+export const emptyDesign = (): DocumentDesign => ({
+  style: { accent: null },
+  title: {},
+  header: { enabled: false, logo: true, text: {} },
+  footer: { enabled: false, text: {}, pageNumbers: 'page_of' },
+  blocks: [],
+})
+/** A loaded design with every part present (older templates have no title, header or footer). */
+export function fullDesign(d: Partial<DocumentDesign> | null | undefined): DocumentDesign {
+  const e = emptyDesign()
+  return {
+    style: { ...e.style, ...(d?.style ?? {}) },
+    title: { ...(d?.title ?? {}) },
+    header: { ...e.header, ...(d?.header ?? {}) },
+    footer: { ...e.footer, ...(d?.footer ?? {}) },
+    blocks: d?.blocks ?? [],
+  }
+}
 export interface DocumentDoc {
   uuid?: string
   key: string
   type: DocKind
   form: string | null
   name: I18nMap
-  design: { style: { accent: string | null }; blocks: TemplateBlock[] } | null
+  design: DocumentDesign | null
   files: Record<string, WordFile | null>
   formats: DocFormat[]
   paper: Paper
@@ -78,4 +104,19 @@ export const documentsApi = {
   generate: (uuid: string, record: string | null, format: DocFormat, locale: string) =>
     send<{ data: { name: string; size: number; url: string } }>('post', `/documents/templates/${uuid}/generate`, { record, format, locale }).then((r) => r.data),
   placeholders: (form: string | null) => get<{ data: Placeholders }>('/documents/placeholders', form ? { form } : {}).then((r) => r.data),
+}
+
+/** Document templates as blueprints (specification §4.30). */
+export interface DocumentBlueprint {
+  uuid: string
+  name: string
+  description: string | null
+  version: number | null
+}
+export const documentBlueprintsApi = {
+  list: () => get<{ data: DocumentBlueprint[] }>('/blueprints', { kind: 'document_template' }).then((r) => r.data),
+  save: (template: string, name: I18nMap, description: I18nMap) =>
+    send<{ data: { uuid: string } }>('post', '/blueprints', { source: template, source_type: 'document_template', name, description }).then((r) => r.data.uuid),
+  instantiate: (blueprint: string, form: string | null, key: string, name: I18nMap) =>
+    send<{ data: { uuid: string; key: string } }>('post', `/blueprints/${blueprint}/instantiate`, { form, key, name }).then((r) => r.data),
 }

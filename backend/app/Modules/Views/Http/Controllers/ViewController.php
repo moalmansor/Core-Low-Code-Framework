@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Views\Http\Controllers;
 
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Views\FieldTree;
@@ -12,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -50,5 +52,31 @@ final class ViewController extends Controller
         $rt = $runtimes->forForm($form);
 
         return response()->json(['data' => ['published' => $rt !== null, 'fields' => $rt === null ? [] : $tree->build($rt)]]);
+    }
+
+    /**
+     * Forms whose records point at this form's records (child records), each
+     * with the link fields they point with: what a table of linked records
+     * in a document follows.
+     */
+    public function linkedFrom(Form $form, FormRuntimes $runtimes, Translator $translator): JsonResponse
+    {
+        abort_unless(Gate::any(['system.manage_forms', 'system.manage_document_templates']), 403);
+        $out = [];
+        $sources = DB::table('relations')->where('target_form_id', $form->id)->where('kind', 'reference')->whereIn('type', ['many_to_one', 'one_to_one'])->distinct()->pluck('source_form_id');
+        foreach (Form::query()->whereIn('id', $sources)->orderBy('id')->get() as $source) {
+            $rt = $runtimes->forForm($source);
+            $via = [];
+            foreach ($rt?->mainFields() ?? [] as $f) {
+                if ($rt->targetFormUuid($f) === $form->uuid && ! $rt->isMultiReference($f)) {
+                    $via[] = ['key' => $f['key'], 'label' => $translator->labelOf($f['i18n']['label'] ?? null, (string) $f['key'])];
+                }
+            }
+            if ($via !== []) {
+                $out[] = ['form' => strtolower($source->uuid), 'name' => $translator->labelOf($source->translationsFor('name'), (string) $source->key), 'via' => $via];
+            }
+        }
+
+        return response()->json(['data' => $out]);
     }
 }

@@ -3,7 +3,7 @@ import type { Ast } from '@/builder/types'
 
 /** Email templates and their placeholders (specification §4.16). */
 export type I18nMap = Record<string, string>
-export type BlockType = 'heading' | 'text' | 'button' | 'fields' | 'table' | 'divider' | 'spacer' | 'page_break'
+export type BlockType = 'heading' | 'text' | 'button' | 'fields' | 'table' | 'related' | 'signature' | 'code' | 'divider' | 'spacer' | 'page_break'
 export interface TemplateBlock {
   uuid: string
   type: BlockType
@@ -13,7 +13,22 @@ export interface TemplateBlock {
   url?: string | null
   fields?: string[]
   group?: string
+  /** Columns: a repeater's column keys (table) or paths in the linked form (related), each optionally `path|format`. */
   columns?: string[]
+  /** Formats of a repeater table's columns, by column key. */
+  formats?: Record<string, string>
+  /** A table of linked records: the form that links here, the field it links with, and how many rows at most. */
+  source?: string | null
+  via?: string
+  limit?: number
+  /** Signature lines. */
+  signatories?: { label: I18nMap; name: I18nMap }[]
+  date?: boolean
+  /** A QR code or barcode of the record. */
+  kind?: 'qr' | 'barcode'
+  content?: 'link' | 'number'
+  size?: 'small' | 'medium' | 'large'
+  caption?: boolean
   condition: Ast | null
 }
 export interface TemplateDesign {

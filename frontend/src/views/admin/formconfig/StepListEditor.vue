@@ -447,7 +447,6 @@ const tokenText = (token: string) => `{{ ${token} }}`
         </ConfigField>
         <template v-else-if="s.type === 'wait_condition'">
           <div class="flex flex-col gap-1">
-            <h4 class="m-0 text-sm font-semibold">{{ t('auto.wait_until') }}</h4>
             <ExpressionInput v-model="s.config.condition" :scope="scope" expected="boolean" :allow-empty="false" :label="t('auto.wait_until')" />
             <p v-if="err(j, 'config.condition')" class="m-0 text-xs text-danger">{{ err(j, 'config.condition') }}</p>
           </div>
@@ -463,7 +462,6 @@ const tokenText = (token: string) => `{{ ${token} }}`
 
         <template v-if="s.type !== 'wait_delay' && s.type !== 'wait_condition'">
           <div class="flex flex-col gap-1">
-            <h4 class="m-0 text-sm font-semibold">{{ t('act.run_when') }}</h4>
             <ExpressionInput v-model="s.condition" :scope="scope" expected="boolean" allow-empty :label="t('act.run_when')" />
           </div>
           <SettingSwitch

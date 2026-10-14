@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSession } from '@/stores/session'
 import { maybeBuilder } from './useBuilder'
@@ -34,6 +34,36 @@ const primary = computed(() => locales.value.find((l) => l.code === locale.value
 const others = computed(() => locales.value.filter((l) => l.code !== primary.value?.code))
 const setCount = computed(() => others.value.filter((l) => !!model.value?.[l.code]).length)
 
+// Where the caret was in each language's input, so a chosen placeholder lands there (insert()).
+const elements = new Map<string, HTMLInputElement | HTMLTextAreaElement>()
+const caret = ref<{ code: string; start: number; end: number } | null>(null)
+function bind(code: string, el: Element | ComponentPublicInstance | null): void {
+  const node = (el && '$el' in el ? el.$el : el) as HTMLInputElement | HTMLTextAreaElement | null
+  if (node) elements.set(code, node)
+  else elements.delete(code)
+}
+function remember(code: string, e: Event): void {
+  const el = e.target as HTMLInputElement | HTMLTextAreaElement
+  caret.value = { code, start: el.selectionStart ?? el.value.length, end: el.selectionEnd ?? el.value.length }
+}
+/** Inserts text at the caret of the language last edited (else at the end of the interface language's text). */
+function insert(text: string): void {
+  const code = caret.value?.code ?? primary.value?.code
+  if (!code) return
+  const current = model.value?.[code] ?? ''
+  const start = caret.value?.code === code ? Math.min(caret.value.start, current.length) : current.length
+  const end = caret.value?.code === code ? Math.min(caret.value.end, current.length) : current.length
+  update(code, current.slice(0, start) + text + current.slice(end))
+  const at = start + text.length
+  caret.value = { code, start: at, end: at }
+  void nextTick(() => {
+    const el = elements.get(code)
+    el?.focus()
+    el?.setSelectionRange(at, at)
+  })
+}
+defineExpose({ insert })
+
 function update(code: string, value: string | undefined): void {
   const next: I18nText = { ...(model.value ?? {}) }
   if (value) next[code] = value
@@ -44,13 +74,17 @@ function update(code: string, value: string | undefined): void {
 
 <template>
   <fieldset class="flex flex-col gap-1.5 min-w-0">
-    <legend class="text-sm font-medium mb-1">{{ label }}</legend>
+    <legend class="text-sm font-medium mb-1 w-full flex flex-wrap items-center justify-between gap-2">
+      <span>{{ label }}</span>
+      <slot name="tools" />
+    </legend>
     <template v-for="l in expanded ? locales : primary ? [primary] : []" :key="l.code">
       <div class="flex items-start gap-2">
         <label v-if="expanded || others.length" :for="`${uid}-${l.code}`" class="text-xs text-muted-color w-8 shrink-0 pt-2 uppercase ltr-value">{{ l.code }}</label>
         <Textarea
           v-if="multiline"
           :id="`${uid}-${l.code}`"
+          :ref="(el) => bind(l.code, el)"
           :model-value="model?.[l.code] ?? ''"
           :dir="l.direction"
           :rows="rows"
@@ -60,10 +94,15 @@ function update(code: string, value: string | undefined): void {
           class="w-full"
           :aria-label="`${label} (${l.native_name})`"
           @update:model-value="(v: string | undefined) => update(l.code, v)"
+          @keyup="(e: Event) => remember(l.code, e)"
+          @click="(e: Event) => remember(l.code, e)"
+          @select="(e: Event) => remember(l.code, e)"
+          @blur="(e: Event) => remember(l.code, e)"
         />
         <InputText
           v-else
           :id="`${uid}-${l.code}`"
+          :ref="(el) => bind(l.code, el)"
           :model-value="model?.[l.code] ?? ''"
           :dir="l.direction"
           :maxlength="maxlength"
@@ -72,6 +111,10 @@ function update(code: string, value: string | undefined): void {
           class="w-full"
           :aria-label="`${label} (${l.native_name})`"
           @update:model-value="(v: string | undefined) => update(l.code, v)"
+          @keyup="(e: Event) => remember(l.code, e)"
+          @click="(e: Event) => remember(l.code, e)"
+          @select="(e: Event) => remember(l.code, e)"
+          @blur="(e: Event) => remember(l.code, e)"
         />
       </div>
     </template>

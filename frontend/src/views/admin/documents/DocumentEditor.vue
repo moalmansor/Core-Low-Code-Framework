@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
+import Dialog from 'primevue/dialog'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
@@ -20,11 +21,12 @@ import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import { provideConfigScreen } from '@/components/config/configScreen'
 import BlockListEditor from '@/components/templates/BlockListEditor.vue'
 import PlaceholderList from '@/components/templates/PlaceholderList.vue'
+import TemplateText from '@/components/templates/TemplateText.vue'
 import { useSession } from '@/stores/session'
 import { errorText } from '../building/shared'
 import ErrorList from '../formconfig/ErrorList.vue'
 import type { BlockType, Placeholders } from '../notifications/api'
-import { documentsApi, type DocFormat, type DocumentDoc, type Paper, type UploadResult } from './api'
+import { documentBlueprintsApi, documentsApi, emptyDesign, fullDesign, type DocFormat, type DocumentDoc, type Paper, type UploadResult } from './api'
 
 /**
  * A document template (specification §4.17). Either a Word file per language
@@ -55,7 +57,8 @@ const uploading = ref<string | null>(null)
 const dirty = computed(() => doc.value !== null && JSON.stringify(doc.value) !== saved.value)
 const dl = computed(() => session.boot?.default_locale ?? 'en')
 const locales = computed(() => (session.boot?.locales ?? []).map((l) => ({ value: l.code, label: l.native_name })))
-const blockTypes: BlockType[] = ['heading', 'text', 'fields', 'table', 'divider', 'spacer', 'page_break']
+const blockTypes: BlockType[] = ['heading', 'text', 'fields', 'table', 'related', 'signature', 'code', 'divider', 'spacer', 'page_break']
+const pageNumberOptions = computed(() => (['none', 'page', 'page_of'] as const).map((v) => ({ value: v, label: t(`doc.page_numbers.${v}`) })))
 const kinds = computed(() => [
   { value: 'html', label: t('doc.kind_html') },
   { value: 'docx', label: t('doc.kind_docx') },
@@ -69,7 +72,7 @@ const sides = ['top', 'right', 'bottom', 'left'] as const
 
 const defaultPaper = (): Paper => ({ size: 'a4', orientation: 'portrait', margins: { top: 20, right: 20, bottom: 20, left: 20 } })
 function empty(): DocumentDoc {
-  return { key: '', type: 'html', form: null, name: {}, design: { style: { accent: null }, blocks: [] }, files: {}, formats: ['pdf'], paper: defaultPaper(), active: true }
+  return { key: '', type: 'html', form: null, name: {}, design: emptyDesign(), files: {}, formats: ['pdf'], paper: defaultPaper(), active: true }
 }
 function apply(d: DocumentDoc): void {
   doc.value = {
@@ -77,7 +80,7 @@ function apply(d: DocumentDoc): void {
     type: d.type,
     form: d.form,
     name: { ...d.name },
-    design: d.design ?? { style: { accent: null }, blocks: [] },
+    design: fullDesign(d.design),
     files: { ...d.files },
     formats: [...d.formats],
     paper: d.paper,
@@ -239,6 +242,28 @@ async function generate(): Promise<void> {
   }
 }
 const brandAccent = computed(() => session.boot?.branding.primary_color || getComputedStyle(document.documentElement).getPropertyValue('--primary').trim())
+// Saving the template as a blueprint, to make templates from it for other forms (specification §4.30).
+const saving_bp = ref(false)
+const bpOpen = ref(false)
+const bpName = ref<Record<string, string>>({})
+const bpDescription = ref<Record<string, string>>({})
+function openBlueprint(): void {
+  bpName.value = { ...(doc.value?.name ?? {}) }
+  bpDescription.value = {}
+  bpOpen.value = true
+}
+async function saveBlueprint(): Promise<void> {
+  saving_bp.value = true
+  try {
+    await documentBlueprintsApi.save(uuid.value, bpName.value, bpDescription.value)
+    bpOpen.value = false
+    toast.add({ severity: 'success', summary: t('doc.blueprint_saved'), life: 4000 })
+  } catch (e) {
+    toast.add({ severity: 'error', summary: errorText(e, t('doc.blueprint_failed')), life: 6000 })
+  } finally {
+    saving_bp.value = false
+  }
+}
 function setAccent(v: string): void {
   if (doc.value?.design) doc.value.design.style.accent = v
 }
@@ -254,7 +279,28 @@ function setAccent(v: string): void {
         <h1 class="page-title !mb-1">{{ isNew ? t('doc.new') : t('doc.edit') }}</h1>
         <p class="m-0 text-sm text-muted-color">{{ t('doc.editor_subtitle') }}</p>
       </div>
+      <Button
+        v-if="!isNew && session.can('system.manage_blueprints')"
+        icon="pi pi-clone"
+        :label="t('doc.save_blueprint')"
+        size="small"
+        outlined
+        :disabled="dirty"
+        data-testid="doc-save-blueprint"
+        @click="openBlueprint"
+      />
     </header>
+    <Dialog v-model:visible="bpOpen" modal :header="t('doc.save_blueprint')" :style="{ width: '32rem', maxWidth: 'calc(100vw - 2rem)' }" data-testid="doc-blueprint-dialog">
+      <div class="flex flex-col gap-4">
+        <p class="m-0 text-sm text-muted-color">{{ t('doc.blueprint_hint') }}</p>
+        <I18nInput v-model="bpName" :label="t('doc.blueprint_name')" :maxlength="255" />
+        <I18nInput v-model="bpDescription" :label="t('doc.blueprint_description')" multiline :rows="2" :maxlength="1000" />
+      </div>
+      <template #footer>
+        <Button :label="t('common.cancel')" text @click="bpOpen = false" />
+        <Button :label="t('doc.save_blueprint')" icon="pi pi-check" :loading="saving_bp" :disabled="!bpName[dl]" data-testid="doc-blueprint-save" @click="saveBlueprint" />
+      </template>
+    </Dialog>
 
     <div v-if="doc" class="doc-grid">
       <div class="flex flex-col gap-6 min-w-0">
@@ -348,6 +394,37 @@ function setAccent(v: string): void {
               </ConfigField>
             </div>
           </ConfigSection>
+          <ConfigSection id="doc-page" :title="t('doc.section.page')" :description="t('doc.page_hint')">
+            <TemplateText v-model="doc.design.title" class="w-field-lg" :label="t('doc.title')" :form="doc.form" :system="placeholders.system" :maxlength="255" testid="doc-title" />
+            <SettingSwitch id="doc-header" v-model="doc.design.header.enabled" :label="t('doc.header')" :description="t('doc.header_desc')" data-testid="doc-header" />
+            <div v-if="doc.design.header.enabled" class="doc-sub flex flex-col gap-4">
+              <SettingSwitch id="doc-header-logo" v-model="doc.design.header.logo" :label="t('doc.header_logo')" :description="t('doc.header_logo_desc')" />
+              <TemplateText
+                v-model="doc.design.header.text"
+                class="w-field-lg"
+                :label="t('doc.header_text')"
+                :form="doc.form"
+                :system="placeholders.system"
+                :maxlength="255"
+                testid="doc-header-text"
+              />
+            </div>
+            <SettingSwitch id="doc-footer" v-model="doc.design.footer.enabled" :label="t('doc.footer')" :description="t('doc.footer_desc')" data-testid="doc-footer" />
+            <div v-if="doc.design.footer.enabled" class="doc-sub flex flex-col gap-4">
+              <TemplateText
+                v-model="doc.design.footer.text"
+                class="w-field-lg"
+                :label="t('doc.footer_text')"
+                :form="doc.form"
+                :system="placeholders.system"
+                :maxlength="255"
+                testid="doc-footer-text"
+              />
+              <ConfigField :label="t('doc.page_numbers_label')" for="doc-page-numbers" width="sm">
+                <Select v-model="doc.design.footer.pageNumbers" input-id="doc-page-numbers" :options="pageNumberOptions" option-label="label" option-value="value" size="small" />
+              </ConfigField>
+            </div>
+          </ConfigSection>
           <ConfigSection id="doc-look" :title="t('tpl.section.look')" :default-open="false">
             <ConfigField :label="t('tpl.accent')" for="doc-accent" width="xs" :hint="t('doc.accent_hint')" :error="err('design.style.accent')">
               <div class="flex items-center gap-2">
@@ -364,9 +441,6 @@ function setAccent(v: string): void {
           </ConfigSection>
           <ConfigSection id="doc-blocks" :title="t('tpl.section.content')" :count="doc.design.blocks.length">
             <BlockListEditor v-model="doc.design.blocks" :types="blockTypes" :form="doc.form" :placeholders="placeholders" :errors="errors" :empty-text="t('doc.blocks_empty_text')" />
-          </ConfigSection>
-          <ConfigSection id="doc-placeholders" :title="t('tpl.section.placeholders')" :description="t('tpl.placeholders_hint')" :default-open="false">
-            <PlaceholderList :placeholders="placeholders" />
           </ConfigSection>
         </template>
 
@@ -438,6 +512,10 @@ function setAccent(v: string): void {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-subtle);
+}
+.doc-sub {
+  padding-inline-start: 1rem;
+  border-inline-start: 2px solid var(--border);
 }
 .doc-file {
   display: flex;

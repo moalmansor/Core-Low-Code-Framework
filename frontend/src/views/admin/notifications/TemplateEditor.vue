@@ -9,12 +9,12 @@ import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ApiError, get } from '@/api/http'
 import FormPicker from '@/builder/FormPicker.vue'
-import I18nInput from '@/builder/I18nInput.vue'
 import ConfigField from '@/components/config/ConfigField.vue'
 import ConfigSaveBar from '@/components/config/ConfigSaveBar.vue'
 import ConfigSection from '@/components/config/ConfigSection.vue'
 import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import BlockListEditor from '@/components/templates/BlockListEditor.vue'
+import TemplateText from '@/components/templates/TemplateText.vue'
 import PlaceholderList from '@/components/templates/PlaceholderList.vue'
 import { provideConfigScreen } from '@/components/config/configScreen'
 import UserPicker from '@/components/UserPicker.vue'
@@ -193,8 +193,17 @@ function setAccent(v: string): void {
         </ConfigSection>
 
         <ConfigSection id="tpl-subject" :title="t('tpl.section.subject')">
-          <I18nInput v-model="doc.subject" class="w-field-lg" :label="t('tpl.subject')" :maxlength="255" :invalid="!!err(`subject.${dl}`)" data-testid="tpl-subject" />
-          <I18nInput v-model="doc.preheader" class="w-field-lg" :label="t('tpl.preheader')" :maxlength="255" />
+          <TemplateText
+            v-model="doc.subject"
+            class="w-field-lg"
+            :label="t('tpl.subject')"
+            :form="doc.form"
+            :system="placeholders.system"
+            :maxlength="255"
+            :invalid="!!err(`subject.${dl}`)"
+            testid="tpl-subject"
+          />
+          <TemplateText v-model="doc.preheader" class="w-field-lg" :label="t('tpl.preheader')" :form="doc.form" :system="placeholders.system" :maxlength="255" testid="tpl-preheader" />
           <p class="m-0 text-xs text-muted-color">{{ t('tpl.preheader_hint') }}</p>
         </ConfigSection>
 

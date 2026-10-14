@@ -253,7 +253,6 @@ const actionSubtitle = (a: ActionDoc) => `${kindText(a)} · ${a.placements.map((
             </div>
           </ConfigField>
           <div v-if="scope" class="flex flex-col gap-1">
-            <h4 class="m-0 text-sm font-semibold">{{ t('act.available_when') }}</h4>
             <ExpressionInput v-model="a.condition" :scope="scope" expected="boolean" allow-empty :label="t('act.available_when')" />
             <p class="m-0 text-xs text-muted-color">{{ t('act.available_when_hint') }}</p>
           </div>
