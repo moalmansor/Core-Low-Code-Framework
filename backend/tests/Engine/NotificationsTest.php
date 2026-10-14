@@ -294,7 +294,7 @@ it('reaches the people a record holds — pickers and email fields here or in li
     ]])->assertCreated()->json('data');
     $recId = (int) DB::table(DB::table('forms')->where('uuid', $ticket)->value('table_name'))->where('uuid', $rec['uuid'])->value('id');
     DB::table('assignments')->insert([
-        'uuid' => uid(), 'organization_id' => 1, 'created_at' => now(), 'updated_at' => now(), 'form_id' => DB::table('forms')->where('uuid', $ticket)->value('id'),
+        'uuid' => uid(), 'organization_id' => DB::table('organizations')->value('id'), 'created_at' => now(), 'updated_at' => now(), 'form_id' => DB::table('forms')->where('uuid', $ticket)->value('id'),
         'record_id' => $recId, 'assignee_type' => 'user', 'assignee_id' => $assignee->id, 'status' => 'active', 'priority' => 0,
     ]);
     $recipients = app(Recipients::class);

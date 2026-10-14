@@ -2880,6 +2880,7 @@ erDiagram
 - **Check:** `ck_actions_run_mode`: `run_mode IN ('sync', 'queued', 'auto')` (both engines)
 - **Check:** `ck_actions_justification_level`: `justification_level IN ('not_required', 'optional', 'mandatory')` (both engines)
 - **Check (SQL Server):** `ck_actions_placements_json`: `ISJSON(placements) = 1`
+- **Check (SQL Server):** `ck_actions_settings_json`: `ISJSON(settings) = 1`
 - Translatable: `label`, `confirmation_text`, `success_message`. Permission: `action.{uuid}.run`.
 
 **`action_steps`**
