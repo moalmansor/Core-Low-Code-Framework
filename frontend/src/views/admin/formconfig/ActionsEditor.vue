@@ -19,6 +19,7 @@ import ConfigSection from '@/components/config/ConfigSection.vue'
 import EmptyState from '@/components/config/EmptyState.vue'
 import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import TabIntro from '@/components/config/TabIntro.vue'
+import { joinList } from '@/runtime/lists'
 import { useSession } from '@/stores/session'
 import { actionsApi, labelOf, newUuid, workflowApi, type ActionBuiltin, type ActionDoc, type ActionPlacement, type TransitionDoc } from './api'
 import ErrorList from './ErrorList.vue'
@@ -179,7 +180,11 @@ const kindText = (a: ActionDoc) =>
     : a.builtin === 'bulk_status' && fixedName(a)
       ? t('act.builtin_fixed', { name: fixedName(a)! })
       : t(`act.builtin.${a.builtin}`)
-const actionSubtitle = (a: ActionDoc) => `${kindText(a)} · ${a.placements.map((p) => t(`act.place.${p}`)).join(', ')}${a.active ? '' : ' · ' + t('act.inactive')}`
+const actionSubtitle = (a: ActionDoc) =>
+  `${kindText(a)} · ${joinList(
+    a.placements.map((p) => t(`act.place.${p}`)),
+    locale.value,
+  )}${a.active ? '' : ' · ' + t('act.inactive')}`
 </script>
 
 <template>
@@ -258,26 +263,25 @@ const actionSubtitle = (a: ActionDoc) => `${kindText(a)} · ${a.placements.map((
           </div>
         </ConfigSection>
 
-        <ConfigSection :id="`act-run-${i}`" :title="t('act.section.run')" :default-open="false">
+        <ConfigSection :id="`act-msg-${i}`" :title="t('act.section.messages')" :description="t('act.section.messages_desc')" :default-open="false">
           <SettingSwitch :id="`act-confirm-${i}`" v-model="a.confirm" :label="t('act.confirm')" :description="t('act.confirm_desc')" />
           <I18nInput v-if="a.confirm" v-model="a.i18n.confirmation" class="w-field-lg" multiline :rows="2" :label="t('act.confirmation')" :maxlength="500" />
           <I18nInput v-model="a.i18n.success" class="w-field-lg" :label="t('act.success')" :maxlength="255" />
-          <div class="cfg-row">
-            <ConfigField :label="t('act.justification')" :for="`act-just-${i}`" width="sm" :hint="t('act.justification_hint')">
-              <Select v-model="a.justification" :input-id="`act-just-${i}`" :options="levels" option-label="label" option-value="value" size="small" />
-            </ConfigField>
-            <ConfigField :label="t('act.run_mode')" :for="`act-mode-${i}`" width="sm" :hint="t(`act.mode_hint.${a.runMode}`)">
-              <Select v-model="a.runMode" :input-id="`act-mode-${i}`" :options="runModes" option-label="label" option-value="value" size="small" />
-            </ConfigField>
-          </div>
-          <div class="cfg-row">
-            <ConfigField v-if="a.runMode === 'auto'" :label="t('act.queue_threshold')" :for="`act-thr-${i}`" width="xs" :hint="t('act.default_setting')" :error="err(`actions.${i}.queueThreshold`)">
-              <InputNumber v-model="a.queueThreshold" :input-id="`act-thr-${i}`" :min="1" :max="10000" size="small" fluid />
-            </ConfigField>
-            <ConfigField :label="t('act.max_records')" :for="`act-max-${i}`" width="xs" :hint="t('act.default_setting')" :error="err(`actions.${i}.maxRecords`)">
-              <InputNumber v-model="a.maxRecords" :input-id="`act-max-${i}`" :min="1" :max="100000" size="small" fluid />
-            </ConfigField>
-          </div>
+        </ConfigSection>
+
+        <ConfigSection :id="`act-run-${i}`" :title="t('act.section.run')" :description="t('act.section.run_desc')" :default-open="false">
+          <ConfigField :label="t('act.justification')" :for="`act-just-${i}`" width="sm" :hint="t('act.justification_hint')">
+            <Select v-model="a.justification" :input-id="`act-just-${i}`" :options="levels" option-label="label" option-value="value" size="small" />
+          </ConfigField>
+          <ConfigField :label="t('act.run_mode')" :for="`act-mode-${i}`" width="sm" :hint="t(`act.mode_hint.${a.runMode}`)">
+            <Select v-model="a.runMode" :input-id="`act-mode-${i}`" :options="runModes" option-label="label" option-value="value" size="small" />
+          </ConfigField>
+          <ConfigField v-if="a.runMode === 'auto'" :label="t('act.queue_threshold')" :for="`act-thr-${i}`" width="sm" :hint="t('act.default_setting')" :error="err(`actions.${i}.queueThreshold`)">
+            <InputNumber v-model="a.queueThreshold" :input-id="`act-thr-${i}`" :min="1" :max="10000" :suffix="` ${t('act.records_unit')}`" size="small" fluid />
+          </ConfigField>
+          <ConfigField :label="t('act.max_records')" :for="`act-max-${i}`" width="sm" :hint="t('act.default_setting')" :error="err(`actions.${i}.maxRecords`)">
+            <InputNumber v-model="a.maxRecords" :input-id="`act-max-${i}`" :min="1" :max="100000" :suffix="` ${t('act.records_unit')}`" size="small" fluid />
+          </ConfigField>
         </ConfigSection>
 
         <ConfigSection v-if="a.kind === 'custom'" :id="`act-steps-${i}`" :title="t('act.section.steps')" :count="a.steps.length" :description="t('act.steps_hint')">

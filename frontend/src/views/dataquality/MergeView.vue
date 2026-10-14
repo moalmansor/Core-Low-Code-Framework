@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
 import Message from 'primevue/message'
+import EmptyValue from '@/components/EmptyValue.vue'
 import ProgressSpinner from 'primevue/progressspinner'
 import RadioButton from 'primevue/radiobutton'
 import { useToast } from 'primevue/usetoast'
@@ -92,7 +93,7 @@ function display(r: RecordPayload, key: string): string {
     f && index.value
       ? formatValue(index.value, f, v, { locale: locale.value, references: r.references, files: r.files, yes: t('runtime.yes'), no: t('runtime.no'), untitled: t('runtime.untitled_record') })
       : formatLoose(v)
-  return text === '' ? '—' : text
+  return text
 }
 const previewOf = (r: RecordPayload) => preview.value?.records.find((p) => p.uuid === r.uuid)
 const titleOf = (r: RecordPayload) => {
@@ -162,7 +163,8 @@ async function merge(): Promise<void> {
               <td v-for="r in records" :key="r.uuid" :class="{ 'is-chosen': choices[f.key] === r.uuid }">
                 <label class="flex items-start gap-2 cursor-pointer">
                   <RadioButton v-model="choices[f.key]" :value="r.uuid" :name="`choice-${f.key}`" :data-testid="`merge-choice-${f.key}-${r.uuid}`" />
-                  <span class="min-w-0 break-words" dir="auto">{{ display(r, f.key) }}</span>
+                  <span v-if="display(r, f.key) !== ''" class="min-w-0 break-words" dir="auto">{{ display(r, f.key) }}</span>
+                  <EmptyValue v-else />
                 </label>
               </td>
             </tr>
@@ -174,9 +176,7 @@ async function merge(): Promise<void> {
       </div>
       <p class="m-0 text-sm text-muted-color">{{ t('dq.same_fields') }}</p>
 
-      <Message severity="info" :closable="false">
-        {{ t('dq.merge_outcome', { n: others.length, links: moving }) }}
-      </Message>
+      <p class="m-0 text-sm text-muted-color flex items-start gap-2"><i class="pi pi-info-circle mt-0.5" aria-hidden="true" />{{ t('dq.merge_outcome', { n: others.length, links: moving }) }}</p>
       <div class="flex gap-2">
         <Button icon="pi pi-clone" :label="t('dq.merge_n', { n: records.length })" :loading="merging" data-testid="merge-submit" @click="merge" />
         <Button :label="t('common.cancel')" severity="secondary" outlined @click="router.push({ name: 'records.list', params: { form: formUuid } })" />

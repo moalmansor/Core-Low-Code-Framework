@@ -12,7 +12,10 @@ import Tag from 'primevue/tag'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ApiError, ensureCsrf, get, http, send } from '@/api/http'
+import ConfigField from '@/components/config/ConfigField.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
 import JustificationDialog from '@/runtime/JustificationDialog.vue'
+import { joinList } from '@/runtime/lists'
 import { downloadBlob } from '@/runtime/api'
 import { useJustification } from '@/runtime/useJustification'
 
@@ -25,7 +28,7 @@ import { useJustification } from '@/runtime/useJustification'
  */
 const props = defineProps<{ form: string; formKey: string }>()
 const emit = defineEmits<{ close: []; imported: [] }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 type Mode = 'insert' | 'update' | 'upsert'
 interface ColumnMap {
@@ -352,22 +355,20 @@ const outcome = computed(() => {
             >
           </label>
         </div>
-        <div v-if="mode !== 'insert'" class="mt-3 max-w-[20rem]">
-          <label for="imp-key" class="block text-sm font-medium mb-1">{{ t('records.imp.key_field') }}</label>
-          <Select v-model="keyField" input-id="imp-key" :options="keyOptions" option-label="label" option-value="value" class="w-full" data-testid="import-key" />
-          <p class="text-xs text-muted-color mt-1">{{ t('records.imp.key_help') }}</p>
-        </div>
+        <ConfigField v-if="mode !== 'insert'" class="mt-3" :label="t('records.imp.key_field')" for="imp-key" width="md" :hint="t('records.imp.key_help')">
+          <Select v-model="keyField" input-id="imp-key" :options="keyOptions" option-label="label" option-value="value" size="small" data-testid="import-key" />
+        </ConfigField>
       </div>
 
       <div class="dlg-group">
         <div class="flex flex-wrap items-end justify-between gap-2">
           <h3 class="dlg-heading">{{ t('records.imp.columns') }}</h3>
-          <div v-if="inspection.mappings.length" class="w-[16rem]">
-            <label for="imp-saved" class="block text-sm font-medium mb-1">{{ t('records.imp.saved_mapping') }}</label>
-            <Select v-model="savedMapping" input-id="imp-saved" :options="savedOptions" option-label="label" option-value="value" class="w-full" />
-          </div>
+          <ConfigField v-if="inspection.mappings.length" :label="t('records.imp.saved_mapping')" for="imp-saved" width="sm">
+            <Select v-model="savedMapping" input-id="imp-saved" :options="savedOptions" option-label="label" option-value="value" size="small" />
+          </ConfigField>
         </div>
         <DataTable :value="columns" data-key="column" size="small" scrollable scroll-height="22rem">
+          <template #empty><EmptyState icon="pi pi-table" :title="t('records.imp.no_columns_title')" :description="t('records.imp.no_columns_text')" /></template>
           <Column :header="t('records.imp.file_column')" style="min-width: 12rem">
             <template #body="{ data }">
               <span class="font-medium" dir="auto">{{ data.header }}</span>
@@ -408,7 +409,7 @@ const outcome = computed(() => {
             </template>
           </Column>
         </DataTable>
-        <Message v-if="missingRequired.length" severity="warn" class="mt-2">{{ t('records.imp.missing_required', { names: missingRequired.join('، ') }) }}</Message>
+        <Message v-if="missingRequired.length" severity="warn" class="mt-2">{{ t('records.imp.missing_required', { names: joinList(missingRequired, locale) }) }}</Message>
       </div>
     </section>
 
@@ -420,6 +421,7 @@ const outcome = computed(() => {
         <Tag v-if="preview.invalid" severity="danger" :value="t('records.imp.invalid', { n: preview.invalid })" />
       </div>
       <DataTable v-if="errorRows.length" :value="errorRows" data-key="key" size="small" scrollable scroll-height="16rem">
+        <template #empty><EmptyState icon="pi pi-check-circle" :title="t('records.imp.preview_clean')" /></template>
         <Column field="row" :header="t('records.imp.row')" style="width: 5rem" />
         <Column :header="t('records.imp.column')">
           <template #body="{ data }"
@@ -429,11 +431,9 @@ const outcome = computed(() => {
         <Column field="messages" :header="t('records.imp.problems')" />
       </DataTable>
       <p v-else class="text-sm">{{ t('records.imp.preview_clean') }}</p>
-      <div class="dlg-group">
-        <label for="imp-save-as" class="block text-sm font-medium mb-1">{{ t('records.imp.save_as') }}</label>
-        <InputText id="imp-save-as" v-model="saveAs" class="w-full max-w-[20rem]" maxlength="255" />
-        <p class="text-xs text-muted-color mt-1">{{ t('records.imp.save_as_help') }}</p>
-      </div>
+      <ConfigField :label="t('records.imp.save_as')" for="imp-save-as" width="md" :hint="t('records.imp.save_as_help')">
+        <InputText id="imp-save-as" v-model="saveAs" size="small" maxlength="255" />
+      </ConfigField>
     </section>
 
     <!-- 4. Run -->

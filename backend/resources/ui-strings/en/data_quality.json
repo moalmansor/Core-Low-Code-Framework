@@ -26,6 +26,10 @@
   "dq.empty_text": "Add a rule to warn about, or block, records that look like ones already saved.",
   "dq.empty_title": "No duplicate rules",
   "dq.field": "Field",
+  "dq.find_desc": "Searches the records already saved with each saved rule. Nothing here needs saving.",
+  "dq.find_empty_text": "Add and save a duplicate rule above, then search the existing records with it here.",
+  "dq.find_empty_title": "No rules to search with",
+  "dq.find_title": "Find existing duplicates",
   "dq.groups_found": "Groups of duplicates found: {n}",
   "dq.hidden_records": "Records you cannot view: {n}",
   "dq.hint": "Find and prevent duplicate records: decide which fields make two records the same, whether a match warns or blocks the save, and sweep the existing records for duplicates to merge.",
@@ -87,6 +91,8 @@
   "dq.threshold": "Similarity",
   "dq.threshold_hint": "From 0.50 to 1.00; higher is stricter.",
   "dq.unknown_field": "Removed field",
+  "dq.unpublished_title": "The form is not published yet",
   "dq.untitled_rule": "Untitled rule",
+  "dq.what_happens": "What happens when one is found",
   "formconfig.tab.data_quality": "Data quality"
 }

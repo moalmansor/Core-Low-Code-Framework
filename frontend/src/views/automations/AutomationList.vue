@@ -76,7 +76,7 @@ const sorted = computed(() => [...(rows.value ?? [])].sort((x, y) => x.name.loca
     </header>
     <TabIntro v-else :title="t('formconfig.tab.automations')" :text="t('auto.hint')" />
     <Message v-if="loadError" severity="error">{{ loadError }}</Message>
-    <Message v-else-if="!published" severity="info">{{ t('auto.publish_first') }}</Message>
+    <EmptyState v-else-if="!published" icon="pi pi-lock" :title="t('auto.unpublished_title')" :description="t('auto.publish_first')" testid="auto-unpublished" />
     <template v-else-if="rows">
       <EmptyState v-if="!rows.length" icon="pi pi-bolt" :title="t('auto.empty_title')" :description="t('auto.empty_text')" testid="auto-empty" />
       <ul v-else class="m-0 p-0 list-none flex flex-col gap-2">

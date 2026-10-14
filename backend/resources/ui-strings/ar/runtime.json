@@ -83,6 +83,8 @@
   "records.imp.mode_help.insert": "كل صف يصبح سجلًا جديدًا.",
   "records.imp.mode_help.update": "كل صف يغيّر السجل الذي يطابقه؛ والصفوف التي لا تطابق شيئًا يُبلَّغ عنها.",
   "records.imp.mode_help.upsert": "الصفوف التي تطابق سجلًا تحدّثه؛ والبقية تصبح سجلات جديدة.",
+  "records.imp.no_columns_text": "يسمّي الصف الأول من الملف أعمدته. اختر ملفًا فيه صف عناوين.",
+  "records.imp.no_columns_title": "لا يحتوي الملف على أعمدة",
   "records.imp.no_saved_mapping": "لا شيء",
   "records.imp.outcome.cancelled": "أُوقف الاستيراد. الصفوف المستوردة قبل إيقافه محفوظة.",
   "records.imp.outcome.completed": "اكتمل الاستيراد: أُنشئ {created} وحُدّث {updated}.",

@@ -16,6 +16,8 @@ import FormPicker from '@/builder/FormPicker.vue'
 import { useBuilder } from '@/builder/useBuilder'
 import ConfigField from '@/components/config/ConfigField.vue'
 import ConfigItem from '@/components/config/ConfigItem.vue'
+import ConfigSection from '@/components/config/ConfigSection.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
 import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import SubjectPicker from '@/components/SubjectPicker.vue'
 import UserPicker from '@/components/UserPicker.vue'
@@ -199,17 +201,18 @@ const tokenText = (token: string) => `{{ ${token} }}`
         <!-- Set fields -->
         <template v-if="s.type === 'update_fields'">
           <div v-for="(item, k) in s.config.set" :key="k" class="flex flex-wrap items-start gap-2">
-            <Select
-              v-model="item.field"
-              :options="settable"
-              option-label="label"
-              option-value="value"
-              filter
-              size="small"
-              class="w-field-sm"
-              :aria-label="t('act.field')"
-              :invalid="!!err(j, `config.set.${k}.field`)"
-            />
+            <ConfigField :label="t('act.field')" :for="`act-sf-${ids}-${j}-${k}`" width="sm">
+              <Select
+                v-model="item.field"
+                :input-id="`act-sf-${ids}-${j}-${k}`"
+                :options="settable"
+                option-label="label"
+                option-value="value"
+                filter
+                size="small"
+                :invalid="!!err(j, `config.set.${k}.field`)"
+              />
+            </ConfigField>
             <div class="flex-1 min-w-[16rem]">
               <ExpressionInput v-model="item.value" :scope="scope" :label="t('act.new_value')" :allow-empty="false" />
               <p v-if="err(j, `config.set.${k}.value`)" class="m-0 text-xs text-danger">{{ err(j, `config.set.${k}.value`) }}</p>
@@ -305,7 +308,9 @@ const tokenText = (token: string) => `{{ ${token} }}`
                   size="small"
                   :placeholder="h.set ? t('act.kept') : t('act.header_value')"
                   :aria-label="t('act.header_value')"
+                  class="w-field-sm"
                   input-class="ltr-value"
+                  fluid
                 />
                 <Button icon="pi pi-times" text rounded size="small" :aria-label="t('act.remove')" @click="s.config.headers!.splice(k, 1)" />
                 <p v-if="err(j, `config.headers.${k}.name`)" class="basis-full m-0 text-xs text-danger">{{ err(j, `config.headers.${k}.name`) }}</p>
@@ -369,7 +374,9 @@ const tokenText = (token: string) => `{{ ${token} }}`
           </div>
           <h4 class="m-0 text-sm font-semibold">{{ t('act.prefill') }}</h4>
           <div v-for="(item, k) in s.config.prefill" :key="k" class="flex flex-wrap items-start gap-2">
-            <Select v-model="item.field" :options="targetFields(s.config.form)" option-label="label" option-value="value" filter size="small" class="w-field-sm" :aria-label="t('act.field')" />
+            <ConfigField :label="t('act.field')" :for="`act-pf-${ids}-${j}-${k}`" width="sm">
+              <Select v-model="item.field" :input-id="`act-pf-${ids}-${j}-${k}`" :options="targetFields(s.config.form)" option-label="label" option-value="value" filter size="small" />
+            </ConfigField>
             <div class="flex-1 min-w-[16rem]">
               <ExpressionInput v-model="item.value" :scope="scope" :label="t('act.prefill_value')" :allow-empty="false" />
             </div>
@@ -406,7 +413,8 @@ const tokenText = (token: string) => `{{ ${token} }}`
             :hint="t('auto.deliver_to_hint')"
             :error="err(j, 'config.deliverTo')"
           >
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-col gap-3">
+              <span class="text-sm font-medium">{{ t('auto.users') }}</span>
               <div class="flex flex-wrap gap-2">
                 <Tag v-for="(u, k) in s.config.deliverTo.users" :key="u" severity="secondary">
                   <span>{{ userNames[u] ?? t('auto.a_user') }}</span>
@@ -414,7 +422,18 @@ const tokenText = (token: string) => `{{ ${token} }}`
                 </Tag>
               </div>
               <UserPicker :input-id="`act-dlu-${ids}-${j}`" :model-value="null" @update:model-value="(u: { uuid: string; name: string } | null) => addDeliveryUser(s.config, u)" />
-              <MultiSelect v-model="s.config.deliverTo.roles" :options="roleOptions" option-label="label" option-value="value" filter :placeholder="t('auto.roles')" size="small" class="w-field-md" />
+              <label :for="`act-dlr-${ids}-${j}`" class="text-sm font-medium">{{ t('auto.roles') }}</label>
+              <MultiSelect
+                v-model="s.config.deliverTo.roles"
+                :input-id="`act-dlr-${ids}-${j}`"
+                :options="roleOptions"
+                option-label="label"
+                option-value="value"
+                filter
+                display="chip"
+                size="small"
+                class="w-field-md"
+              />
             </div>
           </ConfigField>
         </template>
@@ -442,8 +461,8 @@ const tokenText = (token: string) => `{{ ${token} }}`
         </div>
 
         <!-- Wait -->
-        <ConfigField v-else-if="s.type === 'wait_delay'" :label="t('auto.wait_minutes')" :for="`act-wm-${ids}-${j}`" width="xs" :hint="t('auto.wait_hint')" :error="err(j, 'config.minutes')">
-          <InputNumber v-model="s.config.minutes" :input-id="`act-wm-${ids}-${j}`" :min="1" :max="525600" size="small" fluid />
+        <ConfigField v-else-if="s.type === 'wait_delay'" :label="t('auto.wait_for')" :for="`act-wm-${ids}-${j}`" width="sm" :hint="t('auto.wait_hint')" :error="err(j, 'config.minutes')">
+          <InputNumber v-model="s.config.minutes" :input-id="`act-wm-${ids}-${j}`" :min="1" :max="525600" :suffix="` ${t('auto.minutes')}`" size="small" fluid />
         </ConfigField>
         <template v-else-if="s.type === 'wait_condition'">
           <div class="flex flex-col gap-1">
@@ -451,8 +470,8 @@ const tokenText = (token: string) => `{{ ${token} }}`
             <p v-if="err(j, 'config.condition')" class="m-0 text-xs text-danger">{{ err(j, 'config.condition') }}</p>
           </div>
           <div class="cfg-row">
-            <ConfigField :label="t('auto.timeout')" :for="`act-wt-${ids}-${j}`" width="xs" :hint="t('auto.timeout_hint')" :error="err(j, 'config.timeoutMinutes')">
-              <InputNumber v-model="s.config.timeoutMinutes" :input-id="`act-wt-${ids}-${j}`" :min="1" :max="525600" size="small" fluid />
+            <ConfigField :label="t('auto.timeout')" :for="`act-wt-${ids}-${j}`" width="sm" :hint="t('auto.timeout_hint')" :error="err(j, 'config.timeoutMinutes')">
+              <InputNumber v-model="s.config.timeoutMinutes" :input-id="`act-wt-${ids}-${j}`" :min="1" :max="525600" :suffix="` ${t('auto.minutes')}`" size="small" fluid />
             </ConfigField>
             <ConfigField :label="t('auto.on_timeout_label')" :for="`act-wo-${ids}-${j}`" width="sm">
               <Select v-model="s.config.onTimeout" :input-id="`act-wo-${ids}-${j}`" :options="timeoutChoices" option-label="label" option-value="value" size="small" />
@@ -460,7 +479,13 @@ const tokenText = (token: string) => `{{ ${token} }}`
           </div>
         </template>
 
-        <template v-if="s.type !== 'wait_delay' && s.type !== 'wait_condition'">
+        <ConfigSection
+          v-if="s.type !== 'wait_delay' && s.type !== 'wait_condition'"
+          :id="`act-cond-${ids}-${j}`"
+          :title="t('act.section.when_fails')"
+          :description="s.condition ? t('act.conditional') : t('act.always_runs')"
+          :default-open="!!s.condition"
+        >
           <div class="flex flex-col gap-1">
             <ExpressionInput v-model="s.condition" :scope="scope" expected="boolean" allow-empty :label="t('act.run_when')" />
           </div>
@@ -475,9 +500,10 @@ const tokenText = (token: string) => `{{ ${token} }}`
           <ConfigField v-else :label="t('auto.on_failure_label')" :for="`act-of-${ids}-${j}`" width="sm" :hint="t(`auto.on_failure_hint.${s.onFailure}`)">
             <Select v-model="s.onFailure" :input-id="`act-of-${ids}-${j}`" :options="failureChoices" option-label="label" option-value="value" size="small" />
           </ConfigField>
-        </template>
+        </ConfigSection>
       </div>
     </ConfigItem>
+    <EmptyState v-if="!steps.length" icon="pi pi-list" :title="t('act.no_steps_title')" :description="t(mode === 'automation' ? 'auto.no_steps_text' : 'act.no_steps_text')" />
     <div class="flex flex-wrap items-center gap-2">
       <Select v-model="newStep" :options="stepTypes" option-label="label" option-value="value" size="small" class="w-field-sm" :aria-label="t('act.step_type')" :data-testid="`act-step-type-${ids}`" />
       <Button icon="pi pi-plus" :label="t('act.add_step')" size="small" outlined :data-testid="`act-add-step-${ids}`" @click="addStep" />

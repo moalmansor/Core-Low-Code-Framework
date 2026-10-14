@@ -4,7 +4,6 @@ import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
-import Message from 'primevue/message'
 import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -275,12 +274,14 @@ const name = computed(() => (doc.value ? labelOf(doc.value.i18n.name, locale.val
         <h1 class="page-title !mb-1" dir="auto">{{ isNew ? t('auto.new') : name || t('auto.edit') }}</h1>
         <p class="m-0 text-sm text-muted-color">{{ t('auto.subtitle') }}</p>
       </div>
-      <div v-if="!isNew" class="flex flex-wrap gap-2">
-        <Button :label="t('auto.test')" icon="pi pi-play" size="small" outlined :disabled="dirty" data-testid="auto-test" @click="openTest" />
-        <Button v-if="hasManual && canRun" :label="t('auto.run_now')" icon="pi pi-bolt" size="small" :disabled="dirty || !doc?.enabled" data-testid="auto-run-now" @click="runNow" />
+      <div v-if="!isNew" class="flex flex-col items-end gap-1">
+        <div class="flex flex-wrap gap-2">
+          <Button :label="t('auto.test')" icon="pi pi-play" size="small" outlined :disabled="dirty" data-testid="auto-test" @click="openTest" />
+          <Button v-if="hasManual && canRun" :label="t('auto.run_now')" icon="pi pi-bolt" size="small" :disabled="dirty || !doc?.enabled" data-testid="auto-run-now" @click="runNow" />
+        </div>
+        <p v-if="dirty" class="m-0 text-xs text-muted-color">{{ t('auto.save_before_test') }}</p>
       </div>
     </header>
-    <Message v-if="dirty && !isNew" severity="info" :closable="false">{{ t('auto.save_before_test') }}</Message>
 
     <template v-if="doc">
       <ConfigSection id="auto-basics" :title="t('auto.section.basics')">

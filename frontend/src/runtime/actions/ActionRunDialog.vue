@@ -212,7 +212,7 @@ defineExpose({ start })
           <li v-for="r in prep.preview" :key="r.uuid" dir="auto">{{ r.title || t('act.run.record') }}</li>
           <li v-if="prep.count > prep.preview.length" class="text-muted-color list-none">{{ t('act.run.and_more', { n: n(prep.count - prep.preview.length) }) }}</li>
         </ul>
-        <Message v-if="prep.queued" severity="info" :closable="false">{{ t('act.run.background') }}</Message>
+        <p v-if="prep.queued" class="m-0 text-sm text-muted-color flex items-start gap-2"><i class="pi pi-clock mt-0.5" aria-hidden="true" />{{ t('act.run.background') }}</p>
         <p v-if="action?.confirmation" class="m-0 whitespace-pre-line" dir="auto">{{ action.confirmation }}</p>
         <template v-if="action?.builtin === 'bulk_update'">
           <div class="field">

@@ -635,7 +635,9 @@ const back = computed(() => (personal ? { name: 'records.downloads', params: { f
         <Message v-if="previewError" severity="warn">{{ previewError }}</Message>
         <p v-else-if="!doc.columns.length" class="m-0 text-sm text-muted-color">{{ t('dl.preview_empty') }}</p>
         <template v-else-if="preview">
-          <Message v-if="preview.omitted.length" severity="info">{{ t('dl.omitted', { columns: preview.omitted.join(', ') }) }}</Message>
+          <p v-if="preview.omitted.length" class="m-0 text-sm text-muted-color flex items-start gap-2">
+            <i class="pi pi-eye-slash mt-0.5" aria-hidden="true" />{{ t('dl.omitted', { columns: preview.omitted.join(', ') }) }}
+          </p>
           <Tabs v-if="sheetTabs.length > 1" v-model:value="previewSheet">
             <TabList>
               <Tab v-for="s in sheetTabs" :key="s.key" :value="s.key">{{ s.label }}</Tab>

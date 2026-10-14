@@ -83,6 +83,8 @@
   "records.imp.mode_help.insert": "Every row becomes a new record.",
   "records.imp.mode_help.update": "Each row changes the record it matches; rows that match nothing are reported.",
   "records.imp.mode_help.upsert": "Rows that match a record update it; the others become new records.",
+  "records.imp.no_columns_text": "The first row of the file names its columns. Choose a file with a header row.",
+  "records.imp.no_columns_title": "The file has no columns",
   "records.imp.no_saved_mapping": "None",
   "records.imp.outcome.cancelled": "The import was stopped. Rows imported before it stopped are kept.",
   "records.imp.outcome.completed": "The import is complete: {created} created, {updated} updated.",

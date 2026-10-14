@@ -220,7 +220,9 @@ defineExpose({ open, follow })
           <Message :severity="job.status === 'completed' ? 'success' : job.status === 'failed' ? 'error' : 'warn'" :closable="false" data-testid="download-result">
             {{ job.status === 'completed' ? t('dl.ready', { n: job.rows ?? 0 }) : job.status === 'failed' ? (job.error ?? t('dl.run_failed')) : t(`dl.status.${job.status}`) }}
           </Message>
-          <Message v-if="job.omitted.length" severity="info" :closable="false">{{ t('dl.omitted_for_you', { columns: job.omitted.join(', ') }) }}</Message>
+          <p v-if="job.omitted.length" class="m-0 text-sm text-muted-color flex items-start gap-2">
+            <i class="pi pi-eye-slash mt-0.5" aria-hidden="true" />{{ t('dl.omitted_for_you', { columns: job.omitted.join(', ') }) }}
+          </p>
         </template>
       </template>
     </div>

@@ -75,7 +75,7 @@ const subtitle = (p: ProfileSummary) =>
     </template>
     <TabIntro v-else :title="t('formconfig.tab.downloads')" :text="t('dl.hint')" />
     <Message v-if="loadError" severity="error">{{ loadError }}</Message>
-    <Message v-else-if="!published" severity="info">{{ t('dl.publish_first') }}</Message>
+    <EmptyState v-else-if="!published" icon="pi pi-lock" :title="t('dl.unpublished_title')" :description="t('dl.publish_first')" testid="dl-unpublished" />
     <template v-else-if="profiles">
       <EmptyState v-if="!profiles.length" icon="pi pi-download" :title="t('dl.empty_title')" :description="t('dl.empty_text')" testid="dl-empty" />
       <ul v-else class="m-0 p-0 list-none flex flex-col gap-2">

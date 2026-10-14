@@ -198,6 +198,7 @@
   "dl.to_many_label": "Several related records",
   "dl.tree": "Fields and linked forms",
   "dl.tree_failed": "The fields could not be loaded.",
+  "dl.unpublished_title": "The form is not published yet",
   "dl.user": "User",
   "dl.user_filters": "Follow the table's filters",
   "dl.user_filters_desc": "A download from the records table uses the filters and search the user has applied.",

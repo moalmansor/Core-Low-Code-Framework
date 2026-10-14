@@ -10,6 +10,10 @@ import Textarea from 'primevue/textarea'
 import { useToast } from 'primevue/usetoast'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import EmptyValue from '@/components/EmptyValue.vue'
+import ConfigField from '@/components/config/ConfigField.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
+import TabIntro from '@/components/config/TabIntro.vue'
 import { formatDatetime } from '@/runtime/format'
 import { errorText } from '@/views/admin/building/shared'
 import { opsApi, type EmailStatus, type OpsEmail } from './api'
@@ -47,7 +51,13 @@ function filter(): void {
 }
 const severity = (s: EmailStatus) =>
   ({ pending: 'info', sending: 'info', sent: 'success', failed: 'danger', cancelled: 'secondary', stuck: 'warn' })[s] as 'info' | 'success' | 'danger' | 'secondary' | 'warn'
-const when = (iso: string | null) => (iso ? formatDatetime(iso, locale.value) : '—')
+const when = (iso: string | null) => (iso ? formatDatetime(iso, locale.value) : null)
+const filtered = computed(() => f.status !== null || f.search.trim() !== '')
+function clearFilter(): void {
+  f.status = null
+  f.search = ''
+  filter()
+}
 
 async function resend(list: OpsEmail[]): Promise<void> {
   if (!list.length || !window.confirm(t('ops.resend_confirm', { n: list.length }))) return
@@ -89,9 +99,10 @@ const editing = reactive({ to: '', cc: '', bcc: '' })
 const editError = ref('')
 async function show(e: OpsEmail): Promise<void> {
   open.value = e
-  editing.to = e.to.join(', ')
-  editing.cc = e.cc.join(', ')
-  editing.bcc = e.bcc.join(', ')
+  // Addresses are edited as text, one list per slot (machine-list).
+  editing.to = e.to.join(', ') // machine-list
+  editing.cc = e.cc.join(', ') // machine-list
+  editing.bcc = e.bcc.join(', ') // machine-list
   editError.value = ''
   htmlUrl.value = null
   htmlUrl.value = await opsApi.emailHtml(e.uuid).catch(() => null)
@@ -119,26 +130,15 @@ async function resendEdited(): Promise<void> {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4" data-testid="ops-emails">
+  <div class="flex flex-col gap-6" data-testid="ops-emails">
+    <TabIntro :title="t('ops.tab.emails')" :text="t('ops.emails_hint')" />
     <div class="flex flex-wrap items-end gap-3">
-      <div class="field !mb-0">
-        <label for="ops-email-status" class="text-sm">{{ t('ops.status') }}</label>
-        <Select
-          v-model="f.status"
-          input-id="ops-email-status"
-          :options="statusOptions"
-          option-label="label"
-          option-value="value"
-          size="small"
-          class="w-44"
-          data-testid="ops-email-status"
-          @change="filter"
-        />
-      </div>
-      <div class="field !mb-0">
-        <label for="ops-email-search" class="text-sm">{{ t('ops.search') }}</label>
+      <ConfigField :label="t('ops.status')" for="ops-email-status" width="sm">
+        <Select v-model="f.status" input-id="ops-email-status" :options="statusOptions" option-label="label" option-value="value" size="small" data-testid="ops-email-status" @change="filter" />
+      </ConfigField>
+      <ConfigField :label="t('ops.search')" for="ops-email-search" width="md">
         <InputText id="ops-email-search" v-model="f.search" size="small" :placeholder="t('ops.search_emails')" @keyup.enter="filter" />
-      </div>
+      </ConfigField>
       <span class="flex-1" />
       <Button
         :label="t('ops.resend_n', { n: selected.length })"
@@ -172,7 +172,11 @@ async function resendEdited(): Promise<void> {
       @page="onPage"
       @row-click="(e) => show(e.data as OpsEmail)"
     >
-      <template #empty>{{ t('ops.no_emails') }}</template>
+      <template #empty>
+        <EmptyState icon="pi pi-envelope" :title="filtered ? t('ops.no_emails_match') : t('ops.no_emails')" :description="t('ops.no_emails_text')">
+          <Button v-if="filtered" :label="t('ops.clear_filter')" icon="pi pi-filter-slash" size="small" text @click="clearFilter" />
+        </EmptyState>
+      </template>
       <Column selection-mode="multiple" header-style="width: 3rem" />
       <Column :header="t('ops.status')">
         <template #body="{ data }"><Tag :severity="severity((data as OpsEmail).status)" :value="t(`ops.email_status.${(data as OpsEmail).status}`)" /></template>
@@ -185,7 +189,8 @@ async function resendEdited(): Promise<void> {
       </Column>
       <Column :header="t('ops.form')">
         <template #body="{ data }">
-          <span class="text-sm">{{ (data as OpsEmail).form?.name ?? '—' }}</span>
+          <span v-if="(data as OpsEmail).form" class="text-sm">{{ (data as OpsEmail).form!.name }}</span>
+          <EmptyValue v-else :text="t('ops.no_form')" />
           <div v-if="(data as OpsEmail).rule" class="text-xs text-muted-color">{{ (data as OpsEmail).rule }}</div>
         </template>
       </Column>
@@ -196,12 +201,13 @@ async function resendEdited(): Promise<void> {
       </Column>
       <Column :header="t('ops.error')">
         <template #body="{ data }"
-          ><span class="text-xs text-danger line-clamp-2 max-w-xs" dir="auto">{{ (data as OpsEmail).error ?? '' }}</span></template
-        >
+          ><span v-if="(data as OpsEmail).error" class="text-xs text-danger line-clamp-2 max-w-xs" dir="auto">{{ (data as OpsEmail).error }}</span
+          ><EmptyValue v-else :text="t('ops.no_error')"
+        /></template>
       </Column>
       <Column :header="t('ops.created')">
         <template #body="{ data }"
-          ><span class="text-sm whitespace-nowrap text-muted-color">{{ when((data as OpsEmail).created_at) }}</span></template
+          ><span class="text-sm whitespace-nowrap text-muted-color">{{ when((data as OpsEmail).created_at) ?? '' }}</span></template
         >
       </Column>
     </DataTable>
@@ -221,14 +227,18 @@ async function resendEdited(): Promise<void> {
           <dt>{{ t('ops.form') }}</dt>
           <dd>
             <RouterLink v-if="open.form && open.record" :to="`/app/${open.form.uuid}/${open.record}`" class="text-primary">{{ open.form.name }}</RouterLink>
-            <span v-else>{{ open.form?.name ?? '—' }}</span>
+            <span v-else-if="open.form">{{ open.form.name }}</span>
+            <EmptyValue v-else :compact="false" :text="t('ops.no_form')" />
           </dd>
           <dt>{{ t('ops.rule') }}</dt>
           <dd>{{ open.rule ?? t(`ops.source.${open.source}`) }}</dd>
           <dt>{{ t('ops.attempts') }}</dt>
           <dd>{{ n(open.attempts) }} / {{ n(open.max_attempts) }}</dd>
           <dt>{{ t('ops.sent') }}</dt>
-          <dd>{{ when(open.sent_at) }}</dd>
+          <dd>
+            <template v-if="open.sent_at">{{ when(open.sent_at) }}</template>
+            <EmptyValue v-else :compact="false" :text="t('ops.not_sent')" />
+          </dd>
           <template v-if="open.error">
             <dt>{{ t('ops.error') }}</dt>
             <dd class="text-danger ltr-value" dir="ltr">{{ open.error }}</dd>
@@ -237,10 +247,9 @@ async function resendEdited(): Promise<void> {
         <iframe v-if="htmlUrl" :src="htmlUrl" sandbox="" class="ops-frame" :title="t('ops.rendered')" data-testid="ops-email-html" />
         <div class="flex flex-col gap-2">
           <h3 class="m-0 text-sm font-semibold">{{ t('ops.edit_recipients') }}</h3>
-          <div v-for="k in ['to', 'cc', 'bcc'] as const" :key="k" class="field !mb-0">
-            <label :for="`ops-rcpt-${k}`" class="text-sm">{{ t(`ops.rcpt.${k}`) }}</label>
+          <ConfigField v-for="k in ['to', 'cc', 'bcc'] as const" :key="k" :label="t(`ops.rcpt.${k}`)" :for="`ops-rcpt-${k}`" width="lg" :hint="k === 'to' ? t('ops.rcpt_hint') : undefined">
             <Textarea :id="`ops-rcpt-${k}`" v-model="editing[k]" rows="1" auto-resize dir="ltr" :data-testid="`ops-rcpt-${k}`" />
-          </div>
+          </ConfigField>
           <small v-if="editError" class="field-error" role="alert">{{ editError }}</small>
         </div>
       </div>

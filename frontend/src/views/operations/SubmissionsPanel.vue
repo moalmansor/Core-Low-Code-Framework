@@ -3,13 +3,16 @@ import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable, { type DataTablePageEvent } from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
-import Message from 'primevue/message'
 import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
 import { useToast } from 'primevue/usetoast'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ApiError } from '@/api/http'
+import EmptyValue from '@/components/EmptyValue.vue'
+import ConfigField from '@/components/config/ConfigField.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
+import TabIntro from '@/components/config/TabIntro.vue'
 import { formatDatetime } from '@/runtime/format'
 import { errorText } from '@/views/admin/building/shared'
 import { opsApi, type OpsSubmission } from './api'
@@ -45,7 +48,7 @@ function filter(): void {
   f.page = 1
   void load()
 }
-const when = (iso: string | null) => (iso ? formatDatetime(iso, locale.value) : '—')
+const when = (iso: string | null) => (iso ? formatDatetime(iso, locale.value) : '')
 
 async function retry(list: OpsSubmission[]): Promise<void> {
   const ok = list.filter((s) => s.retryable)
@@ -124,13 +127,13 @@ async function discard(): Promise<void> {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4" data-testid="ops-submissions">
+  <div class="flex flex-col gap-6" data-testid="ops-submissions">
+    <TabIntro :title="t('ops.tab.submissions')" :text="t(`ops.submission_hint.${f.status}`)" />
     <div class="flex flex-wrap items-end gap-3">
-      <div class="field !mb-0">
-        <label for="ops-sub-status" class="text-sm">{{ t('ops.status') }}</label>
-        <Select v-model="f.status" input-id="ops-sub-status" :options="statusOptions" option-label="label" option-value="value" size="small" class="w-56" @change="filter" />
-      </div>
-      <p class="m-0 text-sm text-muted-color flex-1 min-w-64">{{ t(`ops.submission_hint.${f.status}`) }}</p>
+      <ConfigField :label="t('ops.status')" for="ops-sub-status" width="sm">
+        <Select v-model="f.status" input-id="ops-sub-status" :options="statusOptions" option-label="label" option-value="value" size="small" @change="filter" />
+      </ConfigField>
+      <span class="flex-1" />
       <Button
         :label="t('ops.retry_n', { n: selected.length })"
         icon="pi pi-replay"
@@ -153,21 +156,28 @@ async function discard(): Promise<void> {
       @page="onPage"
       @row-click="(e) => show(e.data as OpsSubmission)"
     >
-      <template #empty>{{ t('ops.no_submissions') }}</template>
+      <template #empty>
+        <EmptyState icon="pi pi-check-circle" :title="t('ops.no_submissions')" :description="t(`ops.no_submissions_text.${f.status}`)" />
+      </template>
       <Column selection-mode="multiple" header-style="width: 3rem" />
       <Column :header="t('ops.form')">
         <template #body="{ data }">
-          <div class="font-medium">{{ (data as OpsSubmission).form?.name ?? '—' }}</div>
+          <div v-if="(data as OpsSubmission).form" class="font-medium">{{ (data as OpsSubmission).form!.name }}</div>
+          <EmptyValue v-else :text="t('ops.form_gone')" />
           <div class="text-xs text-muted-color">{{ t(`ops.operation.${(data as OpsSubmission).operation}`) }} · {{ t(`ops.source.${(data as OpsSubmission).source}`) }}</div>
         </template>
       </Column>
       <Column :header="t('ops.person')">
-        <template #body="{ data }">{{ (data as OpsSubmission).user?.name ?? '—' }}</template>
+        <template #body="{ data }"
+          ><template v-if="(data as OpsSubmission).user">{{ (data as OpsSubmission).user!.name }}</template
+          ><EmptyValue v-else :text="t('ops.by_system')"
+        /></template>
       </Column>
       <Column :header="t('ops.error')">
         <template #body="{ data }"
-          ><span class="text-xs text-danger line-clamp-2 max-w-md" dir="auto">{{ (data as OpsSubmission).error ?? '' }}</span></template
-        >
+          ><span v-if="(data as OpsSubmission).error" class="text-xs text-danger line-clamp-2 max-w-md" dir="auto">{{ (data as OpsSubmission).error }}</span
+          ><EmptyValue v-else :text="t('ops.no_error')"
+        /></template>
       </Column>
       <Column :header="t('ops.attempts')">
         <template #body="{ data }"
@@ -193,7 +203,8 @@ async function discard(): Promise<void> {
         <dl class="ops-facts">
           <dt>{{ t('ops.form') }}</dt>
           <dd>
-            {{ open.form?.name ?? '—' }}<span v-if="open.version" class="text-muted-color"> · {{ t('ops.version', { n: open.version }) }}</span>
+            <template v-if="open.form">{{ open.form.name }}</template
+            ><EmptyValue v-else :compact="false" :text="t('ops.form_gone')" /><span v-if="open.version" class="text-muted-color"> · {{ t('ops.version', { n: open.version }) }}</span>
           </dd>
           <dt>{{ t('ops.operation_label') }}</dt>
           <dd>
@@ -201,31 +212,34 @@ async function discard(): Promise<void> {
             <RouterLink v-if="open.form && open.record" :to="`/app/${open.form.uuid}/${open.record}`" class="text-primary ms-2">{{ t('ops.open_record') }}</RouterLink>
           </dd>
           <dt>{{ t('ops.person') }}</dt>
-          <dd>{{ open.user ? `${open.user.name} (${open.user.email})` : '—' }}</dd>
+          <dd>
+            <template v-if="open.user"
+              >{{ open.user.name }} <span class="ltr-value text-muted-color" dir="ltr">{{ open.user.email }}</span></template
+            ><EmptyValue v-else :compact="false" :text="t('ops.by_system')" />
+          </dd>
           <dt>{{ t('ops.correlation') }}</dt>
           <dd class="ltr-value font-mono text-xs" dir="ltr">{{ open.correlation_id }}</dd>
           <dt>{{ t('ops.error') }}</dt>
-          <dd class="text-danger" dir="auto">{{ open.error ?? '—' }}</dd>
+          <dd dir="auto">
+            <span v-if="open.error" class="text-danger">{{ open.error }}</span
+            ><EmptyValue v-else :compact="false" :text="t('ops.no_error')" />
+          </dd>
           <template v-if="open.discard_reason">
             <dt>{{ t('ops.discard_reason') }}</dt>
             <dd dir="auto">{{ open.discard_reason }}</dd>
           </template>
         </dl>
-        <Message v-if="open.edited" severity="info" :closable="false">{{ t('ops.edited_note') }}</Message>
-        <div class="field !mb-0">
-          <label for="ops-payload" class="text-sm font-medium">{{ t('ops.payload') }}</label>
+        <p v-if="open.edited" class="m-0 text-sm text-muted-color flex items-start gap-2"><i class="pi pi-pencil mt-0.5" aria-hidden="true" />{{ t('ops.edited_note') }}</p>
+        <ConfigField :label="t('ops.payload')" for="ops-payload" width="lg" :hint="t('ops.payload_hint')" :error="payloadError || undefined">
           <Textarea id="ops-payload" v-model="payloadText" rows="8" auto-resize :readonly="!editable" class="font-mono text-xs" dir="ltr" data-testid="ops-sub-payload" />
-          <small class="text-xs text-muted-color">{{ t('ops.payload_hint') }}</small>
-          <small v-if="payloadError" class="field-error" role="alert">{{ payloadError }}</small>
-        </div>
+        </ConfigField>
         <details v-if="open.trace">
           <summary class="text-sm cursor-pointer">{{ t('ops.trace') }}</summary>
           <pre class="ops-trace" dir="ltr">{{ open.trace }}</pre>
         </details>
-        <div v-if="discarding" class="field !mb-0">
-          <label for="ops-discard-reason" class="text-sm font-medium">{{ t('ops.discard_reason') }}<span class="text-danger ms-1" aria-hidden="true">*</span></label>
+        <ConfigField v-if="discarding" :label="t('ops.discard_reason')" for="ops-discard-reason" width="lg" required>
           <Textarea id="ops-discard-reason" v-model="reason" rows="2" auto-resize data-testid="ops-sub-reason" />
-        </div>
+        </ConfigField>
       </div>
       <template #footer>
         <Button :label="t('common.close')" text @click="open = null" />

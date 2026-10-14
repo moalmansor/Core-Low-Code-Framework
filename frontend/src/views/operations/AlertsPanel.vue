@@ -76,20 +76,27 @@ const err = (path: string) => doc.errors.value[path]
               <Tag v-if="values[r.uuid] !== undefined" :severity="values[r.uuid] >= r.threshold ? 'danger' : 'success'" :value="t('ops.now_value', { n: n(values[r.uuid]) })" />
               <Tag v-if="!r.active" severity="secondary" :value="t('ops.inactive')" />
             </template>
+            <h4 class="m-0 text-sm font-semibold">{{ t('ops.alert_when') }}</h4>
             <div class="cfg-row">
               <ConfigField :label="t('ops.measure')" :for="`ops-m-${i}`" width="md" :error="err(`rules.${i}.metric`)">
                 <Select v-model="r.metric" :input-id="`ops-m-${i}`" :options="metrics" option-label="label" option-value="value" size="small" />
               </ConfigField>
               <ConfigField :label="t('ops.threshold')" :for="`ops-t-${i}`" width="xs" :error="err(`rules.${i}.threshold`)">
-                <InputNumber v-model="r.threshold" :input-id="`ops-t-${i}`" :min="1" :max="r.metric === 'storage_usage' ? 100 : 1000000" size="small" />
+                <InputNumber
+                  v-model="r.threshold"
+                  :input-id="`ops-t-${i}`"
+                  :min="1"
+                  :max="r.metric === 'storage_usage' ? 100 : 1000000"
+                  :suffix="r.metric === 'storage_usage' ? ' %' : ''"
+                  size="small"
+                  fluid
+                />
               </ConfigField>
-              <ConfigField v-if="!instant.includes(r.metric)" :label="t('ops.window')" :for="`ops-w-${i}`" width="xs" :hint="t('ops.minutes')" :error="err(`rules.${i}.window`)">
-                <InputNumber v-model="r.window" :input-id="`ops-w-${i}`" :min="5" :max="10080" size="small" />
-              </ConfigField>
-              <ConfigField :label="t('ops.cooldown')" :for="`ops-c-${i}`" width="xs" :hint="t('ops.minutes')" :error="err(`rules.${i}.cooldown`)">
-                <InputNumber v-model="r.cooldown" :input-id="`ops-c-${i}`" :min="5" :max="10080" size="small" />
+              <ConfigField v-if="!instant.includes(r.metric)" :label="t('ops.window')" :for="`ops-w-${i}`" width="xs" :error="err(`rules.${i}.window`)">
+                <InputNumber v-model="r.window" :input-id="`ops-w-${i}`" :min="5" :max="10080" :suffix="` ${t('ops.minutes')}`" size="small" fluid />
               </ConfigField>
             </div>
+            <h4 class="m-0 text-sm font-semibold">{{ t('ops.alert_who') }}</h4>
             <ConfigField :label="t('ops.alert_roles')" :for="`ops-r-${i}`" width="lg" :error="err(`rules.${i}.roles`)">
               <MultiSelect
                 v-model="r.roles"
@@ -103,7 +110,10 @@ const err = (path: string) => doc.errors.value[path]
                 :data-testid="`ops-alert-roles-${i}`"
               />
             </ConfigField>
-            <SettingSwitch :id="`ops-active-${i}`" v-model="r.active" :label="t('ops.active')" />
+            <ConfigField :label="t('ops.cooldown')" :for="`ops-c-${i}`" width="xs" :hint="t('ops.cooldown_hint')" :error="err(`rules.${i}.cooldown`)">
+              <InputNumber v-model="r.cooldown" :input-id="`ops-c-${i}`" :min="5" :max="10080" :suffix="` ${t('ops.minutes')}`" size="small" fluid />
+            </ConfigField>
+            <SettingSwitch :id="`ops-active-${i}`" v-model="r.active" :label="t('ops.active')" :description="t('ops.active_desc')" />
           </ConfigItem>
           <Button icon="pi pi-plus" :label="t('ops.add_alert')" size="small" outlined class="self-start" data-testid="ops-alert-add" @click="add" />
         </template>

@@ -141,7 +141,7 @@ function remove(row: DocumentSummary): void {
         />
       </template>
     </Dialog>
-    <Message v-if="!pdfFromWord" severity="info">{{ t('doc.no_converter') }}</Message>
+    <Message v-if="!pdfFromWord" severity="warn" :closable="false">{{ t('doc.no_converter') }}</Message>
 
     <EmptyState v-if="!loading && !rows.length" icon="pi pi-file" :title="t('doc.empty_title')" :description="t('doc.empty_text')" testid="doc-empty">
       <Button icon="pi pi-plus" :label="t('doc.new')" size="small" @click="open('new')" />

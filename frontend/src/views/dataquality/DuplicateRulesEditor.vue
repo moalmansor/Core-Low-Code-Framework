@@ -16,7 +16,7 @@ import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import TabIntro from '@/components/config/TabIntro.vue'
 import { formatDatetime } from '@/runtime/format'
 import { useSession } from '@/stores/session'
-import LocaleFields from '@/views/admin/building/LocaleFields.vue'
+import I18nInput from '@/builder/I18nInput.vue'
 import { errorText } from '@/views/admin/building/shared'
 import { labelOf, newUuid } from '@/views/admin/formconfig/api'
 import ErrorList from '@/views/admin/formconfig/ErrorList.vue'
@@ -144,7 +144,7 @@ const mergeLink = (group: { uuid: string }[]) => ({
 <template>
   <div class="flex flex-col gap-6" data-testid="dq-editor">
     <TabIntro :title="t('formconfig.tab.data_quality')" :text="t('dq.hint')" />
-    <Message v-if="!published" severity="info" :closable="false">{{ t('dq.publish_first') }}</Message>
+    <EmptyState v-if="!published" icon="pi pi-lock" :title="t('dq.unpublished_title')" :description="t('dq.publish_first')" testid="dq-unpublished" />
 
     <div v-if="doc.value.value" class="rounded-xl border border-line bg-card px-5">
       <ConfigSection id="dq-rules" :title="t('dq.rules')" :description="t('dq.rules_desc')" :count="doc.value.value.length">
@@ -167,10 +167,10 @@ const mergeLink = (group: { uuid: string }[]) => ({
               <Tag :value="t(`dq.action.${r.action}`)" :severity="r.action === 'block' ? 'danger' : 'warn'" />
               <Tag v-if="!r.active" :value="t('dq.inactive')" severity="secondary" />
             </template>
-            <LocaleFields v-model="r.i18n.name" :label="t('dq.name')" :field="`rules.${i}.i18n.name`" :errors="doc.errors.value" :id-prefix="`dq-name-${i}`" />
+            <I18nInput v-model="r.i18n.name" class="w-field-md" :label="t('dq.name')" :maxlength="120" :invalid="!!err(`rules.${i}.i18n.name.${dl}`)" :data-testid="`dq-name-${i}`" />
 
             <div class="flex flex-col gap-2">
-              <span class="text-sm font-medium">{{ t('dq.match_on') }}</span>
+              <h4 class="m-0 text-sm font-semibold">{{ t('dq.match_on') }}</h4>
               <div v-for="(m, j) in r.fields" :key="j" class="cfg-row items-end" :data-testid="`dq-field-${i}-${j}`">
                 <ConfigField :label="t('dq.field')" :for="`dq-f-${i}-${j}`" width="md" :error="err(`rules.${i}.fields.${j}.field`)">
                   <Select v-model="m.field" :input-id="`dq-f-${i}-${j}`" :options="fields" option-label="label" option-value="value" filter size="small" @change="onField(m)" />
@@ -197,10 +197,11 @@ const mergeLink = (group: { uuid: string }[]) => ({
               <Button icon="pi pi-plus" :label="t('dq.add_field')" size="small" text class="self-start" :data-testid="`dq-add-field-${i}`" @click="addField(r)" />
             </div>
 
+            <ConfigField v-if="r.fields.length > 1" :label="t('dq.mode_label')" :for="`dq-mode-${i}`" width="md">
+              <Select v-model="r.mode" :input-id="`dq-mode-${i}`" :options="modes" option-label="label" option-value="value" size="small" />
+            </ConfigField>
+            <h4 class="m-0 text-sm font-semibold">{{ t('dq.what_happens') }}</h4>
             <div class="cfg-row">
-              <ConfigField v-if="r.fields.length > 1" :label="t('dq.mode_label')" :for="`dq-mode-${i}`" width="md">
-                <Select v-model="r.mode" :input-id="`dq-mode-${i}`" :options="modes" option-label="label" option-value="value" size="small" />
-              </ConfigField>
               <ConfigField :label="t('dq.action_label')" :for="`dq-act-${i}`" width="md" :hint="t(`dq.action_hint.${r.action}`)">
                 <Select v-model="r.action" :input-id="`dq-act-${i}`" :options="actions" option-label="label" option-value="value" size="small" />
               </ConfigField>
@@ -208,56 +209,63 @@ const mergeLink = (group: { uuid: string }[]) => ({
                 <Select v-model="r.appliesOn" :input-id="`dq-on-${i}`" :options="appliesOn" option-label="label" option-value="value" size="small" />
               </ConfigField>
             </div>
-            <LocaleFields v-model="r.i18n.message" :label="t('dq.message')" :field="`rules.${i}.i18n.message`" :errors="doc.errors.value" :id-prefix="`dq-msg-${i}`" multiline optional />
+            <I18nInput v-model="r.i18n.message" class="w-field-lg" multiline :rows="2" :label="t('dq.message')" :maxlength="500" :data-testid="`dq-msg-${i}`" />
             <SettingSwitch :id="`dq-active-${i}`" v-model="r.active" :label="t('dq.active')" :description="t('dq.active_desc')" />
-
-            <div class="dq-sweep" :data-testid="`dq-sweep-${i}`">
-              <div class="flex flex-wrap items-center gap-2">
-                <Button
-                  icon="pi pi-search"
-                  :label="t('dq.sweep')"
-                  size="small"
-                  outlined
-                  :loading="running(r.uuid)"
-                  :disabled="!saved(r) || !published || running(r.uuid)"
-                  :data-testid="`dq-sweep-run-${i}`"
-                  @click="sweep(r)"
-                />
-                <span v-if="!saved(r)" class="text-sm text-muted-color">{{ t('dq.save_to_sweep') }}</span>
-                <template v-else-if="!sweeps[r.uuid] && lastSweeps[r.uuid]?.operation">
-                  <span class="text-sm text-muted-color">{{ t('dq.last_sweep', { at: formatDatetime(lastSweeps[r.uuid].at!, locale) }) }}</span>
-                  <Button :label="t('dq.show_results')" size="small" text @click="showLast(r.uuid, lastSweeps[r.uuid].operation!)" />
-                </template>
-              </div>
-              <Message v-if="sweepError[r.uuid]" severity="error" :closable="false">{{ sweepError[r.uuid] }}</Message>
-              <template v-if="sweeps[r.uuid]?.status === 'completed'">
-                <p class="m-0 text-sm" :data-testid="`dq-sweep-count-${i}`">{{ t('dq.groups_found', { n: sweeps[r.uuid].groups.length }) }}</p>
-                <ul v-if="sweeps[r.uuid].groups.length" class="dq-groups">
-                  <li v-for="(g, k) in sweeps[r.uuid].groups" :key="k" class="dq-group" :data-testid="`dq-group-${i}-${k}`">
-                    <div class="min-w-0 flex-1 flex flex-wrap gap-x-3 gap-y-1 text-sm">
-                      <RouterLink v-for="m in g" :key="m.uuid" :to="{ name: 'records.view', params: { form, record: m.uuid } }" class="text-primary" dir="auto">{{
-                        recordName(m, t('dq.a_record'))
-                      }}</RouterLink>
-                    </div>
-                    <RouterLink v-if="session.can('system.merge_records')" :to="mergeLink(g)" class="text-sm text-primary shrink-0" :data-testid="`dq-merge-${i}-${k}`">
-                      <i class="pi pi-clone me-1" aria-hidden="true" />{{ t('dq.merge') }}
-                    </RouterLink>
-                  </li>
-                </ul>
-                <p v-if="sweeps[r.uuid].hidden" class="m-0 text-xs text-muted-color">{{ t('dq.hidden_records', { n: sweeps[r.uuid].hidden }) }}</p>
-              </template>
-              <Message v-else-if="sweeps[r.uuid]?.status === 'failed'" severity="error" :closable="false">{{ t('dq.sweep_failed') }}</Message>
-            </div>
           </ConfigItem>
           <Button icon="pi pi-plus" :label="t('dq.add')" size="small" outlined class="self-start" data-testid="dq-add" :disabled="!fields.length" @click="add" />
         </template>
       </ConfigSection>
     </div>
 
+    <div v-if="published && doc.value.value" class="rounded-xl border border-line bg-card px-5" data-testid="dq-checks">
+      <ConfigSection id="dq-find" :title="t('dq.find_title')" :description="t('dq.find_desc')">
+        <EmptyState v-if="!doc.value.value.length" icon="pi pi-search" :title="t('dq.find_empty_title')" :description="t('dq.find_empty_text')" />
+        <template v-for="(r, i) in doc.value.value" :key="r.uuid">
+          <div class="dq-sweep" :data-testid="`dq-sweep-${i}`">
+            <h4 class="m-0 text-sm font-semibold" dir="auto">{{ ruleTitle(r) }}</h4>
+            <div class="flex flex-wrap items-center gap-2">
+              <Button
+                icon="pi pi-search"
+                :label="t('dq.sweep')"
+                size="small"
+                outlined
+                :loading="running(r.uuid)"
+                :disabled="!saved(r) || !published || running(r.uuid)"
+                :data-testid="`dq-sweep-run-${i}`"
+                @click="sweep(r)"
+              />
+              <span v-if="!saved(r)" class="text-sm text-muted-color">{{ t('dq.save_to_sweep') }}</span>
+              <template v-else-if="!sweeps[r.uuid] && lastSweeps[r.uuid]?.operation">
+                <span class="text-sm text-muted-color">{{ t('dq.last_sweep', { at: formatDatetime(lastSweeps[r.uuid].at!, locale) }) }}</span>
+                <Button :label="t('dq.show_results')" size="small" text @click="showLast(r.uuid, lastSweeps[r.uuid].operation!)" />
+              </template>
+            </div>
+            <Message v-if="sweepError[r.uuid]" severity="error" :closable="false">{{ sweepError[r.uuid] }}</Message>
+            <template v-if="sweeps[r.uuid]?.status === 'completed'">
+              <p class="m-0 text-sm" :data-testid="`dq-sweep-count-${i}`">{{ t('dq.groups_found', { n: sweeps[r.uuid].groups.length }) }}</p>
+              <ul v-if="sweeps[r.uuid].groups.length" class="dq-groups">
+                <li v-for="(g, k) in sweeps[r.uuid].groups" :key="k" class="dq-group" :data-testid="`dq-group-${i}-${k}`">
+                  <div class="min-w-0 flex-1 flex flex-wrap gap-x-3 gap-y-1 text-sm">
+                    <RouterLink v-for="m in g" :key="m.uuid" :to="{ name: 'records.view', params: { form, record: m.uuid } }" class="text-primary" dir="auto">{{
+                      recordName(m, t('dq.a_record'))
+                    }}</RouterLink>
+                  </div>
+                  <RouterLink v-if="session.can('system.merge_records')" :to="mergeLink(g)" class="text-sm text-primary shrink-0" :data-testid="`dq-merge-${i}-${k}`">
+                    <i class="pi pi-clone me-1" aria-hidden="true" />{{ t('dq.merge') }}
+                  </RouterLink>
+                </li>
+              </ul>
+              <p v-if="sweeps[r.uuid].hidden" class="m-0 text-xs text-muted-color">{{ t('dq.hidden_records', { n: sweeps[r.uuid].hidden }) }}</p>
+            </template>
+            <Message v-else-if="sweeps[r.uuid]?.status === 'failed'" severity="error" :closable="false">{{ t('dq.sweep_failed') }}</Message>
+          </div>
+        </template>
+      </ConfigSection>
+    </div>
+    <RepairPanel v-if="session.can('system.repair_data') && published" :form="form" />
+
     <ErrorList :errors="doc.errors.value" />
     <ConfigSaveBar :dirty="doc.dirty.value" :saving="doc.saving.value" testid="dq" @save="doc.save()" @discard="doc.discard()" />
-
-    <RepairPanel v-if="session.can('system.repair_data') && published" :form="form" />
   </div>
 </template>
 
@@ -266,6 +274,8 @@ const mergeLink = (group: { uuid: string }[]) => ({
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+.dq-sweep + .dq-sweep {
   padding-top: 0.75rem;
   border-top: 1px solid var(--color-line);
 }

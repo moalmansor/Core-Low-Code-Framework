@@ -40,7 +40,7 @@ test('a duplicate is warned about, found by a sweep, merged with a justification
   await page.goto(`/admin/forms/${form}/configure/data_quality`)
   await expect(page.getByTestId('dq-editor')).toBeVisible()
   await page.getByTestId('dq-add').first().click()
-  await page.getByTestId('dq-name-0-en').fill(`Same visitor ${tag}`)
+  await page.getByTestId('dq-name-0').locator('input').first().fill(`Same visitor ${tag}`)
   await page.getByTestId('dq-save').click()
   await expect(page.getByTestId('dq-rule-0')).toContainText(`Same visitor ${tag}`)
   await expect(page.getByTestId('dq-sweep-run-0')).toBeEnabled()

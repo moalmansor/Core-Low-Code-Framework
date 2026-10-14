@@ -9,6 +9,10 @@ import Textarea from 'primevue/textarea'
 import { useToast } from 'primevue/usetoast'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import EmptyValue from '@/components/EmptyValue.vue'
+import ConfigField from '@/components/config/ConfigField.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
+import TabIntro from '@/components/config/TabIntro.vue'
 import { formatDatetime } from '@/runtime/format'
 import { errorText } from '@/views/admin/building/shared'
 import { opsApi, type JobKind, type OpsJob } from './api'
@@ -42,7 +46,7 @@ function filter(): void {
   f.page = 1
   void load()
 }
-const when = (iso: string | null) => (iso ? formatDatetime(iso, locale.value) : '—')
+const when = (iso: string | null) => (iso ? formatDatetime(iso, locale.value) : '')
 
 async function retry(job: OpsJob): Promise<void> {
   if (!window.confirm(t('ops.retry_job_confirm'))) return
@@ -84,32 +88,36 @@ async function dismiss(): Promise<void> {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4" data-testid="ops-jobs">
-    <div class="flex flex-wrap items-end gap-3">
-      <div class="field !mb-0">
-        <label for="ops-job-kind" class="text-sm">{{ t('ops.kind_label') }}</label>
-        <Select v-model="f.kind" input-id="ops-job-kind" :options="kindOptions" option-label="label" option-value="value" size="small" class="w-56" data-testid="ops-job-kind" @change="filter" />
-      </div>
-      <p class="m-0 text-sm text-muted-color flex-1 min-w-64">{{ t('ops.jobs_hint') }}</p>
-    </div>
+  <div class="flex flex-col gap-6" data-testid="ops-jobs">
+    <TabIntro :title="t('ops.tab.jobs')" :text="t('ops.jobs_hint')" />
+    <ConfigField :label="t('ops.kind_label')" for="ops-job-kind" width="sm">
+      <Select v-model="f.kind" input-id="ops-job-kind" :options="kindOptions" option-label="label" option-value="value" size="small" data-testid="ops-job-kind" @change="filter" />
+    </ConfigField>
     <DataTable :value="rows" lazy paginator :rows="25" :total-records="total" data-key="key" size="small" data-testid="ops-job-table" @page="onPage" @row-click="(e) => show(e.data as OpsJob)">
-      <template #empty>{{ t('ops.no_jobs') }}</template>
+      <template #empty>
+        <EmptyState icon="pi pi-check-circle" :title="t('ops.no_jobs')" :description="t('ops.no_jobs_text')" />
+      </template>
       <Column :header="t('ops.kind_label')">
         <template #body="{ data }"><Tag severity="secondary" :value="t(`ops.kind.${(data as OpsJob).kind}`)" /></template>
       </Column>
       <Column :header="t('ops.what')">
         <template #body="{ data }">
-          <div class="font-medium" dir="auto">{{ (data as OpsJob).subject ?? (data as OpsJob).form?.name ?? '—' }}</div>
+          <div v-if="(data as OpsJob).subject ?? (data as OpsJob).form?.name" class="font-medium" dir="auto">{{ (data as OpsJob).subject ?? (data as OpsJob).form?.name }}</div>
+          <EmptyValue v-else />
           <div v-if="(data as OpsJob).form && (data as OpsJob).subject" class="text-xs text-muted-color">{{ (data as OpsJob).form!.name }}</div>
         </template>
       </Column>
       <Column :header="t('ops.person')">
-        <template #body="{ data }">{{ (data as OpsJob).user ?? '—' }}</template>
+        <template #body="{ data }"
+          ><template v-if="(data as OpsJob).user">{{ (data as OpsJob).user }}</template
+          ><EmptyValue v-else :text="t('ops.by_system')"
+        /></template>
       </Column>
       <Column :header="t('ops.error')">
         <template #body="{ data }"
-          ><span class="text-xs text-danger line-clamp-2 max-w-md" dir="auto">{{ (data as OpsJob).error ?? '' }}</span></template
-        >
+          ><span v-if="(data as OpsJob).error" class="text-xs text-danger line-clamp-2 max-w-md" dir="auto">{{ (data as OpsJob).error }}</span
+          ><EmptyValue v-else :text="t('ops.no_error')"
+        /></template>
       </Column>
       <Column :header="t('ops.when')">
         <template #body="{ data }"
@@ -142,27 +150,38 @@ async function dismiss(): Promise<void> {
       <div v-if="open" class="flex flex-col gap-4">
         <dl class="ops-facts">
           <dt>{{ t('ops.what') }}</dt>
-          <dd dir="auto">{{ open.subject ?? '—' }}</dd>
+          <dd dir="auto">
+            <template v-if="open.subject">{{ open.subject }}</template
+            ><EmptyValue v-else :compact="false" />
+          </dd>
           <dt>{{ t('ops.form') }}</dt>
-          <dd>{{ open.form?.name ?? '—' }}</dd>
+          <dd>
+            <template v-if="open.form">{{ open.form.name }}</template
+            ><EmptyValue v-else :compact="false" :text="t('ops.no_form')" />
+          </dd>
           <dt>{{ t('ops.person') }}</dt>
-          <dd>{{ open.user ?? '—' }}</dd>
+          <dd>
+            <template v-if="open.user">{{ open.user }}</template
+            ><EmptyValue v-else :compact="false" :text="t('ops.by_system')" />
+          </dd>
           <dt>{{ t('ops.attempts') }}</dt>
           <dd>{{ n(open.attempts) }}</dd>
           <dt>{{ t('ops.when') }}</dt>
           <dd>{{ when(open.failed_at) }}</dd>
           <dt>{{ t('ops.error') }}</dt>
-          <dd class="text-danger" dir="auto">{{ open.error ?? '—' }}</dd>
+          <dd dir="auto">
+            <span v-if="open.error" class="text-danger">{{ open.error }}</span
+            ><EmptyValue v-else :compact="false" :text="t('ops.no_error')" />
+          </dd>
         </dl>
         <p v-if="!open.retryable" class="m-0 text-sm text-muted-color">{{ t(`ops.not_retryable.${open.kind === 'webhook' ? 'webhook' : 'other'}`) }}</p>
         <details v-if="open.detail">
           <summary class="text-sm cursor-pointer">{{ t('ops.detail') }}</summary>
           <pre class="ops-trace" dir="ltr">{{ open.detail }}</pre>
         </details>
-        <div v-if="dismissing" class="field !mb-0">
-          <label for="ops-dismiss-reason" class="text-sm font-medium">{{ t('ops.dismiss_reason') }}<span class="text-danger ms-1" aria-hidden="true">*</span></label>
+        <ConfigField v-if="dismissing" :label="t('ops.dismiss_reason')" for="ops-dismiss-reason" width="lg" required>
           <Textarea id="ops-dismiss-reason" v-model="reason" rows="2" auto-resize data-testid="ops-job-reason" />
-        </div>
+        </ConfigField>
       </div>
       <template #footer>
         <Button :label="t('common.close')" text @click="open = null" />
