@@ -12,7 +12,6 @@ use App\Modules\Documents\Models\DocumentTemplate;
 use App\Modules\Documents\PdfConverter;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
-use App\Modules\Records\Templating\BlockDesign;
 use App\Modules\Records\Templating\HtmlPreviews;
 use App\Modules\Records\Templating\TemplatePlaceholders;
 use Illuminate\Http\JsonResponse;
@@ -108,19 +107,19 @@ final class DocumentTemplateController extends Controller
     }
 
     /** A designed template (saved or not) as a page, for a real record, in a chosen language. */
-    public function preview(Request $request, BlockDesign $design, DocumentRenderer $renderer): JsonResponse
+    public function preview(Request $request, DocumentRenderer $renderer): JsonResponse
     {
         Gate::authorize('system.manage_document_templates');
         $data = $request->validate([
             'form' => ['sometimes', 'nullable', 'uuid'], 'record' => ['sometimes', 'nullable', 'uuid'],
             'design' => ['required', 'array'], 'design.blocks' => ['present', 'array'], 'design.style' => ['sometimes', 'array'],
+            'design.title' => ['sometimes', 'array'], 'design.header' => ['sometimes', 'array'], 'design.footer' => ['sometimes', 'array'],
             'paper' => ['sometimes', 'array'], 'name' => ['sometimes', 'array'],
             'locale' => ['sometimes', Rule::in($this->translator->enabledLocales())],
         ]);
         [$rt, $recordId] = $this->placeholders->target($data['form'] ?? null, $data['record'] ?? null, $this->user());
         $errors = [];
-        $blocks = $design->blocks($rt?->form, $rt, $data['design']['blocks'], DocumentTemplates::BLOCKS, 'design.blocks', $errors);
-        $accent = $design->colour($data['design']['style']['accent'] ?? null, 'design.style.accent', $errors);
+        $designed = $this->templates->design($data['design'], $rt?->form, $rt, $errors);
         $paper = array_replace_recursive(DocumentTemplates::DEFAULT_PAPER, array_intersect_key((array) ($data['paper'] ?? []), DocumentTemplates::DEFAULT_PAPER));
         if (! in_array($paper['size'], DocumentTemplates::PAPER_SIZES, true)) {
             $errors['paper.size'][] = __('validation.in', ['attribute' => 'size']);
@@ -129,7 +128,7 @@ final class DocumentTemplateController extends Controller
             throw ValidationException::withMessages($errors);
         }
         $locale = $data['locale'] ?? app()->getLocale();
-        $html = $renderer->preview(['style' => ['accent' => $accent], 'blocks' => $blocks], $paper, $rt, $recordId, [$this->user()], $locale, (string) ($this->translator->pick((array) ($data['name'] ?? []), $locale) ?? ''));
+        $html = $renderer->preview($designed, $paper, $rt, $recordId, [$this->user()], $locale, (string) ($this->translator->pick((array) ($data['name'] ?? []), $locale) ?? ''));
 
         return response()->json(['data' => ['url' => app(HtmlPreviews::class)->put($html)]]);
     }
@@ -147,7 +146,7 @@ final class DocumentTemplateController extends Controller
         $formUuid = $t->form_id === null ? null : (string) DB::table('forms')->where('id', $t->form_id)->value('uuid');
         [$rt, $recordId] = $this->placeholders->target($formUuid, $data['record'] ?? null, $this->user());
         try {
-            $out = $renderer->render($t, $rt, $recordId, [$this->user()], $data['locale'] ?? app()->getLocale(), $data['format']);
+            $out = $renderer->render($t, $rt, $recordId, [$this->user()], $data['locale'] ?? app()->getLocale(), $data['format'], $this->user());
         } catch (Throwable $e) {
             report($e);
 
@@ -177,6 +176,7 @@ final class DocumentTemplateController extends Controller
             'form' => ['sometimes', 'nullable', 'uuid'],
             'name' => ['required', 'array'],
             'design' => ['sometimes', 'nullable', 'array'], 'design.blocks' => ['sometimes', 'array'], 'design.style' => ['sometimes', 'array'],
+            'design.title' => ['sometimes', 'array'], 'design.header' => ['sometimes', 'array'], 'design.footer' => ['sometimes', 'array'],
             'files' => ['sometimes', 'nullable', 'array'],
             'formats' => ['required', 'array'],
             'paper' => ['sometimes', 'array'],

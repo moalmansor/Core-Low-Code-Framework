@@ -31,7 +31,9 @@ use Illuminate\Validation\ValidationException;
  */
 final class DocumentTemplates
 {
-    public const BLOCKS = ['heading', 'text', 'fields', 'table', 'divider', 'spacer', 'page_break'];
+    public const BLOCKS = ['heading', 'text', 'fields', 'table', 'related', 'signature', 'code', 'divider', 'spacer', 'page_break'];
+
+    public const PAGE_NUMBERS = ['none', 'page', 'page_of'];
 
     public const PAPER_SIZES = ['a4', 'a3', 'a5', 'letter', 'legal'];
 
@@ -150,19 +152,29 @@ final class DocumentTemplates
         $files = [];
         $tokens = [];
         if ($type === 'html') {
-            $style = (array) ($data['design']['style'] ?? []);
-            $accent = $this->design->colour($style['accent'] ?? null, 'design.style.accent', $errors);
-            $design = ['style' => ['accent' => $accent], 'blocks' => $this->design->blocks($form, $rt, $data['design']['blocks'] ?? [], self::BLOCKS, 'design.blocks', $errors)];
+            $design = $this->design((array) ($data['design'] ?? []), $form, $rt, $errors);
             if ($design['blocks'] === [] && ! isset($errors['design.blocks'])) {
                 $errors['design.blocks'][] = __('documents.blocks_required');
+            }
+            foreach ([$design['title'], $design['header']['text'], $design['footer']['text']] as $texts) {
+                foreach ($texts as $text) {
+                    $tokens = [...$tokens, ...TemplateValues::tokens((string) $text)];
+                }
             }
             foreach ($design['blocks'] as $b) {
                 foreach ((array) ($b['text'] ?? []) as $text) {
                     $tokens = [...$tokens, ...TemplateValues::tokens((string) $text)];
                 }
-                $tokens = [...$tokens, ...array_map('strval', (array) ($b['fields'] ?? []))];
-                foreach ((array) ($b['columns'] ?? []) as $c) {
-                    $tokens[] = ($b['group'] ?? '').'.'.$c;
+                foreach ((array) ($b['signatories'] ?? []) as $person) {
+                    foreach ((array) ($person['name'] ?? []) as $text) {
+                        $tokens = [...$tokens, ...TemplateValues::tokens((string) $text)];
+                    }
+                }
+                $tokens = [...$tokens, ...array_map(static fn ($f) => TemplateValues::split((string) $f)[0], (array) ($b['fields'] ?? []))];
+                if (($b['type'] ?? '') === 'table') {
+                    foreach ((array) ($b['columns'] ?? []) as $c) {
+                        $tokens[] = ($b['group'] ?? '').'.'.$c;
+                    }
                 }
             }
         } elseif ($type === 'docx') {
@@ -200,6 +212,34 @@ final class DocumentTemplates
 
             return $t->refresh();
         });
+    }
+
+    /**
+     * A designed template's design, checked and normalized: its accent, title,
+     * header (logo and text), footer (text and page numbers) and blocks.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array<string, list<array<mixed>|string>>  $errors
+     * @return array<string, mixed>
+     */
+    public function design(array $data, ?Form $form, ?FormRuntime $rt, array &$errors): array
+    {
+        $style = (array) ($data['style'] ?? []);
+        $header = (array) ($data['header'] ?? []);
+        $footer = (array) ($data['footer'] ?? []);
+        $numbers = (string) ($footer['pageNumbers'] ?? 'none');
+        if (! in_array($numbers, self::PAGE_NUMBERS, true)) {
+            $errors['design.footer.pageNumbers'][] = __('validation.in', ['attribute' => 'pageNumbers']);
+        }
+
+        return [
+            'style' => ['accent' => $this->design->colour($style['accent'] ?? null, 'design.style.accent', $errors)],
+            // The document's title: the first thing on the first page.
+            'title' => $this->design->optional($data['title'] ?? [], 'design.title', $rt, $errors, 255),
+            'header' => ['enabled' => (bool) ($header['enabled'] ?? false), 'logo' => (bool) ($header['logo'] ?? true), 'text' => $this->design->optional($header['text'] ?? [], 'design.header.text', $rt, $errors, 255)],
+            'footer' => ['enabled' => (bool) ($footer['enabled'] ?? false), 'text' => $this->design->optional($footer['text'] ?? [], 'design.footer.text', $rt, $errors, 255), 'pageNumbers' => $numbers],
+            'blocks' => $this->design->blocks($form, $rt, $data['blocks'] ?? [], self::BLOCKS, 'design.blocks', $errors),
+        ];
     }
 
     public function delete(DocumentTemplate $t, int $userId): void

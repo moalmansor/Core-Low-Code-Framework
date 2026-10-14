@@ -13,6 +13,11 @@ return [
     'unknown_repeater' => 'Choose a table of this form.',
     'unknown_column' => 'Choose columns of the table.',
     'condition_needs_form' => 'Conditions need a template for a form.',
+    'unknown_link' => 'Choose a form that links to this one, and the field it links with.',
+    'columns_required' => 'Choose at least one column.',
+    'signatories_count' => 'Add one to four people who sign.',
+    'code_needs_form' => 'A QR code or barcode needs a template for a form.',
+    'bad_format' => 'Choose a format from the list: a date style, decimal places, a currency or digits.',
     'placeholder' => [
         'record_number' => 'Record number',
         'status' => 'Status',
@@ -23,5 +28,10 @@ return [
         'recipient' => 'Recipient name',
         'today' => 'Today’s date',
         'app' => 'System name',
+        'created_by' => 'Created by',
+        'updated_by' => 'Last changed by',
+        'assignee' => 'Assigned to',
+        'user' => 'Person producing it',
+        'now' => 'Date and time now',
     ],
 ];

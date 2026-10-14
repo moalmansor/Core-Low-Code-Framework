@@ -218,7 +218,7 @@ final class ActionSteps
     {
         $template = DocumentTemplate::query()->where('uuid', (string) $c['template'])->where('is_active', true)->first() ?? throw new StepFailed(__('actions.document_gone'));
         try {
-            $out = $this->documents->render($template, $rt, $found['id'], [$user], app()->getLocale(), (string) $c['format']);
+            $out = $this->documents->render($template, $rt, $found['id'], [$user], app()->getLocale(), (string) $c['format'], $user);
         } catch (Throwable $e) {
             report($e);
             throw new StepFailed(__('documents.generate_failed'));

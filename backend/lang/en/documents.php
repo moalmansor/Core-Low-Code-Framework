@@ -17,6 +17,7 @@ return [
     'generate_failed' => 'The document could not be generated. The details are in Error Monitoring.',
     'placeholder_gone' => 'The placeholder {{ :placeholder }} no longer names a value of the form; it prints nothing.',
     'problem' => [
+        'bad_format' => 'A placeholder asks for a format that is not in the list (a date style, decimal places, a currency or digits).',
         'not_docx' => 'This is not a Word document (.docx).',
         'bad_xml' => 'This Word document is damaged or uses features that cannot be read.',
         'too_large' => 'This Word document is too large once unpacked.',
@@ -25,4 +26,7 @@ return [
         'external_content' => 'This Word document links to content outside itself. Remove linked pictures and imported parts.',
         'external_field' => 'This Word document has fields that read outside files (INCLUDETEXT, INCLUDEPICTURE, LINK or DDE). Remove them.',
     ],
+    'page' => 'Page :page',
+    'page_of' => 'Page :page of :total',
+    'signature_date' => 'Date:',
 ];

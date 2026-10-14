@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Modules\Records\Templating;
 
+use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
+use App\Modules\Access\RecordScope;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Core\Tenancy\TenantContext;
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\Exchange\SheetCodec;
 use App\Modules\Records\Runtime\FormRuntime;
+use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\References;
 use App\Modules\Records\Runtime\RuleRuntime;
@@ -34,9 +37,10 @@ final class TemplateValues
     /** The product's default primary colour (frontend/src/theme/tokens.css), for an unbranded installation. */
     public const DEFAULT_ACCENT = '#1a6fd4';
 
-    public const SYSTEM = ['@record_number', '@status', '@created_at', '@updated_at', '@link', '@form', '@recipient', '@today', '@app'];
+    public const SYSTEM = ['@record_number', '@status', '@created_at', '@updated_at', '@created_by', '@updated_by', '@assignee', '@user', '@link', '@form', '@recipient', '@today', '@now', '@app'];
 
-    public const TOKEN = '/\{\{\s*([@a-z0-9_.]+)\s*\}\}/i';
+    /** `{{ path }}` or `{{ path | format | format }}` (ValueFormat). */
+    public const TOKEN = '/\{\{\s*([@a-z0-9_.]+)\s*((?:\|\s*[a-z]+\s*(?::\s*[A-Za-z0-9_]+\s*)?)*)\}\}/i';
 
     private const PATH = '/^(@[a-z_]+|[a-z][a-z0-9_]{0,47}(\.[a-z][a-z0-9_]{0,47}){0,3}(\.@[a-z_]+)?)$/';
 
@@ -52,6 +56,10 @@ final class TemplateValues
         private readonly SheetCodec $codec,
         private readonly References $refs,
         private readonly SettingsService $settings,
+        private readonly ValueFormat $format,
+        private readonly AccessResolver $access,
+        private readonly RecordScope $scope,
+        private readonly FormRuntimes $runtimes,
     ) {}
 
     /** @return list<string> the placeholders of a text, as written */
@@ -60,6 +68,27 @@ final class TemplateValues
         preg_match_all(self::TOKEN, $text, $m);
 
         return array_values(array_unique(array_map('strtolower', $m[1])));
+    }
+
+    /** @return list<string> the format specs a text's placeholders carry (empty ones left out) */
+    public static function specs(string $text): array
+    {
+        preg_match_all(self::TOKEN, $text, $m);
+
+        return array_values(array_unique(array_filter(array_map(static fn (string $s) => trim($s), $m[2]), static fn (string $s) => $s !== '')));
+    }
+
+    /**
+     * A field list entry or placeholder split into its path and format spec:
+     * `amount|currency:SAR` gives `['amount', 'currency:SAR']`.
+     *
+     * @return array{0: string, 1: string}
+     */
+    public static function split(string $entry): array
+    {
+        $at = strpos($entry, '|');
+
+        return $at === false ? [strtolower(trim($entry)), ''] : [strtolower(trim(substr($entry, 0, $at))), trim(substr($entry, $at + 1))];
     }
 
     /** Whether a placeholder is well formed (its target is checked against the form separately). */
@@ -94,9 +123,9 @@ final class TemplateValues
     }
 
     /** @param  list<User>  $viewers */
-    public function context(?FormRuntime $rt, ?int $recordId, array $viewers, string $locale, ?string $recipientName = null): RenderContext
+    public function context(?FormRuntime $rt, ?int $recordId, array $viewers, string $locale, ?string $recipientName = null, ?string $actorName = null): RenderContext
     {
-        return new RenderContext($rt, $recordId, $viewers, $locale, $recipientName);
+        return new RenderContext($rt, $recordId, $viewers, $locale, $recipientName, $actorName);
     }
 
     /** Whether a block's condition holds for every viewer (a block without one always shows). @param  array<string, mixed>  $block */
@@ -149,7 +178,42 @@ final class TemplateValues
     /** A text with its placeholders filled, markup left as written. */
     public function fill(string $source, RenderContext $ctx): string
     {
-        return (string) preg_replace_callback(self::TOKEN, fn (array $m) => $this->value(strtolower($m[1]), $ctx), $source);
+        return (string) preg_replace_callback(self::TOKEN, fn (array $m) => $this->formatted(strtolower($m[1]), trim($m[2]), $ctx), $source);
+    }
+
+    /** A placeholder's text with its formats applied (ValueFormat), '' whenever the plain text would be. */
+    public function formatted(string $token, string $spec, RenderContext $ctx): string
+    {
+        $display = $this->value($token, $ctx);
+        $formats = $spec === '' ? [] : ValueFormat::parse(ltrim($spec, '| '));
+        if ($display === '' || $formats === null || $formats === []) {
+            return $display;
+        }
+
+        return $this->format->apply($this->raw($token, $ctx), $display, $formats, $ctx->locale);
+    }
+
+    /** The stored value behind a placeholder, for formatting what is already known to be visible. */
+    private function raw(string $token, RenderContext $ctx): mixed
+    {
+        $rt = $ctx->rt;
+        if ($token === '@today') {
+            return Carbon::now((string) $this->settings->get('formats', 'timezone'))->format('Y-m-d');
+        }
+        if ($token === '@now') {
+            return Carbon::now('UTC')->format('Y-m-d H:i:s');
+        }
+        if ($rt === null || $ctx->recordId === null) {
+            return null;
+        }
+        if (in_array($token, ['@created_at', '@updated_at'], true)) {
+            return DB::table($rt->table)->where('id', $ctx->recordId)->value(substr($token, 1));
+        }
+        if (str_starts_with($token, '@') || str_contains($token, '@')) {
+            return null;
+        }
+
+        return $this->paths->rawValues($rt, explode('.', $token), [$ctx->recordId])[$ctx->recordId] ?? null;
     }
 
     /** A URL with its placeholders filled and encoded. */
@@ -170,7 +234,8 @@ final class TemplateValues
             return [];
         }
         $rows = [];
-        foreach ($paths as $path) {
+        foreach ($paths as $entry) {
+            [$path, $spec] = self::split($entry);
             $segments = explode('.', $path);
             $r = null;
             foreach ($ctx->viewers as $viewer) {
@@ -185,7 +250,7 @@ final class TemplateValues
             $label = $r['field'] === null
                 ? __('views.system_'.$r['system'])
                 : $this->translator->labelOf($r['field']['i18n']['label'] ?? null, (string) $r['field']['key']);
-            $rows[] = ['label' => $label, 'value' => $this->value(strtolower($path), $ctx)];
+            $rows[] = ['label' => $label, 'value' => $this->formatted($path, $spec, $ctx)];
         }
 
         return $rows;
@@ -198,7 +263,7 @@ final class TemplateValues
      * @param  list<string>  $columns  column keys, in order
      * @return array{head: list<string>, keys: list<string>, rows: list<list<string>>}|null
      */
-    public function table(string $group, array $columns, RenderContext $ctx): ?array
+    public function table(string $group, array $columns, RenderContext $ctx, array $formats = []): ?array
     {
         $rt = $ctx->rt;
         if ($rt === null || $ctx->recordId === null || $ctx->viewers === []) {
@@ -233,8 +298,11 @@ final class TemplateValues
         foreach ($rows as $row) {
             $cells = [];
             foreach ($fields as $f) {
-                $cell = $this->codec->toCell($rt, $f, ((array) $row)[$f['key']] ?? null, $titles[$f['uuid']] ?? [], []);
-                $cells[] = is_bool($cell) ? ($cell ? '✓' : '') : (string) ($cell ?? '');
+                $raw = ((array) $row)[$f['key']] ?? null;
+                $cell = $this->codec->toCell($rt, $f, $raw, $titles[$f['uuid']] ?? [], []);
+                $text = is_bool($cell) ? ($cell ? '✓' : '') : (string) ($cell ?? '');
+                $parsed = ValueFormat::parse((string) ($formats[$f['key']] ?? ''));
+                $cells[] = $parsed === null || $parsed === [] ? $text : $this->format->apply($raw, $text, $parsed, $ctx->locale);
             }
             $out[] = $cells;
         }
@@ -244,6 +312,80 @@ final class TemplateValues
             'keys' => array_map(static fn (array $f) => (string) $f['key'], $fields),
             'rows' => $out,
         ];
+    }
+
+    /**
+     * Records of another form that link to this one (child records: the
+     * lines of an order, the visits of a case), with chosen columns. Only
+     * records every viewer may see are listed, and only columns every viewer
+     * may see; a column may carry formats (`amount|currency:SAR`).
+     *
+     * @param  list<string>  $columns  paths in the source form, each optionally with formats
+     * @return array{head: list<string>, rows: list<list<string>>}|null
+     */
+    public function related(string $sourceUuid, string $via, array $columns, int $limit, RenderContext $ctx): ?array
+    {
+        $rt = $ctx->rt;
+        $source = $sourceUuid === '' ? null : $this->runtimes->forUuid($sourceUuid);
+        if ($rt === null || $source === null || $ctx->recordId === null || $ctx->viewers === []) {
+            return null;
+        }
+        $viaField = $source->fields[$source->keys[$via] ?? ''] ?? null;
+        $col = $viaField === null ? null : $source->column($viaField['uuid']);
+        if ($col === null || $source->targetFormUuid($viaField) !== $rt->form->uuid) {
+            return null;
+        }
+        $q = DB::table($source->table)->whereNull('deleted_at')->where($col['name'], $ctx->recordId);
+        foreach ($ctx->viewers as $viewer) {
+            if (! $this->access->allows($viewer, "form.{$source->form->uuid}.view") && $source->form->kind !== 'collection') {
+                return null;
+            }
+            $this->scope->apply($q, $source, $viewer, 'view');
+        }
+        $ids = $q->orderBy('id')->limit(max(1, min(self::MAX_ROWS, $limit)))->pluck('id')->map(static fn ($v) => (int) $v)->all();
+        $head = [];
+        $cells = [];
+        foreach ($columns as $entry) {
+            [$path, $spec] = self::split($entry);
+            $segments = explode('.', $path);
+            $r = null;
+            foreach ($ctx->viewers as $viewer) {
+                $r = $this->paths->resolve($source, $segments, $viewer);
+                if ($r === null) {
+                    break;
+                }
+            }
+            if ($r === null) {
+                continue;
+            }
+            $head[] = $r['field'] === null ? __('views.system_'.$r['system']) : $this->translator->labelOf($r['field']['i18n']['label'] ?? null, (string) $r['field']['key']);
+            // What every viewer sees alike; a value any of them would see differently is left empty.
+            $shown = null;
+            foreach ($ctx->viewers as $viewer) {
+                $mine = $this->paths->values($source, $segments, $ids, $viewer);
+                foreach ($ids as $id) {
+                    $v = self::flatten($mine[$id] ?? null);
+                    $shown[$id] = $shown === null || ! array_key_exists($id, $shown) || $shown[$id] === $v ? $v : '';
+                }
+            }
+            $parsed = ValueFormat::parse($spec) ?? [];
+            $raw = $parsed === [] || $r['field'] === null ? [] : $this->paths->rawValues($source, $segments, $ids);
+            $values = [];
+            foreach ($ids as $id) {
+                $text = (string) ($shown[$id] ?? '');
+                $values[] = $parsed === [] ? $text : $this->format->apply($raw[$id] ?? null, $text, $parsed, $ctx->locale);
+            }
+            $cells[] = $values;
+        }
+        if ($head === []) {
+            return null;
+        }
+        $rows = [];
+        foreach (array_keys($ids) as $i) {
+            $rows[] = array_map(static fn (array $c) => $c[$i] ?? '', $cells);
+        }
+
+        return ['head' => $head, 'rows' => $rows];
     }
 
     /** The display text of a placeholder for this rendering ('' when unknown, hidden or empty). */
@@ -260,8 +402,12 @@ final class TemplateValues
             $token === '@form' => $rt === null ? '' : $this->translator->labelOf($rt->form->translationsFor('name'), (string) $rt->form->key),
             $token === '@recipient' => (string) ($ctx->recipientName ?? ''),
             $token === '@today' => Carbon::now((string) $this->settings->get('formats', 'timezone'))->format('Y-m-d'),
+            $token === '@now' => Carbon::now((string) $this->settings->get('formats', 'timezone'))->format('Y-m-d H:i'),
+            $token === '@user' => (string) ($ctx->actorName ?? ''),
             $token === '@app' => $this->appName(),
             $rt === null || $ctx->recordId === null || $ctx->viewers === [] => '',
+            $token === '@created_by', $token === '@updated_by' => (string) (DB::table('users')->where('id', DB::table($rt->table)->where('id', $ctx->recordId)->value(substr($token, 1)))->value('name') ?? ''),
+            $token === '@assignee' => $this->assigneeNames($rt, $ctx),
             default => $this->shared($rt, $token, $ctx),
         };
 
@@ -334,6 +480,21 @@ final class TemplateValues
         }
 
         return $out;
+    }
+
+    /** Who the record is assigned to now: people by name, roles and departments by their name in this language. */
+    private function assigneeNames(FormRuntime $rt, RenderContext $ctx): string
+    {
+        $names = [];
+        foreach (DB::table('assignments')->where('form_id', $rt->form->id)->where('record_id', $ctx->recordId)->where('status', 'active')->orderBy('id')->get(['assignee_type', 'assignee_id']) as $a) {
+            $names[] = match ($a->assignee_type) {
+                'user' => (string) (DB::table('users')->where('id', $a->assignee_id)->value('name') ?? ''),
+                'role' => (string) ($this->translator->get('role', (int) $a->assignee_id, 'name', $ctx->locale) ?? Translator::humanize((string) DB::table('roles')->where('id', $a->assignee_id)->value('key'))),
+                default => (string) ($this->translator->get('department', (int) $a->assignee_id, 'name', $ctx->locale) ?? ''),
+            };
+        }
+
+        return implode(', ', array_values(array_unique(array_filter($names))));
     }
 
     public function appName(): string

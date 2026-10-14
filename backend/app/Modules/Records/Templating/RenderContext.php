@@ -23,5 +23,7 @@ final class RenderContext
         public readonly array $viewers,
         public readonly string $locale,
         public readonly ?string $recipientName,
+        /** Who produced it (the person who asked for the document or ran the action), for `{{ @user }}`. */
+        public readonly ?string $actorName = null,
     ) {}
 }

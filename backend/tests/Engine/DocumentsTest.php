@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Modules\Documents\PdfConverter;
 use App\Modules\Records\Models\StoredFile;
+use App\Modules\Records\Runtime\FormRuntimes;
+use App\Modules\Records\Templating\TemplateValues;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -256,4 +258,95 @@ it('attaches documents generated for the recipients to notification emails, and 
     expect($sent->getAttachments()[0]->getFilename())->toBe('Receipt.pdf');
 
     $this->deleteJson("/api/v1/documents/templates/{$tpl['uuid']}")->assertStatus(422)->assertJsonValidationErrors(['template']);
+});
+
+it('formats values, lists linked child records, signs, carries a QR code and runs a header and footer on every page', function () {
+    [, $orders] = createForm($this, 'invoices');
+    $customer = fieldDoc('customer', 'text');
+    $lines = groupDoc('lines', 'repeater');
+    saveDraft($this, $orders, [$lines], [
+        $customer, fieldDoc('issued_on', 'date'), fieldDoc('total', 'decimal', null, ['storage' => ['precision' => 12, 'scale' => 2]]),
+        fieldDoc('item', 'text', $lines['uuid']), fieldDoc('price', 'decimal', $lines['uuid'], ['storage' => ['precision' => 12, 'scale' => 2]]),
+    ])->assertOk();
+    expect(publish($this, $orders)['status'])->toBe('applied');
+    // Payments are records of another form that point at the invoice.
+    [, $payments] = createForm($this, 'payments');
+    $rel = ['uuid' => uid(), 'key' => 'invoice', 'type' => 'many_to_one', 'target' => $orders, 'kind' => 'reference', 'onDelete' => 'restrict', 'display' => $customer['uuid'], 'value' => null, 'inverse' => null];
+    saveDraft($this, $payments, [], [fieldDoc('reference', 'text'), fieldDoc('amount', 'decimal', null, ['storage' => ['precision' => 12, 'scale' => 2]]), fieldDoc('invoice', 'lookup', null, ['relation' => $rel['uuid']])], [$rel])->assertOk();
+    expect(publish($this, $payments)['status'])->toBe('applied');
+
+    $design = [
+        'title' => ['en' => 'Invoice for {{ customer }}', 'ar' => 'فاتورة {{ customer }}'],
+        'header' => ['enabled' => true, 'logo' => true, 'text' => ['en' => 'Prepared by {{ @user }}']],
+        'footer' => ['enabled' => true, 'text' => ['en' => '{{ @app }}'], 'pageNumbers' => 'page_of'],
+        'blocks' => [
+            ['type' => 'text', 'text' => ['en' => 'Issued {{ issued_on | date:long }}; total {{ total | number:2 }}; in Arabic digits {{ total | number:2 | digits:arabic }}; by {{ @created_by }}.',
+                'ar' => 'صدرت في {{ issued_on | date:long }}']],
+            ['type' => 'fields', 'fields' => ['customer', 'issued_on|date:iso']],
+            ['type' => 'table', 'group' => 'lines', 'columns' => ['item', 'price'], 'formats' => ['price' => 'number:1']],
+            ['type' => 'related', 'source' => $payments, 'via' => 'invoice', 'columns' => ['reference', 'amount|number:0'], 'limit' => 10],
+            ['type' => 'signature', 'signatories' => [['label' => ['en' => 'Prepared by'], 'name' => ['en' => '{{ @user }}']], ['label' => ['en' => 'Approved by'], 'name' => []]], 'date' => true],
+            ['type' => 'code', 'kind' => 'qr', 'content' => 'link', 'size' => 'small', 'caption' => false],
+            ['type' => 'code', 'kind' => 'barcode', 'content' => 'link', 'size' => 'small', 'caption' => true],
+        ],
+    ];
+    // Formats come from a fixed list, and a linked table must follow a link to this form.
+    $bad = $design;
+    $bad['blocks'][0]['text']['en'] = '{{ total | money }}';
+    $this->postJson('/api/v1/documents/templates', ['key' => 'bad', 'type' => 'html', 'form' => $orders, 'name' => ['en' => 'Bad'], 'design' => $bad, 'formats' => ['pdf']])
+        ->assertStatus(422)->assertJsonValidationErrors(['design.blocks.0.text.en']);
+    $bad = $design;
+    $bad['blocks'][3]['via'] = 'reference';
+    $this->postJson('/api/v1/documents/templates', ['key' => 'bad', 'type' => 'html', 'form' => $orders, 'name' => ['en' => 'Bad'], 'design' => $bad, 'formats' => ['pdf']])
+        ->assertStatus(422)->assertJsonValidationErrors(['design.blocks.3.via']);
+
+    $tpl = $this->postJson('/api/v1/documents/templates', ['key' => 'invoice', 'type' => 'html', 'form' => $orders, 'name' => ['en' => 'Invoice'], 'design' => $design, 'formats' => ['docx', 'pdf']])
+        ->assertCreated()->json('data');
+    expect($tpl['design']['footer'])->toEqual(['enabled' => true, 'text' => ['en' => '{{ @app }}'], 'pageNumbers' => 'page_of'])
+        ->and($tpl['design']['blocks'][1]['fields'])->toBe(['customer', 'issued_on|date:iso']);
+
+    $rec = $this->postJson("/api/v1/r/{$orders}", ['values' => ['customer' => 'Acme', 'issued_on' => '2026-10-14', 'total' => 1234.5, 'lines' => [['item' => 'Bolts', 'price' => 2.25]]]])->assertCreated()->json('data');
+    foreach ([['P-1', 100], ['P-2', 34.5]] as [$ref, $amount]) {
+        $this->postJson("/api/v1/r/{$payments}", ['values' => ['reference' => $ref, 'amount' => $amount, 'invoice' => $rec['uuid']]])->assertCreated();
+    }
+
+    $url = $this->postJson('/api/v1/documents/templates/preview', ['form' => $orders, 'record' => $rec['uuid'], 'design' => $design, 'locale' => 'en'])->assertOk()->json('data.url');
+    $page = $this->get($url)->assertOk()->getContent();
+    $name = $this->admin->name;
+    expect($page)->toContain('<h1 class="doc-title">Invoice for Acme</h1>')
+        ->and($page)->toContain('Issued 14 October 2026; total 1,234.50; in Arabic digits ١٬٢٣٤٫٥٠; by '.$name.'.')
+        ->and($page)->toContain('<td>2026-10-14</td>')
+        ->and($page)->toContain('<td>2.3</td>')
+        // Child records, with their own columns formatted.
+        ->and($page)->toContain('<td>P-1</td><td>100</td>')->and($page)->toContain('<td>P-2</td><td>35</td>')
+        ->and($page)->toContain('Prepared by '.$name)->and($page)->toContain('Approved by')
+        ->and(substr_count($page, 'src="data:image/png;base64,'))->toBe(2)
+        ->and($page)->toContain('Page 1 of 1');
+    $ar = $this->get($this->postJson('/api/v1/documents/templates/preview', ['form' => $orders, 'record' => $rec['uuid'], 'design' => $design, 'locale' => 'ar'])->json('data.url'))->getContent();
+    expect($ar)->toContain('فاتورة Acme')->and($ar)->toContain('أكتوبر');
+
+    // Word: the title, a header and a footer part with Word's own page fields, and the codes as images.
+    $word = $this->postJson("/api/v1/documents/templates/{$tpl['uuid']}/generate", ['record' => $rec['uuid'], 'format' => 'docx', 'locale' => 'en'])->assertCreated()->json('data');
+    $path = tempnam(sys_get_temp_dir(), 'inv');
+    file_put_contents($path, fetchGenerated($this, $word['url']));
+    $zip = new ZipArchive;
+    $zip->open($path);
+    $document = (string) $zip->getFromName('word/document.xml');
+    $footer = (string) $zip->getFromName('word/footer1.xml');
+    expect($document)->toContain('<w:pStyle w:val="Title"/>')->and($document)->toContain('Invoice for Acme')->and($document)->toContain('<w:headerReference')
+        ->and($document)->toContain('<w:footerReference')->and($document)->toContain('P-2')->and(substr_count($document, '<wp:inline'))->toBe(2)
+        ->and((string) $zip->getFromName('word/header1.xml'))->toContain('Prepared by '.$name)
+        ->and($footer)->toContain(' PAGE ')->and($footer)->toContain(' NUMPAGES ')
+        ->and($zip->getFromName('word/media/image1.png') !== false || $zip->locateName('word/media/', ZipArchive::FL_NODIR) !== false)->toBeTrue();
+    $zip->close();
+    $pdf = $this->postJson("/api/v1/documents/templates/{$tpl['uuid']}/generate", ['record' => $rec['uuid'], 'format' => 'pdf', 'locale' => 'ar'])->assertCreated()->json('data');
+    expect(fetchGenerated($this, $pdf['url']))->toStartWith('%PDF');
+
+    // Someone who may not see the payments gets the document without them.
+    $clerk = $this->makeUser();
+    grantPermission($clerk->id, "form.{$orders}.view");
+    $rt = app(FormRuntimes::class)->forUuid($orders);
+    $values = app(TemplateValues::class);
+    $ctx = $values->context($rt, (int) DB::table($rt->table)->where('uuid', $rec['uuid'])->value('id'), [$clerk], 'en');
+    expect($values->related($payments, 'invoice', ['reference'], 10, $ctx))->toBeNull();
 });

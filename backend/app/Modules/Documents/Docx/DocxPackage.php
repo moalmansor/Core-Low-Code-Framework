@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Documents\Docx;
 
+use App\Modules\Records\Templating\TemplateValues;
+use App\Modules\Records\Templating\ValueFormat;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -36,7 +38,8 @@ final class DocxPackage
 
     private const MAX_UNPACKED = 100 * 1024 * 1024;
 
-    private const TOKEN = '/\{\{\s*([@a-z0-9_.]+)\s*\}\}/i';
+    /** The placeholders of email and document templates, with their formats (TemplateValues::TOKEN). */
+    private const TOKEN = TemplateValues::TOKEN;
 
     /** Relationship types a template may point outside itself with. */
     private const EXTERNAL_OK = ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink'];
@@ -83,8 +86,11 @@ final class DocxPackage
                 self::normalize($xp);
                 foreach ($xp->query('//w:t') ?: [] as $t) {
                     preg_match_all(self::TOKEN, (string) $t->textContent, $m);
-                    foreach ($m[1] as $token) {
+                    foreach ($m[1] as $i => $token) {
                         $tokens[strtolower($token)] = true;
+                        if (trim($m[2][$i]) !== '' && ValueFormat::parse(ltrim(trim($m[2][$i]), '|')) === null) {
+                            $problems[] = 'bad_format';
+                        }
                     }
                 }
                 foreach ($xp->query('//w:tr') ?: [] as $tr) {
@@ -106,8 +112,8 @@ final class DocxPackage
     /**
      * The template with its placeholders filled.
      *
-     * @param  callable(string): string  $value  the text of a placeholder
-     * @param  callable(string, list<string>): ?list<array<string, string>>  $rows  a repeater's rows (column key => text) for the columns a row uses, or null when it is not a repeater
+     * @param  callable(string, string): string  $value  the text of a placeholder, given its path and format spec
+     * @param  callable(string, list<string>): ?list<array<string, string>>  $rows  a repeater's rows (column entry => text) for the column entries a row uses (`key` or `key|format`), or null when it is not a repeater
      * @return string the filled DOCX
      */
     public static function fill(string $path, callable $value, callable $rows): string
@@ -135,7 +141,7 @@ final class DocxPackage
                 self::repeatRows($xp, $rows);
                 foreach (iterator_to_array($xp->query('//w:t') ?: []) as $t) {
                     if ($t instanceof DOMElement && str_contains((string) $t->textContent, '{{')) {
-                        self::replace($t, (string) preg_replace_callback(self::TOKEN, static fn (array $m) => $value(strtolower($m[1])), (string) $t->textContent));
+                        self::replace($t, (string) preg_replace_callback(self::TOKEN, static fn (array $m) => $value(strtolower($m[1]), trim($m[2])), (string) $t->textContent));
                     }
                 }
                 $zip->addFromString($name, (string) $doc->saveXML());
@@ -294,12 +300,12 @@ final class DocxPackage
             preg_match_all(self::TOKEN, (string) $tr->textContent, $m);
             $columns = [];
             $group = null;
-            foreach ($m[1] as $token) {
+            foreach ($m[1] as $i => $token) {
                 $parts = explode('.', strtolower($token));
                 if (count($parts) === 2 && ! str_starts_with($parts[0], '@')) {
                     $group ??= $parts[0];
                     if ($parts[0] === $group) {
-                        $columns[] = $parts[1];
+                        $columns[] = self::entry($parts[1], $m[2][$i]);
                     }
                 }
             }
@@ -315,13 +321,21 @@ final class DocxPackage
                 $tr->parentNode->insertBefore($copy, $tr);
                 foreach (iterator_to_array($xp->query('.//w:t', $copy) ?: []) as $t) {
                     if ($t instanceof DOMElement && str_contains((string) $t->textContent, '{{')) {
-                        $text = (string) preg_replace_callback('/\{\{\s*'.preg_quote($group, '/').'\.([a-z0-9_]+)\s*\}\}/i', static fn (array $c) => $row[strtolower($c[1])] ?? '', (string) $t->textContent);
+                        $text = (string) preg_replace_callback('/\{\{\s*'.preg_quote($group, '/').'\.([a-z0-9_]+)\s*((?:\|\s*[a-z]+\s*(?::\s*[A-Za-z0-9_]+\s*)?)*)\}\}/i', static fn (array $c) => $row[self::entry(strtolower($c[1]), $c[2])] ?? '', (string) $t->textContent);
                         self::replace($t, $text);
                     }
                 }
             }
             $tr->parentNode->removeChild($tr);
         }
+    }
+
+    /** A repeater column as the rows callback names it: `key`, or `key|format` with its formats written without spaces. */
+    private static function entry(string $column, string $spec): string
+    {
+        $spec = (string) preg_replace('/\s+/', '', ltrim(trim($spec), '|'));
+
+        return $spec === '' ? $column : $column.'|'.$spec;
     }
 
     /** Sets a text element's text, turning line breaks into Word breaks. */
