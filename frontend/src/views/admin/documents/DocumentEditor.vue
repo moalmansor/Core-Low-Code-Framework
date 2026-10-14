@@ -390,7 +390,7 @@ function setAccent(v: string): void {
             </div>
             <div class="cfg-row">
               <ConfigField v-for="s in sides" :key="s" :label="t(`doc.margin_${s}`)" :for="`doc-m-${s}`" width="xs" :error="err(`paper.margins.${s}`)">
-                <InputNumber v-model="doc.paper.margins[s]" :input-id="`doc-m-${s}`" :min="0" :max="60" suffix=" mm" size="small" fluid />
+                <InputNumber v-model="doc.paper.margins[s]" :input-id="`doc-m-${s}`" :min="0" :max="60" :suffix="` ${t('doc.mm')}`" size="small" fluid />
               </ConfigField>
             </div>
           </ConfigSection>

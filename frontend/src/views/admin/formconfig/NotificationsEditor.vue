@@ -216,7 +216,15 @@ function setDocumentTemplate(item: AttachedDocument, uuid: string): void {
               <Select v-model="r.schedule.dateField" :input-id="`nr-date-${i}`" :options="dateFields" option-label="label" option-value="value" size="small" />
             </ConfigField>
             <ConfigField :label="t('notif.days')" :for="`nr-days-${i}`" width="xs">
-              <InputNumber :model-value="offsetDays(r)" :input-id="`nr-days-${i}`" :min="0" :max="365" size="small" @update:model-value="(v: number | null) => setOffset(r, v, offsetSide(r))" />
+              <InputNumber
+                :model-value="offsetDays(r)"
+                :input-id="`nr-days-${i}`"
+                :min="0"
+                :max="365"
+                :suffix="` ${t('notif.days_suffix')}`"
+                size="small"
+                @update:model-value="(v: number | null) => setOffset(r, v, offsetSide(r))"
+              />
             </ConfigField>
             <ConfigField :label="t('notif.side')" :for="`nr-side-${i}`" width="xs">
               <Select
@@ -243,14 +251,15 @@ function setDocumentTemplate(item: AttachedDocument, uuid: string): void {
           </div>
         </ConfigSection>
 
-        <ConfigSection id="nr-how" :title="t('notif.section.how')">
-          <div class="flex flex-wrap gap-4" role="group" :aria-label="t('notif.channels')">
-            <label v-for="c in ['in_app', 'email'] as const" :key="c" class="flex items-center gap-2">
-              <Checkbox :model-value="r.channels.includes(c)" binary :input-id="`nr-ch-${c}-${i}`" @update:model-value="(v: boolean) => toggleChannel(r, c, v)" />
-              <span>{{ t(`notif.channel.${c}`) }}</span>
-            </label>
-          </div>
-          <p v-if="err(`rules.${i}.channels`)" class="m-0 text-xs text-danger">{{ err(`rules.${i}.channels`) }}</p>
+        <ConfigSection id="nr-how" :title="t('notif.section.message')" :description="t('notif.section.message_desc')">
+          <ConfigField :label="t('notif.channels')" width="md" :error="err(`rules.${i}.channels`)">
+            <div class="flex flex-wrap gap-4" role="group" :aria-label="t('notif.channels')">
+              <label v-for="c in ['in_app', 'email'] as const" :key="c" class="flex items-center gap-2">
+                <Checkbox :model-value="r.channels.includes(c)" binary :input-id="`nr-ch-${c}-${i}`" @update:model-value="(v: boolean) => toggleChannel(r, c, v)" />
+                <span>{{ t(`notif.channel.${c}`) }}</span>
+              </label>
+            </div>
+          </ConfigField>
           <ConfigField :label="t('notif.template')" :for="`nr-tpl-${i}`" width="md" :hint="t('notif.template_hint')" :error="err(`rules.${i}.template`)">
             <Select v-model="r.template" :input-id="`nr-tpl-${i}`" :options="templateOptions" option-label="label" option-value="value" size="small" :data-testid="`nr-template-${i}`" />
           </ConfigField>
@@ -304,6 +313,9 @@ function setDocumentTemplate(item: AttachedDocument, uuid: string): void {
               <Button v-if="nextDocument(r)" icon="pi pi-plus" :label="t('notif.add_document')" size="small" text class="self-start" :data-testid="`nr-add-doc-${i}`" @click="addDocument(r)" />
             </div>
           </ConfigField>
+        </ConfigSection>
+
+        <ConfigSection id="nr-delivery" :title="t('notif.section.delivery')">
           <ConfigField :label="t('notif.delay')" :for="`nr-delay-${i}`" width="xs" :hint="t('notif.delay_hint')" :error="err(`rules.${i}.delayMinutes`)">
             <InputNumber v-model="r.delayMinutes" :input-id="`nr-delay-${i}`" :min="0" :max="43200" size="small" :suffix="` ${t('workflow.minutes')}`" />
           </ConfigField>

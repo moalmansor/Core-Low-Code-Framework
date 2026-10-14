@@ -62,6 +62,7 @@
   "doc.margin_left": "Left margin",
   "doc.margin_right": "Right margin",
   "doc.margin_top": "Top margin",
+  "doc.mm": "mm",
   "doc.name": "Name",
   "doc.new": "New document template",
   "doc.no_blueprints_text": "Open a saved template and choose Save as blueprint to reuse it for other forms.",

@@ -87,7 +87,9 @@ const subtitle = (p: ProfileSummary) =>
     <Message v-if="loadError" severity="error">{{ loadError }}</Message>
     <EmptyState v-else-if="!published" icon="pi pi-lock" :title="t('dl.unpublished_title')" :description="t('dl.publish_first')" testid="dl-unpublished" />
     <template v-else-if="profiles">
-      <EmptyState v-if="!profiles.length" icon="pi pi-download" :title="t('dl.empty_title')" :description="t('dl.empty_text')" testid="dl-empty" />
+      <EmptyState v-if="!profiles.length" icon="pi pi-download" :title="t('dl.empty_title')" :description="t('dl.empty_text')" testid="dl-empty">
+        <Button icon="pi pi-plus" :label="t('dl.new')" size="small" data-testid="dl-new" @click="open('new')" />
+      </EmptyState>
       <ul v-else class="m-0 p-0 list-none flex flex-col gap-2">
         <li v-for="p in profiles" :key="p.uuid" class="dl-row" :data-testid="`dl-profile-${p.uuid}`">
           <button type="button" class="dl-open" @click="open(p.uuid)">
@@ -99,7 +101,7 @@ const subtitle = (p: ProfileSummary) =>
           <Button icon="pi pi-trash" text rounded size="small" severity="danger" :aria-label="t('dl.delete')" @click="remove(p)" />
         </li>
       </ul>
-      <Button icon="pi pi-plus" :label="t('dl.new')" size="small" outlined class="self-start" data-testid="dl-new" @click="open('new')" />
+      <Button v-if="profiles.length" icon="pi pi-plus" :label="t('dl.new')" size="small" outlined class="self-start" data-testid="dl-new" @click="open('new')" />
     </template>
   </div>
 </template>

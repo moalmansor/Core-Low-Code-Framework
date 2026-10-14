@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
+import DatePicker from 'primevue/datepicker'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
@@ -12,8 +13,9 @@ import { useToast } from 'primevue/usetoast'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ApiError, get } from '@/api/http'
+import ConfigField from '@/components/config/ConfigField.vue'
 import SubjectPicker from '@/components/SubjectPicker.vue'
-import { errorText } from '@/views/admin/building/shared'
+import { errorText, isoDay, parseIsoDay } from '@/views/admin/building/shared'
 import { downloadsApi, finishedJob, type AvailableProfile, type DlFormat, type DownloadJob } from '@/views/downloads/api'
 import { joinList } from '@/runtime/lists'
 
@@ -25,7 +27,7 @@ import { joinList } from '@/runtime/lists'
  * the file. Columns the user may not see are left out, and the dialog says
  * which.
  */
-const { t, locale } = useI18n()
+const { t, n, locale } = useI18n()
 const toast = useToast()
 const visible = ref(false)
 const form = ref('')
@@ -153,49 +155,71 @@ defineExpose({ open, follow })
     <div class="flex flex-col gap-4">
       <template v-if="!job && profile">
         <p v-if="profile.description" class="m-0 text-sm text-muted-color" dir="auto">{{ profile.description }}</p>
-        <div class="field">
-          <span class="text-sm font-medium">{{ t('dl.format_label') }}</span>
-          <SelectButton v-model="format" :options="formats" option-label="label" option-value="value" :allow-empty="false" size="small" data-testid="download-format" />
-        </div>
-        <fieldset v-if="!context.record && profile.allowSelected && selectedCount > 0" class="field border-0 p-0 m-0">
+        <ConfigField :label="t('dl.format_label')" width="lg">
+          <SelectButton
+            v-model="format"
+            :options="formats"
+            option-label="label"
+            option-value="value"
+            :allow-empty="false"
+            size="small"
+            :aria-label="t('dl.format_label')"
+            data-testid="download-format"
+          />
+        </ConfigField>
+        <fieldset v-if="!context.record && profile.allowSelected && selectedCount > 0" class="flex flex-col gap-2 border-0 p-0 m-0">
           <legend class="text-sm font-medium mb-1">{{ t('dl.which_records') }}</legend>
           <label class="inline-flex items-center gap-2 text-sm">
             <RadioButton v-model="scope" input-id="dl-scope-all" value="all" />{{ profile.applyUserFilters ? t('dl.scope_filtered') : t('dl.scope_all') }}
           </label>
           <label class="inline-flex items-center gap-2 text-sm">
-            <RadioButton v-model="scope" input-id="dl-scope-selected" value="selected" />{{ t('dl.scope_selected', { n: selectedCount }) }}
+            <RadioButton v-model="scope" input-id="dl-scope-selected" value="selected" />{{ t('dl.scope_selected', { n: n(selectedCount) }) }}
           </label>
         </fieldset>
         <p v-else-if="!context.record && profile.applyUserFilters" class="m-0 text-xs text-muted-color">{{ t('dl.follows_filters') }}</p>
-        <div v-for="p in profile.parameters" :key="p.key" class="field">
-          <label :for="`dlp-${p.key}`" class="text-sm font-medium">{{ p.label }}<span v-if="p.required" class="text-danger" aria-hidden="true"> *</span></label>
-          <Select v-if="p.type === 'choice'" v-model="params[p.key]" :input-id="`dlp-${p.key}`" :options="p.options" option-label="label" option-value="value" show-clear size="small" class="w-full" />
-          <InputNumber
-            v-else-if="p.type === 'number'"
-            :model-value="numberParam(p.key)"
+        <ConfigField
+          v-for="p in profile.parameters"
+          :key="p.key"
+          :label="p.label"
+          :for="`dlp-${p.key}`"
+          :width="p.type === 'number' || p.type === 'date' ? 'sm' : 'md'"
+          :required="p.required"
+          :error="errors[p.key]"
+        >
+          <Select v-if="p.type === 'choice'" v-model="params[p.key]" :input-id="`dlp-${p.key}`" :options="p.options" option-label="label" option-value="value" show-clear size="small" />
+          <InputNumber v-else-if="p.type === 'number'" :model-value="numberParam(p.key)" :input-id="`dlp-${p.key}`" size="small" @update:model-value="(v: number | null) => (params[p.key] = v)" />
+          <DatePicker
+            v-else-if="p.type === 'date'"
+            :model-value="parseIsoDay(params[p.key] as string | null)"
             :input-id="`dlp-${p.key}`"
+            date-format="yy-mm-dd"
+            show-button-bar
             size="small"
-            fluid
-            @update:model-value="(v: number | null) => (params[p.key] = v)"
+            :data-testid="`download-param-${p.key}`"
+            @update:model-value="(d) => (params[p.key] = d instanceof Date ? isoDay(d) : null)"
           />
-          <InputText v-else-if="p.type === 'date'" :id="`dlp-${p.key}`" v-model="params[p.key] as string" type="date" size="small" class="w-full" :data-testid="`download-param-${p.key}`" />
-          <div v-else-if="p.type === 'date_range'" class="flex gap-2">
-            <InputText
-              :id="`dlp-${p.key}`"
-              :model-value="rangeValue(p.key, 'from')"
-              type="date"
+          <div v-else-if="p.type === 'date_range'" class="flex flex-wrap gap-2">
+            <DatePicker
+              :model-value="parseIsoDay(rangeValue(p.key, 'from'))"
+              :input-id="`dlp-${p.key}`"
+              date-format="yy-mm-dd"
+              show-button-bar
               size="small"
-              class="flex-1"
+              class="w-field-sm"
+              :placeholder="t('dl.from')"
               :aria-label="t('dl.from')"
-              @update:model-value="(v: string | undefined) => setRange(p.key, 'from', v ?? '')"
+              @update:model-value="(d) => setRange(p.key, 'from', d instanceof Date ? isoDay(d) : '')"
             />
-            <InputText
-              :model-value="rangeValue(p.key, 'to')"
-              type="date"
+            <DatePicker
+              :model-value="parseIsoDay(rangeValue(p.key, 'to'))"
+              date-format="yy-mm-dd"
+              show-button-bar
               size="small"
-              class="flex-1"
+              class="w-field-sm"
+              :placeholder="t('dl.to')"
               :aria-label="t('dl.to')"
-              @update:model-value="(v: string | undefined) => setRange(p.key, 'to', v ?? '')"
+              :min-date="parseIsoDay(rangeValue(p.key, 'from')) ?? undefined"
+              @update:model-value="(d) => setRange(p.key, 'to', d instanceof Date ? isoDay(d) : '')"
             />
           </div>
           <SubjectPicker
@@ -205,9 +229,8 @@ defineExpose({ open, follow })
             :input-id="`dlp-${p.key}`"
             @update:model-value="(v: { uuid: string | null } | null) => (params[p.key] = v?.uuid ?? null)"
           />
-          <InputText v-else :id="`dlp-${p.key}`" v-model="params[p.key] as string" size="small" class="w-full" :data-testid="`download-param-${p.key}`" />
-          <p v-if="errors[p.key]" class="m-0 mt-1 text-xs text-danger">{{ errors[p.key] }}</p>
-        </div>
+          <InputText v-else :id="`dlp-${p.key}`" v-model="params[p.key] as string" size="small" :data-testid="`download-param-${p.key}`" />
+        </ConfigField>
         <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
       </template>
 

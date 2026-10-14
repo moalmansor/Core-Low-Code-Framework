@@ -425,6 +425,9 @@ const name = computed(() => (doc.value ? labelOf(doc.value.i18n.name, locale.val
             </div>
           </ConfigField>
         </div>
+      </ConfigSection>
+
+      <ConfigSection id="auto-limits" :title="t('auto.section.limits')" :description="t('auto.limits_hint')">
         <div class="cfg-row">
           <ConfigField :label="t('auto.max_records')" for="auto-max" width="xs" :hint="t('auto.max_records_hint')" :error="err('maxRecords')">
             <InputNumber v-model="doc.maxRecords" input-id="auto-max" :min="1" :max="100000" size="small" fluid />
@@ -435,7 +438,13 @@ const name = computed(() => (doc.value ? labelOf(doc.value.i18n.name, locale.val
           <ConfigField :label="t('auto.concurrency')" for="auto-conc" width="xs" :hint="t('auto.concurrency_hint')" :error="err('concurrency')">
             <InputNumber v-model="doc.concurrency" input-id="auto-conc" :min="1" :max="50" size="small" fluid />
           </ConfigField>
+          <ConfigField :label="t('auto.max_chain_depth')" for="auto-depth" width="xs" :hint="t('auto.max_chain_depth_hint')" :error="err('maxChainDepth')">
+            <InputNumber v-model="doc.maxChainDepth" input-id="auto-depth" :min="1" :max="10" size="small" fluid />
+          </ConfigField>
         </div>
+      </ConfigSection>
+
+      <ConfigSection id="auto-retry" :title="t('auto.section.retry')" :description="t('auto.retry_hint')">
         <div class="cfg-row">
           <ConfigField :label="t('auto.max_attempts')" for="auto-attempts" width="xs" :hint="t('auto.max_attempts_hint')" :error="err('retry.maxAttempts')">
             <InputNumber v-model="doc.retry.maxAttempts" input-id="auto-attempts" :min="1" :max="10" size="small" fluid />
@@ -474,9 +483,6 @@ const name = computed(() => (doc.value ? labelOf(doc.value.i18n.name, locale.val
                 @click="doc.retry.backoffSeconds.push(doc.retry.backoffSeconds.at(-1) ?? 60)"
               />
             </div>
-          </ConfigField>
-          <ConfigField :label="t('auto.max_chain_depth')" for="auto-depth" width="xs" :hint="t('auto.max_chain_depth_hint')" :error="err('maxChainDepth')">
-            <InputNumber v-model="doc.maxChainDepth" input-id="auto-depth" :min="1" :max="10" size="small" fluid />
           </ConfigField>
         </div>
       </ConfigSection>

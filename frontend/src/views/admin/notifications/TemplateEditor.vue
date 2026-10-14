@@ -243,7 +243,7 @@ function setAccent(v: string): void {
           </ConfigField>
           <div class="cfg-row">
             <ConfigField :label="t('tpl.preview_as')" for="tpl-as" width="md" :hint="t('tpl.preview_as_hint')">
-              <UserPicker v-model="previewUser" />
+              <UserPicker v-model="previewUser" input-id="tpl-as" />
             </ConfigField>
             <ConfigField :label="t('tpl.preview_locale')" for="tpl-loc" width="xs">
               <Select v-model="previewLocale" input-id="tpl-loc" :options="locales" option-label="label" option-value="value" size="small" />

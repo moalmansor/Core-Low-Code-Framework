@@ -45,7 +45,7 @@ test('a profile is built from the relation tree with a live preview, then downlo
   await page.getByTestId('dl-pick-Visitor').click()
   await page.getByTestId('dl-pick-Visit date').click()
   await page.getByTestId('dl-pick-Status').click()
-  await page.getByRole('button', { name: 'Output' }).click()
+  await page.getByRole('button', { name: 'File', exact: true }).click()
   await page.getByTestId('dl-format-csv').click()
   await expect(page.getByTestId('dl-preview')).toContainText(`Download ${tag}`, { timeout: 15_000 })
   await expect(page.getByTestId('dl-preview').locator('th')).toHaveText(['Visitor', 'Visit date', 'Status'])

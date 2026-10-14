@@ -8,6 +8,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import FormPicker from '@/builder/FormPicker.vue'
+import ConfigField from '@/components/config/ConfigField.vue'
 import EmptyState from '@/components/config/EmptyState.vue'
 import TabIntro from '@/components/config/TabIntro.vue'
 import { formatDatetime } from '@/runtime/format'
@@ -83,7 +84,10 @@ const sorted = computed(() => [...(rows.value ?? [])].sort((x, y) => x.name.loca
     <Message v-if="loadError" severity="error">{{ loadError }}</Message>
     <EmptyState v-else-if="!published" icon="pi pi-lock" :title="t('auto.unpublished_title')" :description="t('auto.publish_first')" testid="auto-unpublished" />
     <template v-else-if="rows">
-      <EmptyState v-if="!rows.length" icon="pi pi-bolt" :title="t('auto.empty_title')" :description="t('auto.empty_text')" testid="auto-empty" />
+      <EmptyState v-if="!rows.length && form" icon="pi pi-bolt" :title="t('auto.empty_title')" :description="t('auto.empty_text')" testid="auto-empty">
+        <Button icon="pi pi-plus" :label="t('auto.new')" size="small" data-testid="auto-new" @click="open(form, 'new')" />
+      </EmptyState>
+      <EmptyState v-else-if="!rows.length" icon="pi pi-bolt" :title="t('auto.empty_title')" :description="t('auto.empty_text')" testid="auto-empty" />
       <ul v-else class="m-0 p-0 list-none flex flex-col gap-2">
         <li v-for="a in sorted" :key="a.uuid" class="auto-row" :data-testid="`auto-row-${a.key}`">
           <button type="button" class="auto-open" @click="open(a.form?.uuid ?? form ?? '', a.uuid)">
@@ -95,12 +99,11 @@ const sorted = computed(() => [...(rows.value ?? [])].sort((x, y) => x.name.loca
           <Button icon="pi pi-trash" text rounded size="small" severity="danger" :aria-label="t('auto.delete')" @click="remove(a)" />
         </li>
       </ul>
-      <Button v-if="form" icon="pi pi-plus" :label="t('auto.new')" size="small" outlined class="self-start" data-testid="auto-new" @click="open(form, 'new')" />
-      <div v-else class="flex flex-wrap items-end gap-2">
-        <div class="field w-field-md">
-          <label for="auto-new-form" class="text-sm font-medium">{{ t('auto.new_for_form') }}</label>
+      <Button v-if="form && rows.length" icon="pi pi-plus" :label="t('auto.new')" size="small" outlined class="self-start" data-testid="auto-new" @click="open(form, 'new')" />
+      <div v-else-if="!form" class="flex flex-wrap items-end gap-2">
+        <ConfigField :label="t('auto.new_for_form')" for="auto-new-form">
           <FormPicker v-model="newForm" input-id="auto-new-form" />
-        </div>
+        </ConfigField>
         <Button icon="pi pi-plus" :label="t('auto.new')" size="small" outlined :disabled="!newForm" data-testid="auto-new" @click="newForm && open(newForm, 'new')" />
       </div>
     </template>

@@ -378,6 +378,9 @@ const back = computed(() => (personal ? { name: 'records.downloads', params: { f
             <InputText id="dl-key" v-model="doc.key" dir="ltr" class="ltr-value" size="small" maxlength="48" data-testid="dl-key" />
           </ConfigField>
           <I18nInput v-model="doc.i18n.description" class="w-field-lg" multiline :rows="2" :label="t('dl.description')" :maxlength="1000" />
+        </ConfigSection>
+
+        <ConfigSection id="dl-offer" :title="t('dl.section.offer')" :description="t('dl.offer_hint')">
           <ConfigField :label="t('dl.available_in')" for="dl-place-table_toolbar" width="lg" :error="err('availableIn')">
             <div class="flex flex-wrap gap-4">
               <label v-for="p in ['table_toolbar', 'record_view'] as const" :key="p" class="inline-flex items-center gap-2 text-sm">
@@ -597,25 +600,31 @@ const back = computed(() => (personal ? { name: 'records.downloads', params: { f
               <InputNumber v-model="doc.maxRows" input-id="dl-max" :min="0" size="small" fluid />
             </ConfigField>
           </div>
-          <h4 class="m-0 text-sm font-semibold">{{ t('dl.format.xlsx') }}</h4>
-          <SettingSwitch id="dl-x-style" v-model="doc.xlsx.styledHeader" :label="t('dl.xlsx.styled')" :description="t('dl.xlsx.styled_desc')" />
-          <SettingSwitch id="dl-x-freeze" v-model="doc.xlsx.freezeHeader" :label="t('dl.xlsx.freeze')" :description="t('dl.xlsx.freeze_desc')" />
-          <SettingSwitch id="dl-x-title" v-model="doc.xlsx.titleRow" :label="t('dl.xlsx.title')" :description="t('dl.xlsx.title_desc')" />
-          <SettingSwitch id="dl-x-logo" v-model="doc.xlsx.logo" :label="t('dl.xlsx.logo')" :description="t('dl.xlsx.logo_desc')" />
-          <h4 class="m-0 text-sm font-semibold">{{ t('dl.format.csv') }}</h4>
-          <div class="cfg-row">
-            <ConfigField :label="t('dl.delimiter')" for="dl-delim" width="sm">
-              <Select v-model="doc.csv.delimiter" input-id="dl-delim" :options="delimiters" option-label="label" option-value="value" size="small" />
+          <template v-if="doc.formats.includes('xlsx')">
+            <h4 class="m-0 text-sm font-semibold">{{ t('dl.format.xlsx') }}</h4>
+            <SettingSwitch id="dl-x-style" v-model="doc.xlsx.styledHeader" :label="t('dl.xlsx.styled')" :description="t('dl.xlsx.styled_desc')" />
+            <SettingSwitch id="dl-x-freeze" v-model="doc.xlsx.freezeHeader" :label="t('dl.xlsx.freeze')" :description="t('dl.xlsx.freeze_desc')" />
+            <SettingSwitch id="dl-x-title" v-model="doc.xlsx.titleRow" :label="t('dl.xlsx.title')" :description="t('dl.xlsx.title_desc')" />
+            <SettingSwitch id="dl-x-logo" v-model="doc.xlsx.logo" :label="t('dl.xlsx.logo')" :description="t('dl.xlsx.logo_desc')" />
+          </template>
+          <template v-if="doc.formats.includes('csv')">
+            <h4 class="m-0 text-sm font-semibold">{{ t('dl.format.csv') }}</h4>
+            <div class="cfg-row">
+              <ConfigField :label="t('dl.delimiter')" for="dl-delim" width="sm">
+                <Select v-model="doc.csv.delimiter" input-id="dl-delim" :options="delimiters" option-label="label" option-value="value" size="small" />
+              </ConfigField>
+            </div>
+            <SettingSwitch id="dl-bom" v-model="doc.csv.bom" :label="t('dl.bom')" :description="t('dl.bom_desc')" />
+          </template>
+          <template v-if="doc.formats.includes('pdf')">
+            <h4 class="m-0 text-sm font-semibold">{{ t('dl.format.pdf') }}</h4>
+            <ConfigField :label="t('doc.orientation')" for="dl-orient" width="lg">
+              <SelectButton v-model="doc.pdf.orientation" :options="orientations" option-label="label" option-value="value" :allow-empty="false" size="small" />
             </ConfigField>
-          </div>
-          <SettingSwitch id="dl-bom" v-model="doc.csv.bom" :label="t('dl.bom')" :description="t('dl.bom_desc')" />
-          <h4 class="m-0 text-sm font-semibold">{{ t('dl.format.pdf') }}</h4>
-          <ConfigField :label="t('doc.orientation')" for="dl-orient" width="lg">
-            <SelectButton v-model="doc.pdf.orientation" :options="orientations" option-label="label" option-value="value" :allow-empty="false" size="small" />
-          </ConfigField>
-          <I18nInput v-model="doc.pdf.header" class="w-field-lg" :label="t('dl.pdf_header')" :maxlength="255" />
-          <I18nInput v-model="doc.pdf.footer" class="w-field-lg" :label="t('dl.pdf_footer')" :maxlength="255" />
-          <SettingSwitch id="dl-pages" v-model="doc.pdf.pageNumbers" :label="t('dl.page_numbers')" :description="t('dl.page_numbers_desc')" />
+            <I18nInput v-model="doc.pdf.header" class="w-field-lg" :label="t('dl.pdf_header')" :maxlength="255" />
+            <I18nInput v-model="doc.pdf.footer" class="w-field-lg" :label="t('dl.pdf_footer')" :maxlength="255" />
+            <SettingSwitch id="dl-pages" v-model="doc.pdf.pageNumbers" :label="t('dl.page_numbers')" :description="t('dl.page_numbers_desc')" />
+          </template>
         </ConfigSection>
 
         <ConfigSection v-if="!isNew && uuid" id="dl-schedules" :title="t('dl.section.schedules')" :description="t('dl.schedules_hint')" :default-open="false">
