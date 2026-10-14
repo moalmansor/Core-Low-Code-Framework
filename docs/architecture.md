@@ -2850,6 +2850,7 @@ erDiagram
 | `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 | `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `builtin`, `custom` |
 | `builtin` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `export`, `import`, `print`, `duplicate`, `bulk_delete`, `bulk_status`, `bulk_update`, `bulk_reassign`, `download` |
+| `settings` | JSON | NVARCHAR(MAX) | NULL | — | a built-in's own settings: for `bulk_status`, `{transition}` — the transition it always makes ("Approve all selected"), or null to let the person choose |
 | `placements` | JSON | NVARCHAR(MAX) | NOT NULL | — | subset of `row`,`bulk`,`toolbar`,`view_page` |
 | `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION (availability) |
 | `requires_confirmation` | TINYINT(1) | BIT | NOT NULL | 0 |  |
@@ -4413,7 +4414,7 @@ admin-created, never seeded.
 | `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 | `deleted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | soft delete |
 | `deleted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
-| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `form`, `collection`, `workflow`, `view`, `action`, `notification`, `dashboard`, `application` |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `form`, `collection`, `workflow`, `view`, `action`, `notification`, `dashboard`, `application`, `document_template` (Phase 4, ADR-0046) |
 | `category` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
 | `tags` | JSON | NVARCHAR(MAX) | NULL | — |  |
 | `is_library` | TINYINT(1) | BIT | NOT NULL | 0 | appears in template library |

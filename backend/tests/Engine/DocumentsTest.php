@@ -350,3 +350,49 @@ it('formats values, lists linked child records, signs, carries a QR code and run
     $ctx = $values->context($rt, (int) DB::table($rt->table)->where('uuid', $rec['uuid'])->value('id'), [$clerk], 'en');
     expect($values->related($payments, 'invoice', ['reference'], 10, $ctx))->toBeNull();
 });
+
+it('saves a template as a blueprint, makes templates from it for other forms, exports it and propagates a new version', function () {
+    $form = ordersForm($this);
+    [, $other] = createForm($this, 'quotes');
+    saveDraft($this, $other, [], [fieldDoc('customer', 'text')])->assertOk();
+    expect(publish($this, $other)['status'])->toBe('applied');
+    $design = ['title' => ['en' => 'For {{ customer }}'], 'blocks' => [['type' => 'text', 'text' => ['en' => 'Dear {{ customer }}']]]];
+    $tpl = $this->postJson('/api/v1/documents/templates', ['key' => 'letter', 'type' => 'html', 'form' => $form, 'name' => ['en' => 'Letter'], 'design' => $design, 'formats' => ['pdf']])->assertCreated()->json('data');
+    $word = $this->post('/api/v1/documents/uploads', ['file' => wordFile('<w:p><w:r><w:t>Hi {{ customer }}</w:t></w:r></w:p>'), 'form' => $form])->assertCreated()->json('data');
+    $sheet = $this->postJson('/api/v1/documents/templates', ['key' => 'sheet', 'type' => 'docx', 'form' => $form, 'name' => ['en' => 'Sheet'], 'files' => ['en' => $word['uuid']], 'formats' => ['docx']])->assertCreated()->json('data');
+
+    $bp = $this->postJson('/api/v1/blueprints', ['source' => $tpl['uuid'], 'source_type' => 'document_template', 'name' => ['en' => 'Letter blueprint']])->assertCreated()->json('data.uuid');
+    $wordBp = $this->postJson('/api/v1/blueprints', ['source' => $sheet['uuid'], 'source_type' => 'document_template', 'name' => ['en' => 'Sheet blueprint']])->assertCreated()->json('data.uuid');
+    expect($this->getJson('/api/v1/blueprints?kind=document_template')->assertOk()->json('data'))->toHaveCount(2);
+
+    // A template for another form with the same field keys; the Word file travels inside the blueprint.
+    $made = $this->postJson("/api/v1/blueprints/{$bp}/instantiate", ['form' => $other, 'key' => 'quote_letter'])->assertCreated()->json('data');
+    $copy = $this->getJson("/api/v1/documents/templates/{$made['uuid']}")->assertOk()->json('data');
+    expect($copy['design']['title'])->toBe(['en' => 'For {{ customer }}'])->and($copy['form'])->toBe(strtolower($other))->and($copy['name'])->toBe(['en' => 'Letter']);
+    $wordCopy = $this->postJson("/api/v1/blueprints/{$wordBp}/instantiate", ['form' => $other, 'key' => 'quote_sheet', 'name' => ['en' => 'Quote sheet']])->assertCreated()->json('data');
+    expect($this->getJson("/api/v1/documents/templates/{$wordCopy['uuid']}")->json('data.files.en.name'))->toBe('template.docx');
+    // Placeholders are checked against the form the template is made for.
+    [, $bare] = createForm($this, 'bare');
+    saveDraft($this, $bare, [], [fieldDoc('title', 'text')])->assertOk();
+    expect(publish($this, $bare)['status'])->toBe('applied');
+    $this->postJson("/api/v1/blueprints/{$bp}/instantiate", ['form' => $bare, 'key' => 'bare_letter'])->assertStatus(422);
+
+    // Export carries a hash that import checks; tampering is refused.
+    $export = $this->getJson("/api/v1/blueprints/{$wordBp}/export")->assertOk()->json();
+    expect($export['blueprint']['kind'])->toBe('document_template')->and($export['versions'][0]['content']['template']['files']['en']['data'])->not->toBe('');
+    $tampered = $export;
+    $tampered['versions'][0]['content']['template']['name'] = ['en' => 'Other'];
+    $file = static fn (array $payload) => UploadedFile::fake()->createWithContent('bp.json', (string) json_encode($payload));
+    $this->withHeader('Accept', 'application/json')->post('/api/v1/blueprints/import', ['file' => $file($tampered)])->assertStatus(422);
+    expect($this->post('/api/v1/blueprints/import', ['file' => $file($export)])->assertCreated()->json('data.versions_added'))->toBe(0);
+
+    // A new version reaches the template made from it, unless that template changed the same part.
+    $fresh = $this->getJson("/api/v1/documents/templates/{$tpl['uuid']}")->json('data');
+    $this->putJson("/api/v1/documents/templates/{$tpl['uuid']}", ['key' => 'letter', 'type' => 'html', 'form' => $form, 'name' => ['en' => 'Letter'], 'formats' => ['pdf'], 'base_hash' => $fresh['hash'],
+        'design' => $design + ['footer' => ['enabled' => true, 'text' => ['en' => 'Thank you'], 'pageNumbers' => 'page']]])->assertOk();
+    $this->postJson("/api/v1/blueprints/{$bp}/versions", ['changelog' => 'Footer'])->assertCreated();
+    $preview = $this->getJson("/api/v1/blueprints/{$bp}/propagation-preview")->assertOk()->json('data');
+    expect($preview[0]['changes'])->toBe([['kind' => 'document_template', 'uuid' => null, 'label' => 'design', 'action' => 'update', 'status' => 'apply', 'reason' => null]]);
+    $this->postJson("/api/v1/blueprints/{$bp}/propagate", [])->assertOk()->assertJsonPath('data.0.status', 'applied');
+    expect($this->getJson("/api/v1/documents/templates/{$made['uuid']}")->json('data.design.footer.text'))->toBe(['en' => 'Thank you']);
+});

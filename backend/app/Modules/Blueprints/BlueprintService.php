@@ -12,6 +12,7 @@ use App\Modules\Blueprints\Models\Blueprint;
 use App\Modules\Blueprints\Models\BlueprintInstance;
 use App\Modules\Blueprints\Models\BlueprintVersion;
 use App\Modules\Core\Tenancy\TenantContext;
+use App\Modules\Documents\DocumentBlueprints;
 use App\Modules\Forms\Definition\PublishedDefinitions;
 use App\Modules\Forms\Draft\DraftInvalid;
 use App\Modules\Forms\Draft\DraftRepository;
@@ -525,7 +526,7 @@ final class BlueprintService
             throw ValidationException::withMessages(['file' => __('blueprints.import_format')]);
         }
         $meta = $payload['blueprint'];
-        if (! in_array($meta['kind'] ?? null, ['form', 'collection', 'view'], true)) {
+        if (! in_array($meta['kind'] ?? null, ['form', 'collection', 'view', DocumentBlueprints::KIND], true)) {
             throw ValidationException::withMessages(['file' => __('blueprints.kind_unavailable')]);
         }
         $versions = $payload['versions'];
@@ -537,6 +538,14 @@ final class BlueprintService
             }
             if (($content['kind'] ?? null) !== $meta['kind'] || ! isset(self::MODES[$v['includeMode'] ?? ''])) {
                 throw ValidationException::withMessages(['file' => __('blueprints.import_format')]);
+            }
+            if ($meta['kind'] === DocumentBlueprints::KIND) {
+                // A document template blueprint: its design or Word files, paper and formats, checked again when a template is made from it.
+                if (! DocumentBlueprints::valid($content)) {
+                    throw ValidationException::withMessages(['file' => __('blueprints.import_invalid', ['version' => $v['version'] ?? $i + 1])]);
+                }
+
+                continue;
             }
             if ($meta['kind'] === 'view') {
                 // A view blueprint: settings plus columns and filters addressed by relation path.
