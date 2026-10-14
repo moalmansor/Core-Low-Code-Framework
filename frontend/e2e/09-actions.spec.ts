@@ -92,7 +92,8 @@ test('a built-in bulk update runs on a selection, a custom action runs from the 
   await page.getByRole('option', { name: 'Visit date' }).click()
   // A date field takes a date picker; typing the day works as well as picking it.
   await dialog.locator('#act-run-value').fill('2026-12-24')
-  await dialog.getByText('Records: 2').click()
+  await page.locator('.p-datepicker-panel .p-datepicker-day-selected').click()
+  await expect(page.locator('.p-datepicker-panel')).toBeHidden()
   // The dialog names the records and can try the run first without keeping anything (§4.35).
   await expect(dialog.getByTestId('action-preview')).toContainText(`Act ${tag} one`)
   await dialog.getByTestId('action-try').click()

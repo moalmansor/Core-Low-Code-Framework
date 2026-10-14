@@ -127,7 +127,8 @@ test('an automation runs when a record is created, is tested without keeping cha
   })
   await page.goto('/admin/scheduled-tasks')
   const row = page.getByTestId('scheduled-tasks').getByRole('row', { name: new RegExp(`Nightly ${tag}`) })
-  await expect(row).toContainText('15 2 * * *')
+  // The schedule reads as words; the cron expression stays in its tooltip.
+  await expect(row).toContainText('Every day at 02:15')
   await expect(row).toContainText('Asia/Riyadh')
   await page.screenshot({ path: 'test-results/scheduled-tasks.png', fullPage: true })
 
