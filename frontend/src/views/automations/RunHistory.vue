@@ -8,7 +8,10 @@ import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import EmptyValue from '@/components/EmptyValue.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
 import { formatDatetime } from '@/runtime/format'
+import { useSession } from '@/stores/session'
 import { errorText } from '@/views/admin/building/shared'
 import { automationsApi, runSeverity, type RunDetail, type RunStatus, type RunSummary } from './api'
 import RunDetailView from './RunDetailView.vue'
@@ -19,7 +22,8 @@ import RunDetailView from './RunDetailView.vue'
  * automations confirm a large run, cancel a waiting one, or retry a failed one.
  */
 const props = defineProps<{ automation: string; canRun: boolean }>()
-const { t, locale } = useI18n()
+const { t, n, locale } = useI18n()
+const session = useSession()
 const toast = useToast()
 const rows = ref<RunSummary[]>([])
 const total = ref(0)
@@ -74,7 +78,7 @@ async function act(kind: 'confirm' | 'cancel' | 'retry'): Promise<void> {
     busy.value = false
   }
 }
-const duration = (ms: number | null) => (ms === null ? '—' : t('auto.duration_s', { s: (ms / 1000).toFixed(1) }))
+const duration = (ms: number) => t('auto.duration_s', { s: n(ms / 1000, { maximumFractionDigits: 1 }) })
 </script>
 
 <template>
@@ -84,7 +88,7 @@ const duration = (ms: number | null) => (ms === null ? '—' : t('auto.duration_
       <Button icon="pi pi-refresh" :label="t('auto.refresh')" text size="small" data-testid="auto-runs-refresh" @click="load" />
     </div>
     <DataTable :value="rows" lazy paginator :rows="25" :total-records="total" :loading="loading" data-key="uuid" size="small" selection-mode="single" @row-click="(e) => show(e.data)" @page="onPage">
-      <template #empty>{{ t('auto.no_runs') }}</template>
+      <template #empty><EmptyState icon="pi pi-history" :title="t('auto.no_runs')" /></template>
       <Column :header="t('auto.started')">
         <template #body="{ data }">{{ formatDatetime(data.started_at ?? data.created_at, locale) }}</template>
       </Column>
@@ -92,16 +96,24 @@ const duration = (ms: number | null) => (ms === null ? '—' : t('auto.duration_
         <template #body="{ data }"> {{ t(`auto.trigger.${data.trigger}`) }}<Tag v-if="data.test" severity="info" :value="t('auto.test_run')" class="ms-1" /> </template>
       </Column>
       <Column :header="t('auto.records')">
-        <template #body="{ data }">{{ t('auto.records_value', { n: data.records, changed: data.affected }) }}</template>
+        <template #body="{ data }">{{ t('auto.records_value', { n: n(data.records), changed: n(data.affected) }) }}</template>
       </Column>
       <Column :header="t('auto.duration')">
-        <template #body="{ data }">{{ duration(data.duration_ms) }}</template>
+        <template #body="{ data }"
+          ><EmptyValue v-if="data.duration_ms === null" /><template v-else>{{ duration(data.duration_ms) }}</template></template
+        >
       </Column>
       <Column :header="t('auto.outcome')">
         <template #body="{ data }"><Tag :severity="runSeverity(data.status)" :value="t(`auto.status.${data.status}`)" /></template>
       </Column>
     </DataTable>
-    <Drawer :visible="open !== null" position="right" class="!w-full md:!w-[34rem]" :header="t('auto.run')" @update:visible="(v: boolean) => !v && (open = null)">
+    <Drawer
+      :visible="open !== null"
+      :position="session.direction === 'rtl' ? 'left' : 'right'"
+      class="!w-full md:!w-[34rem]"
+      :header="t('auto.run')"
+      @update:visible="(v: boolean) => !v && (open = null)"
+    >
       <template v-if="open">
         <RunDetailView :run="open" />
         <div v-if="canRun" class="flex flex-wrap gap-2 mt-4">

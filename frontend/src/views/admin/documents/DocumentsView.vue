@@ -18,6 +18,7 @@ import ConfigField from '@/components/config/ConfigField.vue'
 import EmptyState from '@/components/config/EmptyState.vue'
 import { ApiError } from '@/api/http'
 import { useSession } from '@/stores/session'
+import { joinList } from '@/runtime/lists'
 import { errorText } from '../building/shared'
 import { documentBlueprintsApi, documentsApi, type DocumentBlueprint, type DocumentSummary } from './api'
 
@@ -26,7 +27,7 @@ import { documentBlueprintsApi, documentsApi, type DocumentBlueprint, type Docum
  * designed templates, the form each belongs to, the formats it produces, and
  * how many notification rules attach it.
  */
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const toast = useToast()
 const confirm = useConfirm()
@@ -162,7 +163,12 @@ function remove(row: DocumentSummary): void {
         </template>
       </Column>
       <Column :header="t('doc.formats')" style="width: 9rem">
-        <template #body="{ data }">{{ (data.formats as string[]).map((f) => t(`doc.format_${f}`)).join(', ') }}</template>
+        <template #body="{ data }">{{
+          joinList(
+            (data.formats as string[]).map((f) => t(`doc.format_${f}`)),
+            locale,
+          )
+        }}</template>
       </Column>
       <Column :header="t('doc.state')" style="width: 8rem">
         <template #body="{ data }">

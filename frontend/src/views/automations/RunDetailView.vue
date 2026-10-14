@@ -3,6 +3,7 @@ import Message from 'primevue/message'
 import Tag from 'primevue/tag'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import EmptyValue from '@/components/EmptyValue.vue'
 import { formatDatetime } from '@/runtime/format'
 import { runSeverity, type RunDetail, type RunLogEntry } from './api'
 
@@ -11,10 +12,10 @@ import { runSeverity, type RunDetail, type RunLogEntry } from './api'
  * covered and changed, and each step's outcome with its duration and error.
  */
 const props = defineProps<{ run: RunDetail }>()
-const { t, locale } = useI18n()
+const { t, n, locale } = useI18n()
 const numbers = computed(() => Object.fromEntries(props.run.record_list.map((r) => [r.uuid, r.number])))
-const when = (iso: string | null) => (iso ? formatDatetime(iso, locale.value) : '—')
-const duration = computed(() => (props.run.duration_ms === null ? '—' : t('auto.duration_s', { s: (props.run.duration_ms / 1000).toFixed(1) })))
+const when = (iso: string | null) => (iso ? formatDatetime(iso, locale.value) : '')
+const duration = computed(() => (props.run.duration_ms === null ? '' : t('auto.duration_s', { s: n(props.run.duration_ms / 1000, { maximumFractionDigits: 1 }) })))
 const recordName = (uuid: string | null) => (uuid === null ? '' : (numbers.value[uuid] ?? t('auto.a_record')))
 const logSeverity = (s: RunLogEntry['status']) =>
   ({ succeeded: 'success', failed: 'danger', warning: 'warn', retrying: 'warn', skipped: 'secondary', simulated: 'info', waiting: 'info' })[s] as 'success' | 'danger' | 'warn' | 'info' | 'secondary'
@@ -32,11 +33,11 @@ const recordLink = (uuid: string) => (props.run.form ? `/app/${props.run.form}/$
       <dt>{{ t('auto.started') }}</dt>
       <dd>{{ when(run.started_at ?? run.created_at) }}</dd>
       <dt>{{ t('auto.finished') }}</dt>
-      <dd>{{ when(run.finished_at) }}</dd>
+      <dd>{{ when(run.finished_at) }}<EmptyValue v-if="!run.finished_at" /></dd>
       <dt>{{ t('auto.duration') }}</dt>
-      <dd>{{ duration }}</dd>
+      <dd>{{ duration }}<EmptyValue v-if="!duration" /></dd>
       <dt>{{ t('auto.records') }}</dt>
-      <dd>{{ t('auto.records_value', { n: run.records, changed: run.affected }) }}</dd>
+      <dd>{{ t('auto.records_value', { n: n(run.records), changed: n(run.affected) }) }}</dd>
       <template v-if="run.by">
         <dt>{{ t('auto.started_by') }}</dt>
         <dd>{{ run.by }}</dd>
@@ -51,7 +52,7 @@ const recordLink = (uuid: string) => (props.run.form ? `/app/${props.run.form}/$
       </template>
       <template v-if="run.depth > 0">
         <dt>{{ t('auto.chain') }}</dt>
-        <dd>{{ t('auto.chain_value', { n: run.depth }) }}</dd>
+        <dd>{{ t('auto.chain_value', { n: n(run.depth) }) }}</dd>
       </template>
     </dl>
     <Message v-if="run.error" :severity="run.status === 'skipped_loop' ? 'warn' : 'error'" :closable="false">{{ run.error }}</Message>
@@ -67,7 +68,7 @@ const recordLink = (uuid: string) => (props.run.form ? `/app/${props.run.form}/$
                 ·
                 <a v-if="recordLink(e.record)" :href="recordLink(e.record)!" class="text-primary">{{ recordName(e.record) }}</a>
               </template>
-              <span v-if="e.ms" class="text-xs text-muted-color"> · {{ t('auto.ms', { ms: e.ms }) }}</span>
+              <span v-if="e.ms" class="text-xs text-muted-color"> · {{ t('auto.ms', { ms: n(e.ms) }) }}</span>
             </div>
             <p v-if="e.message" class="m-0 text-xs text-muted-color" dir="auto">{{ e.message }}</p>
           </div>

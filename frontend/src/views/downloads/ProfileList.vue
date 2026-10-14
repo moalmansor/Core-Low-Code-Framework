@@ -9,6 +9,7 @@ import { useRoute, useRouter } from 'vue-router'
 import EmptyState from '@/components/config/EmptyState.vue'
 import TabIntro from '@/components/config/TabIntro.vue'
 import { errorText } from '@/views/admin/building/shared'
+import { joinList } from '@/runtime/lists'
 import { downloadsApi, type ProfileSummary } from './api'
 
 /**
@@ -19,7 +20,7 @@ import { downloadsApi, type ProfileSummary } from './api'
 const props = defineProps<{ form?: string; personal?: boolean }>()
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, n, locale } = useI18n()
 const toast = useToast()
 const form = computed(() => props.form ?? String(route.params.form))
 const personal = computed(() => props.personal ?? route.meta.personalDownloads === true)
@@ -59,7 +60,16 @@ async function remove(p: ProfileSummary): Promise<void> {
   }
 }
 const subtitle = (p: ProfileSummary) =>
-  [p.formats.map((f) => t(`dl.format.${f}`)).join(', '), t('dl.n_columns', { n: p.columns }), p.schedules ? t('dl.n_schedules', { n: p.schedules }) : null].filter(Boolean).join(' · ')
+  [
+    joinList(
+      p.formats.map((f) => t(`dl.format.${f}`)),
+      locale.value,
+    ),
+    t('dl.n_columns', { n: n(p.columns) }),
+    p.schedules ? t('dl.n_schedules', { n: n(p.schedules) }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 </script>
 
 <template>

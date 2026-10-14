@@ -19,6 +19,7 @@ import EmptyState from '@/components/config/EmptyState.vue'
 import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import TabIntro from '@/components/config/TabIntro.vue'
 import { useSession } from '@/stores/session'
+import { joinList } from '@/runtime/lists'
 import { templatesApi, type TemplateSummary } from '../notifications/api'
 import { fieldTreeApi, labelOf, newUuid, notificationRulesApi, workflowApi, type NotificationRuleDoc, type NotificationTrigger, type PathNode, type RecipientType, type StatusDoc } from './api'
 import ErrorList from './ErrorList.vue'
@@ -169,7 +170,10 @@ function setDocumentTemplate(item: AttachedDocument, uuid: string): void {
         v-for="(r, i) in doc.value.value"
         :key="r.uuid"
         :title="ruleTitle(r)"
-        :subtitle="`${t(`notif.trigger.${r.trigger}`)} · ${r.channels.map((c) => t(`notif.channel.${c}`)).join(', ')}${r.active ? '' : ' · ' + t('notif.inactive')}`"
+        :subtitle="`${t(`notif.trigger.${r.trigger}`)} · ${joinList(
+          r.channels.map((c) => t(`notif.channel.${c}`)),
+          locale,
+        )}${r.active ? '' : ' · ' + t('notif.inactive')}`"
         :invalid="Object.keys(doc.errors.value).some((k) => k.startsWith(`rules.${i}.`))"
         :testid="`nr-rule-${i}`"
         @remove="doc.value.value!.splice(i, 1)"

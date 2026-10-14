@@ -175,16 +175,6 @@ function setRunAsUser(u: { uuid: string; name: string } | null): void {
   doc.value.runAsUser = u.uuid.toLowerCase()
   runAsName.value = u.name
 }
-const backoffText = computed({
-  get: () => (doc.value?.retry.backoffSeconds ?? []).join(', '),
-  set: (v: string) => {
-    if (doc.value)
-      doc.value.retry.backoffSeconds = v
-        .split(/[,\s]+/)
-        .map((x) => Number.parseInt(x, 10))
-        .filter((x) => Number.isFinite(x))
-  },
-})
 const confirmValue = (): number | null => doc.value?.confirmAbove ?? null
 function setConfirm(v: number | null): void {
   if (doc.value) doc.value.confirmAbove = v
@@ -450,8 +440,40 @@ const name = computed(() => (doc.value ? labelOf(doc.value.i18n.name, locale.val
           <ConfigField :label="t('auto.max_attempts')" for="auto-attempts" width="xs" :hint="t('auto.max_attempts_hint')" :error="err('retry.maxAttempts')">
             <InputNumber v-model="doc.retry.maxAttempts" input-id="auto-attempts" :min="1" :max="10" size="small" fluid />
           </ConfigField>
-          <ConfigField :label="t('auto.backoff')" for="auto-backoff" width="sm" :hint="t('auto.backoff_hint')" :error="err('retry.backoffSeconds')">
-            <InputText id="auto-backoff" v-model="backoffText" size="small" class="ltr-value" dir="ltr" />
+          <ConfigField :label="t('auto.backoff')" width="sm" :hint="t('auto.backoff_hint')" :error="err('retry.backoffSeconds')">
+            <div class="flex flex-col gap-2" data-testid="auto-backoff">
+              <div v-for="(_, k) in doc.retry.backoffSeconds" :key="k" class="flex items-center gap-2">
+                <InputNumber
+                  v-model="doc.retry.backoffSeconds[k]"
+                  :input-id="`auto-backoff-${k}`"
+                  :min="10"
+                  :max="86400"
+                  :suffix="t('auto.seconds_suffix')"
+                  :aria-label="t('auto.wait_n', { n: k + 1 })"
+                  size="small"
+                  fluid
+                />
+                <Button
+                  icon="pi pi-times"
+                  text
+                  rounded
+                  size="small"
+                  severity="secondary"
+                  :aria-label="t('auto.wait_remove', { n: k + 1 })"
+                  :disabled="doc.retry.backoffSeconds.length === 1"
+                  @click="doc.retry.backoffSeconds.splice(k, 1)"
+                />
+              </div>
+              <Button
+                v-if="doc.retry.backoffSeconds.length < 10"
+                icon="pi pi-plus"
+                :label="t('auto.wait_add')"
+                text
+                size="small"
+                class="self-start"
+                @click="doc.retry.backoffSeconds.push(doc.retry.backoffSeconds.at(-1) ?? 60)"
+              />
+            </div>
           </ConfigField>
           <ConfigField :label="t('auto.max_chain_depth')" for="auto-depth" width="xs" :hint="t('auto.max_chain_depth_hint')" :error="err('maxChainDepth')">
             <InputNumber v-model="doc.maxChainDepth" input-id="auto-depth" :min="1" :max="10" size="small" fluid />

@@ -11,6 +11,7 @@ import { useI18n } from 'vue-i18n'
 import { ApiError, get } from '@/api/http'
 import ConfigField from '@/components/config/ConfigField.vue'
 import ConfigItem from '@/components/config/ConfigItem.vue'
+import EmptyState from '@/components/config/EmptyState.vue'
 import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import UserPicker from '@/components/UserPicker.vue'
 import { formatDatetime } from '@/runtime/format'
@@ -102,13 +103,15 @@ function addUser(i: number, u: { uuid: string; name: string } | null): void {
 }
 const summary = (s: ScheduleDoc) =>
   [t(`dl.freq.${s.frequency}`), s.frequency === 'cron' ? s.cron : s.time, s.timezone, t(`dl.format.${s.format}`)].filter(Boolean).join(' · ') + (s.active ? '' : ' · ' + t('dl.inactive'))
-const when = (iso: string | null | undefined) => (iso ? formatDatetime(iso, locale.value) : '—')
+const when = (iso: string) => formatDatetime(iso, locale.value)
 const err = (i: number, path: string) => errors.value[i]?.[path]
 </script>
 
 <template>
   <div class="flex flex-col gap-3" data-testid="dl-schedules">
-    <p v-if="!list.length" class="m-0 text-sm text-muted-color">{{ t('dl.no_schedules') }}</p>
+    <EmptyState v-if="!list.length" icon="pi pi-calendar-clock" :title="t('dl.no_schedules')" :description="t('dl.no_schedules_desc')">
+      <Button icon="pi pi-plus" :label="t('dl.add_schedule')" size="small" data-testid="dl-add-schedule-first" @click="add" />
+    </EmptyState>
     <ConfigItem v-for="(s, i) in list" :key="s.uuid ?? `new-${i}`" :title="summary(s)" :index="i" :count="list.length" :testid="`dl-schedule-${i}`" @remove="remove(i)">
       <div class="flex flex-col gap-4">
         <p v-if="s.next_run_at" class="m-0 text-xs text-muted-color">
@@ -161,15 +164,16 @@ const err = (i: number, path: string) => errors.value[i]?.[path]
               option-value="value"
               filter
               :placeholder="t('dl.roles')"
+              :aria-label="t('dl.roles')"
               size="small"
               class="w-field-md"
             />
           </div>
         </ConfigField>
-        <SettingSwitch :id="`dl-sa-${i}`" v-model="s.active" :label="t('dl.schedule_active')" />
+        <SettingSwitch :id="`dl-sa-${i}`" v-model="s.active" :label="t('dl.schedule_active')" :description="t('dl.schedule_active_desc')" />
         <Button :label="t('common.save')" icon="pi pi-check" size="small" class="self-start" :loading="saving === i" :data-testid="`dl-schedule-save-${i}`" @click="save(i)" />
       </div>
     </ConfigItem>
-    <Button icon="pi pi-plus" :label="t('dl.add_schedule')" size="small" outlined class="self-start" data-testid="dl-add-schedule" @click="add" />
+    <Button v-if="list.length" icon="pi pi-plus" :label="t('dl.add_schedule')" size="small" outlined class="self-start" data-testid="dl-add-schedule" @click="add" />
   </div>
 </template>

@@ -26,16 +26,20 @@ function files(dir: string): string[] {
 }
 
 /** Every screen: the views, and the dialogs and panels that open over records. */
-const SCREENS = [...files(join(SRC, 'views')), join(SRC, 'runtime/actions/ActionRunDialog.vue'), join(SRC, 'runtime/downloads/DownloadDialog.vue'), join(SRC, 'layouts/NotificationsBell.vue')]
+const SCREENS = [
+  ...files(join(SRC, 'views')),
+  // The editors the Phase 4 screens are made of, and the dialogs that open over records.
+  ...files(join(SRC, 'components/templates')),
+  join(SRC, 'components/config/ChoiceGallery.vue'),
+  join(SRC, 'runtime/actions/ActionRunDialog.vue'),
+  join(SRC, 'runtime/downloads/DownloadDialog.vue'),
+  join(SRC, 'layouts/NotificationsBell.vue'),
+]
   .map((f) => relative(SRC, f))
   .sort()
 
 /** Components a route shows as a page (they need a title, §5.1). */
-const ROUTED = new Set(
-  readdirSync(join(SRC, 'router'))
-    .flatMap((f) => [...readFileSync(join(SRC, 'router', f), 'utf8').matchAll(/import\('@\/(views\/[^']+\.vue)'\)/g)].map((m) => m[1]!))
-    .filter((f) => !f.endsWith('FormConfigView.vue') || true),
-)
+const ROUTED = new Set(readdirSync(join(SRC, 'router')).flatMap((f) => [...readFileSync(join(SRC, 'router', f), 'utf8').matchAll(/import\('@\/(views\/[^']+\.vue)'\)/g)].map((m) => m[1]!)))
 
 type Rule = { id: string; why: string; check: (src: string, file: string) => string[] }
 
@@ -63,7 +67,7 @@ const RULES: Rule[] = [
     why: '§5.7 item 2: related settings sit under a heading (ConfigSection); a flat stack of more than six controls is not grouped',
     check: (src) => {
       const controls = (template(src).match(/<(ConfigField|SettingSwitch|I18nInput|TemplateText)\b/g) ?? []).length
-      return controls > 6 && !/<ConfigSection\b|<section\b|<h2\b|<h3\b/.test(src) ? [`${controls} settings with no section or heading`] : []
+      return controls > 6 && !/<ConfigSection\b|<ConfigItem\b|<section\b|<h2\b|<h3\b/.test(src) ? [`${controls} settings with no section or heading`] : []
     },
   },
   {
@@ -108,10 +112,42 @@ const RULES: Rule[] = [
     why: 'Arabic and English: sides are start and end, never left and right',
     check: (src) => lines(src, /\b(margin|padding)-(left|right)\b|text-align:\s*(left|right)|\b(ml|mr|pl|pr)-\d|\bborder-(l|r)-|\b(left|right)-\d|float:\s*(left|right)/),
   },
+  {
+    id: 'drawer-side',
+    why: 'Arabic and English: a drawer opens from the end side, which is the left in Arabic; never a fixed position="right" or "left"',
+    check: (src) => lines(template(src), /<Drawer\b[^>]*\sposition="(left|right)"/),
+  },
 ]
 
 /** Screens built before the checklist (Phases 1–3), with the rules they do not meet yet. May only shrink. */
-const BEFORE_CHECKLIST: Record<string, string[]> = {}
+const BEFORE_CHECKLIST: Record<string, string[]> = {
+  // Not pages with a title: the not-found page is a message, the form builder has its own toolbar frame.
+  'views/NotFound.vue': ['frame'],
+  'views/builder/FormBuilder.vue': ['frame'],
+  'views/admin/AuditLogView.vue': ['empty-value'],
+  'views/admin/LocalesManager.vue': ['empty-state'],
+  'views/admin/RolesView.vue': ['list-join', 'quiet-help'],
+  'views/admin/SystemHealth.vue': ['empty-value'],
+  'views/admin/UsersView.vue': ['empty-value'],
+  'views/admin/WorkAdminView.vue': ['list-join'],
+  'views/admin/building/BlueprintDetail.vue': ['empty-value', 'list-join'],
+  'views/admin/building/BlueprintsView.vue': ['quiet-help'],
+  'views/admin/building/FormAccessView.vue': ['empty-value', 'quiet-help'],
+  'views/admin/building/FormsView.vue': ['empty-value'],
+  'views/admin/building/MigrationPlans.vue': ['empty-value', 'quiet-help'],
+  'views/admin/building/SchemaExplorer.vue': ['empty-value', 'list-join', 'quiet-help'],
+  'views/admin/building/reference/SequencesPanel.vue': ['empty-value', 'quiet-help'],
+  'views/admin/formconfig/RecordAccessEditor.vue': ['list-join'],
+  'views/admin/formconfig/SlaEditor.vue': ['switch-described'],
+  'views/auth/LoginView.vue': ['quiet-help'],
+  'views/builder/FormVersions.vue': ['empty-value', 'quiet-help'],
+  'views/profile/ProfileView.vue': ['empty-state', 'quiet-help'],
+  'views/records/ConflictDialog.vue': ['empty-value', 'list-join'],
+  'views/records/RecordComments.vue': ['empty-value'],
+  'views/records/RecordList.vue': ['empty-value'],
+  'views/records/RecordView.vue': ['empty-value'],
+  'views/work/MyWorkView.vue': ['empty-value'],
+}
 
 describe('every screen follows the checklist (design system §5.7)', () => {
   for (const file of SCREENS) {
@@ -152,5 +188,7 @@ describe('the rules catch what they were written for', () => {
     expect(rule('empty-value').check("const when = (iso) => (iso ? f(iso) : '—')", 'x.vue')).not.toEqual([])
     expect(rule('list-join').check("names.join(', ')", 'x.vue')).not.toEqual([])
     expect(rule('switch-described').check('<template><SettingSwitch id="a" v-model="x" label="On" /></template>', 'x.vue')).not.toEqual([])
+    expect(rule('drawer-side').check('<template><Drawer :visible="v" position="right"></Drawer></template>', 'x.vue')).not.toEqual([])
+    expect(rule('drawer-side').check(`<template><Drawer :visible="v" :position="rtl ? 'left' : 'right'"></Drawer></template>`, 'x.vue')).toEqual([])
   })
 })

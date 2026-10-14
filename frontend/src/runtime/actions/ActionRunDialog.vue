@@ -6,14 +6,17 @@ import Message from 'primevue/message'
 import ProgressBar from 'primevue/progressbar'
 import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
-import ToggleSwitch from 'primevue/toggleswitch'
+import DatePicker from 'primevue/datepicker'
+import InputNumber from 'primevue/inputnumber'
 import { useToast } from 'primevue/usetoast'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ApiError, get, http } from '@/api/http'
 import SubjectPicker from '@/components/SubjectPicker.vue'
-import { errorText } from '@/views/admin/building/shared'
+import ConfigField from '@/components/config/ConfigField.vue'
+import SettingSwitch from '@/components/config/SettingSwitch.vue'
+import { errorText, isoDay, parseIsoDay } from '@/views/admin/building/shared'
 import JustificationDialog from '../JustificationDialog.vue'
 import { useJustification } from '../useJustification'
 import { actionsRuntimeApi, finished, type ActionRun, type ActionTarget, type AvailableAction, type DryRun, type Preparation, type RunOutput } from './api'
@@ -62,6 +65,11 @@ const fieldKind = computed(() => {
   if (['number', 'decimal', 'currency', 'percent'].includes(type)) return 'number'
   return 'text'
 })
+// The value input is typed by the field: a yes/no switch, a date picker, a number.
+const boolValue = computed({ get: () => fieldValue.value === true, set: (v: boolean) => (fieldValue.value = v) })
+const dateValue = computed({ get: () => parseIsoDay(typeof fieldValue.value === 'string' ? fieldValue.value : null), set: (d: Date | null) => (fieldValue.value = d ? isoDay(d) : null) })
+const numberValue = computed({ get: () => (typeof fieldValue.value === 'number' ? fieldValue.value : null), set: (v: number | null) => (fieldValue.value = v) })
+const textValue = computed({ get: () => (typeof fieldValue.value === 'string' ? fieldValue.value : ''), set: (v: string) => (fieldValue.value = v) })
 const inputs = computed<Record<string, unknown>>(() => {
   if (action.value?.builtin === 'bulk_update') return fieldKey.value ? { values: { [fieldKey.value]: fieldValue.value === '' ? null : fieldValue.value } } : {}
   if (action.value?.builtin === 'bulk_status') {
@@ -215,8 +223,7 @@ defineExpose({ start })
         <p v-if="prep.queued" class="m-0 text-sm text-muted-color flex items-start gap-2"><i class="pi pi-clock mt-0.5" aria-hidden="true" />{{ t('act.run.background') }}</p>
         <p v-if="action?.confirmation" class="m-0 whitespace-pre-line" dir="auto">{{ action.confirmation }}</p>
         <template v-if="action?.builtin === 'bulk_update'">
-          <div class="field">
-            <label for="act-run-field" class="text-sm font-medium">{{ t('act.run.field') }}</label>
+          <ConfigField :label="t('act.run.field')" for="act-run-field">
             <Select
               v-model="fieldKey"
               input-id="act-run-field"
@@ -224,39 +231,28 @@ defineExpose({ start })
               option-label="label"
               option-value="key"
               filter
-              size="small"
-              class="w-full"
               data-testid="action-field"
               @update:model-value="fieldValue = null"
             />
-          </div>
-          <div v-if="chosenField" class="field">
-            <label for="act-run-value" class="text-sm font-medium">{{ t('act.run.value') }}</label>
-            <Select
-              v-if="fieldKind === 'options'"
-              v-model="fieldValue"
-              input-id="act-run-value"
-              :options="chosenField.options"
-              option-label="label"
-              option-value="value"
-              show-clear
-              size="small"
-              class="w-full"
-              data-testid="action-value"
-            />
-            <ToggleSwitch v-else-if="fieldKind === 'boolean'" v-model="fieldValue as boolean" input-id="act-run-value" />
-            <InputText
-              v-else
-              :id="'act-run-value'"
-              v-model="fieldValue as string"
-              :type="fieldKind === 'date' ? 'date' : 'text'"
-              :inputmode="fieldKind === 'number' ? 'decimal' : undefined"
-              size="small"
-              class="w-full"
-              data-testid="action-value"
-            />
-            <p class="m-0 mt-1 text-xs text-muted-color">{{ t('act.run.value_hint') }}</p>
-          </div>
+          </ConfigField>
+          <template v-if="chosenField">
+            <SettingSwitch v-if="fieldKind === 'boolean'" id="act-run-value" v-model="boolValue" :label="t('act.run.value')" :description="t('act.run.value_hint')" />
+            <ConfigField v-else :label="t('act.run.value')" for="act-run-value" :width="fieldKind === 'number' || fieldKind === 'date' ? 'sm' : 'md'" :hint="t('act.run.value_hint')">
+              <Select
+                v-if="fieldKind === 'options'"
+                v-model="fieldValue"
+                input-id="act-run-value"
+                :options="chosenField.options"
+                option-label="label"
+                option-value="value"
+                show-clear
+                data-testid="action-value"
+              />
+              <DatePicker v-else-if="fieldKind === 'date'" v-model="dateValue" input-id="act-run-value" date-format="yy-mm-dd" show-button-bar data-testid="action-value" />
+              <InputNumber v-else-if="fieldKind === 'number'" v-model="numberValue" input-id="act-run-value" :max-fraction-digits="6" :use-grouping="false" data-testid="action-value" />
+              <InputText v-else id="act-run-value" v-model="textValue" data-testid="action-value" />
+            </ConfigField>
+          </template>
         </template>
         <div v-if="action?.builtin === 'bulk_status' && prep.inputs?.fixed" class="flex flex-col gap-1" data-testid="action-fixed-transition">
           <p class="m-0 text-sm">
@@ -268,20 +264,27 @@ defineExpose({ start })
           </p>
           <p class="m-0 text-xs text-muted-color">{{ t('act.run.fixed_hint') }}</p>
         </div>
-        <div v-else-if="action?.builtin === 'bulk_status'" class="field">
-          <label for="act-run-tr" class="text-sm font-medium">{{ t('act.run.transition') }}</label>
-          <Select v-model="transition" input-id="act-run-tr" :options="prep.inputs?.transitions ?? []" option-label="label" option-value="uuid" size="small" class="w-full" />
-          <p v-if="!(prep.inputs?.transitions ?? []).length" class="m-0 mt-1 text-xs text-muted-color">{{ t('act.run.no_transitions') }}</p>
-        </div>
-        <div v-if="action?.builtin === 'bulk_status' && commentMode !== 'none'" class="field">
-          <label for="act-run-comment" class="text-sm font-medium">{{ t('act.run.comment') }}<span v-if="commentMode === 'mandatory'" class="text-danger ms-1" aria-hidden="true">*</span></label>
-          <Textarea id="act-run-comment" v-model="comment" rows="2" auto-resize class="w-full" data-testid="action-comment" />
-          <p class="m-0 mt-1 text-xs text-muted-color">{{ t('act.run.comment_hint') }}</p>
-        </div>
-        <div v-if="action?.builtin === 'bulk_reassign'" class="field">
-          <label for="act-run-assignee" class="text-sm font-medium">{{ t('act.run.assignee') }}</label>
+        <ConfigField
+          v-else-if="action?.builtin === 'bulk_status'"
+          :label="t('act.run.transition')"
+          for="act-run-tr"
+          :hint="(prep.inputs?.transitions ?? []).length ? undefined : t('act.run.no_transitions')"
+        >
+          <Select v-model="transition" input-id="act-run-tr" :options="prep.inputs?.transitions ?? []" option-label="label" option-value="uuid" />
+        </ConfigField>
+        <ConfigField
+          v-if="action?.builtin === 'bulk_status' && commentMode !== 'none'"
+          :label="t('act.run.comment')"
+          for="act-run-comment"
+          width="full"
+          :required="commentMode === 'mandatory'"
+          :hint="t('act.run.comment_hint')"
+        >
+          <Textarea id="act-run-comment" v-model="comment" rows="2" auto-resize data-testid="action-comment" />
+        </ConfigField>
+        <ConfigField v-if="action?.builtin === 'bulk_reassign'" :label="t('act.run.assignee')" for="act-run-assignee">
           <SubjectPicker v-model="assignee" input-id="act-run-assignee" :types="prep.inputs?.assignees ?? ['user', 'role', 'department']" data-testid="action-assignee" />
-        </div>
+        </ConfigField>
         <div v-if="trial" class="flex flex-col gap-1" data-testid="action-trial">
           <Message :severity="trial.would_fail ? 'warn' : 'success'" :closable="false">
             {{ t('act.run.trial_result', { ok: n(trial.would_succeed), failed: n(trial.would_fail), tried: n(trial.tried) }) }}

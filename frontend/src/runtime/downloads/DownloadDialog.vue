@@ -15,6 +15,7 @@ import { ApiError, get } from '@/api/http'
 import SubjectPicker from '@/components/SubjectPicker.vue'
 import { errorText } from '@/views/admin/building/shared'
 import { downloadsApi, finishedJob, type AvailableProfile, type DlFormat, type DownloadJob } from '@/views/downloads/api'
+import { joinList } from '@/runtime/lists'
 
 /**
  * Downloading through a profile (specification §4.23 "Usage"): the format,
@@ -24,7 +25,7 @@ import { downloadsApi, finishedJob, type AvailableProfile, type DlFormat, type D
  * the file. Columns the user may not see are left out, and the dialog says
  * which.
  */
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const toast = useToast()
 const visible = ref(false)
 const form = ref('')
@@ -221,7 +222,7 @@ defineExpose({ open, follow })
             {{ job.status === 'completed' ? t('dl.ready', { n: job.rows ?? 0 }) : job.status === 'failed' ? (job.error ?? t('dl.run_failed')) : t(`dl.status.${job.status}`) }}
           </Message>
           <p v-if="job.omitted.length" class="m-0 text-sm text-muted-color flex items-start gap-2">
-            <i class="pi pi-eye-slash mt-0.5" aria-hidden="true" />{{ t('dl.omitted_for_you', { columns: job.omitted.join(', ') }) }}
+            <i class="pi pi-eye-slash mt-0.5" aria-hidden="true" />{{ t('dl.omitted_for_you', { columns: joinList(job.omitted, locale) }) }}
           </p>
         </template>
       </template>

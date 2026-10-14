@@ -29,6 +29,7 @@ import { labelOf } from '@/runtime/i18nText'
 import { useSession } from '@/stores/session'
 import { errorText } from '@/views/admin/building/shared'
 import ErrorList from '@/views/admin/formconfig/ErrorList.vue'
+import { joinList } from '@/runtime/lists'
 import {
   downloadsApi,
   pathKey,
@@ -235,7 +236,8 @@ function addFilter(): void {
   const first = filterFields.value[0]
   doc.value?.filters.push({ uuid: newUuid(), path: first ? (JSON.parse(first.value) as string[]) : [], operator: 'eq', value: '', valueExpression: null, parameter: null })
 }
-const textValue = (f: FilterDoc) => (Array.isArray(f.value) ? (f.value as unknown[]).join(', ') : String(f.value ?? ''))
+// The values of an "is one of" filter are typed into one box (machine-list), comma separated.
+const textValue = (f: FilterDoc) => (Array.isArray(f.value) ? (f.value as unknown[]).join(', ') /* machine-list */ : String(f.value ?? ''))
 function setTextValue(f: FilterDoc, v: string): void {
   f.value =
     f.operator === 'in'
@@ -556,7 +558,7 @@ const back = computed(() => (personal ? { name: 'records.downloads', params: { f
                   <Select v-model="p.type" :input-id="`dl-pt-${i}`" :options="paramTypes" option-label="label" option-value="value" size="small" />
                 </ConfigField>
               </div>
-              <SettingSwitch :id="`dl-pr-${i}`" v-model="p.required" :label="t('dl.required')" />
+              <SettingSwitch :id="`dl-pr-${i}`" v-model="p.required" :label="t('dl.required')" :description="t('dl.required_desc')" />
               <div v-if="p.type === 'choice'" class="flex flex-col gap-2">
                 <h4 class="m-0 text-sm font-semibold">{{ t('dl.choices') }}</h4>
                 <p v-if="err(`parameters.${i}.options`)" class="m-0 text-xs text-danger">{{ err(`parameters.${i}.options`) }}</p>
@@ -596,9 +598,9 @@ const back = computed(() => (personal ? { name: 'records.downloads', params: { f
             </ConfigField>
           </div>
           <h4 class="m-0 text-sm font-semibold">{{ t('dl.format.xlsx') }}</h4>
-          <SettingSwitch id="dl-x-style" v-model="doc.xlsx.styledHeader" :label="t('dl.xlsx.styled')" />
-          <SettingSwitch id="dl-x-freeze" v-model="doc.xlsx.freezeHeader" :label="t('dl.xlsx.freeze')" />
-          <SettingSwitch id="dl-x-title" v-model="doc.xlsx.titleRow" :label="t('dl.xlsx.title')" />
+          <SettingSwitch id="dl-x-style" v-model="doc.xlsx.styledHeader" :label="t('dl.xlsx.styled')" :description="t('dl.xlsx.styled_desc')" />
+          <SettingSwitch id="dl-x-freeze" v-model="doc.xlsx.freezeHeader" :label="t('dl.xlsx.freeze')" :description="t('dl.xlsx.freeze_desc')" />
+          <SettingSwitch id="dl-x-title" v-model="doc.xlsx.titleRow" :label="t('dl.xlsx.title')" :description="t('dl.xlsx.title_desc')" />
           <SettingSwitch id="dl-x-logo" v-model="doc.xlsx.logo" :label="t('dl.xlsx.logo')" :description="t('dl.xlsx.logo_desc')" />
           <h4 class="m-0 text-sm font-semibold">{{ t('dl.format.csv') }}</h4>
           <div class="cfg-row">
@@ -613,7 +615,7 @@ const back = computed(() => (personal ? { name: 'records.downloads', params: { f
           </ConfigField>
           <I18nInput v-model="doc.pdf.header" class="w-field-lg" :label="t('dl.pdf_header')" :maxlength="255" />
           <I18nInput v-model="doc.pdf.footer" class="w-field-lg" :label="t('dl.pdf_footer')" :maxlength="255" />
-          <SettingSwitch id="dl-pages" v-model="doc.pdf.pageNumbers" :label="t('dl.page_numbers')" />
+          <SettingSwitch id="dl-pages" v-model="doc.pdf.pageNumbers" :label="t('dl.page_numbers')" :description="t('dl.page_numbers_desc')" />
         </ConfigSection>
 
         <ConfigSection v-if="!isNew && uuid" id="dl-schedules" :title="t('dl.section.schedules')" :description="t('dl.schedules_hint')" :default-open="false">
@@ -636,7 +638,7 @@ const back = computed(() => (personal ? { name: 'records.downloads', params: { f
         <p v-else-if="!doc.columns.length" class="m-0 text-sm text-muted-color">{{ t('dl.preview_empty') }}</p>
         <template v-else-if="preview">
           <p v-if="preview.omitted.length" class="m-0 text-sm text-muted-color flex items-start gap-2">
-            <i class="pi pi-eye-slash mt-0.5" aria-hidden="true" />{{ t('dl.omitted', { columns: preview.omitted.join(', ') }) }}
+            <i class="pi pi-eye-slash mt-0.5" aria-hidden="true" />{{ t('dl.omitted', { columns: joinList(preview.omitted, locale) }) }}
           </p>
           <Tabs v-if="sheetTabs.length > 1" v-model:value="previewSheet">
             <TabList>
@@ -665,8 +667,8 @@ const back = computed(() => (personal ? { name: 'records.downloads', params: { f
           <h2 class="text-base font-semibold m-0 mt-2">{{ t('dl.as_role') }}</h2>
           <Select v-model="role" :options="roles" option-label="name" option-value="uuid" show-clear filter size="small" :placeholder="t('dl.choose_role')" data-testid="dl-role" />
           <div v-if="effective" class="text-sm flex flex-col gap-1" data-testid="dl-effective">
-            <p class="m-0">{{ t('dl.role_columns', { columns: effective.columns.join(', ') || '—' }) }}</p>
-            <p v-if="effective.omitted.length" class="m-0 text-muted-color">{{ t('dl.role_omitted', { columns: effective.omitted.join(', ') }) }}</p>
+            <p class="m-0">{{ t('dl.role_columns', { columns: joinList(effective.columns, locale) }) }}</p>
+            <p v-if="effective.omitted.length" class="m-0 text-muted-color">{{ t('dl.role_omitted', { columns: joinList(effective.omitted, locale) }) }}</p>
           </div>
         </template>
       </aside>

@@ -12,6 +12,7 @@ import EmptyState from '@/components/config/EmptyState.vue'
 import TabIntro from '@/components/config/TabIntro.vue'
 import { formatDatetime } from '@/runtime/format'
 import { errorText } from '@/views/admin/building/shared'
+import { joinList } from '@/runtime/lists'
 import { automationsApi, runSeverity, type AutomationSummary } from './api'
 
 /**
@@ -63,7 +64,11 @@ async function remove(a: AutomationSummary): Promise<void> {
     toast.add({ severity: 'error', summary: errorText(e, t('auto.save_failed')), life: 6000 })
   }
 }
-const triggersText = (a: AutomationSummary) => [...new Set(a.triggers)].map((x) => t(`auto.trigger.${x}`)).join(', ')
+const triggersText = (a: AutomationSummary) =>
+  joinList(
+    [...new Set(a.triggers)].map((x) => t(`auto.trigger.${x}`)),
+    locale.value,
+  )
 const subtitle = (a: AutomationSummary) => [props.form ? null : a.form?.name, triggersText(a), t('auto.n_steps', { n: a.steps })].filter(Boolean).join(' · ')
 const sorted = computed(() => [...(rows.value ?? [])].sort((x, y) => x.name.localeCompare(y.name, locale.value)))
 </script>
