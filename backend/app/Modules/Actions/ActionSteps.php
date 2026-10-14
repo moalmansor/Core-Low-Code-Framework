@@ -22,6 +22,7 @@ use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\RuleRuntime;
 use App\Modules\Records\Runtime\ValueBridge;
 use App\Modules\Records\Templating\TemplateValues;
+use App\Modules\Workflow\Runtime\WorkflowRuntime;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -142,12 +143,34 @@ final class ActionSteps
     }
 
     /**
+     * Refuses, with the record's own status named, a transition its current
+     * status does not offer — in a run over many records the reason must say
+     * which ones could not move and why, not ask to reload.
+     *
+     * @param  array<string, mixed>  $found
+     */
+    public function movable(FormRuntime $rt, array $found, string $transition): void
+    {
+        $wf = WorkflowRuntime::for($rt);
+        $t = $wf->transitions[strtolower($transition)] ?? null;
+        $status = $found['system']['status_id'] ?? null;
+        if ($t !== null && $t['fromId'] !== null && $t['fromId'] !== $status) {
+            throw new StepFailed(__('actions.not_from_status', [
+                'transition' => WorkflowRuntime::label($t),
+                'status' => ($s = $wf->status($status)) === null ? __('actions.no_status') : WorkflowRuntime::label($s),
+                'from' => WorkflowRuntime::label($wf->status($t['fromId']) ?? []),
+            ]));
+        }
+    }
+
+    /**
      * @param  array<string, mixed>  $c
      * @param  array<string, mixed>  $found
      * @return list<array<string, mixed>>
      */
     private function changeStatus(array $c, FormRuntime $rt, User $user, array $found, string $key, ?int $justificationId, StepOrigin $origin): array
     {
+        $this->movable($rt, $found, (string) $c['transition']);
         $this->pipeline->transition($rt, $user, $found['uuid'], (string) $c['transition'], $found['row_version'], [], $key, $origin->source, $justificationId);
 
         return [];

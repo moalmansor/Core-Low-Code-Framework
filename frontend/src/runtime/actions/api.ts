@@ -29,7 +29,13 @@ export interface Preparation {
   count: number
   queued: boolean
   justification: (JustificationPrompt & { count: number }) | null
-  inputs: { fields?: BulkField[]; transitions?: { uuid: string; label: string }[]; assignees?: ('user' | 'role' | 'department')[] } | null
+  inputs: {
+    fields?: BulkField[]
+    transitions?: { uuid: string; label: string; comment: 'none' | 'optional' | 'mandatory' }[]
+    /** The transition a bulk status change always makes ("Approve all selected"). */
+    fixed?: { uuid: string; label: string; comment: 'none' | 'optional' | 'mandatory'; from: string | null; to: string } | null
+    assignees?: ('user' | 'role' | 'department')[]
+  } | null
   /** The first records the run covers. */
   preview: { uuid: string; title: string }[]
   /** Whether the run can be tried first without keeping anything (the bulk built-ins). */
@@ -57,7 +63,7 @@ export interface ActionRun {
   count: number
   affected: number
   failed: number
-  errors: { uuid: string; error: string }[]
+  errors: { uuid: string; title?: string; error: string }[]
   outputs: RunOutput[]
   error: string | null
   message: string | null

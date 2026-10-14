@@ -339,7 +339,7 @@ final class ActionRunner
                     $result['outputs'] = array_slice([...$result['outputs'], ...$outputs], 0, 20);
                     $affected++;
                 } catch (RecordException|ValidationException|StepFailed $e) {
-                    $result['records'][] = ['uuid' => $target['uuid'], 'ok' => false, 'error' => self::message($e)];
+                    $result['records'][] = ['uuid' => $target['uuid'], 'ok' => false, 'error' => self::message($e), 'title' => $this->titleOf($rt, $target['uuid'])];
                     $failed++;
                 }
                 DB::table('bulk_operations')->where('id', $opId)->update([
@@ -411,7 +411,8 @@ final class ActionRunner
 
                 return [];
             case 'bulk_status':
-                $this->pipeline->transition($rt, $user, $target['uuid'], (string) $inputs['transition'], $version, [], $key, 'action', $justificationId);
+                $this->steps->movable($rt, $found, (string) $inputs['transition']);
+                $this->pipeline->transition($rt, $user, $target['uuid'], (string) $inputs['transition'], $version, ($inputs['comment'] ?? null) === null ? [] : ['comment' => $inputs['comment']], $key, 'action', $justificationId);
 
                 return [];
             case 'bulk_delete':
@@ -430,6 +431,14 @@ final class ActionRunner
             default:
                 throw new StepFailed(__('actions.not_runnable'));
         }
+    }
+
+    /** A record's title for a run's report (its number, else its title, else "Untitled record"). */
+    private function titleOf(FormRuntime $rt, string $uuid): string
+    {
+        $title = app(RecycleBin::class)->title($rt, DB::table($rt->table)->where('uuid', $uuid)->first());
+
+        return $title !== '' ? $title : __('records.untitled');
     }
 
     /**
@@ -566,9 +575,18 @@ final class ActionRunner
         }
         if ($action->builtin === 'bulk_status') {
             $wf = WorkflowRuntime::for($rt);
+            $fixed = ActionDocument::settingsOf($action)['transition'] ?? null;
+            if ($fixed !== null) {
+                $t = $wf->transitions[$fixed] ?? null;
+
+                return ['fixed' => $t === null ? null : [
+                    'uuid' => $fixed, 'label' => WorkflowRuntime::label($t), 'comment' => $t['comment'] ?? 'none',
+                    'from' => $t['fromId'] === null ? null : WorkflowRuntime::label($wf->status($t['fromId']) ?? []), 'to' => WorkflowRuntime::label($wf->status($t['toId']) ?? []),
+                ]];
+            }
 
             return ['transitions' => array_values(array_map(static fn (array $t) => [
-                'uuid' => strtolower((string) $t['uuid']), 'label' => WorkflowRuntime::label($t),
+                'uuid' => strtolower((string) $t['uuid']), 'label' => WorkflowRuntime::label($t), 'comment' => $t['comment'] ?? 'none',
             ], array_filter($wf->transitions, fn (array $t) => $user === null || $this->access->allows($user, 'transition.'.strtolower((string) $t['uuid']).'.perform'))))];
         }
 
@@ -603,12 +621,18 @@ final class ActionRunner
             return ['assignee' => ['type' => $type, 'uuid' => strtolower($ref)]];
         }
         if ($action->builtin === 'bulk_status') {
-            $t = strtolower((string) ($inputs['transition'] ?? ''));
+            $t = ActionDocument::settingsOf($action)['transition'] ?? strtolower((string) ($inputs['transition'] ?? ''));
             if (! DB::table('transitions')->where('form_id', $rt->form->id)->where('uuid', $t)->whereNull('archived_at')->exists()) {
                 throw ValidationException::withMessages(['inputs.transition' => __('actions.unknown_transition')]);
             }
+            // One comment for every record, when the transition takes one.
+            $mode = WorkflowRuntime::for($rt)->transitions[$t]['comment'] ?? 'none';
+            $comment = is_string($inputs['comment'] ?? null) ? trim(mb_substr($inputs['comment'], 0, 5000)) : '';
+            if ($mode === 'mandatory' && $comment === '') {
+                throw ValidationException::withMessages(['inputs.comment' => __('workflow.comment_required')]);
+            }
 
-            return ['transition' => $t];
+            return ['transition' => $t, 'comment' => $mode === 'none' || $comment === '' ? null : $comment];
         }
 
         return [];

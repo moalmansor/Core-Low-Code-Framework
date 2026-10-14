@@ -5,6 +5,7 @@ import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import ProgressBar from 'primevue/progressbar'
 import Select from 'primevue/select'
+import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { useToast } from 'primevue/usetoast'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
@@ -45,6 +46,9 @@ const error = ref('')
 const fieldKey = ref<string | null>(null)
 const fieldValue = ref<unknown>(null)
 const transition = ref<string | null>(null)
+const comment = ref('')
+// Whether the transition takes a comment (one for every record): none, optional or mandatory.
+const commentMode = computed(() => prep.value?.inputs?.fixed?.comment ?? prep.value?.inputs?.transitions?.find((x) => x.uuid === transition.value)?.comment ?? 'none')
 const assignee = ref<{ type: string; uuid: string | null } | null>(null)
 const trial = ref<DryRun | null>(null)
 const trying = ref(false)
@@ -60,12 +64,16 @@ const fieldKind = computed(() => {
 })
 const inputs = computed<Record<string, unknown>>(() => {
   if (action.value?.builtin === 'bulk_update') return fieldKey.value ? { values: { [fieldKey.value]: fieldValue.value === '' ? null : fieldValue.value } } : {}
-  if (action.value?.builtin === 'bulk_status') return transition.value ? { transition: transition.value } : {}
+  if (action.value?.builtin === 'bulk_status') {
+    const note = commentMode.value !== 'none' && comment.value.trim() ? { comment: comment.value.trim() } : {}
+    if (prep.value?.inputs?.fixed) return { fixed: true, ...note }
+    return transition.value ? { transition: transition.value, ...note } : {}
+  }
   if (action.value?.builtin === 'bulk_reassign') return assignee.value?.uuid ? { assignee: assignee.value } : {}
   return {}
 })
 const needsInputs = computed(() => ['bulk_update', 'bulk_status', 'bulk_reassign'].includes(action.value?.builtin ?? ''))
-const ready = computed(() => !needsInputs.value || Object.keys(inputs.value).length > 0)
+const ready = computed(() => (!needsInputs.value || Object.keys(inputs.value).length > 0) && (commentMode.value !== 'mandatory' || comment.value.trim() !== ''))
 // A trial run answers for the inputs it was tried with.
 watch(inputs, () => (trial.value = null), { deep: true })
 let poll: ReturnType<typeof setTimeout> | null = null
@@ -82,6 +90,7 @@ async function start(formUuid: string, a: AvailableAction, on: ActionTarget): Pr
   fieldKey.value = null
   fieldValue.value = null
   transition.value = null
+  comment.value = ''
   assignee.value = null
   trial.value = null
   // Print opens the record's print page with the default layout, as the record page's own Print does.
@@ -249,10 +258,25 @@ defineExpose({ start })
             <p class="m-0 mt-1 text-xs text-muted-color">{{ t('act.run.value_hint') }}</p>
           </div>
         </template>
-        <div v-if="action?.builtin === 'bulk_status'" class="field">
+        <div v-if="action?.builtin === 'bulk_status' && prep.inputs?.fixed" class="flex flex-col gap-1" data-testid="action-fixed-transition">
+          <p class="m-0 text-sm">
+            {{
+              prep.inputs.fixed.from
+                ? t('act.run.fixed_from', { name: prep.inputs.fixed.label, from: prep.inputs.fixed.from, to: prep.inputs.fixed.to })
+                : t('act.run.fixed', { name: prep.inputs.fixed.label, to: prep.inputs.fixed.to })
+            }}
+          </p>
+          <p class="m-0 text-xs text-muted-color">{{ t('act.run.fixed_hint') }}</p>
+        </div>
+        <div v-else-if="action?.builtin === 'bulk_status'" class="field">
           <label for="act-run-tr" class="text-sm font-medium">{{ t('act.run.transition') }}</label>
           <Select v-model="transition" input-id="act-run-tr" :options="prep.inputs?.transitions ?? []" option-label="label" option-value="uuid" size="small" class="w-full" />
           <p v-if="!(prep.inputs?.transitions ?? []).length" class="m-0 mt-1 text-xs text-muted-color">{{ t('act.run.no_transitions') }}</p>
+        </div>
+        <div v-if="action?.builtin === 'bulk_status' && commentMode !== 'none'" class="field">
+          <label for="act-run-comment" class="text-sm font-medium">{{ t('act.run.comment') }}<span v-if="commentMode === 'mandatory'" class="text-danger ms-1" aria-hidden="true">*</span></label>
+          <Textarea id="act-run-comment" v-model="comment" rows="2" auto-resize class="w-full" data-testid="action-comment" />
+          <p class="m-0 mt-1 text-xs text-muted-color">{{ t('act.run.comment_hint') }}</p>
         </div>
         <div v-if="action?.builtin === 'bulk_reassign'" class="field">
           <label for="act-run-assignee" class="text-sm font-medium">{{ t('act.run.assignee') }}</label>
@@ -288,7 +312,7 @@ defineExpose({ start })
             <p class="m-0 text-sm font-medium">{{ t('act.run.not_changed', { n: n(run.failed) }) }}</p>
             <ul class="m-0 ps-5 text-sm max-h-48 overflow-auto">
               <li v-for="e in run.errors" :key="e.uuid">
-                <RouterLink :to="`/app/${form}/${e.uuid}`" class="text-primary">{{ t('act.run.record') }}</RouterLink
+                <RouterLink :to="`/app/${form}/${e.uuid}`" class="text-primary" dir="auto">{{ e.title || t('act.run.record') }}</RouterLink
                 >: {{ e.error }}
               </li>
             </ul>

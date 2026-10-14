@@ -32,6 +32,8 @@ return [
     'too_many_records' => 'This action can run on at most :max records at a time.',
     'gone' => 'The action or its form no longer exists.',
     'run_failed' => 'The action stopped because of an unexpected error. The details are in Error Monitoring.',
+    'not_from_status' => ':transition is not possible while the record is :status; it moves records that are :from.',
+    'no_status' => 'without a status',
     'not_runnable' => 'This action has nothing to run here.',
     'bad_bulk_values' => 'Choose the fields to change and their new values.',
     'changed_since' => 'Someone changed this record after you selected it. Reload and try again.',

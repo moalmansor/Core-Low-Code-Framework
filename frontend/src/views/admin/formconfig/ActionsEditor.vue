@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
+import Dialog from 'primevue/dialog'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ExpressionInput from '@/builder/conditions/ExpressionInput.vue'
 import { buildScope } from '@/builder/conditions/scope'
 import I18nInput from '@/builder/I18nInput.vue'
 import { useBuilder } from '@/builder/useBuilder'
+import ChoiceGallery from '@/components/config/ChoiceGallery.vue'
 import ConfigField from '@/components/config/ConfigField.vue'
 import ConfigItem from '@/components/config/ConfigItem.vue'
 import ConfigSaveBar from '@/components/config/ConfigSaveBar.vue'
@@ -18,7 +20,7 @@ import EmptyState from '@/components/config/EmptyState.vue'
 import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import TabIntro from '@/components/config/TabIntro.vue'
 import { useSession } from '@/stores/session'
-import { actionsApi, labelOf, newUuid, type ActionBuiltin, type ActionDoc, type ActionPlacement } from './api'
+import { actionsApi, labelOf, newUuid, workflowApi, type ActionBuiltin, type ActionDoc, type ActionPlacement, type TransitionDoc } from './api'
 import ErrorList from './ErrorList.vue'
 import StepListEditor from './StepListEditor.vue'
 import { useHashedDocument } from './useHashedDocument'
@@ -52,8 +54,63 @@ const BUILTIN_PLACES: Record<ActionBuiltin, ActionPlacement[]> = {
 }
 const ALL_PLACES: ActionPlacement[] = ['row', 'bulk', 'toolbar', 'view_page']
 const placesOf = (a: ActionDoc) => (a.kind === 'builtin' && a.builtin ? BUILTIN_PLACES[a.builtin] : ALL_PLACES)
-const builtins = computed(() => (Object.keys(BUILTIN_PLACES) as ActionBuiltin[]).map((v) => ({ value: v, label: t(`act.builtin.${v}`) })))
-const newBuiltin = ref<ActionBuiltin>('bulk_update')
+const transitions = ref<TransitionDoc[]>([])
+onMounted(async () => {
+  transitions.value = (await workflowApi.load(props.form).catch(() => null))?.document.transitions ?? []
+})
+const transitionLabel = (x: TransitionDoc) => labelOf(x.i18n.name, locale.value, x.key, dl.value)
+const transitionOptions = computed(() => [
+  { value: null as string | null, label: t('act.transition_choose') },
+  ...transitions.value.map((x) => ({ value: x.uuid as string | null, label: transitionLabel(x) })),
+])
+
+// What can be added, by purpose (design system §5.7: pickers that say what each thing does).
+type Choice = ActionBuiltin | 'move_selected' | 'custom'
+const adding = ref(false)
+const choiceGroups = computed(() => [
+  {
+    title: t('act.choose.group_selected'),
+    items: (
+      [
+        ['move_selected', 'pi-check-circle'],
+        ['bulk_status', 'pi-arrow-right'],
+        ['bulk_update', 'pi-pencil'],
+        ['bulk_reassign', 'pi-user-plus'],
+        ['bulk_delete', 'pi-trash'],
+      ] as [Choice, string][]
+    ).map(([value, icon]) => ({ value, icon, title: t(`act.choose.${value}`), description: t(`act.choose.${value}_desc`) })),
+  },
+  {
+    title: t('act.choose.group_one'),
+    items: (
+      [
+        ['duplicate', 'pi-copy'],
+        ['print', 'pi-print'],
+      ] as [Choice, string][]
+    ).map(([value, icon]) => ({ value, icon, title: t(`act.choose.${value}`), description: t(`act.choose.${value}_desc`) })),
+  },
+  { title: t('act.choose.group_custom'), items: [{ value: 'custom' as Choice, icon: 'pi-sitemap', title: t('act.choose.custom'), description: t('act.choose.custom_desc') }] },
+])
+function choose(c: Choice): void {
+  adding.value = false
+  if (c === 'custom') {
+    addCustom()
+    return
+  }
+  if (c !== 'move_selected') return void doc.value.value?.push(baseAction('builtin', c))
+  // "Approve all selected": a bulk status change that always makes one transition.
+  const a = baseAction('builtin', 'bulk_status')
+  const first = transitions.value.find((x) => /approv/i.test(x.key)) ?? transitions.value[0]
+  a.settings = { transition: first?.uuid ?? null }
+  if (first) a.i18n.label = { ...first.i18n.name }
+  a.icon = 'pi-check'
+  a.color = 'success'
+  a.confirm = true
+  doc.value.value?.push(a)
+}
+function setFixed(a: ActionDoc, uuid: string | null): void {
+  a.settings = { transition: uuid }
+}
 const levels = computed(() => (['not_required', 'optional', 'mandatory'] as const).map((v) => ({ value: v, label: t(`act.level.${v}`) })))
 const runModes = computed(() => (['auto', 'sync', 'queued'] as const).map((v) => ({ value: v, label: t(`act.mode.${v}`) })))
 const icons = [
@@ -86,6 +143,7 @@ function baseAction(kind: 'builtin' | 'custom', builtin: ActionBuiltin | null): 
     key: kind === 'builtin' && builtin ? `${builtin}_${n}` : `action_${n}`,
     kind,
     builtin,
+    settings: builtin === 'bulk_status' ? { transition: null } : null,
     i18n: { label: kind === 'builtin' && builtin ? { [dl.value]: t(`act.builtin.${builtin}`) } : {}, confirmation: {}, success: {} },
     placements: kind === 'builtin' && builtin ? [BUILTIN_PLACES[builtin][0]!] : ['row'],
     condition: null,
@@ -101,7 +159,6 @@ function baseAction(kind: 'builtin' | 'custom', builtin: ActionBuiltin | null): 
   }
 }
 const addCustom = () => doc.value.value?.push(baseAction('custom', null))
-const addBuiltin = () => doc.value.value?.push(baseAction('builtin', newBuiltin.value))
 function togglePlace(a: ActionDoc, p: ActionPlacement, on: boolean): void {
   a.placements = on ? [...new Set([...a.placements, p])] : a.placements.filter((x) => x !== p)
 }
@@ -112,15 +169,26 @@ function move<T>(list: T[], i: number, d: -1 | 1): void {
 }
 
 const actionTitle = (a: ActionDoc) => labelOf(a.i18n.label, locale.value, a.key, dl.value) || t('act.untitled')
-const actionSubtitle = (a: ActionDoc) =>
-  `${a.kind === 'builtin' && a.builtin ? t(`act.builtin.${a.builtin}`) : t('act.custom', { n: a.steps.length })} · ${a.placements.map((p) => t(`act.place.${p}`)).join(', ')}${a.active ? '' : ' · ' + t('act.inactive')}`
+const fixedName = (a: ActionDoc) => {
+  const x = transitions.value.find((tr) => tr.uuid === a.settings?.transition)
+  return x ? transitionLabel(x) : null
+}
+const kindText = (a: ActionDoc) =>
+  a.kind !== 'builtin' || !a.builtin
+    ? t('act.custom', { n: a.steps.length })
+    : a.builtin === 'bulk_status' && fixedName(a)
+      ? t('act.builtin_fixed', { name: fixedName(a)! })
+      : t(`act.builtin.${a.builtin}`)
+const actionSubtitle = (a: ActionDoc) => `${kindText(a)} · ${a.placements.map((p) => t(`act.place.${p}`)).join(', ')}${a.active ? '' : ' · ' + t('act.inactive')}`
 </script>
 
 <template>
   <div class="flex flex-col gap-6" data-testid="actions-editor">
     <TabIntro :title="t('formconfig.tab.actions')" :text="t('act.hint')" />
 
-    <EmptyState v-if="doc.value.value && !doc.value.value.length" icon="pi pi-bolt" :title="t('act.empty_title')" :description="t('act.empty_text')" testid="act-empty" />
+    <EmptyState v-if="doc.value.value && !doc.value.value.length" icon="pi pi-bolt" :title="t('act.empty_title')" :description="t('act.empty_text')" testid="act-empty">
+      <Button icon="pi pi-plus" :label="t('act.add')" size="small" data-testid="act-add-first" @click="adding = true" />
+    </EmptyState>
 
     <template v-if="doc.value.value">
       <ConfigItem
@@ -153,6 +221,25 @@ const actionSubtitle = (a: ActionDoc) =>
               <Select v-model="a.color" :input-id="`act-color-${i}`" :options="colors" option-label="label" option-value="value" size="small" />
             </ConfigField>
           </div>
+          <ConfigField
+            v-if="a.builtin === 'bulk_status'"
+            :label="t('act.fixed_transition')"
+            :for="`act-fixed-${i}`"
+            width="md"
+            :hint="t('act.fixed_transition_hint')"
+            :error="err(`actions.${i}.settings.transition`)"
+          >
+            <Select
+              :model-value="a.settings?.transition ?? null"
+              :input-id="`act-fixed-${i}`"
+              :options="transitionOptions"
+              option-label="label"
+              option-value="value"
+              size="small"
+              :data-testid="`act-fixed-${i}`"
+              @update:model-value="(v: string | null) => setFixed(a, v)"
+            />
+          </ConfigField>
           <SettingSwitch :id="`act-active-${i}`" v-model="a.active" :label="t('act.active')" :description="t('act.active_desc')" />
         </ConfigSection>
 
@@ -200,13 +287,12 @@ const actionSubtitle = (a: ActionDoc) =>
         </ConfigSection>
       </ConfigItem>
 
-      <div class="flex flex-wrap items-center gap-2">
-        <Button icon="pi pi-plus" :label="t('act.add_custom')" size="small" outlined data-testid="act-add-custom" @click="addCustom" />
-        <span class="text-sm text-muted-color">{{ t('act.or') }}</span>
-        <Select v-model="newBuiltin" :options="builtins" option-label="label" option-value="value" size="small" class="w-field-sm" :aria-label="t('act.builtin_type')" />
-        <Button icon="pi pi-plus" :label="t('act.add_builtin')" size="small" outlined data-testid="act-add-builtin" @click="addBuiltin" />
-      </div>
+      <Button v-if="doc.value.value.length" icon="pi pi-plus" :label="t('act.add')" size="small" outlined class="self-start" data-testid="act-add" @click="adding = true" />
     </template>
+
+    <Dialog v-model:visible="adding" modal :header="t('act.add_title')" :style="{ width: '52rem', maxWidth: 'calc(100vw - 2rem)' }" data-testid="act-add-dialog">
+      <ChoiceGallery :groups="choiceGroups" testid="act-choice" @choose="choose" />
+    </Dialog>
 
     <ErrorList :errors="doc.errors.value" />
     <ConfigSaveBar :dirty="doc.dirty.value" :saving="doc.saving.value" testid="act" @save="doc.save" @discard="doc.discard" />

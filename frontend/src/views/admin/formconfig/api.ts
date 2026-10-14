@@ -341,6 +341,8 @@ export interface ActionDoc {
   key: string
   kind: 'builtin' | 'custom'
   builtin: ActionBuiltin | null
+  /** A bulk status change's fixed transition; null lets the person running it choose. */
+  settings: { transition: string | null } | null
   i18n: { label: I18nMap; confirmation: I18nMap; success: I18nMap }
   placements: ActionPlacement[]
   condition: Ast | null

@@ -86,6 +86,7 @@ final class ActionDocument
             'key' => $a->key,
             'kind' => $a->kind,
             'builtin' => $a->builtin,
+            'settings' => self::settingsOf($a),
             'i18n' => [
                 'label' => (object) ($tr[(int) $a->id]['label'] ?? []),
                 'confirmation' => (object) ($tr[(int) $a->id]['confirmation_text'] ?? []),
@@ -109,6 +110,22 @@ final class ActionDocument
                 'onFailure' => $s->on_failure,
             ])->values()->all(),
         ])->values()->all();
+    }
+
+    /**
+     * A built-in's own settings: for a bulk status change, the transition it
+     * always makes (null when the person running it chooses).
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function settingsOf(object $action): ?array
+    {
+        if ($action->builtin !== 'bulk_status') {
+            return null;
+        }
+        $settings = json_decode((string) ($action->settings ?? 'null'), true);
+
+        return ['transition' => is_array($settings) && is_string($settings['transition'] ?? null) ? strtolower($settings['transition']) : null];
     }
 
     public function hash(Form $form): string
@@ -147,6 +164,7 @@ final class ActionDocument
             foreach ($actions as $i => $a) {
                 $row = [
                     'updated_at' => $now, 'updated_by' => $userId, 'key' => $a['key'], 'kind' => $a['kind'], 'builtin' => $a['builtin'],
+                    'settings' => $a['settings'] === null ? null : json_encode($a['settings']),
                     'placements' => json_encode($a['placements']), 'requires_confirmation' => $a['confirm'], 'run_mode' => $a['runMode'],
                     'queue_threshold' => $a['queueThreshold'], 'max_records' => $a['maxRecords'], 'justification_level' => $a['justification'],
                     'icon' => $a['icon'], 'color' => $a['color'], 'sort_order' => $i, 'is_active' => $a['active'],
@@ -310,6 +328,15 @@ final class ActionDocument
             if (! in_array($kind, ['builtin', 'custom'], true) || ($kind === 'builtin' && ! isset(self::BUILTINS[$builtin]))) {
                 $errors["{$p}.kind"][] = __('validation.in', ['attribute' => 'kind']);
             }
+            $settings = null;
+            if ($builtin === 'bulk_status') {
+                // A fixed transition makes the action "Approve all selected"; without one the person picks it when running.
+                $t = $a['settings']['transition'] ?? null;
+                if ($t !== null && (! is_string($t) || ! Str::isUuid($t) || ! DB::table('transitions')->where('form_id', $form->id)->where('uuid', strtolower($t))->whereNull('archived_at')->exists())) {
+                    $errors["{$p}.settings.transition"][] = __('actions.unknown_transition');
+                }
+                $settings = ['transition' => is_string($t) ? strtolower($t) : null];
+            }
             $placements = array_values(array_unique(array_filter((array) ($a['placements'] ?? []), 'is_string')));
             $allowed = $kind === 'builtin' && isset(self::BUILTINS[$builtin]) ? self::BUILTINS[$builtin] : self::PLACEMENTS;
             if ($placements === [] || array_diff($placements, $allowed) !== []) {
@@ -386,7 +413,7 @@ final class ActionDocument
                 }
             }
             $out[] = [
-                'uuid' => $uuid, 'key' => $key, 'kind' => $kind, 'builtin' => $builtin, 'placements' => $placements,
+                'uuid' => $uuid, 'key' => $key, 'kind' => $kind, 'builtin' => $builtin, 'settings' => $settings, 'placements' => $placements,
                 'i18n' => ['label' => $label, 'confirmation' => $this->texts($a['i18n']['confirmation'] ?? [], 500), 'success' => $this->texts($a['i18n']['success'] ?? [], 255)],
                 'condition' => is_array($condition) ? $condition : null, 'confirm' => (bool) ($a['confirm'] ?? false), 'runMode' => $runMode,
                 'queueThreshold' => $a['queueThreshold'] ?? null, 'maxRecords' => $a['maxRecords'] ?? null, 'justification' => $justification,

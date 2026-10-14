@@ -223,7 +223,7 @@ it('runs built-in bulk update, status change, delete and duplicate through the r
     expect(DB::table('f_tickets')->pluck('priority')->unique()->values()->all())->toBe(['high']);
 
     $transitions = $this->postJson("/api/v1/r/{$w['tickets']}/actions/{$status['uuid']}/prepare", ['items' => $items])->json('data.inputs.transitions');
-    expect($transitions)->toBe([['uuid' => $w['close']['uuid'], 'label' => 'Close']]);
+    expect($transitions)->toBe([['uuid' => $w['close']['uuid'], 'label' => 'Close', 'comment' => 'none']]);
     $this->postJson("/api/v1/r/{$w['tickets']}/actions/{$status['uuid']}/run", ['items' => array_slice($items, 0, 2), 'inputs' => ['transition' => $w['close']['uuid']]])->assertCreated();
     expect(DB::table('f_tickets')->whereNotNull('status_id')->where('status_id', DB::table('statuses')->where('uuid', $w['closed']['uuid'])->value('id'))->count())->toBe(2);
 
@@ -312,4 +312,60 @@ it('lets a justification rule target one action, built-in or custom', function (
     $this->postJson("/api/v1/r/{$w['tickets']}/actions/{$copy['uuid']}/run", ['items' => [['uuid' => $r['uuid']]], 'justification' => ['reason_text' => 'No']])->assertStatus(422)->assertJsonPath('code', 'justification_invalid');
     $this->postJson("/api/v1/r/{$w['tickets']}/actions/{$copy['uuid']}/run", ['items' => [['uuid' => $r['uuid']]], 'justification' => ['reason_text' => 'Same again']])->assertCreated();
     expect(DB::table('justifications')->where('context', 'action')->value('reason_text'))->toBe('Same again');
+});
+
+it('approves every selected record with one fixed transition, leaving and explaining those it may not move', function () {
+    [, $form] = createForm($this, 'claims');
+    saveDraft($this, $form, [], [fieldDoc('subject', 'text')])->assertOk();
+    $draft = statusDoc('draft', true);
+    $submitted = statusDoc('submitted');
+    $approved = statusDoc('approved', false, true);
+    $submit = transitionDoc('submit', $draft, $submitted);
+    $approve = transitionDoc('approve', $submitted, $approved, ['comment' => 'mandatory']);
+    saveWorkflow($this, $form, [$draft, $submitted, $approved], [$submit, $approve])->assertOk();
+    expect(publish($this, $form)['status'])->toBe('applied');
+
+    // "Approve all selected": a bulk status change with its transition fixed in the action.
+    $bulk = actionDoc('approve_selected', ['kind' => 'builtin', 'builtin' => 'bulk_status', 'placements' => ['bulk'], 'settings' => ['transition' => uid()]]);
+    saveActions($this, $form, [$bulk])->assertStatus(422)->assertJsonValidationErrors(['actions.0.settings.transition']);
+    $bulk['settings'] = ['transition' => $approve['uuid']];
+    saveActions($this, $form, [$bulk])->assertOk();
+    expect($this->getJson("/api/v1/forms/{$form}/actions")->json('data.actions.0.settings'))->toBe(['transition' => $approve['uuid']]);
+
+    $make = function (string $subject, bool $submitIt) use ($form, $submit): array {
+        $r = $this->postJson("/api/v1/r/{$form}", ['values' => ['subject' => $subject]])->assertCreated()->json('data');
+        if ($submitIt) {
+            $this->postJson("/api/v1/r/{$form}/{$r['uuid']}/transitions/{$submit['uuid']}", ['row_version' => 1])->assertOk();
+        }
+
+        return $r;
+    };
+    $a = $make('Alpha', true);
+    $b = $make('Bravo', true);
+    $c = $make('Charlie', false);
+    $items = array_map(static fn ($r) => ['uuid' => $r['uuid']], [$a, $b, $c]);
+
+    // The run asks nothing but the comment the transition requires, said once for every record.
+    $prep = $this->postJson("/api/v1/r/{$form}/actions/{$bulk['uuid']}/prepare", ['items' => $items])->assertOk()->json('data.inputs');
+    expect($prep)->toBe(['fixed' => ['uuid' => $approve['uuid'], 'label' => 'Approve', 'comment' => 'mandatory', 'from' => 'Submitted', 'to' => 'Approved']]);
+    $this->postJson("/api/v1/r/{$form}/actions/{$bulk['uuid']}/run", ['items' => $items, 'inputs' => []])->assertStatus(422)->assertJsonValidationErrors(['inputs.comment']);
+    // A transition chosen by the person is ignored: the action's own one is made.
+    $run = $this->postJson("/api/v1/r/{$form}/actions/{$bulk['uuid']}/run", ['items' => $items, 'inputs' => ['transition' => $submit['uuid'], 'comment' => 'Checked in batch']])->assertCreated()->json('data');
+    expect($run['status'])->toBe('completed_with_errors')->and($run['affected'])->toBe(2)->and($run['failed'])->toBe(1)
+        // The record that could not move is named, with the reason in words.
+        ->and($run['errors'])->toEqual([['uuid' => $c['uuid'], 'ok' => false, 'error' => 'Approve is not possible while the record is Draft; it moves records that are Submitted.', 'title' => 'Charlie']]);
+    $approvedId = DB::table('statuses')->where('uuid', $approved['uuid'])->value('id');
+    expect(DB::table('f_claims')->where('status_id', $approvedId)->pluck('subject')->sort()->values()->all())->toBe(['Alpha', 'Bravo'])
+        ->and(DB::table('status_history')->where('to_status_id', $approvedId)->pluck('comment')->unique()->values()->all())->toBe(['Checked in batch']);
+
+    // Someone who may run the action but not make the transition moves nothing, and is told why for each record.
+    $d = $make('Delta', true);
+    $clerk = $this->makeUser();
+    foreach (["form.{$form}.view", "form.{$form}.edit", "action.{$bulk['uuid']}.run"] as $perm) {
+        grantPermission($clerk->id, $perm);
+    }
+    $this->flushSession();
+    $this->actingAs($clerk, 'web');
+    $denied = $this->postJson("/api/v1/r/{$form}/actions/{$bulk['uuid']}/run", ['items' => [['uuid' => $d['uuid']]], 'inputs' => ['comment' => 'Try']])->assertCreated()->json('data');
+    expect($denied['affected'])->toBe(0)->and($denied['errors'][0]['error'])->toBe('You are not allowed to perform this transition.')->and($denied['errors'][0]['title'])->toBe('Delta');
 });
