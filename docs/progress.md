@@ -520,6 +520,33 @@ Decided by the owner:
 - **Pull request** to `main` closing #7, with the verification report.
   Phase 4 is complete pending the owner's review. Do not start Phase 5
   until it is merged.
+- **Owner review of Phase 4 (2026-10-14), four items:**
+  1. *Notification recipients from the record* (ADR-0047). Recipients can now be:
+     - a user, role or department picker field, on this form or on a linked form through a relation path of up to four links;
+     - an e-mail field;
+     - the current assignee;
+     - the person who last changed the status.
+     Each kind can be chosen for To, CC and BCC independently and is resolved at send time. The old "user field" option never worked: it looked for type `user`, not `user_picker`. Test: `NotificationsTest` "reaches the people a record holds".
+  2. *Document template builder* (ADR-0046). Added:
+     - a placeholder picker over linked forms and system values;
+     - per-value formats (dates, numbers, currencies, Arabic-Indic or Western digits);
+     - linked child-record tables with chosen columns;
+     - signature blocks, QR codes and barcodes;
+     - a title, and a header and footer with logo and page numbers, in both PDF and Word;
+     - templates saved as blueprints (`document_template`).
+     Conditional blocks and live preview were already there. Configuration packages are Phase 5 and will carry these blueprints. Tests: `DocumentsTest` (8), e2e `08-documents`.
+  3. *Actions against §4.15* (ADR-0049). Every built-in and step in §4.15 was already implemented. Added:
+     - bulk status change with a fixed transition, offered by an "Approve or move selected records" preset;
+     - one comment for the run when the transition takes one;
+     - a per-record "not in status …" refusal, reported by record title;
+     - typed inputs for bulk field update.
+     Test: `ActionsTest` "approves every selected record".
+  4. *Design checklist* (ADR-0048, design system §5.7). The checklist was applied to every Phase 4 screen. It is now enforced by `src/design/screens.spec.ts`, with pre-checklist screens waived per rule and the waiver list only allowed to shrink. It is also enforced by e2e `15-screens.spec.ts`: every Phase 4 screen in English and Arabic at desktop and phone width. The sweep found and fixed:
+     - the scheduled-tasks header on phones;
+     - the autocomplete width in Arabic;
+     - the raw `subject` key in a validation message;
+     - the sidebar emptying itself after a refused request.
+     A pull-request template carries the checklist.
 
 ## Resume point
 
@@ -531,9 +558,11 @@ field access by status, and all behaved correctly.
 
 Phase 4 is built on branch `phase-4-actions`
 ([moalmansor/Core-Low-Code-Framework#7](https://github.com/moalmansor/Core-Low-Code-Framework/issues/7))
-and its pull request to `main` is open for the owner's review. Resume by
-addressing review comments on that pull request (push to the same branch,
-re-run CI, update the report). Phase 5 starts only after it is merged.
+and its pull request to `main` is open for the owner's review. The owner's
+four-item review of 2026-10-14 is addressed (see Phase 4 above); resume by
+checking CI on the head commit, updating the report, and addressing any new
+review comments on that pull request (push to the same branch, re-run CI,
+update the report). Phase 5 starts only after it is merged.
 
 ### Local development notes
 

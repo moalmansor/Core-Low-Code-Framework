@@ -256,7 +256,7 @@ const name = computed(() => (doc.value ? labelOf(doc.value.i18n.name, locale.val
 
 <template>
   <div class="flex flex-col gap-6" data-testid="automation-editor">
-    <header class="flex flex-wrap items-start gap-3">
+    <header class="page-head">
       <div class="flex-1 min-w-0">
         <RouterLink :to="back" class="text-sm text-primary inline-flex items-center gap-1 mb-1">
           <i class="pi pi-arrow-left rtl:rotate-180" aria-hidden="true" />{{ t('formconfig.tab.automations') }}

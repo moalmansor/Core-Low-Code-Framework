@@ -360,7 +360,7 @@ const back = computed(() => (personal ? { name: 'records.downloads', params: { f
 
 <template>
   <div class="flex flex-col gap-6" data-testid="download-editor">
-    <header class="flex flex-wrap items-start gap-3">
+    <header class="page-head">
       <div class="flex-1 min-w-0">
         <RouterLink :to="back" class="text-sm text-primary inline-flex items-center gap-1 mb-1">
           <i class="pi pi-arrow-left rtl:rotate-180" aria-hidden="true" />{{ personal ? t('dl.my_profiles') : t('formconfig.tab.downloads') }}

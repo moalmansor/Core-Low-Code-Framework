@@ -49,3 +49,7 @@ One short record per significant decision (specification §8.1). New records are
 | [0043](0043-automations.md) | Automations — runs, run-as user, loop protection, waits and test runs |
 | [0044](0044-data-quality.md) | Data quality — duplicate rules, merge, bulk tools, repair and recycle-bin retention |
 | [0045](0045-operations-center.md) | Operations Center — failures, retries, alerts and queue workers |
+| [0046](0046-document-template-builder-and-blueprints.md) | Document template builder — values, formats, blocks and blueprints |
+| [0047](0047-notification-recipients-at-send-time.md) | Notification recipients from the record, resolved at send time |
+| [0048](0048-design-checklist-enforced-by-tests.md) | The screen checklist is enforced by tests |
+| [0049](0049-fixed-transition-bulk-status.md) | Bulk status change with a fixed transition |

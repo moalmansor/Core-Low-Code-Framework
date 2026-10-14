@@ -169,7 +169,7 @@ final class EmailTemplateController extends Controller
             'design' => ['required', 'array'],
             'design.blocks' => ['present', 'array', 'max:100'],
             'design.style' => ['sometimes', 'array'],
-            'subject' => ['required', 'array'],
+            'subject' => ['present', 'array'],
             'subject.*' => ['nullable', 'string', 'max:255'],
             'preheader' => ['sometimes', 'array'],
             'preheader.*' => ['nullable', 'string', 'max:255'],

@@ -74,16 +74,16 @@ function taskName(r: ScheduledTask): string {
 
 <template>
   <div class="flex flex-col gap-6" data-testid="scheduled-tasks">
-    <header class="flex flex-wrap items-start gap-3">
+    <header class="page-head">
       <div class="flex-1 min-w-0">
         <h1 class="page-title !mb-1">{{ t('admin.area.scheduled_tasks') }}</h1>
         <p class="m-0 text-sm text-muted-color">{{ t('sched.hint') }}</p>
       </div>
-      <Select v-model="kind" :options="kinds" option-label="label" option-value="value" size="small" class="w-field-sm" :aria-label="t('sched.kind_label')" />
+      <Select v-model="kind" :options="kinds" option-label="label" option-value="value" size="small" class="w-field-sm" :placeholder="t('sched.any_kind')" :aria-label="t('sched.kind_label')" />
       <Button icon="pi pi-refresh" :label="t('auto.refresh')" text size="small" @click="load" />
     </header>
     <Message v-if="loadError" severity="error">{{ loadError }}</Message>
-    <DataTable :value="shown" :loading="loading" data-key="uuid" size="small">
+    <DataTable :value="shown" :loading="loading" data-key="uuid" size="small" scrollable>
       <template #empty><EmptyState icon="pi pi-calendar-clock" :title="t('sched.empty')" /></template>
       <Column :header="t('sched.name')">
         <template #body="{ data }">

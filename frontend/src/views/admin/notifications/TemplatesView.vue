@@ -60,7 +60,7 @@ function remove(row: TemplateSummary): void {
 
 <template>
   <div class="flex flex-col gap-6 max-w-[64rem]" data-testid="templates-view">
-    <header class="flex flex-wrap items-start gap-3">
+    <header class="page-head">
       <div class="flex-1 min-w-0">
         <h1 class="page-title !mb-1">{{ t('admin.area.notifications') }}</h1>
         <p class="m-0 text-sm text-muted-color">{{ t('tpl.subtitle') }}</p>

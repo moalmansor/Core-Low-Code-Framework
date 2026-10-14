@@ -510,3 +510,30 @@ Before a screen ships (Phase 4 onward), check it against this list:
 10. **Arabic and English** both checked, with screenshots, at a desktop and
     a phone width.
 
+**How the checklist is enforced.** Written as prose only, this list was not
+run against the Phase 4 screens, and they shipped flat. It is now checked by
+the build, not by memory:
+
+- `frontend/src/design/screens.spec.ts` (unit tests, every CI run) reads the
+  source of every screen — each routed page, configuration tab, editor and
+  dialog — and fails on: a routed page with no title (item 1); more than one
+  save bar (1); more than six settings with no section, card or heading (2);
+  a switch with no description (3); a table with no empty state (5); an
+  `info` alert used as help (6); a bare dash for an empty value (7); a list
+  joined with a fixed comma instead of the user's language (10); fixed
+  English and Arabic inputs instead of per-locale text (10); left/right
+  instead of start/end, and a drawer pinned to one physical side (10).
+  Screens built before the checklist are listed with the rules they do not
+  meet yet; that list may only shrink, and the test fails when a listed
+  screen starts meeting a rule so its waiver is removed.
+- `frontend/e2e/15-screens.spec.ts` (end-to-end, both engines in CI) opens
+  every Phase 4 screen in English and Arabic at 1280×800 and 390×844 and
+  fails when the page is not in the language's direction, when anything
+  makes the page or its content area scroll sideways, or when a screen has
+  no heading. A new screen is added to its list.
+- The pull request template carries this checklist; the verification report
+  states, per new screen, that both tests cover it.
+
+Items 4 (widths), 8 (pickers) and 9 (menu) need judgement and stay with the
+reviewer, with the screenshots of item 10.
+

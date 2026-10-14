@@ -45,7 +45,11 @@ async function loadAreas(): Promise<void> {
     areas.value = []
     return
   }
-  areas.value = (await get<{ data: { areas: Area[] } }>('/admin/console')).data.areas
+  try {
+    areas.value = (await get<{ data: { areas: Area[] } }>('/admin/console')).data.areas
+  } catch {
+    // A refused or failed reload (a rate limit, a dropped connection) keeps the menu already shown.
+  }
 }
 async function loadNavigation(): Promise<void> {
   if (session.gate !== 'none') {
@@ -55,7 +59,7 @@ async function loadNavigation(): Promise<void> {
   try {
     apps.value = (await get<{ data: NavApp[] }>('/navigation')).data
   } catch {
-    apps.value = []
+    // As above: keep the applications already shown.
   }
 }
 function loadSidebar(): void {

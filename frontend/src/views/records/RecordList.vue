@@ -629,7 +629,7 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
 <template>
   <Message v-if="loadError" severity="error" data-testid="records-error">{{ loadError }}</Message>
   <div v-else-if="definition" class="flex flex-col gap-4">
-    <header class="flex flex-wrap items-start gap-3">
+    <header class="page-head">
       <div class="flex items-center gap-3 flex-1 min-w-0">
         <span class="records-icon shrink-0" aria-hidden="true"><i :class="definition.form.icon || 'pi pi-list'" /></span>
         <div class="min-w-0">

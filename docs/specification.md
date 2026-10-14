@@ -692,6 +692,8 @@ All access control lives in **one** interface.
 - Running an action needs its permission (`action.{uuid}.run`) **and** the form ability its work needs (create to duplicate, print to print, edit to bulk update, delete to bulk delete, view otherwise). Every change goes through the record pipeline, so field access, record scope, status access, validation and optimistic concurrency apply as in the form; an action never widens a user's rights.
 - An optional availability condition decides which records offer an action, checked again on the server for every record of a run; each step may have its own condition. Steps run in order per record and see the changes of earlier steps; a failing step stops that record's remaining steps unless set to continue. Steps also include in-app notifications and assignment.
 - A run asks one justification at the strictest level any of its records needs (the action's own level, action-scope rules, and the edit, transition and delete rules it triggers), saved once with the record count.
+- **Bulk status change** either lets the user pick a transition when running it, or is set on the Actions tab to one fixed transition — "Approve all selected" is such an action, offered by a preset. Either way each selected record moves only if that transition leaves its current status, the user may take it on that record (status access, transition permission, record scope, required fields), and its conditions hold; a transition that needs a comment asks one comment for the whole run. The run then names every record it could not move and why ("is not in status Submitted", a failed rule, a permission), and moves the rest.
+- **Bulk field update** offers the fields the user may edit, with an input typed by the field (a date picker for dates, a number input for numbers, a switch for yes/no, the options of a choice field).
 - A run is tracked with its progress and per-record result, and holds at most `actions.max_records` records; runs above `actions.queue_threshold` go to the background. Both defaults can be overridden per action. Webhook requests are signed with `X-LCF-Timestamp` and `X-LCF-Signature` (HMAC-SHA256 of timestamp and body) and retried up to three attempts on network errors, 5xx and 429 (ADR-0041).
 
 ### 4.16 Email Notifications
@@ -702,11 +704,13 @@ All access control lives in **one** interface.
   - scheduled reminders and SLA escalations.
 - **Recipients:**
   - users, roles, departments;
-  - users stored in a record field;
-  - the record creator;
-  - users from linked records;
+  - a user, role or department picker field of the record, or of a linked record reached through a relation path (up to four links);
+  - an email field of the record or of a linked record;
+  - the record's current assignees (a role or department assignment reaches its members) and the person who last changed its status;
+  - the record creator and the person whose change triggered the rule;
   - static addresses.
-- Each rule has full control over **To / CC / BCC**.
+- Each rule has full control over **To / CC / BCC**: every kind of recipient can be chosen for each of them independently.
+- **Recipients resolve at send time,** from the record as it is then, never when the rule is saved: a changed field, a reassignment or a new status changer reaches the right people. Inactive users are skipped; an address in an email field that belongs to an active user reaches that user (and their language and preferences), any other address is sent to as a static address. A path a form later loses is reported on the rule.
 - **Template editor:**
   - rich visual editor with styling (colors, logo, layout);
   - placeholders from form fields, linked-form fields, system values, and record links;
@@ -723,8 +727,15 @@ All access control lives in **one** interface.
 - Usable in actions and email attachments.
 - **Word templates** (ADR-0040): one file per language. Placeholders are the email templates' (fields, relation paths, system values); a table row whose placeholders name a repeater's columns repeats once per row, and placeholders Word split across runs still fill. Every placeholder is checked on save, and one the form later loses is reported on the template.
 - **Uploaded Word files are untrusted input:** macros, embedded objects, links to outside content, external fields (INCLUDE, LINK, DDE), document type declarations, and oversized archives are refused; values are inserted as text, never as markup.
-- **Designed templates** are blocks (heading, text, field list, repeater table, divider, space, page break), each optionally conditional, with per-language texts, on a chosen paper size, orientation and margins, previewed live for a real record.
+- **Designed templates** are blocks (heading, text, field list, repeater table, linked-records table, signature block, QR code or barcode, divider, space, page break), each optionally shown only when a condition built in the conditions builder holds, with per-language texts, on a chosen paper size, orientation and margins, previewed live for a real record. Blocks are added from a gallery that says what each does.
+  - **Values** are picked from the field tree: fields of the form, of linked forms through a relation path, and system values — record number, status, created and updated dates and people, current assignee, the person generating the document, today's date.
+  - **Formats** per placeholder, written after a bar and picked from a list, never typed code: `date` / `datetime` (short, medium, long, ISO), `number:N` (0–6 decimals with the system separators), `currency:CODE` (a currency of Reference data), `digits:arabic` or `digits:western`. They combine (`{{ amount | currency:SAR | digits:arabic }}`), work in Word templates too, and apply only to values the reader may see.
+  - **Repeater and linked-records tables** show the columns chosen, each with its own format; a linked-records table lists the records of another form that point to this one (child records), with a row limit, and only the records and columns the readers may see.
+  - **Title, header and footer:** a document title; a header with the system logo and a text, repeated on every page; a footer with a text and page numbers ("Page 2" or "Page 2 of 5"). Both are rendered in the PDF and written as real Word header and footer parts with page fields.
+  - **Signature block:** up to four signatories, each with a label and an optional name (which may be a placeholder), with lines for signature and date.
+  - **QR code or barcode:** a QR code carrying the record's link or a Code 128 barcode carrying its number, in three sizes, drawn on the server (nothing is fetched from outside).
 - **Conversion:** designed templates become Word directly and PDF through the print engine (Arabic shaping, right to left); Word templates become PDF through LibreOffice, isolated per conversion with a time limit (`documents.convert_timeout_seconds`). Where LibreOffice is not installed the screen says so and PDF cannot be chosen for Word templates.
+- **Blueprints:** a document template (designed or Word) can be saved as a blueprint (kind `document_template`) and new templates made from it for any form; the Word files travel inside the blueprint with a verified hash, and a template made from a blueprint is kept up to date with it by the same three-way merge as other blueprints. Configuration packages (Phase 5, §4.22) carry document templates as these blueprints, alongside the other templates of a package.
 - **Readers:** a document shows a value only when everyone who will receive it may see it. A downloaded document belongs to its requester and expires with other generated files; an email attachment stays with its email for resends.
 
 ### 4.18 Reports & Dashboards
@@ -950,6 +961,7 @@ A status alone does not say who is expected to act, so records carry assignment 
 - Admin-managed custom CSS, scoped and sanitized, applied after the theme so it cannot break layout primitives or hide security controls.
 - Theme import and export, preset themes, and reset to default. Accessibility contrast is checked and warned on before a theme is saved.
 - **Design tokens:** the interface uses semantic colour tokens defined in one place, with separately designed light and dark values. Every text and control pairing is tested against WCAG 2.1 AA in both modes; a build with a failing pairing or a colour written outside the theme does not pass (`docs/design-system.md`, ADR-0030).
+- **Screen checklist:** every screen meets the checklist of `docs/design-system.md` §5.7. The build checks each screen's source against the rules a source can show (title, one save bar, grouped settings, described switches, empty states, quiet help, empty values, lists and sides in the user's language), and an end-to-end test opens every screen in Arabic and English on a desktop and a phone and fails on the wrong direction or sideways scrolling. Screens built before the checklist are listed with the rules they do not meet yet, and that list may only shrink (ADR-0048).
 - **Primary colour:** set in Appearance & Branding, with an optional separate dark-mode value. A colour that is not readable as text (4.5:1) on the theme's surfaces is refused by the server and the editor, which offers the nearest readable shade. Hover and tint shades are derived from it.
 - **Fonts:** IBM Plex Sans and IBM Plex Sans Arabic, served by the application itself (no third-party font host).
 - **Option colours:** status pills use the colour the admin gives an option, with a white or dark label chosen for contrast; the options editor warns when the label would read below 4.5:1.
@@ -968,6 +980,7 @@ A status alone does not say who is expected to act, so records carry assignment 
 - An internal **template library** with categories, search, descriptions, and previews, managed by admins, so common patterns (request-and-approve, register-and-review, inspection checklist) are started from rather than rebuilt.
 - Blueprints carry a version, and updating a blueprint offers to propagate changes to objects created from it, listing what would change before anything is applied. Elements changed locally in an object are kept and listed as conflicts; propagated changes land in the object's draft and take effect when it is published; an object can be detached to stop receiving updates.
 - Import and export of blueprints between environments and installations; each exported version carries a content hash that import verifies, and objects that the blueprint relates to must exist in the target before it can be used.
+- **Document templates** are blueprints too (Phase 4): a designed or Word template is saved as a `document_template` blueprint and new templates are made from it for any form, with its Word files carried inside and verified by the content hash (§4.17).
 
 ### 4.31 Scheduler & Automation Rules
 - An admin-managed **automation builder** with no code: a trigger, optional conditions, and a sequence of steps reusing the action library of 4.15.
