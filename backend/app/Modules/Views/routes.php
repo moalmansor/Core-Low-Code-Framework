@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::get('/forms/{form}/views', [ViewController::class, 'show']);
+    Route::get('/forms/{form}/field-tree', [ViewController::class, 'fieldTree']);
     Route::put('/forms/{form}/views', [ViewController::class, 'update']);
     Route::get('/r/{form}/saved-views', [SavedViewController::class, 'index']);
     Route::post('/r/{form}/saved-views', [SavedViewController::class, 'store']);

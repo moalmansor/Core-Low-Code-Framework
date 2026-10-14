@@ -6,7 +6,6 @@ namespace App\Modules\Notifications;
 
 use App\Expressions\Checking\TypeChecker;
 use App\Expressions\StaticError;
-use App\Modules\Assignment\Membership;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Documents\Models\DocumentTemplate;
@@ -15,9 +14,7 @@ use App\Modules\Forms\Definition\DefinitionCompiler;
 use App\Modules\Forms\Draft\DraftRepository;
 use App\Modules\Forms\Draft\DraftValidator;
 use App\Modules\Forms\Models\Form;
-use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
-use App\Modules\Views\RelationPaths;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -37,16 +34,15 @@ final class NotificationRules
 
     public const CHANNELS = ['email', 'in_app'];
 
-    public const RECIPIENTS = ['user', 'role', 'department', 'field_user', 'creator', 'linked_record_users', 'static'];
+    public const RECIPIENTS = Recipients::TYPES;
 
     public function __construct(
         private readonly OwnedConditions $conditions,
-        private readonly Membership $members,
+        private readonly Recipients $recipients,
         private readonly DraftRepository $drafts,
         private readonly DraftValidator $draftValidator,
         private readonly Translator $translator,
         private readonly FormRuntimes $runtimes,
-        private readonly RelationPaths $paths,
         private readonly AuditWriter $audit,
     ) {}
 
@@ -221,7 +217,7 @@ final class NotificationRules
             }
             foreach (['to', 'cc', 'bcc'] as $slot) {
                 foreach (array_values((array) ($r['recipients'][$slot] ?? [])) as $j => $item) {
-                    $resolvedItem = $this->recipient($rt, (array) $item);
+                    $resolvedItem = $this->recipients->normalize($rt, $item);
                     $resolvedItem === null ? $errors["{$p}.recipients.{$slot}.{$j}"][] = __('notifications.bad_recipient') : $ids['recipients'][$slot][] = $resolvedItem;
                 }
             }
@@ -277,42 +273,5 @@ final class NotificationRules
         }
 
         return $out;
-    }
-
-    /**
-     * A recipient as stored: `{type, ref}` with a uuid (user, role,
-     * department), a field key or relation path (field users), an address
-     * (static), or nothing (creator).
-     *
-     * @param  array<string, mixed>  $item
-     * @return array{type: string, ref: string|null}|null
-     */
-    private function recipient(?FormRuntime $rt, array $item): ?array
-    {
-        $type = $item['type'] ?? null;
-        $ref = isset($item['ref']) && is_string($item['ref']) ? trim($item['ref']) : null;
-
-        return match ($type) {
-            'user', 'role', 'department' => $ref !== null && $this->members->idOf($type, strtolower($ref)) !== null ? ['type' => $type, 'ref' => strtolower($ref)] : null,
-            'creator' => ['type' => 'creator', 'ref' => null],
-            'static' => $ref !== null && filter_var($ref, FILTER_VALIDATE_EMAIL) !== false && mb_strlen($ref) <= 255 ? ['type' => 'static', 'ref' => mb_strtolower($ref)] : null,
-            'field_user', 'linked_record_users' => $rt !== null && $ref !== null && $this->userPath($rt, $ref, $type === 'linked_record_users') ? ['type' => $type, 'ref' => $ref] : null,
-            default => null,
-        };
-    }
-
-    /** A field key (or relation path) that ends in a user field. */
-    private function userPath(FormRuntime $rt, string $ref, bool $linked): bool
-    {
-        $segments = explode('.', $ref);
-        if ($linked !== (count($segments) > 1)) {
-            return false;
-        }
-        $r = $this->paths->resolve($rt, $segments);
-        if ($r === null || $r['field'] === null) {
-            return false;
-        }
-
-        return ($r['rt']->targetTable($r['field']) ?? null) === 'users';
     }
 }

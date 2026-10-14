@@ -204,9 +204,18 @@ export interface PathNode {
   key: string
   path: Path
   type: string
+  /** How the value is stored (`date`, `datetime`, `decimal`, `user`, …). */
+  storage?: string | null
+  /** What the field can name as recipients, when anything. */
+  kind?: 'user' | 'role' | 'department' | 'email' | null
   label: I18nMap
   children: PathNode[]
   form?: { uuid: string; key: string }
+}
+
+/** The fields reachable from a form: its own, those of the forms it links to, and system values. */
+export const fieldTreeApi = {
+  load: (form: string) => get<{ data: { published: boolean; fields: PathNode[] } }>(`/forms/${form}/field-tree`).then((r) => r.data.fields),
 }
 
 export interface PanelDoc {
@@ -240,7 +249,7 @@ export interface PrintLayoutDoc {
 
 export type NotificationTrigger =
   'record_created' | 'record_updated' | 'status_changed' | 'field_changed' | 'condition_met' | 'scheduled_reminder' | 'sla_warning' | 'sla_escalation' | 'approval_requested' | 'assigned'
-export type RecipientType = 'user' | 'role' | 'department' | 'field_user' | 'creator' | 'linked_record_users' | 'static' | 'actor'
+export type RecipientType = 'user' | 'role' | 'department' | 'field' | 'assignee' | 'status_changer' | 'creator' | 'actor' | 'static'
 export interface RecipientDoc {
   type: RecipientType
   ref: string | null

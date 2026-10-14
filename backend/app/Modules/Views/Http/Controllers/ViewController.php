@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Views\Http\Controllers;
 
 use App\Modules\Forms\Models\Form;
-use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
-use App\Modules\Views\RelationPaths;
+use App\Modules\Views\FieldTree;
 use App\Modules\Views\ViewDocument;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,7 +28,7 @@ final class ViewController extends Controller
         Gate::authorize('system.manage_forms');
         $rt = $runtimes->forForm($form);
 
-        return response()->json(['data' => ['views' => $this->views->load($form), 'hash' => $this->views->hash($form), 'published' => $rt !== null, 'fields' => $rt === null ? [] : $this->tree($rt, [], 0)]]);
+        return response()->json(['data' => ['views' => $this->views->load($form), 'hash' => $this->views->hash($form), 'published' => $rt !== null, 'fields' => $rt === null ? [] : app(FieldTree::class)->build($rt)]]);
     }
 
     public function update(Request $request, Form $form, FormRuntimes $runtimes): JsonResponse
@@ -44,35 +43,12 @@ final class ViewController extends Controller
         return $this->show($form, $runtimes);
     }
 
-    /**
-     * Fields reachable from a form, following to-one and to-many references
-     * up to the path depth limit.
-     *
-     * @param  list<string>  $prefix
-     * @return list<array<string, mixed>>
-     */
-    private function tree(FormRuntime $rt, array $prefix, int $depth): array
+    /** The fields reachable from a form, for the relation-path pickers of every configuration screen. */
+    public function fieldTree(Form $form, FormRuntimes $runtimes, FieldTree $tree): JsonResponse
     {
-        $out = [];
-        foreach ($rt->mainFields() as $f) {
-            if (! $rt->isStored($f) || ($f['flags']['encrypted'] ?? false)) {
-                continue;
-            }
-            $node = ['key' => $f['key'], 'path' => [...$prefix, $f['key']], 'type' => $f['type'], 'label' => $f['i18n']['label'] ?? [], 'children' => []];
-            $target = $rt->targetFormUuid($f);
-            if ($target !== null && $depth < RelationPaths::MAX_DEPTH - 2) {
-                $trt = app(FormRuntimes::class)->forUuid($target);
-                if ($trt !== null && $trt->form->id !== $rt->form->id) {
-                    $node['children'] = $this->tree($trt, [...$prefix, $f['key']], $depth + 1);
-                    $node['form'] = ['uuid' => $trt->form->uuid, 'key' => $trt->form->key];
-                }
-            }
-            $out[] = $node;
-        }
-        foreach (['@status', '@record_number', '@created_at', '@updated_at'] as $system) {
-            $out[] = ['key' => $system, 'path' => [...$prefix, $system], 'type' => 'system', 'label' => ['en' => __('views.system_'.substr($system, 1), [], 'en'), 'ar' => __('views.system_'.substr($system, 1), [], 'ar')], 'children' => []];
-        }
+        abort_unless(Gate::any(['system.manage_forms', 'system.manage_notifications', 'system.manage_document_templates', 'system.manage_automations']), 403);
+        $rt = $runtimes->forForm($form);
 
-        return $out;
+        return response()->json(['data' => ['published' => $rt !== null, 'fields' => $rt === null ? [] : $tree->build($rt)]]);
     }
 }

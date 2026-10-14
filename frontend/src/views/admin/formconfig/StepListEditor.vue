@@ -22,8 +22,8 @@ import UserPicker from '@/components/UserPicker.vue'
 import { useSession } from '@/stores/session'
 import { downloadsApi, type ProfileSummary } from '@/views/downloads/api'
 import { documentsApi, type DocumentSummary } from '../documents/api'
-import { templatesApi, type Placeholder, type TemplateSummary } from '../notifications/api'
-import { labelOf, newUuid, workflowApi, type ActionStepDoc, type FieldValueDoc, type RecipientType, type StepConfig, type StepType, type TransitionDoc } from './api'
+import { templatesApi, type TemplateSummary } from '../notifications/api'
+import { fieldTreeApi, labelOf, newUuid, workflowApi, type ActionStepDoc, type FieldValueDoc, type PathNode, type RecipientType, type StepConfig, type StepType, type TransitionDoc } from './api'
 import RecipientList from './RecipientList.vue'
 
 /**
@@ -58,19 +58,18 @@ const mainFields = computed(() =>
 )
 const settable = computed(() => mainFields.value.filter((f) => !['file', 'files', 'image', 'signature', 'autonumber'].includes(f.type)).map((f) => ({ value: f.uuid, label: fieldLabel(f) })))
 const fileFields = computed(() => mainFields.value.filter((f) => ['file', 'files'].includes(f.type)).map((f) => ({ value: f.uuid, label: fieldLabel(f) })))
-const userFields = computed(() => mainFields.value.filter((f) => f.type === 'user').map((f) => ({ value: f.key, label: fieldLabel(f) })))
 
 const transitions = ref<TransitionDoc[]>([])
 const templates = ref<TemplateSummary[]>([])
 const documents = ref<DocumentSummary[]>([])
 const downloadProfiles = ref<ProfileSummary[]>([])
-const linkedUsers = ref<Placeholder[]>([])
+const tree = ref<PathNode[]>([])
 const roles = ref<{ uuid: string; name: string }[]>([])
 const userNames = ref<Record<string, string>>({})
 onMounted(async () => {
   transitions.value = (await workflowApi.load(props.form).catch(() => null))?.document.transitions ?? []
   templates.value = await templatesApi.list(props.form).catch(() => [])
-  linkedUsers.value = (await templatesApi.placeholders(props.form).catch(() => ({ fields: [] as Placeholder[] }))).fields.filter((f) => f.user && f.group === 'linked')
+  tree.value = await fieldTreeApi.load(props.form).catch(() => [])
   documents.value = (await documentsApi.list(props.form).catch(() => null))?.rows.filter((d) => d.active) ?? []
   downloadProfiles.value = (await downloadsApi.list(props.form).catch(() => null))?.profiles.filter((p) => !p.personal && p.active) ?? []
   if (props.mode === 'automation') {
@@ -97,7 +96,7 @@ const assigneeTypes = computed(() => (['user', 'role', 'department'] as const).m
 const failureChoices = computed(() => (['stop', 'continue', 'retry'] as const).map((v) => ({ value: v, label: t(`auto.on_failure.${v}`) })))
 const timeoutChoices = computed(() => (['stop', 'continue'] as const).map((v) => ({ value: v, label: t(`auto.on_timeout.${v}`) })))
 const downloadScopes = computed(() => (['record', 'profile'] as const).map((v) => ({ value: v, label: t(`auto.download_scope.${v}`) })))
-const recipientTypes: RecipientType[] = ['actor', 'creator', 'user', 'role', 'department', 'field_user', 'linked_record_users', 'static']
+const recipientTypes: RecipientType[] = ['user', 'role', 'department', 'field', 'assignee', 'status_changer', 'creator', 'actor', 'static']
 const slots = ['to', 'cc', 'bcc'] as const
 
 function removeSecret(c: StepConfig): void {
@@ -250,8 +249,7 @@ const tokenText = (token: string) => `{{ ${token} }}`
             <RecipientList
               v-model="s.config.recipients![slot]"
               :types="s.type === 'send_email' ? recipientTypes : recipientTypes.filter((x) => x !== 'static')"
-              :user-fields="userFields"
-              :linked-users="linkedUsers"
+              :tree="tree"
               :errors="errors"
               :path="`${path}.${j}.config.recipients.${slot}`"
               :testid="`act-${slot}-${ids}-${j}`"

@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Modules\Notifications\EmailQueue;
 use App\Modules\Notifications\InAppNotifier;
 use App\Modules\Notifications\Notifier;
+use App\Modules\Notifications\Recipients;
+use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Templating\HtmlPreviews;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -228,4 +230,98 @@ it('lists a person\'s own notifications and marks them read', function () {
     expect(DB::table('in_app_notifications')->where('user_id', $other->id)->value('read_at'))->toBeNull();
     $uuid = DB::table('in_app_notifications')->where('id', $mine)->value('uuid');
     $this->postJson("/api/v1/me/notifications/{$uuid}/read")->assertOk()->assertJsonPath('data.unread', 0);
+});
+
+it('reaches the people a record holds — pickers and email fields here or in linked forms, its assignee and whoever last moved it — read when it is sent', function () {
+    // A team form whose lead a ticket reaches through its "team" link.
+    [, $team] = createForm($this, 'team');
+    $teamName = fieldDoc('name', 'text');
+    saveDraft($this, $team, [], [$teamName, fieldDoc('lead', 'user_picker')])->assertOk();
+    expect(publish($this, $team)['status'])->toBe('applied');
+    [, $ticket] = createForm($this, 'ticket');
+    $rel = ['uuid' => uid(), 'key' => 'team', 'type' => 'many_to_one', 'target' => $team, 'kind' => 'reference', 'onDelete' => 'restrict', 'display' => $teamName['uuid'], 'value' => null, 'inverse' => null];
+    saveDraft($this, $ticket, [], [
+        fieldDoc('title', 'text'), fieldDoc('owner', 'user_picker'), fieldDoc('crew', 'role_picker'), fieldDoc('unit', 'department_picker'),
+        fieldDoc('contact', 'email'), fieldDoc('team', 'lookup', null, ['relation' => $rel['uuid']]),
+    ], [$rel])->assertOk();
+    $open = statusDoc('open', true);
+    $closed = statusDoc('closed', false, true);
+    $close = transitionDoc('close', $open, $closed);
+    saveWorkflow($this, $ticket, [$open, $closed], [$close])->assertOk();
+    expect(publish($this, $ticket)['status'])->toBe('applied');
+
+    // The pickers' choices are offered by the field tree, linked ones by their path.
+    $tree = $this->getJson("/api/v1/forms/{$ticket}/field-tree")->assertOk()->json('data.fields');
+    $kinds = collect($tree)->mapWithKeys(fn ($n) => [$n['key'] => $n['kind']])->all();
+    expect($kinds)->toMatchArray(['owner' => 'user', 'crew' => 'role', 'unit' => 'department', 'contact' => 'email', 'title' => null])
+        ->and(collect(collect($tree)->firstWhere('key', 'team')['children'])->firstWhere('key', 'lead')['path'])->toBe(['team', 'lead']);
+
+    $owner = $this->makeUser();
+    $newOwner = $this->makeUser();
+    $lead = $this->makeUser();
+    $crewMember = $this->makeUser(['developer']);
+    $unitMember = $this->makeUser();
+    $known = $this->makeUser(['user'], ['email' => 'known.person@example.test']);
+    $assignee = $this->makeUser();
+    $closer = $this->makeUser();
+    $dept = $this->postJson('/api/v1/departments', ['code' => 'OPS', 'name' => ['en' => 'Operations']])->assertCreated()->json('data.uuid');
+    DB::table('users')->where('id', $unitMember->id)->update(['department_id' => DB::table('departments')->where('uuid', $dept)->value('id')]);
+    $auditor = DB::table('roles')->where('key', 'developer')->value('uuid');
+    grantPermission($closer->id, "form.{$ticket}.view");
+    grantPermission($closer->id, "transition.{$close['uuid']}.perform");
+
+    // A text field names nobody; "the person running it" belongs to actions.
+    saveRules($this, $ticket, [ruleDoc(['recipients' => ['to' => [['type' => 'field', 'ref' => 'title']], 'cc' => [], 'bcc' => []]])])
+        ->assertStatus(422)->assertJsonValidationErrors(['rules.0.recipients.to.0']);
+    saveRules($this, $ticket, [ruleDoc(['recipients' => ['to' => [['type' => 'actor', 'ref' => null]], 'cc' => [], 'bcc' => []]])])
+        ->assertStatus(422)->assertJsonValidationErrors(['rules.0.recipients.to.0']);
+
+    $tpl = $this->postJson('/api/v1/notifications/templates', [
+        'key' => 'ticket_closed', 'form' => $ticket, 'subject' => ['en' => 'Closed {{ title }}'], 'design' => ['blocks' => [['type' => 'text', 'text' => ['en' => 'Closed.']]]],
+    ])->assertCreated()->json('data.uuid');
+    saveRules($this, $ticket, [ruleDoc([
+        'key' => 'closed', 'trigger' => 'status_changed', 'toStatus' => $closed['uuid'], 'template' => $tpl, 'channels' => ['email', 'in_app'],
+        'recipients' => [
+            'to' => [['type' => 'field', 'ref' => 'owner'], ['type' => 'field', 'ref' => 'team.lead']],
+            'cc' => [['type' => 'field', 'ref' => 'crew'], ['type' => 'field', 'ref' => 'unit'], ['type' => 'assignee', 'ref' => null]],
+            'bcc' => [['type' => 'field', 'ref' => 'contact'], ['type' => 'status_changer', 'ref' => null]],
+        ],
+    ])])->assertOk();
+
+    $teamRec = $this->postJson("/api/v1/r/{$team}", ['values' => ['name' => 'Blue', 'lead' => $lead->uuid]])->assertCreated()->json('data.uuid');
+    $rec = $this->postJson("/api/v1/r/{$ticket}", ['values' => [
+        'title' => 'Printer', 'owner' => $owner->uuid, 'crew' => $auditor, 'unit' => $dept, 'contact' => 'Known.Person@example.test', 'team' => $teamRec,
+    ]])->assertCreated()->json('data');
+    $recId = (int) DB::table(DB::table('forms')->where('uuid', $ticket)->value('table_name'))->where('uuid', $rec['uuid'])->value('id');
+    DB::table('assignments')->insert([
+        'uuid' => uid(), 'organization_id' => 1, 'created_at' => now(), 'updated_at' => now(), 'form_id' => DB::table('forms')->where('uuid', $ticket)->value('id'),
+        'record_id' => $recId, 'assignee_type' => 'user', 'assignee_id' => $assignee->id, 'status' => 'active', 'priority' => 0,
+    ]);
+    $recipients = app(Recipients::class);
+    $rt = app(FormRuntimes::class)->forUuid($ticket);
+    expect($recipients->resolve($rt, $recId, ['to' => [['type' => 'assignee', 'ref' => null]]])['to'])->toBe([$assignee->id]);
+    // Recipients follow the record as it is when the message goes out, not when the rule was saved.
+    $this->patchJson("/api/v1/r/{$ticket}/{$rec['uuid']}", ['values' => ['owner' => $newOwner->uuid], 'row_version' => 1])->assertOk();
+    $this->flushSession();
+    $this->actingAs($closer, 'web');
+    $this->postJson("/api/v1/r/{$ticket}/{$rec['uuid']}/transitions/{$close['uuid']}", ['row_version' => 2])->assertOk();
+
+    $notified = DB::table('in_app_notifications')->where('type', 'rule.status_changed')->pluck('user_id')->map(fn ($v) => (int) $v)->sort()->values()->all();
+    // Closing the ticket completed its assignment, so by the time the message goes out it has no assignee.
+    $expected = collect([$newOwner, $lead, $crewMember, $unitMember, $known, $closer])->map(fn ($u) => $u->id)->sort()->values()->all();
+    expect($notified)->toBe($expected);
+    $mail = DB::table('email_queue')->where('source', 'rule')->first();
+    expect(json_decode($mail->to, true))->toEqualCanonicalizing([$newOwner->email, $lead->email])
+        ->and(json_decode($mail->cc, true))->toEqualCanonicalizing([$crewMember->email, $unitMember->email])
+        // An address that belongs to a user reaches that user; the person who closed it is told too.
+        ->and(json_decode($mail->bcc, true))->toEqualCanonicalizing([$known->email, $closer->email]);
+
+    // An address nobody in the system has is an outside address.
+    $this->flushSession();
+    $this->actingAs($this->admin, 'web');
+    $other = $this->postJson("/api/v1/r/{$ticket}", ['values' => ['title' => 'Desk', 'contact' => 'visitor@outside.test']])->assertCreated()->json('data.uuid');
+    $otherId = (int) DB::table(DB::table('forms')->where('uuid', $ticket)->value('table_name'))->where('uuid', $other)->value('id');
+    $who = $recipients->resolve($rt, $otherId, ['to' => [['type' => 'field', 'ref' => 'contact'], ['type' => 'status_changer', 'ref' => null]]]);
+    // A record not moved since it was created was last moved by whoever created it.
+    expect($who['to'])->toBe([$this->admin->id])->and($who['static']['to'])->toBe(['visitor@outside.test']);
 });

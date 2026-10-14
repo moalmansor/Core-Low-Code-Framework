@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications;
 
-use App\Modules\Assignment\Membership;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Tenancy\TenantContext;
 use App\Modules\Documents\DocumentRenderer;
@@ -18,7 +17,6 @@ use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\RuleRuntime;
-use App\Modules\Views\RelationPaths;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -41,14 +39,13 @@ final class Notifier
         private readonly RecordStore $store,
         private readonly RuleRuntime $rules,
         private readonly OwnedConditions $conditions,
-        private readonly Membership $members,
-        private readonly RelationPaths $paths,
         private readonly TemplateRenderer $renderer,
         private readonly EmailQueue $emails,
         private readonly InAppNotifier $inApp,
         private readonly Translator $translator,
         private readonly DocumentRenderer $documents,
         private readonly GeneratedDocuments $generated,
+        private readonly Recipients $recipientList,
     ) {}
 
     /**
@@ -157,7 +154,7 @@ final class Notifier
     private function send(object $rule, FormRuntime $rt, int $recordId, array $record, array $context): void
     {
         $channels = json_decode((string) $rule->channels, true) ?: [];
-        $who = $this->recipients($rt, $recordId, $record, json_decode((string) $rule->recipients, true) ?: []);
+        $who = $this->recipients($rt, $recordId, json_decode((string) $rule->recipients, true) ?: []);
         $respect = (bool) $rule->respect_user_preferences;
         $template = $rule->email_template_id === null ? null : EmailTemplate::query()->find($rule->email_template_id);
         if ($template !== null && ! $template->is_active) {
@@ -308,45 +305,15 @@ final class Notifier
     }
 
     /**
-     * Users (by slot) and outside addresses a rule's recipients name for a record.
+     * Users (by slot) and outside addresses a rule's recipients name for a
+     * record, resolved now (Recipients).
      *
-     * @param  array<string, mixed>  $record
      * @param  array<string, mixed>  $spec
      * @return array{to: list<int>, cc: list<int>, bcc: list<int>, static: array{to: list<string>, cc: list<string>, bcc: list<string>}}
      */
-    public function recipients(FormRuntime $rt, int $recordId, array $record, array $spec): array
+    public function recipients(FormRuntime $rt, int $recordId, array $spec): array
     {
-        $out = ['to' => [], 'cc' => [], 'bcc' => [], 'static' => ['to' => [], 'cc' => [], 'bcc' => []]];
-        foreach (['to', 'cc', 'bcc'] as $slot) {
-            foreach ((array) ($spec[$slot] ?? []) as $item) {
-                $type = $item['type'] ?? null;
-                $ref = $item['ref'] ?? null;
-                if ($type === 'static') {
-                    $out['static'][$slot][] = (string) $ref;
-
-                    continue;
-                }
-                $ids = match ($type) {
-                    'user', 'role', 'department' => ($id = $this->members->idOf($type, $ref)) === null ? [] : $this->members->userIds($type, $id),
-                    'creator' => array_filter([(int) DB::table($rt->table)->where('id', $recordId)->value('created_by')]),
-                    'field_user' => $this->userIdsOf((array) ($record['values'][$ref] ?? [])),
-                    'linked_record_users' => $this->userIdsOf($this->paths->rawValues($rt, explode('.', (string) $ref), [$recordId])[$recordId] ?? []),
-                    default => [],
-                };
-                array_push($out[$slot], ...$ids);
-            }
-            $out[$slot] = array_values(array_unique(array_map('intval', $out[$slot])));
-        }
-
-        return $out;
-    }
-
-    /** @param  list<mixed>  $uuids @return list<int> active users */
-    private function userIdsOf(array $uuids): array
-    {
-        $uuids = array_values(array_filter(array_map(static fn ($u) => is_string($u) ? strtolower($u) : null, $uuids)));
-
-        return $uuids === [] ? [] : DB::table('users')->whereIn('uuid', $uuids)->where('status', 'active')->whereNull('deleted_at')->pluck('id')->map(static fn ($v) => (int) $v)->all();
+        return $this->recipientList->resolve($rt, $recordId, $spec);
     }
 
     private function wants(int $userId, string $channel): bool

@@ -17,6 +17,7 @@ use App\Modules\Forms\Draft\DraftRepository;
 use App\Modules\Forms\Draft\DraftValidator;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Notifications\Models\EmailTemplate;
+use App\Modules\Notifications\Recipients;
 use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Templating\BlockDesign;
@@ -68,6 +69,7 @@ final class ActionDocument
         private readonly BlockDesign $design,
         private readonly AuditWriter $audit,
         private readonly AccessCache $cache,
+        private readonly Recipients $recipients,
     ) {}
 
     /** @return list<array<string, mixed>> */
@@ -457,8 +459,8 @@ final class ActionDocument
                 $recipients = ['to' => [], 'cc' => [], 'bcc' => []];
                 foreach ($type === 'send_email' ? ['to', 'cc', 'bcc'] : ['to'] as $slot) {
                     foreach (array_values((array) ($c['recipients'][$slot] ?? [])) as $k => $r) {
-                        $ok = $this->recipientOk($rt, $r, $type === 'send_email');
-                        $ok ? $recipients[$slot][] = ['type' => $r['type'], 'ref' => $r['ref'] ?? null] : $errors["{$p}.recipients.{$slot}.{$k}"][] = __('actions.bad_recipient');
+                        $ok = $this->recipients->normalize($rt, $r, actor: true, static: $type === 'send_email');
+                        $ok !== null ? $recipients[$slot][] = $ok : $errors["{$p}.recipients.{$slot}.{$k}"][] = __('actions.bad_recipient');
                     }
                 }
                 if ($recipients['to'] === []) {
@@ -582,27 +584,6 @@ final class ActionDocument
                 return ['to' => ['type' => $t, 'uuid' => is_string($ref) ? strtolower($ref) : null]];
             })(),
             default => [],
-        };
-    }
-
-    private function recipientOk(FormRuntime $rt, mixed $r, bool $email): bool
-    {
-        if (! is_array($r)) {
-            return false;
-        }
-        $ref = $r['ref'] ?? null;
-        // Checked for shape first: SQL Server rejects a non-UUID compared with a uniqueidentifier column.
-        $uuid = is_string($ref) && Str::isUuid($ref);
-
-        return match ($r['type'] ?? null) {
-            'user' => $uuid && DB::table('users')->where('uuid', strtolower($ref))->exists(),
-            'role' => $uuid && DB::table('roles')->where('uuid', strtolower($ref))->exists(),
-            'department' => $uuid && DB::table('departments')->where('uuid', strtolower($ref))->exists(),
-            'field_user' => is_string($ref) && isset($rt->keys[$ref]) && $rt->targetTable($rt->fields[$rt->keys[$ref]]) === 'users',
-            'creator', 'actor' => true,
-            'linked_record_users' => is_string($ref) && preg_match('/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,3}$/', $ref) === 1,
-            'static' => $email && is_string($ref) && filter_var($ref, FILTER_VALIDATE_EMAIL) !== false,
-            default => false,
         };
     }
 

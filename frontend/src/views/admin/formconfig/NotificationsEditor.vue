@@ -19,8 +19,8 @@ import EmptyState from '@/components/config/EmptyState.vue'
 import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import TabIntro from '@/components/config/TabIntro.vue'
 import { useSession } from '@/stores/session'
-import { templatesApi, type Placeholder, type TemplateSummary } from '../notifications/api'
-import { labelOf, newUuid, notificationRulesApi, workflowApi, type NotificationRuleDoc, type NotificationTrigger, type RecipientType, type StatusDoc } from './api'
+import { templatesApi, type TemplateSummary } from '../notifications/api'
+import { fieldTreeApi, labelOf, newUuid, notificationRulesApi, workflowApi, type NotificationRuleDoc, type NotificationTrigger, type PathNode, type RecipientType, type StatusDoc } from './api'
 import ErrorList from './ErrorList.vue'
 import RecipientList from './RecipientList.vue'
 import { documentsApi, type DocumentSummary } from '../documents/api'
@@ -43,15 +43,15 @@ const doc = useHashedDocument<NotificationRuleDoc[]>(
 const statuses = ref<StatusDoc[]>([])
 const templates = ref<TemplateSummary[]>([])
 const templatesHidden = ref(false)
-const linkedUsers = ref<Placeholder[]>([])
+const tree = ref<PathNode[]>([])
 const documents = ref<DocumentSummary[]>([])
 onMounted(async () => {
   // Attaching documents needs to see them ("Manage document templates"); attached ones are kept either way.
   documents.value = (await documentsApi.list(props.form).catch(() => null))?.rows.filter((d) => d.active) ?? []
   statuses.value = (await workflowApi.load(props.form).catch(() => null))?.document.statuses ?? []
+  tree.value = await fieldTreeApi.load(props.form).catch(() => [])
   try {
     templates.value = await templatesApi.list(props.form)
-    linkedUsers.value = (await templatesApi.placeholders(props.form)).fields.filter((f) => f.user && f.group === 'linked')
   } catch {
     // Managing templates needs its own permission: the rule can still be saved by someone who has it.
     templatesHidden.value = true
@@ -63,7 +63,6 @@ const fieldLabel = (f: { key: string; i18n?: { label?: Record<string, string> } 
 const fields = computed(() => (builder.doc?.fields ?? []).filter((f) => !['heading', 'paragraph', 'divider', 'spacer', 'html'].includes(f.type)))
 const fieldOptions = computed(() => fields.value.map((f) => ({ value: f.uuid, label: fieldLabel(f) })))
 const dateFields = computed(() => fields.value.filter((f) => ['date', 'datetime'].includes(f.type)).map((f) => ({ value: f.uuid, label: fieldLabel(f) })))
-const userFields = computed(() => fields.value.filter((f) => f.type === 'user').map((f) => ({ value: f.key, label: fieldLabel(f) })))
 const fileFields = computed(() => fields.value.filter((f) => ['file', 'files', 'image', 'signature'].includes(f.type)).map((f) => ({ value: f.key, label: fieldLabel(f) })))
 const statusOptions = computed(() => [
   { value: null, label: t('notif.any_status') },
@@ -78,7 +77,7 @@ const triggers = computed(() =>
   ),
 )
 const templateOptions = computed(() => [{ value: null, label: t('notif.no_template') }, ...templates.value.map((x) => ({ value: x.uuid as string | null, label: x.subject }))])
-const recipientTypes: RecipientType[] = ['user', 'role', 'department', 'field_user', 'linked_record_users', 'creator', 'static']
+const recipientTypes: RecipientType[] = ['user', 'role', 'department', 'field', 'assignee', 'status_changer', 'creator', 'static']
 const slots = ['to', 'cc', 'bcc'] as const
 const offsetUnits = computed(() => [
   { value: 'before', label: t('notif.before') },
@@ -236,15 +235,7 @@ function setDocumentTemplate(item: AttachedDocument, uuid: string): void {
         <ConfigSection id="nr-who" :title="t('notif.section.who')" :description="t('notif.who_hint')">
           <div v-for="slot in slots" :key="slot" class="flex flex-col gap-2">
             <h4 class="m-0 text-sm font-semibold">{{ t(`notif.slot.${slot}`) }}</h4>
-            <RecipientList
-              v-model="r.recipients[slot]"
-              :types="recipientTypes"
-              :user-fields="userFields"
-              :linked-users="linkedUsers"
-              :errors="doc.errors.value"
-              :path="`rules.${i}.recipients.${slot}`"
-              :testid="`nr-${slot}-${i}`"
-            />
+            <RecipientList v-model="r.recipients[slot]" :types="recipientTypes" :tree="tree" :errors="doc.errors.value" :path="`rules.${i}.recipients.${slot}`" :testid="`nr-${slot}-${i}`" />
           </div>
         </ConfigSection>
 
