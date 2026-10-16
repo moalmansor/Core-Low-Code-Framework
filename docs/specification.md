@@ -513,6 +513,21 @@ Clicking any field shows a complete properties panel. It is organized in tabs an
   - *additive schema* (a field was added): reversible by archiving the new column;
   - *destructive or lossy* (a type narrowed, a field removed and its data archived, a status merged): not fully reversible. The system offers restore-from-snapshot instead, names the affected records, and requires explicit confirmation.
 - **Environment drift.** Because physical tables are generated from metadata, two environments can diverge. A **compare environments** tool diffs metadata and physical schema between any two environments and reports differences before a configuration package is imported. Importing a package refuses to proceed when the target's drift would make the result ambiguous, and says exactly which objects conflict.
+- **Configuration packages (ADR-0052).** A package is a JSON file (format `lcf-package/1`) with a SHA-256 checksum. It holds the chosen applications, forms and collections (published design, workflow, notification rules, field access rules and grants), email and document templates and shared download profiles. It also holds everything they depend on. Roles, departments and people travel by role key, department code and e-mail, and are matched by those keys on import. Only a form with no unpublished changes can be exported. Environments never call each other: the file is the channel, and "compare environments" compares this environment with a package or a full export from the other one.
+  - **Object states.** Comparing gives each object one of these states:
+    - new;
+    - key in use;
+    - same;
+    - changed;
+    - changed here since the last import;
+    - changed in both since the last import;
+    - unpublished here;
+    - tables differ from their design.
+  - **Refusal.** The last three make the import ambiguous, and it is refused until they are resolved here.
+  - **Choices.** Every other object is taken from the package, kept as it is here, or imported under another key. Another key is offered only for objects not here yet. An object here keeps its key, and a key chosen on import is remembered for the next one.
+  - **Applying.** Applying runs in the background in dependency order. Forms are published through the normal migration plan, with the same confirmations for warnings and destructive changes as in the builder. A failure stops the rest and leaves the failed form as it was.
+  - **Recording.** Each applied object's hash is recorded, which is how the next comparison tells which side changed. Every comparison is kept as a drift report.
+  - **Access and audit.** Everything needs "Manage configuration packages", and every step is audited.
 - Each record stores the form version it was submitted with.
 
 ### 4.11 Roles & Permissions (Unified Interface)

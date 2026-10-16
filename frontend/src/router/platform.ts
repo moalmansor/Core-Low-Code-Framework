@@ -36,4 +36,22 @@ export const platformRoutes: RouteRecordRaw[] = [
     component: () => import('@/views/integrations/IntegrationsView.vue'),
     meta: { anyOf: ['system.manage_integrations'], title: 'admin.area.integrations' },
   },
+  {
+    path: 'admin/packages/reports/:report',
+    name: 'admin.packages.report',
+    component: () => import('@/views/packages/DriftReportView.vue'),
+    meta: { anyOf: ['system.manage_packages'], title: 'admin.area.packages' },
+  },
+  {
+    path: 'admin/packages/p/:package',
+    name: 'admin.packages.package',
+    component: () => import('@/views/packages/PackageDetail.vue'),
+    meta: { anyOf: ['system.manage_packages'], title: 'admin.area.packages' },
+  },
+  {
+    path: 'admin/packages/:tab?',
+    name: 'admin.packages',
+    component: () => import('@/views/packages/PackagesView.vue'),
+    meta: { anyOf: ['system.manage_packages'], title: 'admin.area.packages' },
+  },
 ]

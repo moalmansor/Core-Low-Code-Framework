@@ -55,3 +55,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0049](0049-fixed-transition-bulk-status.md) | Bulk status change with a fixed transition |
 | [0050](0050-api-tokens-webhooks-inbound.md) | API tokens, webhooks and inbound endpoints |
 | [0051](0051-developer-extensions.md) | Developer extensions |
+| [0052](0052-configuration-packages.md) | Configuration packages and the environment drift report |

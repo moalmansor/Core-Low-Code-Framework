@@ -217,6 +217,7 @@ export const icons: Record<string, string> = {
   operations_center: 'pi-server',
   integrations: 'pi-link',
   extensions: 'pi-code',
+  packages: 'pi-box',
 }
 </script>
 

@@ -68,6 +68,7 @@
   "admin.area.extensions": "الامتدادات البرمجية",
   "admin.area.forms": "النماذج والمجموعات",
   "admin.area.integrations": "التكاملات",
+  "admin.area.packages": "حزم الإعدادات",
   "admin.area.reference_data": "البيانات المرجعية",
   "admin.area.roles_permissions": "الأدوار والصلاحيات",
   "admin.area.schema": "مخطط قاعدة البيانات",

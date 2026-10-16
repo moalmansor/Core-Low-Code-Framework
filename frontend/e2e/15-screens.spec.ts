@@ -77,6 +77,8 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
     '/profile?tab=tokens',
     '/admin/extensions',
     '/admin/extensions/new',
+    '/admin/packages',
+    '/admin/packages/reports',
   ]
 
   await page.goto('/admin')

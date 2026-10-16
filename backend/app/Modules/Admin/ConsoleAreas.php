@@ -31,6 +31,7 @@ final class ConsoleAreas
         'assignment_queues' => ['people', ['system.manage_forms', 'system.manage_delegation'], '/admin/work'],
         'extensions' => ['building', ['system.manage_code', 'system.approve_code'], '/admin/extensions'],
         'integrations' => ['configuration', ['system.manage_integrations'], '/admin/integrations'],
+        'packages' => ['configuration', ['system.manage_packages'], '/admin/packages'],
         'appearance_branding' => ['configuration', ['system.manage_branding'], '/admin/settings/branding'],
         'translations' => ['configuration', ['system.manage_translations'], '/admin/translations'],
         'system_settings' => ['configuration', ['system.manage_settings'], '/admin/settings'],

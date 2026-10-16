@@ -68,6 +68,7 @@
   "admin.area.extensions": "Developer extensions",
   "admin.area.forms": "Forms & collections",
   "admin.area.integrations": "Integrations",
+  "admin.area.packages": "Configuration packages",
   "admin.area.reference_data": "Reference data",
   "admin.area.roles_permissions": "Roles & permissions",
   "admin.area.schema": "Database schema",

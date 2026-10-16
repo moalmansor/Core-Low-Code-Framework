@@ -570,8 +570,16 @@ Done:
    - the screens Admin › Developer extensions and the field-component picker in the builder;
    - an end-to-end test of a client validator from the editor to the record form.
 
+5. **Configuration packages and the drift report** (ADR-0052):
+   - export of applications, forms (with workflow, notification rules, access), email and document templates and download profiles, with dependencies, a checksum, and roles, departments and people by key;
+   - a drift report against this environment: new, key in use, same, changed, changed here, changed in both, unpublished here, tables differ;
+   - refusal while ambiguous, and per-object take, keep or import under another key;
+   - applying in the background in dependency order through the normal publish, restoring a form that fails;
+   - remembered hashes and keys for the next import;
+   - the screens Admin › Configuration packages (packages, export picker, import with choices and outcome, drift reports);
+   - tests: `PackagesTest` (6) and e2e `17-packages`.
+
 Next, in order:
-5. Configuration packages and the drift report.
 6. Reports and dashboards.
 7. Applications, pages, home screens, navigation, global search, announcements, maintenance mode and appearance.
 8. External data sources, sync jobs and notification channels.
