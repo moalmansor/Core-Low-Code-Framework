@@ -89,6 +89,11 @@ final class SettingsRegistry
         $d('operations', 'stuck_email_minutes', 15, ['required', 'integer', 'between:1,1440']);
 
         // Actions (§4.15): the most records one run may touch, and above how many it runs in the background (each action may set its own).
+        // REST API and webhooks (§4.22, ADR-0050)
+        $d('api', 'enabled', true, ['required', 'boolean']);
+        $d('api', 'token_max_days', 365, ['required', 'integer', 'between:1,3650']);
+        $d('api', 'token_rate_limit_per_minute', 120, ['required', 'integer', 'between:10,10000']);
+        $d('api', 'webhook_delivery_days', 30, ['required', 'integer', 'between:1,365']);
         $d('actions', 'max_records', 500, ['required', 'integer', 'between:1,100000']);
         $d('actions', 'queue_threshold', 50, ['required', 'integer', 'between:1,10000']);
 

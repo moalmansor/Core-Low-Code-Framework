@@ -24,7 +24,11 @@ use Throwable;
 final class SettingsController extends Controller
 {
     /** Groups an administrator edits from the System Settings area. */
-    public const EDITABLE = ['branding', 'formats', 'calendar', 'mail', 'files', 'clamav', 'security', 'sso', 'ldap', 'monitoring'];
+    public const EDITABLE = [
+        'branding', 'formats', 'calendar', 'mail', 'files', 'clamav', 'security', 'sso', 'ldap', 'monitoring',
+        // The groups later phases added: every one has a tab on the settings screen (SettingsScreenTest).
+        'records', 'schema', 'data_quality', 'actions', 'downloads', 'notifications', 'documents', 'operations', 'api',
+    ];
 
     public function __construct(
         private readonly SettingsService $settings,

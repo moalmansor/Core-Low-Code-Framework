@@ -45,6 +45,7 @@ export const settingsSchema: Record<string, FieldDef[]> = {
   notifications: [n('email_max_attempts', 1, 20)],
   operations: [n('stuck_email_minutes', 1, 1440)],
   actions: [n('max_records', 1, 100000), n('queue_threshold', 1, 10000)],
+  api: [b('enabled'), n('token_max_days', 1, 3650), n('token_rate_limit_per_minute', 10, 10000), n('webhook_delivery_days', 1, 365)],
   downloads: [n('max_depth', 1, 10), n('sync_rows', 1, 100000), n('max_rows', 100, 1000000), n('email_attachment_mb', 1, 25)],
   documents: [n('max_template_mb', 1, 50), n('convert_timeout_seconds', 10, 600)],
   clamav: [b('enabled'), s('host', true), n('port', 1, 65535), n('timeout_seconds', 1, 300)],

@@ -38,6 +38,7 @@ const tabs = computed(() => {
       'records',
       'data_quality',
       'actions',
+      'api',
       'downloads',
       'notifications',
       'documents',
