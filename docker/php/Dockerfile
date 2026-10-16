@@ -47,8 +47,13 @@ RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-in
 COPY backend ./
 COPY docs/architecture.md /var/www/docs/architecture.md
 COPY --from=frontend /src/backend/public/build public/build
+# Developer extensions (ADR-0051): esbuild's standalone program compiles client extensions,
+# and Vue's runtime build is served to their sandboxed frame.
+COPY --from=frontend /src/frontend/node_modules/@esbuild/linux-x64/bin/esbuild /usr/local/bin/esbuild
+COPY --from=frontend /src/frontend/node_modules/vue/dist/vue.runtime.global.prod.js /var/www/backend/resources/extensions/vue.runtime.global.prod.js
+ENV LCF_EXTENSIONS_VUE=/var/www/backend/resources/extensions/vue.runtime.global.prod.js
 RUN composer dump-autoload --optimize --classmap-authoritative --no-dev \
-    && mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs/errors storage/app/files storage/app/private storage/app/public bootstrap/cache \
+    && mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs/errors storage/app/files storage/app/private storage/app/public storage/app/extensions bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache
 COPY docker/php/entrypoint.sh /usr/local/bin/lcf-entrypoint
 # Strip carriage returns: a script checked out with CRLF (Windows without the

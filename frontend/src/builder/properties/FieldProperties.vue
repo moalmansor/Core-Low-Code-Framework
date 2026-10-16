@@ -4,8 +4,9 @@ import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import Select from 'primevue/select'
 import ToggleSwitch from 'primevue/toggleswitch'
-import { computed, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { get } from '@/api/http'
 import { UI_PROPS } from '@/runtime/uiProps'
 import { useSession } from '@/stores/session'
 import BreakpointsInput from '../BreakpointsInput.vue'
@@ -70,6 +71,14 @@ const iconInvalid = computed(() => !!ui.value.icon && !/^[a-z0-9 -]{0,64}$/.test
 const cssInvalid = computed(() => !!ui.value.cssClass && !/^[A-Za-z0-9 _-]{0,128}$/.test(ui.value.cssClass))
 const autocompleteInvalid = computed(() => !!ui.value.autocomplete && !/^[a-z -]{0,64}$/.test(ui.value.autocomplete))
 const canCode = computed(() => session.can('system.manage_code'))
+// Custom field components (deployed client extensions, ADR-0051) a text field can be shown with.
+const components = ref<{ value: string; label: string }[]>([])
+onMounted(async () => {
+  const list = (await get<{ data: { uuid: string; label: string }[] }>('/extension-components').catch(() => ({ data: [] }))).data
+  components.value = list.map((c) => ({ value: c.uuid, label: c.label }))
+  const bound = field.value.hook?.extension
+  if (bound && !components.value.some((c) => c.value === bound)) components.value.push({ value: bound, label: t('builder.hook.not_deployed') })
+})
 const hasTypeProps = computed(() => (UI_PROPS[field.value.type] ?? []).some((s) => s.kind !== 'file'))
 const helpCount = computed(() => (['placeholder', 'help', 'tooltip', 'description', 'prefix', 'suffix'] as const).filter((k) => Object.keys(i18n.value[k] ?? {}).length > 0).length)
 </script>
@@ -246,24 +255,31 @@ const helpCount = computed(() => (['placeholder', 'help', 'tooltip', 'descriptio
     >
       <BehaviorEditor v-model:field="field" :info="info" :scope="scope" />
     </PanelSection>
-    <PanelSection v-if="field.hook || canCode" id="field-hook" tab="data" :title="t('builder.hook.title')" :default-open="false" :terms="terms('builder.hook.extension', 'builder.hook.name')">
+    <PanelSection
+      v-if="(field.hook || canCode) && ['text', 'textarea'].includes(field.type)"
+      id="field-hook"
+      tab="general"
+      :title="t('builder.hook.title')"
+      :default-open="!!field.hook"
+      :terms="terms('builder.hook.component')"
+    >
       <p class="text-xs text-muted-color">{{ t('builder.hook.hint') }}</p>
-      <template v-if="canCode">
-        <label class="field"
-          ><span>{{ t('builder.hook.extension') }}</span>
-          <InputText
-            :model-value="field.hook?.extension ?? ''"
-            size="small"
-            class="ltr-value font-mono"
-            @update:model-value="(v: string | undefined) => (field.hook = v ? { extension: v, hook: field.hook?.hook ?? '' } : null)"
-          />
-        </label>
-        <label v-if="field.hook" class="field"
-          ><span>{{ t('builder.hook.name') }}</span>
-          <InputText v-model="field.hook.hook" size="small" class="ltr-value font-mono" maxlength="64" />
-        </label>
-      </template>
-      <p v-else class="text-sm ltr-value font-mono">{{ field.hook?.extension }} · {{ field.hook?.hook }}</p>
+      <label class="field"
+        ><span>{{ t('builder.hook.component') }}</span>
+        <Select
+          :model-value="field.hook?.extension ?? null"
+          :options="components"
+          option-label="label"
+          option-value="value"
+          :placeholder="t('builder.hook.standard')"
+          show-clear
+          size="small"
+          :disabled="!canCode"
+          data-testid="field-component"
+          @update:model-value="(v: string | null) => (field.hook = v ? { extension: v, hook: 'component' } : null)"
+        />
+      </label>
+      <small v-if="canCode && !components.length" class="text-muted-color">{{ t('builder.hook.none_deployed') }}</small>
     </PanelSection>
 
     <!-- Validation, rules, events, table -->

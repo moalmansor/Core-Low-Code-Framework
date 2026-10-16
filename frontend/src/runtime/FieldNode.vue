@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { pathOf, useRenderer, valueOf } from './context'
+import ExtensionField from './extensions/ExtensionField.vue'
+import { CLIENT_EXTENSIONS } from './extensions/frames'
 import { componentFor, DISPLAY_TYPES, INLINE_LABEL_TYPES, READ_ONLY_TYPES } from './fields'
 import ValueDisplay from './fields/ValueDisplay.vue'
 import { labelOf, pickText } from './i18nText'
@@ -31,7 +33,11 @@ const prefix = computed(() => pickText(props.field.i18n.prefix, locale.value))
 const suffix = computed(() => pickText(props.field.i18n.suffix, locale.value))
 const position = computed(() => (props.compact ? 'hidden' : (props.field.ui.labelPosition ?? 'top')))
 const isDisplay = computed(() => DISPLAY_TYPES.has(props.field.type))
-const component = computed(() => componentFor(props.field.type))
+// A custom field component (a deployed client extension, ADR-0051) replaces the standard input when it is available.
+const extensions = inject(CLIENT_EXTENSIONS, null)
+const component = computed(() =>
+  props.field.component && extensions?.value.some((e) => e.uuid === props.field.component && e.type === 'client_field') ? ExtensionField : componentFor(props.field.type),
+)
 const readOnlyView = computed(() => s.value.readOnly || READ_ONLY_TYPES.has(props.field.type) || component.value === null)
 const inlineLabel = computed(() => INLINE_LABEL_TYPES.has(props.field.type) && !readOnlyView.value)
 const size = computed(() => (props.field.ui.size === 'small' ? 'small' : props.field.ui.size === 'large' ? 'large' : undefined))

@@ -65,6 +65,7 @@
   "admin.area.blueprints": "Blueprints",
   "admin.area.departments": "Departments",
   "admin.area.error_monitoring": "Error monitoring",
+  "admin.area.extensions": "Developer extensions",
   "admin.area.forms": "Forms & collections",
   "admin.area.integrations": "Integrations",
   "admin.area.reference_data": "Reference data",

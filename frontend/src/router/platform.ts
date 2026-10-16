@@ -7,6 +7,18 @@ import type { RouteRecordRaw } from 'vue-router'
  */
 export const platformRoutes: RouteRecordRaw[] = [
   {
+    path: 'admin/extensions',
+    name: 'admin.extensions',
+    component: () => import('@/views/extensions/ExtensionList.vue'),
+    meta: { anyOf: ['system.manage_code', 'system.approve_code'], title: 'admin.area.extensions' },
+  },
+  {
+    path: 'admin/extensions/:extension',
+    name: 'admin.extensions.edit',
+    component: () => import('@/views/extensions/ExtensionEditor.vue'),
+    meta: { anyOf: ['system.manage_code', 'system.approve_code'], title: 'admin.area.extensions' },
+  },
+  {
     path: 'admin/integrations/webhooks/:webhook',
     name: 'admin.integrations.webhook',
     component: () => import('@/views/integrations/WebhookEditor.vue'),

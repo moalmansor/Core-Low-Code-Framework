@@ -562,8 +562,15 @@ Done:
    - the screens: Admin › Integrations (outgoing webhooks, incoming endpoints, API tokens), the webhook and endpoint editors with their logs, Profile › API tokens, and the trigger in the automation editor.
    Fixed on the way: a bearer header on a session endpoint answered 500 (Sanctum looked up a table that does not exist). It now answers 401.
 
+4. **Developer extensions** (ADR-0051):
+   - server hooks at all nine points and custom API endpoints, checked by a token guard and run with a per-statement time limit, failing closed;
+   - client validators, field components and form scripts compiled by esbuild, running in sandboxed opaque-origin frames;
+   - the Monaco editor, sandbox test runs, approval by a second person, deployment, version history, rollback and turning off;
+   - failures in Error Monitoring and the Operations Center;
+   - the screens Admin › Developer extensions and the field-component picker in the builder;
+   - an end-to-end test of a client validator from the editor to the record form.
+
 Next, in order:
-4. Developer extensions (§4.19).
 5. Configuration packages and the drift report.
 6. Reports and dashboards.
 7. Applications, pages, home screens, navigation, global search, announcements, maintenance mode and appearance.

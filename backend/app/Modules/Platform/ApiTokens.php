@@ -6,6 +6,7 @@ namespace App\Modules\Platform;
 
 use App\Modules\Access\AccessResolver;
 use App\Modules\Audit\AuditWriter;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Core\Tenancy\TenantContext;
 use App\Modules\Forms\Models\Form;
@@ -143,7 +144,7 @@ final class ApiTokens
             foreach (['create', 'edit', 'delete'] as $a) {
                 $write = $write || $this->access->allows($owner, "form.{$form->uuid}.{$a}");
             }
-            $out[] = ['form' => strtolower($form->uuid), 'key' => (string) $form->key, 'name' => (string) ($form->translate('name') ?? $form->key), 'read' => true, 'write' => $write];
+            $out[] = ['form' => strtolower($form->uuid), 'key' => (string) $form->key, 'name' => (string) ($form->translate('name') ?? Translator::humanize((string) $form->key)), 'read' => true, 'write' => $write];
         }
 
         return $out;

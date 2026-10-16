@@ -32,7 +32,7 @@ use Illuminate\Validation\ValidationException;
  */
 final class FailedJobs
 {
-    public const KINDS = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'webhook_delivery', 'queue_job'];
+    public const KINDS = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'webhook_delivery', 'extension', 'queue_job'];
 
     /** Failures older than this are not gathered (the scheduled clean-ups remove most of them). */
     private const LOOKBACK_DAYS = 30;
@@ -227,6 +227,14 @@ final class FailedJobs
                 $formId = $hook->form_id ?? $endpoint->form_id ?? null;
                 $rows[] = $this->row('webhook_delivery', (int) $d->id, $formId === null ? null : (int) $formId, null, $subject,
                     $d->error ?? ($d->response_status === null ? null : 'HTTP '.$d->response_status), $d->updated_at, $d->direction === 'outgoing' && $d->webhook_id !== null, max(1, (int) $d->attempt));
+            }
+        }
+        if ($want('extension')) {
+            $q = DB::table('audit_logs')->where('event', 'extension.failed')->where('occurred_at', '>=', $since)->orderByDesc('occurred_at')->limit(self::PER_KIND);
+            foreach ($q->get(['id', 'meta', 'form_id', 'actor_user_id', 'occurred_at']) as $a) {
+                $meta = json_decode((string) $a->meta, true) ?: [];
+                $subject = trim(($meta['key'] ?? '').' v'.($meta['version'] ?? '').' · '.($meta['point'] ?? ''));
+                $rows[] = $this->row('extension', (int) $a->id, $a->form_id === null ? null : (int) $a->form_id, $a->actor_user_id, $subject, (string) ($meta['error'] ?? ''), $a->occurred_at, false, 1);
             }
         }
         if ($want('queue_job')) {

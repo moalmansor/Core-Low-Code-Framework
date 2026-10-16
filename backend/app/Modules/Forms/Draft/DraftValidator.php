@@ -17,6 +17,7 @@ use App\Modules\Forms\Models\Form;
 use App\Modules\Monitoring\ErrorReporter;
 use App\Support\Json\InvalidDocument;
 use App\Support\Json\SchemaValidator;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Checks a draft document (architecture §14.1) beyond its JSON schema.
@@ -357,6 +358,16 @@ final class DraftValidator
             }
             if (($f['behavior']['default']['field'] ?? null) !== null && ! isset($this->fields[$f['behavior']['default']['field']])) {
                 $this->error("{$path}.behavior.default.field", 'unknown_field', 'The default value references an unknown field.');
+            }
+            // A developer hook on a field shows it with a custom field component (a client extension, ADR-0051).
+            if (($f['hook'] ?? null) !== null) {
+                if (($f['hook']['hook'] ?? null) !== 'component') {
+                    $this->problem("{$path}.hook.hook", 'unknown_hook', 'A field hook can only be "component": the field is shown by a custom field component.');
+                } elseif (! DB::table('extensions')->where('uuid', strtolower((string) $f['hook']['extension']))->where('type', 'client_field')->exists()) {
+                    $this->problem("{$path}.hook.extension", 'unknown_extension', 'The field hook names no custom field component.');
+                } elseif (! in_array($f['type'], ['text', 'textarea'], true)) {
+                    $this->problem("{$path}.hook", 'hook_type', 'Only text and long text fields can be shown by a custom field component.');
+                }
             }
             foreach ($f['events'] ?? [] as $j => $e) {
                 foreach ($e['do'] as $k => $d) {

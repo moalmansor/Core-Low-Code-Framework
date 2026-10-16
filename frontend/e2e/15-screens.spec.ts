@@ -75,10 +75,12 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
     '/admin/integrations/webhooks/new',
     '/admin/integrations/inbound/new',
     '/profile?tab=tokens',
+    '/admin/extensions',
+    '/admin/extensions/new',
   ]
 
   await page.goto('/admin')
-  // Opening 100 pages back to back is far above a person's pace: the sweep lifts the API rate limit (a System
+  // Opening 108 pages back to back is far above a person's pace: the sweep lifts the API rate limit (a System
   // Setting) while it runs and puts it back after, so it never measures the limiter instead of the screens.
   const limit = ((await api(page, 'GET', '/settings/security')).data as { api_rate_limit_per_minute: number }).api_rate_limit_per_minute
   await api(page, 'PATCH', '/settings/security', { api_rate_limit_per_minute: 10_000 })
@@ -104,7 +106,7 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
                 return r.left < box.left - 1 || r.right > box.right + 1
               })
               .filter((el) => {
-                const own = el.closest('.p-datatable-table-container, .p-tablist-content, .overflow-auto, .overflow-x-auto, pre, .sr-only, .p-hidden-accessible')
+                const own = el.closest('.p-datatable-table-container, .p-tablist-content, .overflow-auto, .overflow-x-auto, pre, .sr-only, .p-hidden-accessible, .monaco-editor')
                 return own === null || own === main
               })
               .slice(0, 3)

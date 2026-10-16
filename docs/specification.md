@@ -423,7 +423,7 @@ Clicking any field shows a complete properties panel. It is organized in tabs an
   - run a custom action;
   - call a webhook;
   - show a notification.
-- Attach a developer hook (visible to the Manage Code permission only).
+- Attach a developer hook (visible to the Manage Code permission only): a text or long-text field can be shown with a custom field component, a deployed client extension (ADR-0051).
 
 **Table & Export Settings**
 - Visibility and behavior in lists:
@@ -768,6 +768,13 @@ All access control lives in **one** interface.
 - **Safety:**
   - hooks run inside DB transactions with timeouts and error isolation;
   - failures go to Error Monitoring and the Operations Center.
+- **How it is built (ADR-0051):**
+  - Versions are stored under `{key}/v{n}/` with their source, their build and a manifest. The build's checksum is checked every time it is loaded.
+  - Server code is one class with no imports, checked by a token guard that allows only the SDK, pure functions and value classes. It runs with a per-statement time limit and fails closed.
+  - Approval needs someone other than the author and the last editor. Deploying an earlier approved version is the rollback. A deployed extension is turned off, never deleted.
+  - Custom API endpoints answer `/api/v1/ext-api/{key}` for holders of a chosen permission and never write.
+  - Client code is TypeScript compiled by esbuild. It runs in a sandboxed frame with an opaque origin and no network, and talks to the page only by messages.
+  - A text field is shown with a field component through its developer hook (§4.6).
 
 ### 4.20 Audit Log
 - **What is logged:**

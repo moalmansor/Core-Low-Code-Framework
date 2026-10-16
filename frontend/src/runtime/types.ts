@@ -134,6 +134,8 @@ export interface ClientField {
   }
   access: AccessLevel
   serverComputed: boolean
+  /** The custom field component (a client extension's id) the field is shown with, if any. */
+  component?: string | null
 }
 
 export interface ClientGroup {

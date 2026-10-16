@@ -114,7 +114,16 @@ const routes: RouteRecordRaw[] = [
 
 export const router = createRouter({ history: createWebHistory(), routes })
 
-router.beforeEach(async (to) => {
+// Pages whose document carries a different Content-Security-Policy (the extension code editor, ADR-0051)
+// are always loaded as a document of their own, and so are the pages after them.
+const EDITOR_PAGES = /^\/admin\/extensions(\/|$)/
+const bootedOnEditor = EDITOR_PAGES.test(window.location.pathname)
+
+router.beforeEach(async (to, from) => {
+  if (from.matched.length > 0 && EDITOR_PAGES.test(to.path) !== bootedOnEditor) {
+    window.location.assign(to.fullPath)
+    return false
+  }
   const session = useSession()
   if (!session.boot) await session.loadBootstrap()
   if (!session.boot!.setup_completed) return to.name === 'setup' ? true : { name: 'setup' }

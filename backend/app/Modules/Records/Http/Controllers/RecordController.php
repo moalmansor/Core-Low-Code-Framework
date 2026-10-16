@@ -11,6 +11,7 @@ use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\RecordScope;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\DataQuality\DuplicateGuard;
+use App\Modules\Extensions\HookRunner;
 use App\Modules\Forms\Definition\ClientDefinition;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
@@ -137,7 +138,23 @@ final class RecordController extends Controller
             $merged[$uuid] = $l === 'hidden' && ($levels['fields'][$uuid] ?? 'hidden') === 'hidden' ? 'hidden' : $l;
         }
 
-        return response()->json(['data' => $this->presenter->present($rt, $found, $merged) + ['permissions' => [
+        $presented = $this->presenter->present($rt, $found, $merged);
+        $hooks = app(HookRunner::class);
+        if ($hooks->has($rt, 'onLoad')) {
+            // Developer extensions at onLoad (ADR-0051) change only what is shown, never the stored record.
+            DB::beginTransaction();
+            try {
+                $presented['values'] = $hooks->run('onLoad', $rt, $this->user(), $presented['values'], null, $found['uuid'])['values'];
+            } catch (RecordException $e) {
+                DB::rollBack();
+                $hooks->flush();
+
+                return response()->json(['message' => $e->getMessage(), 'code' => $e->reason], $e->status);
+            }
+            DB::rollBack();
+        }
+
+        return response()->json(['data' => $presented + ['permissions' => [
             'edit' => $levels['modes']['edit'] && $mayEdit && $found['system']['deleted_at'] === null,
             'delete' => $levels['modes']['delete'] && $mayDelete && $found['system']['deleted_at'] === null,
             'restore' => $found['system']['deleted_at'] !== null && $mayDelete && $this->access->allows($this->user(), "form.{$form->uuid}.restore"),

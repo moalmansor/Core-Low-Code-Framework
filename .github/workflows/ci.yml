@@ -67,6 +67,7 @@ jobs:
       DB_ADMIN_PASSWORD: ${{ matrix.db == 'mysql' && format('ci-{0}-Aa1!', github.run_id) || format('Ci-{0}-Pw0rd!', github.run_id) }}
       DB_TRUST_SERVER_CERTIFICATE: 'true'
       REDIS_HOST: 127.0.0.1
+      LCF_ESBUILD: ../frontend/node_modules/@esbuild/linux-x64/bin/esbuild
     steps:
       - uses: actions/checkout@v4
       - name: Microsoft ODBC Driver 18 (SQL Server only)
@@ -90,6 +91,9 @@ jobs:
         with: { php-version: '${{ env.PHP_VERSION }}', extensions: '${{ env.PHP_EXTENSIONS }}', coverage: none, tools: composer:v2 }
       - run: composer install --no-interaction --no-progress --prefer-dist
         working-directory: backend
+      - name: esbuild and Vue for developer extensions (client extensions are compiled by esbuild)
+        run: npm ci --no-audit --no-fund --ignore-scripts && node_modules/@esbuild/linux-x64/bin/esbuild --version
+        working-directory: frontend
       - name: Throw-away application key for this run
         run: echo "APP_KEY=base64:$(openssl rand -base64 32)" >> "$GITHUB_ENV"
       - run: php -m | grep -i -E 'sqlsrv|pdo_mysql' && php .github/scripts/prepare-database.php lcf_test
@@ -162,6 +166,7 @@ jobs:
       DB_HOST: 127.0.0.1
       DB_PORT: ${{ matrix.db == 'mysql' && '3306' || '1433' }}
       DB_DATABASE: lcf_e2e
+      LCF_ESBUILD: ../frontend/node_modules/@esbuild/linux-x64/bin/esbuild
       DB_USERNAME: ${{ matrix.db == 'mysql' && 'root' || 'sa' }}
       DB_PASSWORD: ${{ matrix.db == 'mysql' && format('ci-{0}-Aa1!', github.run_id) || format('Ci-{0}-Pw0rd!', github.run_id) }}
       DB_ADMIN_PASSWORD: ${{ matrix.db == 'mysql' && format('ci-{0}-Aa1!', github.run_id) || format('Ci-{0}-Pw0rd!', github.run_id) }}

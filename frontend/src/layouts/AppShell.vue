@@ -216,6 +216,7 @@ export const icons: Record<string, string> = {
   scheduled_tasks: 'pi-clock',
   operations_center: 'pi-server',
   integrations: 'pi-link',
+  extensions: 'pi-code',
 }
 </script>
 

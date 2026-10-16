@@ -11,6 +11,7 @@ use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\Correlation\CorrelationId;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Outbox\OutboxWriter;
+use App\Modules\Extensions\HookRunner;
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\Models\StoredFile;
 use App\Modules\Records\Runtime\FormRuntime;
@@ -182,6 +183,14 @@ final class WorkflowEngine
             'form' => $rt->form->uuid, 'record' => strtolower((string) $row->uuid), 'transition' => $t['uuid'],
             'from' => $wf->status($from)['uuid'] ?? null, 'to' => $t['to'], 'source' => $ctx['source'] ?? 'user', 'actor' => $ctx['actor'],
         ]);
+        // Developer extensions at onStatusChange (ADR-0051), as the person who moved the record, inside this transaction.
+        $hooks = app(HookRunner::class);
+        $actor = $ctx['actor'] === null ? null : User::query()->find($ctx['actor']);
+        if ($actor !== null && $hooks->has($rt, 'onStatusChange')) {
+            $hooks->run('onStatusChange', $rt, $actor, $values, null, strtolower((string) $row->uuid), [
+                'transition' => $t['key'], 'from' => $wf->status($from)['key'] ?? null, 'to' => $wf->status($t['toId'])['key'] ?? null,
+            ]);
+        }
 
         return $historyId;
     }

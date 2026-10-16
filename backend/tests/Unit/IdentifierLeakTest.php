@@ -34,6 +34,7 @@ const ALLOWED_MESSAGES = [
     'workflow.key_of_removed_status' => 'the same, for a key that belonged to a removed status',
     'workflow.key_of_removed_transition' => 'the same, for a key that belonged to a removed transition',
     'records.import.record_not_found' => 'quotes back the ID the user put in the import file',
+    'extensions.checksum_mismatch' => 'names a developer extension by its key, which is its only name (shown as a code on the extension screens)',
 ];
 
 /** Files that show keys on purpose, with their reason. */
