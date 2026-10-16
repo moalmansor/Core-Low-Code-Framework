@@ -46,7 +46,7 @@ final class SheetCodec
         return $rt->isStored($field) && ($field['export']['exportable'] ?? true) !== false;
     }
 
-    /** Column header: the field's Excel column name, else its column label, else its label, in the reader's language. */
+    /** Column header: the field's Excel column name, else its column label, else its label, in the reader's language (else its key made readable). */
     public function header(array $field): string
     {
         $i18n = $field['i18n'] ?? [];
@@ -54,7 +54,7 @@ final class SheetCodec
             return (string) $field['export']['excelColumn'];
         }
 
-        return $this->localized($i18n['columnLabel'] ?? []) ?? $this->localized($i18n['label'] ?? []) ?? (string) $field['key'];
+        return $this->localized($i18n['columnLabel'] ?? []) ?? $this->localized($i18n['label'] ?? []) ?? Translator::humanize((string) $field['key']);
     }
 
     /**

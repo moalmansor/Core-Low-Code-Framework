@@ -6,11 +6,21 @@ use App\Modules\Assignment\Claims;
 use App\Modules\Assignment\Http\Controllers\DelegationController;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Audit\ChainVerifier;
+use App\Modules\Automation\AutomationEngine;
+use App\Modules\Automation\WatchedFolders;
 use App\Modules\Core\Outbox\OutboxRelay;
 use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\Core\Settings\SettingsService;
+use App\Modules\Documents\GeneratedDocuments;
+use App\Modules\Downloads\DownloadJobs;
 use App\Modules\Monitoring\ErrorReporter;
+use App\Modules\Notifications\EmailQueue;
+use App\Modules\Notifications\Notifier;
+use App\Modules\Operations\AlertRules;
+use App\Modules\Records\Exchange\ExportService;
 use App\Modules\Records\FileStore;
+use App\Modules\Records\Runtime\RecycleBin;
+use App\Modules\Scheduling\ScheduledTasks;
 use App\Modules\Schema\Execution\SchemaReconciler;
 use App\Modules\Schema\Execution\Snapshots;
 use App\Modules\Setup\SetupState;
@@ -18,6 +28,63 @@ use App\Modules\Workflow\Runtime\SlaTimers;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
+
+Artisan::command('records:expire-exports', function (ExportService $exports): int {
+    $this->info('Expired '.$exports->expire().' export(s).');
+
+    return 0;
+})->purpose('Delete export files past their expiry time');
+
+Artisan::command('documents:expire', function (GeneratedDocuments $documents): int {
+    $this->info('Removed '.$documents->expire().' generated document(s).');
+
+    return 0;
+})->purpose('Delete downloaded documents past their expiry time');
+
+Artisan::command('downloads:expire', function (DownloadJobs $downloads): int {
+    $this->info('Expired downloads: '.$downloads->expire());
+
+    return 0;
+})->purpose('Delete download files past their time');
+
+Artisan::command('scheduler:run', function (ScheduledTasks $tasks): int {
+    $this->info('Scheduled tasks run: '.$tasks->runDue());
+
+    return 0;
+})->purpose('Run the scheduled tasks that are due (scheduled downloads, automations)');
+
+Artisan::command('records:purge-recycle-bin', function (RecycleBin $bin): int {
+    $this->info('Purged '.$bin->purgeDue().' record(s) past the recycle bin retention.');
+
+    return 0;
+})->purpose('Remove deleted records whose recycle bin retention has passed');
+
+Artisan::command('automations:tick', function (AutomationEngine $engine, WatchedFolders $folders): int {
+    $resumed = $engine->resumeDue();
+    $dates = $engine->datesReached();
+    $files = $folders->scan();
+    $this->info("Automation runs resumed: {$resumed}, dates reached: {$dates}, files picked up: {$files}");
+
+    return 0;
+})->purpose('Resume waiting automation runs, fire date triggers and pick up files from watched folders');
+
+Artisan::command('notifications:reminders', function (Notifier $notifier): int {
+    $this->info('Sent '.$notifier->reminders().' reminder(s).');
+
+    return 0;
+})->purpose('Send notification reminders whose moment has come');
+
+Artisan::command('mail:dispatch-due', function (EmailQueue $queue): int {
+    $this->info('Dispatched '.$queue->dispatchDue().' email(s).');
+
+    return 0;
+})->purpose('Send delayed emails and retries whose time has come');
+
+Artisan::command('ops:check-alerts', function (AlertRules $rules): int {
+    $this->info('Alerts sent: '.$rules->evaluate());
+
+    return 0;
+})->purpose('Alert the chosen roles when an Operations Center measure reaches its threshold');
 
 Artisan::command('outbox:relay {--limit=200}', function (OutboxRelay $relay): int {
     $count = $relay->relayPending((int) $this->option('limit'));
@@ -169,6 +236,15 @@ Artisan::command('work:maintain', function (Claims $claims, OutboxWriter $outbox
 Schedule::command('sla:tick')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('work:maintain')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('files:purge-temporary')->hourly()->onOneServer();
+Schedule::command('records:expire-exports')->hourly()->onOneServer();
+Schedule::command('documents:expire')->hourly()->onOneServer();
+Schedule::command('downloads:expire')->hourly()->onOneServer();
+Schedule::command('scheduler:run')->everyMinute()->withoutOverlapping()->onOneServer();
+Schedule::command('automations:tick')->everyMinute()->withoutOverlapping()->onOneServer();
+Schedule::command('records:purge-recycle-bin')->dailyAt('03:25')->withoutOverlapping()->onOneServer();
+Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
+Schedule::command('mail:dispatch-due')->everyMinute()->withoutOverlapping()->onOneServer();
+Schedule::command('ops:check-alerts')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('schema:purge-snapshots')->dailyAt('04:10')->onOneServer();
 Schedule::command('schema:reconcile --scheduled')->dailyAt('01:40')->withoutOverlapping()->onOneServer();
 Schedule::command('outbox:relay')->everyMinute()->withoutOverlapping()->onOneServer();

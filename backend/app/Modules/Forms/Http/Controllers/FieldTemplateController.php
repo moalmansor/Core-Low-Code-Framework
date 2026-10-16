@@ -48,7 +48,7 @@ final class FieldTemplateController extends Controller
 
         return response()->json(['data' => $templates->map(fn (FieldTemplate $t): array => [
             'uuid' => $t->uuid, 'kind' => $t->kind, 'category' => $t->category,
-            'name' => $names[$t->id]['name'] ?? $t->uuid, 'description' => $names[$t->id]['description'] ?? null,
+            'name' => $names[$t->id]['name'] ?? __('forms.untitled_template'), 'description' => $names[$t->id]['description'] ?? null,
             'names' => $t->translationsFor('name'),
             'usage_count' => $t->usage_count, 'definition' => $t->definition,
             'application' => $t->application_id === null ? null : Application::query()->whereKey($t->application_id)->value('uuid'),

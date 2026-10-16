@@ -59,7 +59,7 @@ it('limits every record query to the user scope and answers 404 outside it', fun
     $this->getJson("/api/v1/r/{$form}/{$mine}")->assertNotFound();
     $this->patchJson("/api/v1/r/{$form}/{$mine}", ['values' => ['subject' => 'x'], 'row_version' => 1])->assertNotFound();
     $this->deleteJson("/api/v1/r/{$form}/{$mine}", ['row_version' => 1])->assertNotFound();
-    $this->getJson("/api/v1/r/{$form}/export?format=csv")->assertOk()->assertDontSee('Alice 1');
+    expect($this->get($this->postJson("/api/v1/r/{$form}/exports", ['format' => 'csv'])->assertOk()->json('data.url'))->streamedContent())->not->toContain('Alice 1');
 
     // A more specific tier overrides: Bob alone sees all records.
     $this->flushSession();

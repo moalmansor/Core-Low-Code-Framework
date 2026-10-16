@@ -55,7 +55,7 @@ final class SchemaController extends Controller
             foreach ($def['schema']['tables'] ?? [] as $t) {
                 $out[] = [
                     'name' => $t['name'], 'role' => $t['role'], 'form' => $form->uuid, 'form_key' => $form->key,
-                    'form_name' => $names[$form->id]['name'] ?? $form->key, 'kind' => $form->kind,
+                    'form_name' => $names[$form->id]['name'] ?? Translator::humanize((string) $form->key), 'kind' => $form->kind,
                     'columns' => count($t['columns']), 'exists' => isset($live[strtolower($t['name'])]),
                     'rows' => isset($live[strtolower($t['name'])]) ? $this->driver->tableStats($t['name'])->rows : null,
                 ];
@@ -129,7 +129,7 @@ final class SchemaController extends Controller
             foreach ($def['schema']['tables'] ?? [] as $t) {
                 $nodes[] = [
                     'id' => $t['name'], 'role' => $t['role'], 'form' => $form->uuid, 'kind' => $form->kind,
-                    'label' => $t['role'] === 'main' ? ($names[$form->id]['name'] ?? $form->key) : $t['name'],
+                    'label' => $t['role'] === 'main' ? ($names[$form->id]['name'] ?? Translator::humanize((string) $form->key)) : $t['name'],
                     'columns' => array_map(static fn (array $c) => [
                         'name' => $c['name'], 'type' => $c['type'], 'nullable' => $c['nullable'],
                         'field' => isset($c['field']) ? ($fieldsByUuid[$c['field']]['key'] ?? null) : null, 'system' => (bool) ($c['system'] ?? false),

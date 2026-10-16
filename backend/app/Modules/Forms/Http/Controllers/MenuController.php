@@ -130,7 +130,7 @@ final class MenuController extends Controller
             $tree = $this->tree($visible, null, false, $formUuids);
             $tree = $this->prune($tree);
             if ($tree !== [] || $app->maintenance_mode) {
-                $out[] = ['uuid' => $app->uuid, 'key' => $app->key, 'name' => $names[$app->id]['name'] ?? $app->key, 'icon' => $app->icon, 'color' => $app->color, 'maintenance' => $app->maintenance_mode, 'items' => $tree];
+                $out[] = ['uuid' => $app->uuid, 'key' => $app->key, 'name' => $names[$app->id]['name'] ?? Translator::humanize((string) $app->key), 'icon' => $app->icon, 'color' => $app->color, 'maintenance' => $app->maintenance_mode, 'items' => $tree];
             }
         }
 

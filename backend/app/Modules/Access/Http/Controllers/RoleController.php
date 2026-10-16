@@ -8,6 +8,7 @@ use App\Modules\Access\AccessGuard;
 use App\Modules\Access\Models\PermissionAssignment;
 use App\Modules\Access\Models\Role;
 use App\Modules\Audit\AuditWriter;
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Models\Locale;
 use App\Modules\Core\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -36,7 +37,7 @@ final class RoleController extends Controller
         $roles = Role::query()->orderBy('sort_order')->orderBy('id')->get();
 
         return response()->json(['data' => $roles->map(static fn (Role $r): array => [
-            'uuid' => $r->uuid, 'key' => $r->key, 'name' => $r->translate('name') ?? $r->key, 'is_admin_role' => $r->is_admin_role,
+            'uuid' => $r->uuid, 'key' => $r->key, 'name' => $r->translate('name') ?? Translator::humanize((string) $r->key), 'is_admin_role' => $r->is_admin_role,
         ])->values()]);
     }
 

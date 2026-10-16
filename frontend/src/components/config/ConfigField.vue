@@ -57,4 +57,9 @@ withDefaults(defineProps<{ label: string; for?: string; width?: 'xs' | 'sm' | 'm
 .cfg-field-control > :deep(.p-textarea) {
   width: 100%;
 }
+/* An autocomplete's own input has a fixed default width; inside a field it fills the field instead, in either direction. */
+.cfg-field-control > :deep(.p-autocomplete .p-autocomplete-input) {
+  width: 100%;
+  min-width: 0;
+}
 </style>

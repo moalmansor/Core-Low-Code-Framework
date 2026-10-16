@@ -284,6 +284,8 @@ export interface RecordPayload {
     updated_at: string | null
     updated_by: string | null
     deleted_at: string | null
+    /** When a deleted record leaves the recycle bin for good. */
+    purge_after?: string | null
     /** Workflow status (null when the form has no workflow or the record none yet). */
     status?: { uuid: string; key: string; name: string; color: string; icon: string | null } | null
   }

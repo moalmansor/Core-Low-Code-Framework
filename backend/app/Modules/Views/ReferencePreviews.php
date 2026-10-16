@@ -152,7 +152,7 @@ final class ReferencePreviews
         }
 
         return [
-            'form' => ['uuid' => $trt->form->uuid, 'key' => $trt->form->key, 'name' => $trt->form->translate('name') ?? $trt->form->key],
+            'form' => ['uuid' => $trt->form->uuid, 'key' => $trt->form->key, 'name' => $trt->form->translate('name') ?? Translator::humanize((string) $trt->form->key)],
             'record' => ['uuid' => $record['uuid'], 'title' => $presented['title'], 'status' => $presented['system']['status']],
             'items' => $items, 'columns' => $columns, 'autofill' => $autofill, 'drawer' => $drawer,
         ];

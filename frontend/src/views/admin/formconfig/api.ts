@@ -133,7 +133,7 @@ export interface RecordRuleDoc {
 
 export interface JustificationRuleDoc {
   uuid: string
-  scope: 'form' | 'group' | 'field' | 'status' | 'transition' | 'delete' | 'restore' | 'reassign'
+  scope: 'form' | 'group' | 'field' | 'status' | 'transition' | 'action' | 'delete' | 'restore' | 'reassign' | 'import' | 'bulk'
   target: string | null
   subject: SubjectRef
   level: 'not_required' | 'optional' | 'mandatory'
@@ -204,9 +204,28 @@ export interface PathNode {
   key: string
   path: Path
   type: string
+  /** How the value is stored (`date`, `datetime`, `decimal`, `user`, …). */
+  storage?: string | null
+  /** What the field can name as recipients, when anything. */
+  kind?: 'user' | 'role' | 'department' | 'email' | null
   label: I18nMap
   children: PathNode[]
   form?: { uuid: string; key: string }
+}
+
+/** Forms whose records link to a form's records, with the link fields they use (tables of linked records). */
+export interface LinkedFrom {
+  form: string
+  name: string
+  via: { key: string; label: string }[]
+}
+export const linkedFromApi = {
+  load: (form: string) => get<{ data: LinkedFrom[] }>(`/forms/${form}/linked-from`).then((r) => r.data),
+}
+
+/** The fields reachable from a form: its own, those of the forms it links to, and system values. */
+export const fieldTreeApi = {
+  load: (form: string) => get<{ data: { published: boolean; fields: PathNode[] } }>(`/forms/${form}/field-tree`).then((r) => r.data.fields),
 }
 
 export interface PanelDoc {
@@ -238,6 +257,32 @@ export interface PrintLayoutDoc {
   default: boolean
 }
 
+export type NotificationTrigger =
+  'record_created' | 'record_updated' | 'status_changed' | 'field_changed' | 'condition_met' | 'scheduled_reminder' | 'sla_warning' | 'sla_escalation' | 'approval_requested' | 'assigned'
+export type RecipientType = 'user' | 'role' | 'department' | 'field' | 'assignee' | 'status_changer' | 'creator' | 'actor' | 'static'
+export interface RecipientDoc {
+  type: RecipientType
+  ref: string | null
+}
+export interface NotificationRuleDoc {
+  uuid: string
+  key: string
+  name: I18nMap
+  trigger: NotificationTrigger
+  fromStatus: string | null
+  toStatus: string | null
+  field: string | null
+  condition: Ast | null
+  schedule: { dateField: string; offsetMinutes: number } | null
+  template: string | null
+  channels: ('email' | 'in_app')[]
+  recipients: { to: RecipientDoc[]; cc: RecipientDoc[]; bcc: RecipientDoc[] }
+  attachments: { fields: string[]; documents: { template: string; format: 'docx' | 'pdf' }[] } | null
+  delayMinutes: number | null
+  respectPreferences: boolean
+  active: boolean
+}
+
 /** GET/PUT of a hashed document at `path` whose payload key is `key`. */
 export function documentApi<T>(path: string, key: string) {
   return {
@@ -255,6 +300,73 @@ export function documentApi<T>(path: string, key: string) {
 export const recordRulesApi = documentApi<RecordRuleDoc[]>('record-access-rules', 'rules')
 export const justificationRulesApi = documentApi<JustificationRuleDoc[]>('justification-rules', 'rules')
 export const assignmentRulesApi = documentApi<AssignmentRuleDoc[]>('assignment-rules', 'rules')
+export const notificationRulesApi = documentApi<NotificationRuleDoc[]>('notification-rules', 'rules')
+
+/** Actions (specification §4.15, architecture §14.9). */
+export type ActionPlacement = 'row' | 'bulk' | 'toolbar' | 'view_page'
+export type ActionBuiltin = 'duplicate' | 'print' | 'bulk_update' | 'bulk_status' | 'bulk_delete' | 'bulk_reassign'
+export type StepType =
+  'update_fields' | 'change_status' | 'send_email' | 'send_notification' | 'call_webhook' | 'generate_document' | 'create_linked_record' | 'assign' | 'run_download' | 'wait_delay' | 'wait_condition'
+export interface FieldValueDoc {
+  field: string
+  value: Ast | null
+}
+export interface StepConfig {
+  set?: FieldValueDoc[]
+  transition?: string
+  template?: string | null
+  recipients?: { to: RecipientDoc[]; cc: RecipientDoc[]; bcc: RecipientDoc[] }
+  documents?: { template: string; format: 'docx' | 'pdf' }[]
+  url?: string
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  format?: string
+  headers?: { name: string; value: string | null; set?: boolean }[]
+  body?: string
+  secret?: string | null
+  secretSet?: boolean
+  attachToField?: string | null
+  form?: string | null
+  linkField?: string | null
+  prefill?: FieldValueDoc[]
+  open?: boolean
+  to?: { type: 'user' | 'role' | 'department'; uuid: string | null }
+  profile?: string | null
+  // Automations only (§4.31): waits, and a download e-mailed to users and roles.
+  minutes?: number
+  timeoutMinutes?: number
+  onTimeout?: 'stop' | 'continue'
+  condition?: Ast | null
+  scope?: 'record' | 'profile'
+  deliverTo?: { users: string[]; roles: string[] }
+}
+export interface ActionStepDoc {
+  uuid: string
+  type: StepType
+  config: StepConfig
+  condition: Ast | null
+  onFailure: 'stop' | 'continue' | 'retry'
+}
+export interface ActionDoc {
+  uuid: string
+  key: string
+  kind: 'builtin' | 'custom'
+  builtin: ActionBuiltin | null
+  /** A bulk status change's fixed transition; null lets the person running it choose. */
+  settings: { transition: string | null } | null
+  i18n: { label: I18nMap; confirmation: I18nMap; success: I18nMap }
+  placements: ActionPlacement[]
+  condition: Ast | null
+  confirm: boolean
+  runMode: 'sync' | 'queued' | 'auto'
+  queueThreshold: number | null
+  maxRecords: number | null
+  justification: 'not_required' | 'optional' | 'mandatory'
+  icon: string | null
+  color: string | null
+  active: boolean
+  steps: ActionStepDoc[]
+}
+export const actionsApi = documentApi<ActionDoc[]>('actions', 'actions')
 export const viewsApi = documentApi<ViewDoc[]>('views', 'views')
 export const panelsApi = documentApi<PanelDoc[]>('view-panels', 'panels')
 export const printLayoutsApi = documentApi<PrintLayoutDoc[]>('print-layouts', 'layouts')

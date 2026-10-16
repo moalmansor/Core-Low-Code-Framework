@@ -20,7 +20,7 @@ import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import TabIntro from '@/components/config/TabIntro.vue'
 import LocaleFields from '../building/LocaleFields.vue'
 import { fetchFormOptions, type FormOption } from '../building/shared'
-import { justificationRulesApi, labelOf, newUuid, workflowApi, type JustificationRuleDoc, type StatusDoc, type TransitionDoc } from './api'
+import { actionsApi, justificationRulesApi, labelOf, newUuid, workflowApi, type ActionDoc, type JustificationRuleDoc, type StatusDoc, type TransitionDoc } from './api'
 import ErrorList from './ErrorList.vue'
 import { useHashedDocument } from './useHashedDocument'
 
@@ -43,12 +43,15 @@ const statuses = ref<StatusDoc[]>([])
 const transitions = ref<TransitionDoc[]>([])
 const codeSets = ref<string[]>([])
 const collections = ref<FormOption[]>([])
+const actions = ref<ActionDoc[]>([])
 onMounted(async () => {
-  const [wf, codes, forms] = await Promise.all([
+  const [wf, codes, forms, acts] = await Promise.all([
     workflowApi.load(props.form).catch(() => null),
     get<{ data: { set_key: string }[] }>('/justification-reason-codes').catch(() => ({ data: [] })),
     fetchFormOptions().catch(() => []),
+    actionsApi.load(props.form).catch(() => null),
   ])
+  actions.value = acts?.value ?? []
   statuses.value = wf?.document.statuses ?? []
   transitions.value = wf?.document.transitions ?? []
   codeSets.value = [...new Set(codes.data.map((c) => c.set_key))]
@@ -57,7 +60,9 @@ onMounted(async () => {
 
 const dl = computed(() => session.boot?.default_locale ?? 'en')
 const scope = computed(() => (builder.doc ? buildScope(builder.doc, builder.catalog.fields) : { fields: [], repeaters: [], rows: null }))
-const scopes = computed(() => (['form', 'group', 'field', 'status', 'transition', 'delete', 'restore', 'reassign'] as const).map((v) => ({ value: v, label: t(`justification.scope.${v}`) })))
+const scopes = computed(() =>
+  (['form', 'group', 'field', 'status', 'transition', 'action', 'delete', 'restore', 'reassign', 'import', 'bulk'] as const).map((v) => ({ value: v, label: t(`justification.scope.${v}`) })),
+)
 const levels = computed(() => (['not_required', 'optional', 'mandatory'] as const).map((v) => ({ value: v, label: t(`justification.level.${v}`) })))
 const modes = computed(() => (['none', 'optional', 'required'] as const).map((v) => ({ value: v, label: t(`justification.mode.${v}`) })))
 function targets(scopeName: string): { value: string; label: string }[] {
@@ -70,6 +75,8 @@ function targets(scopeName: string): { value: string; label: string }[] {
       return statuses.value.map((s) => ({ value: s.uuid, label: labelOf(s.i18n.name, locale.value, s.key, dl.value) }))
     case 'transition':
       return transitions.value.map((x) => ({ value: x.uuid, label: labelOf(x.i18n.name, locale.value, x.key, dl.value) }))
+    case 'action':
+      return actions.value.map((a) => ({ value: a.uuid, label: labelOf(a.i18n.label, locale.value, a.key, dl.value) }))
     default:
       return []
   }
@@ -135,7 +142,7 @@ function setCondition(r: JustificationRuleDoc, ast: JustificationRuleDoc['condit
             <ConfigField :label="t('justification.where')" :for="`jr-scope-${i}`" width="md">
               <Select :model-value="r.scope" :input-id="`jr-scope-${i}`" :options="scopes" option-label="label" option-value="value" size="small" @update:model-value="(v) => setScope(r, v)" />
             </ConfigField>
-            <ConfigField v-if="['group', 'field', 'status', 'transition'].includes(r.scope)" :label="t(`justification.target.${r.scope}`)" :for="`jr-target-${i}`" width="md">
+            <ConfigField v-if="['group', 'field', 'status', 'transition', 'action'].includes(r.scope)" :label="t(`justification.target.${r.scope}`)" :for="`jr-target-${i}`" width="md">
               <Select v-model="r.target" :input-id="`jr-target-${i}`" :options="targets(r.scope)" option-label="label" option-value="value" filter size="small" />
             </ConfigField>
           </div>

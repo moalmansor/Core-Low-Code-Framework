@@ -163,3 +163,19 @@ it('maps every logical type to a native type', function (LogicalType $type) {
     $spec = new ColumnSpec('c', $type, length: 20, precision: 10, scale: 2, values: ['a']);
     expect(driver()->nativeType($spec))->toBeString()->not->toBe('');
 })->with(LogicalType::cases());
+
+it('lists only the tables of its own database, never those of other databases on the server', function () {
+    expect(driver()->tables())->toContain('zz_contract_parent');
+    if (DB::connection()->getDriverName() !== 'mysql') {
+        // A SQL Server connection lists the tables of its one database by design.
+        return;
+    }
+    $other = DB::connection()->getDatabaseName().'_zz_other';
+    DB::statement("CREATE DATABASE IF NOT EXISTS `{$other}`");
+    try {
+        DB::statement("CREATE TABLE IF NOT EXISTS `{$other}`.`zz_only_elsewhere` (id INT PRIMARY KEY)");
+        expect(driver()->tables())->not->toContain('zz_only_elsewhere');
+    } finally {
+        DB::statement("DROP DATABASE IF EXISTS `{$other}`");
+    }
+});

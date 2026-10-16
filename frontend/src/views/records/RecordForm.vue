@@ -19,6 +19,8 @@ import { useSession } from '@/stores/session'
 import JustificationDialog from '@/runtime/JustificationDialog.vue'
 import { useJustification } from '@/runtime/useJustification'
 import ConflictDialog from './ConflictDialog.vue'
+import DuplicateDialog from '@/views/dataquality/DuplicateDialog.vue'
+import { duplicateAnswer, type DuplicateAnswer } from '@/views/dataquality/api'
 import { scrollBehavior } from '@/theme/motion'
 
 /**
@@ -148,6 +150,16 @@ function focusFirstError(): void {
 const conflict = ref<ConflictPayload | null>(null)
 const conflictSubmitted = ref<Values>({})
 
+// A save that looks like a duplicate is shown first; "Save anyway" sends it again, acknowledged (§4.35).
+const duplicate = ref<DuplicateAnswer | null>(null)
+let confirmDuplicates = false
+let duplicateOverride: Values | undefined
+function saveAnyway(): void {
+  duplicate.value = null
+  confirmDuplicates = true
+  void save(duplicateOverride).finally(() => (confirmDuplicates = false))
+}
+
 async function save(override?: Values): Promise<void> {
   if (!definition.value || !renderer.value || saving.value) return
   const clientErrors = renderer.value.validate()
@@ -169,6 +181,7 @@ async function save(override?: Values): Promise<void> {
           params: Object.fromEntries(Object.entries(route.query).filter(([, v]) => typeof v === 'string')),
         }
       : { values: override ?? submissionValues(renderer.value.index, renderer.value.state, 'edit', current, loaded.value), row_version: rowVersion.value }
+  if (confirmDuplicates) body.confirm_duplicates = true
   if (mode.value === 'edit' && Object.keys(body.values as Values).length === 0) {
     toast.add({ severity: 'info', summary: t('records.no_changes'), life: 4000 })
     return
@@ -208,6 +221,10 @@ async function save(override?: Values): Promise<void> {
       serverErrors.value = e.body.errors ?? {}
       banner.value = e.message || t('records.fix_errors')
       focusFirstError()
+    } else if (e.status === 409 && duplicateAnswer(e.body)) {
+      attempt = null
+      duplicate.value = duplicateAnswer(e.body)
+      duplicateOverride = override
     } else if (e.status === 409 && isConflictPayload(e.body)) {
       attempt = null
       conflict.value = e.body
@@ -298,6 +315,7 @@ onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('records.leave_unsaved'
       <Button type="submit" :label="submitLabel" icon="pi pi-check" :loading="saving" data-testid="record-save" />
     </div>
     <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
+    <DuplicateDialog v-if="duplicate" :answer="duplicate" :form="formUuid" :busy="saving" @confirm="saveAnyway" @cancel="duplicate = null" />
     <ConflictDialog
       v-if="conflict && definition"
       :payload="conflict"

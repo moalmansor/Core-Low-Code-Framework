@@ -132,7 +132,13 @@ const sev = (s: string) => ({ warning: 'warn', error: 'danger', critical: 'dange
     >
   </DataTable>
 
-  <Drawer :visible="!!open" position="right" class="!w-full md:!w-[48rem]" :header="open?.group.exception_class" @update:visible="(v: boolean) => !v && (open = null)">
+  <Drawer
+    :visible="!!open"
+    :position="session.direction === 'rtl' ? 'left' : 'right'"
+    class="!w-full md:!w-[48rem]"
+    :header="open?.group.exception_class"
+    @update:visible="(v: boolean) => !v && (open = null)"
+  >
     <div v-if="open" class="flex flex-col gap-4 text-sm">
       <p class="ltr-value">{{ open.group.message_sample }}</p>
       <div class="flex flex-wrap gap-3">

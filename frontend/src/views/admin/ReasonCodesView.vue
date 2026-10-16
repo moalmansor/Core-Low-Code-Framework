@@ -103,7 +103,7 @@ async function save(): Promise<void> {
 
 <template>
   <div class="flex flex-col gap-4" data-testid="reason-codes">
-    <header class="flex flex-wrap items-start gap-3">
+    <header class="page-head">
       <div class="flex-1 min-w-0">
         <h1 class="page-title !mb-1">{{ t('admin.area.reason_codes') }}</h1>
         <p class="m-0 text-sm text-muted-color max-w-[var(--measure)]">{{ t('reason_codes.hint') }}</p>

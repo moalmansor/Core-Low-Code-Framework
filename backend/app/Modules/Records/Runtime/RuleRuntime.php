@@ -78,6 +78,23 @@ final class RuleRuntime
         }
     }
 
+    /**
+     * Evaluates an expression for a record as a user sees it (an action's
+     * values, a linked record's prefill). Errors become null, as in rules.
+     *
+     * @param  array<string, mixed>  $ast
+     * @param  array<string, mixed>  $values  API values of the record
+     */
+    public function evaluate(FormRuntime $rt, array $ast, array $values, User $user, string $mode = 'edit'): Value
+    {
+        $ctx = $this->context($rt, $mode, $user)->with(['record' => ValuesRecord::forRecord($rt, $values, $this->loader), 'old' => null]);
+        try {
+            return Evaluator::evaluate($ast, $ctx)->value;
+        } catch (\Throwable) {
+            return Value::null();
+        }
+    }
+
     public function context(FormRuntime $rt, string $mode, User $user, array $params = []): Context
     {
         $calendar = null;

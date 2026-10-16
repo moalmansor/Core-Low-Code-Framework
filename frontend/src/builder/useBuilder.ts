@@ -507,6 +507,11 @@ export function provideBuilder(builder: Builder): void {
   provide(KEY, builder)
 }
 
+/** The builder when one is provided (inside the builder or a form's configuration), else null. */
+export function maybeBuilder(): Builder | null {
+  return inject(KEY, null) ?? null
+}
+
 export function useBuilder(): Builder {
   const builder = inject(KEY)
   if (!builder) throw new Error('useBuilder() outside a form builder')

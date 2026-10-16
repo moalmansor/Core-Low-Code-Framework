@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace App\Modules\Views\Http\Controllers;
 
+use App\Modules\Core\I18n\Translator;
 use App\Modules\Forms\Models\Form;
-use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
-use App\Modules\Views\RelationPaths;
+use App\Modules\Views\FieldTree;
 use App\Modules\Views\ViewDocument;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -29,7 +30,7 @@ final class ViewController extends Controller
         Gate::authorize('system.manage_forms');
         $rt = $runtimes->forForm($form);
 
-        return response()->json(['data' => ['views' => $this->views->load($form), 'hash' => $this->views->hash($form), 'published' => $rt !== null, 'fields' => $rt === null ? [] : $this->tree($rt, [], 0)]]);
+        return response()->json(['data' => ['views' => $this->views->load($form), 'hash' => $this->views->hash($form), 'published' => $rt !== null, 'fields' => $rt === null ? [] : app(FieldTree::class)->build($rt)]]);
     }
 
     public function update(Request $request, Form $form, FormRuntimes $runtimes): JsonResponse
@@ -44,35 +45,38 @@ final class ViewController extends Controller
         return $this->show($form, $runtimes);
     }
 
-    /**
-     * Fields reachable from a form, following to-one and to-many references
-     * up to the path depth limit.
-     *
-     * @param  list<string>  $prefix
-     * @return list<array<string, mixed>>
-     */
-    private function tree(FormRuntime $rt, array $prefix, int $depth): array
+    /** The fields reachable from a form, for the relation-path pickers of every configuration screen. */
+    public function fieldTree(Form $form, FormRuntimes $runtimes, FieldTree $tree): JsonResponse
     {
+        abort_unless(Gate::any(['system.manage_forms', 'system.manage_notifications', 'system.manage_document_templates', 'system.manage_automations']), 403);
+        $rt = $runtimes->forForm($form);
+
+        return response()->json(['data' => ['published' => $rt !== null, 'fields' => $rt === null ? [] : $tree->build($rt)]]);
+    }
+
+    /**
+     * Forms whose records point at this form's records (child records), each
+     * with the link fields they point with: what a table of linked records
+     * in a document follows.
+     */
+    public function linkedFrom(Form $form, FormRuntimes $runtimes, Translator $translator): JsonResponse
+    {
+        abort_unless(Gate::any(['system.manage_forms', 'system.manage_document_templates']), 403);
         $out = [];
-        foreach ($rt->mainFields() as $f) {
-            if (! $rt->isStored($f) || ($f['flags']['encrypted'] ?? false)) {
-                continue;
-            }
-            $node = ['key' => $f['key'], 'path' => [...$prefix, $f['key']], 'type' => $f['type'], 'label' => $f['i18n']['label'] ?? [], 'children' => []];
-            $target = $rt->targetFormUuid($f);
-            if ($target !== null && $depth < RelationPaths::MAX_DEPTH - 2) {
-                $trt = app(FormRuntimes::class)->forUuid($target);
-                if ($trt !== null && $trt->form->id !== $rt->form->id) {
-                    $node['children'] = $this->tree($trt, [...$prefix, $f['key']], $depth + 1);
-                    $node['form'] = ['uuid' => $trt->form->uuid, 'key' => $trt->form->key];
+        $sources = DB::table('relations')->where('target_form_id', $form->id)->where('kind', 'reference')->whereIn('type', ['many_to_one', 'one_to_one'])->distinct()->pluck('source_form_id');
+        foreach (Form::query()->whereIn('id', $sources)->orderBy('id')->get() as $source) {
+            $rt = $runtimes->forForm($source);
+            $via = [];
+            foreach ($rt?->mainFields() ?? [] as $f) {
+                if ($rt->targetFormUuid($f) === $form->uuid && ! $rt->isMultiReference($f)) {
+                    $via[] = ['key' => $f['key'], 'label' => $translator->labelOf($f['i18n']['label'] ?? null, (string) $f['key'])];
                 }
             }
-            $out[] = $node;
-        }
-        foreach (['@status', '@record_number', '@created_at', '@updated_at'] as $system) {
-            $out[] = ['key' => $system, 'path' => [...$prefix, $system], 'type' => 'system', 'label' => ['en' => __('views.system_'.substr($system, 1), [], 'en'), 'ar' => __('views.system_'.substr($system, 1), [], 'ar')], 'children' => []];
+            if ($via !== []) {
+                $out[] = ['form' => strtolower($source->uuid), 'name' => $translator->labelOf($source->translationsFor('name'), (string) $source->key), 'via' => $via];
+            }
         }
 
-        return $out;
+        return response()->json(['data' => $out]);
     }
 }

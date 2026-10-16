@@ -23,7 +23,7 @@ import FormPicker from '@/builder/FormPicker.vue'
 import { useSession } from '@/stores/session'
 import LocaleFields from './LocaleFields.vue'
 import { INCLUDE_MODES, errorText, fieldErrors, filledLocales, formatDateTime, saveBlob, type FormSummary, type IncludeMode } from './shared'
-import { humanize } from '@/runtime/i18nText'
+import { humanize, labelOf } from '@/runtime/i18nText'
 
 interface Version {
   uuid: string
@@ -52,7 +52,7 @@ interface Blueprint {
   instance_count: number
   names: Record<string, string>
   descriptions: Record<string, string>
-  source: { uuid: string; key: string } | null
+  source: { uuid: string; key: string; name: string } | null
   versions: Version[]
   instances: Instance[]
 }
@@ -141,7 +141,7 @@ async function searchForms(e: { query: string }): Promise<void> {
 function openNewVersion(): void {
   const b = bp.value!
   versionErrors.value = {}
-  newVersion.value = { source: b.source ? { uuid: b.source.uuid, key: b.source.key, name: b.source.key } : null, include_mode: b.include_mode ?? 'structure', changelog: '' }
+  newVersion.value = { source: b.source ? { uuid: b.source.uuid, key: b.source.key, name: b.source.name } : null, include_mode: b.include_mode ?? 'structure', changelog: '' }
 }
 async function submitVersion(): Promise<void> {
   const v = newVersion.value!
@@ -185,6 +185,8 @@ async function submitInstantiate(): Promise<void> {
   instErrors.value = {}
   try {
     const isView = bp.value?.kind === 'view'
+    // The confirmation names what was created by the name just typed, never by its key.
+    const name = labelOf(filledLocales(i.names), session.locale, i.key)
     const res = await send<{ data: { uuid: string; key: string; skipped?: unknown[] } }>('post', `/blueprints/${uuid.value}/instantiate`, {
       ...(isView ? { form: i.form } : { application: i.application, include_mode: i.include_mode }),
       key: i.key,
@@ -193,7 +195,7 @@ async function submitInstantiate(): Promise<void> {
     })
     if (isView) {
       inst.value = null
-      toast.add({ severity: 'success', summary: t('building.blueprints.created_view', { key: res.data.key }), life: 6000 })
+      toast.add({ severity: 'success', summary: t('building.blueprints.created_view', { name }), life: 6000 })
       await load()
       tab.value = 'instances'
       return
@@ -202,7 +204,7 @@ async function submitInstantiate(): Promise<void> {
     inst.value = null
     toast.add({
       severity: res.data.skipped.length ? 'warn' : 'success',
-      summary: res.data.skipped.length ? t('building.blueprints.created_with_skips', { key: res.data.key, n: res.data.skipped.length }) : t('building.blueprints.created_form', { key: res.data.key }),
+      summary: res.data.skipped.length ? t('building.blueprints.created_with_skips', { name, n: res.data.skipped.length }) : t('building.blueprints.created_form', { name }),
       life: 6000,
     })
     await load()
@@ -343,7 +345,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
             </template>
             <dt class="text-muted-color">{{ t('building.blueprints.source') }}</dt>
             <dd>
-              <span v-if="bp.source" class="ltr-value">{{ bp.source.key }}</span
+              <span v-if="bp.source" dir="auto">{{ bp.source.name }}</span
               ><span v-else>{{ t('building.blueprints.no_source') }}</span>
             </dd>
             <dt class="text-muted-color">{{ t('building.include_label') }}</dt>
@@ -492,7 +494,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
             <span>{{ option.name }}</span> <span class="text-xs text-muted-color ltr-value ms-2">{{ option.key }}</span>
           </template>
         </AutoComplete>
-        <InputText v-else id="nv-source" :model-value="newVersion.source?.key ?? t('building.blueprints.no_source')" disabled class="ltr-value" />
+        <InputText v-else id="nv-source" :model-value="newVersion.source?.name ?? t('building.blueprints.no_source')" disabled />
         <small class="text-muted-color">{{ t('building.blueprints.version_source_hint') }}</small>
         <span v-if="versionErrors.source" class="field-error">{{ versionErrors.source }}</span>
       </div>

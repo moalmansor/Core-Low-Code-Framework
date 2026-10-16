@@ -69,7 +69,7 @@ final class SubjectOptionsController extends Controller
         }
         $rows = $q->get(['id', 'uuid', $table === 'roles' ? 'key' : 'code']);
         $names = $translator->many($data['type'], $rows->pluck('id')->map(static fn ($v) => (int) $v)->all(), ['name']);
-        $out = $rows->map(static fn ($r) => ['uuid' => strtolower((string) $r->uuid), 'name' => $names[(int) $r->id]['name'] ?? ($r->key ?? $r->code), 'detail' => $r->key ?? $r->code])
+        $out = $rows->map(static fn ($r) => ['uuid' => strtolower((string) $r->uuid), 'name' => $names[(int) $r->id]['name'] ?? Translator::humanize((string) ($r->key ?? $r->code)), 'detail' => $r->key ?? $r->code])
             ->filter(static fn ($o) => $term === '' || str_contains(mb_strtolower($o['name'].' '.$o['detail']), mb_strtolower($term)))
             ->sortBy('name')->take(50)->values();
 

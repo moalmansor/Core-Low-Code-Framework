@@ -7,17 +7,21 @@ import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
 import Menu from 'primevue/menu'
+import type { MenuItem } from 'primevue/menuitem'
 import Message from 'primevue/message'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError, ensureCsrf, get, http, send } from '@/api/http'
-import { downloadBlob, fetchOptions, newUuid, type OptionItem } from '@/runtime/api'
+import ActionRunDialog from '@/runtime/actions/ActionRunDialog.vue'
+import { actionsRuntimeApi, type AvailableAction } from '@/runtime/actions/api'
+import DownloadDialog from '@/runtime/downloads/DownloadDialog.vue'
+import { fetchOptions, newUuid, type OptionItem } from '@/runtime/api'
 import { fieldType } from '@/runtime/fieldTypes'
 import { FormIndex } from '@/runtime/formIndex'
 import { formatDatetime, formatLoose, formatValue } from '@/runtime/format'
@@ -30,6 +34,7 @@ import { useSession } from '@/stores/session'
 import { labelColor, parseHex } from '@/theme/color'
 import ImportDialog from './ImportDialog.vue'
 import SavedViewDialog from './SavedViewDialog.vue'
+import { downloadsApi, type AvailableProfile } from '@/views/downloads/api'
 import ViewFilters from './ViewFilters.vue'
 import { activeConditions, columnValue, decodeConditions, encodeConditions, shownColumns, type ActiveView, type SavedView, type ViewColumn, type ViewCondition } from './viewState'
 import { decodeQuery, DEFAULT_STATE, emptyRow, encodeQuery, isActive, operatorsFor, PER_PAGE, toApiFilter, type FilterOp, type FilterRow, type ListState } from './listState'
@@ -65,6 +70,13 @@ const filtersOpen = ref(true)
 const importOpen = ref(false)
 const selected = ref<RecordPayload[]>([])
 const justification = useJustification()
+// The form's actions (§4.15): bulk and toolbar ones for the list, row ones per record.
+const runner = ref<InstanceType<typeof ActionRunDialog> | null>(null)
+const rowActions = ref<AvailableAction[]>([])
+const listActions = ref<AvailableAction[]>([])
+// Download profiles (§4.23) offered on the table.
+const downloader = ref<InstanceType<typeof DownloadDialog> | null>(null)
+const downloads = ref<AvailableProfile[]>([])
 
 // Table views
 type Row = RecordPayload & { linked?: Record<string, unknown> }
@@ -168,7 +180,19 @@ watch(
     chosenColumns.value = null
     currentSaved.value = null
     savedViews.value = []
+    listActions.value = []
+    downloads.value = []
     await loadDefinition()
+    if (definition.value) {
+      void loadActions()
+      void downloadsApi
+        .available(formUuid.value, 'table_toolbar')
+        .then((list) => (downloads.value = list))
+        .catch(() => undefined)
+      // A notification links back here to the finished download.
+      const job = route.query.download
+      if (typeof job === 'string') void nextTick(() => downloader.value?.follow(formUuid.value, job))
+    }
     Object.assign(
       state,
       decodeQuery(
@@ -407,7 +431,7 @@ function onRowClick(e: DataTableRowClickEvent): void {
 
 const rowMenu = ref<InstanceType<typeof Menu> | null>(null)
 const actionsFor = ref<RecordPayload | null>(null)
-const rowItems = computed(() => {
+const rowItems = computed<MenuItem[]>(() => {
   const r = actionsFor.value
   if (!r) return []
   if (state.trashed) return [{ label: t('records.restore'), icon: 'pi pi-replay', visible: canRestore.value, command: () => restore(r) }]
@@ -419,13 +443,37 @@ const rowItems = computed(() => {
       visible: canEdit.value && rowOptions.value.edit,
       command: () => router.push({ name: 'records.edit', params: { form: formUuid.value, record: r.uuid } }),
     },
+    { separator: true, visible: rowActions.value.length > 0 },
+    ...rowActions.value.map((a) => actionItem(a, () => ({ items: [{ uuid: r.uuid, row_version: r.row_version }] }))),
     { separator: true, visible: canDelete.value },
     { label: t('common.delete'), icon: 'pi pi-trash', class: 'text-danger', visible: canDelete.value, command: () => remove(r) },
   ]
 })
-function openRowMenu(e: Event, r: RecordPayload): void {
+async function openRowMenu(e: Event, r: RecordPayload): Promise<void> {
+  const anchor = e.currentTarget
   actionsFor.value = r
-  rowMenu.value?.toggle(e)
+  // A row action's condition is decided for that record, so the menu asks when it opens.
+  rowActions.value = []
+  if (!state.trashed) rowActions.value = await actionsRuntimeApi.list(formUuid.value, 'row', r.uuid).catch(() => [])
+  rowMenu.value?.show(e, anchor)
+}
+
+// ---------------------------------------------------------------- the form's actions (§4.15)
+
+async function loadActions(): Promise<void> {
+  const [bulkList, toolbar] = await Promise.all([actionsRuntimeApi.list(formUuid.value, 'bulk').catch(() => []), actionsRuntimeApi.list(formUuid.value, 'toolbar').catch(() => [])])
+  const seen = new Set<string>()
+  listActions.value = [...bulkList.map((a) => ({ ...a, placements: ['bulk' as const] })), ...toolbar.map((a) => ({ ...a, placements: ['toolbar' as const] }))].filter((a) => {
+    const id = `${a.uuid}:${a.placements[0]}`
+    return !seen.has(id) && seen.add(id) !== undefined
+  })
+}
+function actionItem(a: AvailableAction, target: () => Parameters<NonNullable<typeof runner.value>['start']>[2], label = a.label): MenuItem {
+  return { label, icon: a.icon ? `pi ${a.icon}` : 'pi pi-bolt', class: a.color === 'danger' ? 'text-danger' : undefined, command: () => runner.value?.start(formUuid.value, a, target()) }
+}
+function actionsDone(): void {
+  selected.value = []
+  void load()
 }
 
 function remove(r: RecordPayload): void {
@@ -496,11 +544,33 @@ async function restore(r: RecordPayload): Promise<void> {
 }
 
 const exporting = ref(false)
-async function exportAs(format: 'xlsx' | 'csv', onlySelected = false): Promise<void> {
+interface ExportJob {
+  uuid: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'expired' | 'cancelled'
+  url: string | null
+  error: string | null
+}
+/**
+ * Exports what the table shows (§4.15): the view's visible columns, the
+ * filters and search, or only the selected records. Small exports download at
+ * once; larger ones are prepared in the background, followed here while the
+ * page stays open, and announced in the notifications center.
+ */
+async function exportAs(format: 'xlsx' | 'csv' | 'pdf', onlySelected = false): Promise<void> {
   exporting.value = true
   try {
     const extra = onlySelected ? { uuids: selected.value.map((r) => r.uuid) } : {}
-    await downloadBlob(`/r/${formUuid.value}/export`, { ...params(), ...extra, format }, `${definition.value?.form.key ?? 'records'}.${format}`)
+    const columns = activeView.value ? { columns: viewColumns.value.map((c) => c.key) } : {}
+    let job = (await send<{ data: ExportJob }>('post', `/r/${formUuid.value}/exports`, { ...params(), ...extra, ...columns, format })).data
+    if (!job.url) {
+      toast.add({ severity: 'info', summary: t('records.export_preparing'), life: 6000 })
+      for (let i = 0; i < 400 && (job.status === 'queued' || job.status === 'running'); i++) {
+        await new Promise((r) => setTimeout(r, 1500))
+        job = (await get<{ data: ExportJob }>(`/exports/${job.uuid}`)).data
+      }
+    }
+    if (job.url) window.location.assign(job.url)
+    else if (job.status === 'failed') toast.add({ severity: 'error', summary: job.error ?? t('records.export_failed'), life: 8000 })
   } catch (e) {
     toast.add({ severity: 'error', summary: e instanceof ApiError && e.status === 429 ? t('records.export_throttled') : t('records.export_failed'), life: 6000 })
   } finally {
@@ -508,15 +578,44 @@ async function exportAs(format: 'xlsx' | 'csv', onlySelected = false): Promise<v
   }
 }
 
+const downloadMenu = ref<InstanceType<typeof Menu> | null>(null)
+const canPersonalDownloads = computed(() => session.can('system.create_personal_download_profiles'))
+const downloadItems = computed<MenuItem[]>(() => [
+  ...downloads.value.map((p) => ({
+    label: p.name,
+    icon: p.personal ? 'pi pi-user' : 'pi pi-file-export',
+    command: () => downloader.value?.open(formUuid.value, p, { filters: params(), selected: selected.value.map((r) => r.uuid) }),
+  })),
+  { separator: true, visible: downloads.value.length > 0 && canPersonalDownloads.value },
+  { label: t('dl.my_profiles'), icon: 'pi pi-sliders-h', visible: canPersonalDownloads.value, command: () => router.push({ name: 'records.downloads', params: { form: formUuid.value } }) },
+])
+// A survivor and up to ten others are merged at once (the server's limit, specification §4.35).
+const MERGE_MAX = 11
 const actionsMenu = ref<InstanceType<typeof Menu> | null>(null)
-const actionItems = computed(() => {
+const bulkActions = computed(() => listActions.value.filter((a) => a.placements[0] === 'bulk'))
+const toolbarActions = computed(() => listActions.value.filter((a) => a.placements[0] === 'toolbar'))
+const actionItems = computed<MenuItem[]>(() => {
   const n = selected.value.length
   return [
     { label: t('records.import'), icon: 'pi pi-upload', visible: canImport.value && !state.trashed, command: () => (importOpen.value = true) },
     { label: t('records.export_xlsx'), icon: 'pi pi-file-excel', visible: canExport.value, command: () => exportAs('xlsx') },
     { label: t('records.export_csv'), icon: 'pi pi-file', visible: canExport.value, command: () => exportAs('csv') },
-    { separator: true, visible: n > 0 && (canExport.value || canDelete.value) },
+    { label: t('records.export_pdf'), icon: 'pi pi-file-pdf', visible: canExport.value, command: () => exportAs('pdf') },
+    { separator: true, visible: !state.trashed && toolbarActions.value.length > 0 },
+    ...(state.trashed ? [] : toolbarActions.value.map((a) => actionItem(a, () => ({ filters: params() }), t('act.run.all', { label: a.label })))),
+    { separator: true, visible: n > 0 && (canExport.value || canDelete.value || bulkActions.value.length > 0) },
+    ...(state.trashed || n === 0
+      ? []
+      : bulkActions.value.map((a) =>
+          actionItem(a, () => ({ items: selected.value.map((r) => ({ uuid: r.uuid, row_version: r.row_version })) }), t('act.run.selected', { label: a.label, n: number(n) })),
+        )),
     { label: t('records.export_selected', { n: number(n) }), icon: 'pi pi-file-excel', visible: n > 0 && canExport.value, command: () => exportAs('xlsx', true) },
+    {
+      label: t('dq.merge_selected', { n: number(n) }),
+      icon: 'pi pi-clone',
+      visible: n >= 2 && n <= MERGE_MAX && !state.trashed && session.can('system.merge_records'),
+      command: () => router.push({ name: 'records.merge', params: { form: formUuid.value }, query: { records: selected.value.map((r) => r.uuid).join(',') } }),
+    },
     { label: t('records.delete_selected', { n: number(n) }), icon: 'pi pi-trash', class: 'text-danger', visible: n > 0 && canDelete.value && !state.trashed, command: () => bulk('delete') },
     { label: t('records.restore_selected', { n: number(n) }), icon: 'pi pi-replay', visible: n > 0 && canRestore.value && state.trashed, command: () => bulk('restore') },
     { separator: true, visible: canRestore.value },
@@ -530,7 +629,7 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
 <template>
   <Message v-if="loadError" severity="error" data-testid="records-error">{{ loadError }}</Message>
   <div v-else-if="definition" class="flex flex-col gap-4">
-    <header class="flex flex-wrap items-start gap-3">
+    <header class="page-head">
       <div class="flex items-center gap-3 flex-1 min-w-0">
         <span class="records-icon shrink-0" aria-hidden="true"><i :class="definition.form.icon || 'pi pi-list'" /></span>
         <div class="min-w-0">
@@ -568,6 +667,10 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
         <RouterLink v-if="canCreate && !state.trashed" v-slot="{ navigate }" :to="{ name: 'records.create', params: { form: formUuid } }" custom>
           <Button icon="pi pi-plus" :label="t('records.new')" data-testid="records-new" @click="navigate" />
         </RouterLink>
+        <template v-if="!state.trashed && (downloads.length || canPersonalDownloads)">
+          <Button :label="t('dl.download')" icon="pi pi-download" severity="secondary" outlined aria-haspopup="true" data-testid="records-download" @click="(e: Event) => downloadMenu?.toggle(e)" />
+          <Menu ref="downloadMenu" :model="downloadItems" popup />
+        </template>
         <template v-if="hasActions">
           <Button
             :label="t('common.actions')"
@@ -838,9 +941,18 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
             <span class="text-sm whitespace-nowrap text-muted-color">{{ (data as RecordPayload).system.updated_at ? formatDatetime((data as RecordPayload).system.updated_at!, locale) : '—' }}</span>
           </template>
         </Column>
+        <Column v-if="state.trashed" field="purge_after" :header="t('dq.purge_after')">
+          <template #body="{ data }">
+            <span class="text-sm whitespace-nowrap text-muted-color" data-testid="purge-after">{{
+              (data as RecordPayload).system.purge_after ? formatDatetime((data as RecordPayload).system.purge_after!, locale) : '—'
+            }}</span>
+          </template>
+        </Column>
       </template>
     </DataTable>
     <Menu ref="rowMenu" :model="rowItems" popup />
+    <ActionRunDialog ref="runner" @done="actionsDone" />
+    <DownloadDialog ref="downloader" />
     <SavedViewDialog v-if="savingView && activeView" :form="formUuid" :view="activeView.uuid" :state="savedState" :current="currentSaved" @saved="onSavedView" @close="savingView = false" />
     <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
     <ImportDialog v-if="importOpen" :form="formUuid" :form-key="definition.form.key" @close="importOpen = false" @imported="load" />

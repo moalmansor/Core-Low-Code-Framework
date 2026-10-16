@@ -37,6 +37,30 @@ export const buildingRoutes: RouteRecordRaw[] = [
     meta: { anyOf: ['system.manage_forms'], title: 'formconfig.page_title' },
   },
   {
+    path: 'admin/forms/:form/downloads/:profile',
+    name: 'admin.downloads.profile',
+    component: () => import('@/views/downloads/ProfileEditor.vue'),
+    meta: { anyOf: ['system.manage_download_profiles'], title: 'dl.page_title' },
+  },
+  {
+    path: 'admin/automations',
+    name: 'admin.automations',
+    component: () => import('@/views/automations/AutomationList.vue'),
+    meta: { anyOf: ['system.manage_automations'], title: 'admin.area.automations' },
+  },
+  {
+    path: 'admin/forms/:form/automations/:automation',
+    name: 'admin.automations.edit',
+    component: () => import('@/views/automations/AutomationEditor.vue'),
+    meta: { anyOf: ['system.manage_automations'], title: 'auto.page_title' },
+  },
+  {
+    path: 'admin/scheduled-tasks',
+    name: 'admin.scheduled_tasks',
+    component: () => import('@/views/automations/ScheduledTasksView.vue'),
+    meta: { anyOf: ['system.manage_automations', 'system.manage_operations'], title: 'admin.area.scheduled_tasks' },
+  },
+  {
     path: 'admin/schema',
     name: 'admin.schema',
     component: () => import('@/views/admin/building/SchemaExplorer.vue'),

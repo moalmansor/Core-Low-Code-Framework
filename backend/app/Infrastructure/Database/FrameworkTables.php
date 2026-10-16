@@ -102,6 +102,7 @@ final class FrameworkTables
         'notification_rules',
         'number_sequences',
         'operations_alert_rules',
+        'operations_dismissals',
         'organizations',
         'outbox_events',
         'page_widgets',

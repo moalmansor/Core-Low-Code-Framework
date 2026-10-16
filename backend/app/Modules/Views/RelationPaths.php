@@ -138,6 +138,53 @@ final class RelationPaths
     }
 
     /**
+     * Raw stored values of a path's final field for records of the source
+     * form (record id => list of values), read with server authority: used
+     * to find whom to notify (users in a linked record), never shown.
+     *
+     * @param  list<string>  $path
+     * @param  list<int>  $ids
+     * @return array<int, list<mixed>>
+     */
+    public function rawValues(FormRuntime $rt, array $path, array $ids): array
+    {
+        $r = $this->resolve($rt, $path);
+        if ($r === null || $r['field'] === null || $ids === []) {
+            return [];
+        }
+        $map = [];
+        foreach ($ids as $id) {
+            $map[$id] = [$id];
+        }
+        foreach ($r['hops'] as $hop) {
+            $links = $this->links($hop, array_values(array_unique(array_merge([], ...array_values($map)))));
+            foreach ($map as $source => $current) {
+                $map[$source] = array_merge([], ...array_map(static fn ($c) => $links[$c] ?? [], $current));
+            }
+        }
+        $final = array_values(array_unique(array_merge([], ...array_values($map))));
+        $records = $final === [] ? [] : $this->store->hydrate($r['rt'], DB::table($r['rt']->table)->whereIn('id', $final)->whereNull('deleted_at')->get()->map(static fn ($x) => (array) $x)->all(), false);
+        $byId = [];
+        foreach ($records as $rec) {
+            $byId[$rec['id']] = $rec['values'][$r['field']['key']] ?? null;
+        }
+        $out = [];
+        foreach ($map as $source => $finalIds) {
+            $vals = [];
+            foreach ($finalIds as $f) {
+                foreach ((array) ($byId[$f] ?? []) as $v) {
+                    if ($v !== null) {
+                        $vals[] = $v;
+                    }
+                }
+            }
+            $out[$source] = $vals;
+        }
+
+        return $out;
+    }
+
+    /**
      * Restricts a query of the source form to records whose path value
      * satisfies the callback's condition on the final column.
      *

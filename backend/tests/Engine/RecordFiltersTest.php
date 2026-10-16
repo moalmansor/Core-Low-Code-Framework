@@ -41,7 +41,7 @@ it('filters text by contains, starts with and equals, choices by any of, and nar
         ->and($names([], ['uuids' => [$uuids['Hamad Ali'], $uuids['50%_off']]]))->toBe(['50%_off', 'Hamad Ali']);
 
     // Export selected honours the same narrowing.
-    $csv = $this->get("/api/v1/r/{$form}/export?".http_build_query(['format' => 'csv', 'uuids' => [$uuids['Hamad Ali']]]))->assertOk()->streamedContent();
+    $csv = $this->get($this->postJson("/api/v1/r/{$form}/exports", ['format' => 'csv', 'uuids' => [$uuids['Hamad Ali']]])->assertOk()->json('data.url'))->streamedContent();
     expect($csv)->toContain('Hamad Ali')->not->toContain('Resan');
 });
 

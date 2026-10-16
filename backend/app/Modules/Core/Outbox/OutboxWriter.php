@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\DB;
  */
 final class OutboxWriter
 {
+    /** @var list<array<string, mixed>> context added to events published inside within() */
+    private array $context = [];
+
     public function __construct(
         private readonly TenantContext $tenant,
         private readonly CorrelationId $correlation,
@@ -26,6 +29,10 @@ final class OutboxWriter
      */
     public function publish(string $eventType, array $payload): OutboxEvent
     {
+        $top = $this->context === [] ? [] : $this->context[array_key_last($this->context)];
+        if ($top !== []) {
+            $payload['_context'] = $top;
+        }
         $event = OutboxEvent::query()->create([
             'organization_id' => $this->tenant->organizationId(),
             'event_type' => $eventType,
@@ -38,5 +45,26 @@ final class OutboxWriter
         DB::afterCommit(fn () => $this->relay->relayOne((int) $event->id));
 
         return $event;
+    }
+
+    /**
+     * Runs `$fn` with `$context` attached (as `_context`) to every event it
+     * publishes; automations use it so the events their steps cause carry
+     * the run that caused them (loop protection, ADR-0043).
+     *
+     * @template T
+     *
+     * @param  array<string, mixed>  $context
+     * @param  callable(): T  $fn
+     * @return T
+     */
+    public function within(array $context, callable $fn): mixed
+    {
+        $this->context[] = $context;
+        try {
+            return $fn();
+        } finally {
+            array_pop($this->context);
+        }
     }
 }

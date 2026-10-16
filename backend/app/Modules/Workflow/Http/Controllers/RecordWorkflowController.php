@@ -175,7 +175,7 @@ final class RecordWorkflowController extends Controller
         }
         $s = DB::table('statuses')->where('id', $id)->first(['uuid', 'key', 'color', 'icon']);
 
-        return $s === null ? null : ['uuid' => strtolower((string) $s->uuid), 'key' => $s->key, 'name' => app(Translator::class)->get('status', (int) $id, 'name') ?? $s->key, 'color' => $s->color, 'icon' => $s->icon, 'archived' => true];
+        return $s === null ? null : ['uuid' => strtolower((string) $s->uuid), 'key' => $s->key, 'name' => app(Translator::class)->get('status', (int) $id, 'name') ?? Translator::humanize((string) $s->key), 'color' => $s->color, 'icon' => $s->icon, 'archived' => true];
     }
 
     private function subjectName(string $type, int $id): string

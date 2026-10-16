@@ -13,7 +13,12 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { pick } from '@/builder/conditions/scope'
 import { createBuilder, provideBuilder } from '@/builder/useBuilder'
 import { provideConfigScreen } from '@/components/config/configScreen'
+import AutomationList from '@/views/automations/AutomationList.vue'
+import DuplicateRulesEditor from '@/views/dataquality/DuplicateRulesEditor.vue'
+import ProfileList from '@/views/downloads/ProfileList.vue'
+import ActionsEditor from './ActionsEditor.vue'
 import AssignmentEditor from './AssignmentEditor.vue'
+import NotificationsEditor from './NotificationsEditor.vue'
 import JustificationEditor from './JustificationEditor.vue'
 import PanelsEditor from './PanelsEditor.vue'
 import PreviewsEditor from './PreviewsEditor.vue'
@@ -37,7 +42,22 @@ const formUuid = String(route.params.form)
 const builder = createBuilder(formUuid)
 provideBuilder(builder)
 
-const TABS = ['workflow', 'sla', 'record_access', 'justification', 'assignment', 'views', 'panels', 'previews', 'print'] as const
+const TABS = [
+  'workflow',
+  'sla',
+  'record_access',
+  'justification',
+  'assignment',
+  'notifications',
+  'actions',
+  'downloads',
+  'automations',
+  'data_quality',
+  'views',
+  'panels',
+  'previews',
+  'print',
+] as const
 type TabKey = (typeof TABS)[number]
 const screen = provideConfigScreen()
 const current = ref<TabKey>(TABS.includes(route.params.tab as TabKey) ? (route.params.tab as TabKey) : 'workflow')
@@ -67,7 +87,7 @@ onBeforeUnmount(() => builder.cancelTimers())
 
 <template>
   <div class="flex flex-col" data-testid="form-config">
-    <header class="flex flex-wrap items-start gap-3">
+    <header class="page-head">
       <div class="flex-1 min-w-0">
         <RouterLink :to="{ name: 'admin.forms' }" class="text-sm text-primary inline-flex items-center gap-1 mb-1">
           <i class="pi pi-arrow-left rtl:rotate-180" aria-hidden="true" />{{ t('admin.area.forms') }}
@@ -91,6 +111,11 @@ onBeforeUnmount(() => builder.cancelTimers())
             <RecordAccessEditor v-else-if="k === 'record_access'" :form="formUuid" />
             <JustificationEditor v-else-if="k === 'justification'" :form="formUuid" />
             <AssignmentEditor v-else-if="k === 'assignment'" :form="formUuid" />
+            <NotificationsEditor v-else-if="k === 'notifications'" :form="formUuid" />
+            <ActionsEditor v-else-if="k === 'actions'" :form="formUuid" />
+            <ProfileList v-else-if="k === 'downloads'" :form="formUuid" :personal="false" />
+            <AutomationList v-else-if="k === 'automations'" :form="formUuid" />
+            <DuplicateRulesEditor v-else-if="k === 'data_quality'" :form="formUuid" />
             <ViewsEditor v-else-if="k === 'views'" :form="formUuid" />
             <PanelsEditor v-else-if="k === 'panels'" :form="formUuid" />
             <PreviewsEditor v-else-if="k === 'previews'" :form="formUuid" />

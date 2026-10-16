@@ -11,7 +11,8 @@ use App\Modules\Access\Models\Role;
 /**
  * Auto-registered object permissions (specification §4.11, architecture §21):
  * every form gets `form.{uuid}.{ability}`, every application
- * `app.{uuid}.access`, every menu item `menu.{uuid}.view`. Each new permission
+ * `app.{uuid}.access`, every menu item `menu.{uuid}.view`, every action
+ * `action.{uuid}.run`. Each new permission
  * receives a Super Admin allow as an ordinary, editable grant; everyone else
  * gets access only when an administrator grants it.
  */
@@ -57,6 +58,22 @@ final class ObjectPermissions
     public function registerView(int $id, string $uuid): void
     {
         $this->register('view.'.strtolower($uuid).'.use', 'view', $id, 'use', 'view', 'Use view', 'استخدام العرض', false);
+    }
+
+    public function registerAction(int $id, string $uuid): void
+    {
+        $this->register('action.'.strtolower($uuid).'.run', 'action', $id, 'run', 'action', 'Run action', 'تنفيذ الإجراء', false);
+    }
+
+    public function registerDownload(int $id, string $uuid): void
+    {
+        $this->register('download.'.strtolower($uuid).'.use', 'download_profile', $id, 'use', 'download', 'Use download profile', 'استخدام ملف التنزيل', false);
+    }
+
+    /** Seeing a sensitive field's value unmasked where values are otherwise masked (downloads, §4.23); granting it needs step-up. */
+    public function registerSensitiveField(int $id, string $uuid): void
+    {
+        $this->register('field.'.strtolower($uuid).'.view_sensitive', 'field', $id, 'view_sensitive', 'field', 'View sensitive value', 'عرض القيمة الحساسة', true);
     }
 
     /** Removes an object's permissions and their grants (the object itself was deleted). */

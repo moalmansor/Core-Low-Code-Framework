@@ -7,6 +7,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { get } from '@/api/http'
 import BrandMark from '@/components/BrandMark.vue'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+import NotificationsBell from './NotificationsBell.vue'
 import NavTree, { type NavItem } from '@/runtime/NavTree.vue'
 import { activeNavId, type NavCandidate } from './navActive'
 import { useSession } from '@/stores/session'
@@ -44,7 +45,11 @@ async function loadAreas(): Promise<void> {
     areas.value = []
     return
   }
-  areas.value = (await get<{ data: { areas: Area[] } }>('/admin/console')).data.areas
+  try {
+    areas.value = (await get<{ data: { areas: Area[] } }>('/admin/console')).data.areas
+  } catch {
+    // A refused or failed reload (a rate limit, a dropped connection) keeps the menu already shown.
+  }
 }
 async function loadNavigation(): Promise<void> {
   if (session.gate !== 'none') {
@@ -54,7 +59,7 @@ async function loadNavigation(): Promise<void> {
   try {
     apps.value = (await get<{ data: NavApp[] }>('/navigation')).data
   } catch {
-    apps.value = []
+    // As above: keep the applications already shown.
   }
 }
 function loadSidebar(): void {
@@ -175,6 +180,7 @@ const userItems = computed(() => [
       <header class="h-14 shrink-0 px-4 flex items-center gap-3 bg-card border-b border-line">
         <Button class="lg:hidden" icon="pi pi-bars" text rounded :aria-label="t('shell.menu')" @click="sidebarOpen = true" />
         <div class="flex-1" />
+        <NotificationsBell />
         <LanguageSwitcher />
         <Button :label="session.me?.name" icon="pi pi-user" text aria-haspopup="true" data-testid="user-menu" @click="(e: Event) => userMenu?.toggle(e)" />
         <Menu ref="userMenu" :model="userItems" popup />
@@ -204,6 +210,11 @@ export const icons: Record<string, string> = {
   schema: 'pi-database',
   assignment_queues: 'pi-inbox',
   reason_codes: 'pi-comment',
+  notifications: 'pi-envelope',
+  documents: 'pi-file',
+  automations: 'pi-bolt',
+  scheduled_tasks: 'pi-clock',
+  operations_center: 'pi-server',
 }
 </script>
 

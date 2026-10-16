@@ -108,10 +108,13 @@ final class FileStore
      *
      * @param  list<string>|null  $types  extensions the field allows (null = installation default)
      */
-    public function storeUpload(UploadedFile $upload, ?array $types = null, ?int $maxKb = null): StoredFile
+    public function storeUpload(UploadedFile $upload, ?array $types = null, ?int $maxKb = null, bool $exact = false): StoredFile
     {
         $allowed = array_map('strtolower', (array) $this->settings->get('files', 'allowed_file_types'));
-        if ($types !== null) {
+        if ($types !== null && $exact) {
+            // A configuration upload (a Word template) takes its own types, not those allowed on records.
+            $allowed = array_map('strtolower', $types);
+        } elseif ($types !== null) {
             $allowed = array_values(array_intersect($allowed, array_map('strtolower', $types)));
         }
         $extension = strtolower($upload->getClientOriginalExtension());
@@ -161,6 +164,37 @@ final class FileStore
             'is_temporary' => true,
             'owner_type' => 'upload',
             'uploaded_by' => Auth::id(),
+        ]);
+    }
+
+    /**
+     * A file the system produced (an export, a download, an error report, a
+     * generated document), stored on the private disk and owned by the job or
+     * record it belongs to. Only its owner can ask for a download link.
+     *
+     * @param  array{form_id?: int|null, record_id?: int|null, owner_id?: int|null, user_id?: int|null}  $owner
+     */
+    public function storeGenerated(string $localPath, string $name, string $extension, string $mime, string $ownerType, array $owner = []): StoredFile
+    {
+        $contents = (string) file_get_contents($localPath);
+        $path = 'generated/'.now()->format('Y/m').'/'.Str::uuid7().'.'.$extension;
+        Storage::disk(self::DISK)->put($path, $contents);
+        $base = mb_substr(trim((string) preg_replace('/[^\pL\pN._ -]/u', '_', $name)), 0, 200);
+
+        return StoredFile::query()->create([
+            'disk' => self::DISK,
+            'path' => $path,
+            'original_name' => ($base === '' ? 'file' : $base).'.'.$extension,
+            'mime_type' => $mime,
+            'extension' => $extension,
+            'size_bytes' => strlen($contents),
+            'sha256' => hash('sha256', $contents),
+            'scan_status' => 'skipped',
+            'owner_type' => $ownerType,
+            'owner_id' => $owner['owner_id'] ?? null,
+            'form_id' => $owner['form_id'] ?? null,
+            'record_id' => $owner['record_id'] ?? null,
+            'uploaded_by' => $owner['user_id'] ?? Auth::id(),
         ]);
     }
 

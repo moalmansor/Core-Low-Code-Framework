@@ -15,6 +15,9 @@ import { computed, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError, ensureCsrf, get, http, send } from '@/api/http'
+import ActionRunDialog from '@/runtime/actions/ActionRunDialog.vue'
+import { actionsRuntimeApi, type AvailableAction } from '@/runtime/actions/api'
+import DownloadDialog from '@/runtime/downloads/DownloadDialog.vue'
 import { newUuid } from '@/runtime/api'
 import { RECORD_FILES, RECORD_UUID } from '@/runtime/context'
 import { FormIndex } from '@/runtime/formIndex'
@@ -30,6 +33,7 @@ import StatusTimeline from '@/runtime/workflow/StatusTimeline.vue'
 import WorkflowPanel from '@/runtime/workflow/WorkflowPanel.vue'
 import { isEmpty } from '@/runtime/values'
 import { useSession } from '@/stores/session'
+import { downloadsApi, type AvailableProfile } from '@/views/downloads/api'
 import RecordAttachments from './RecordAttachments.vue'
 import RecordComments from './RecordComments.vue'
 
@@ -37,7 +41,7 @@ import RecordComments from './RecordComments.vue'
  * Record details: header (number, title, status, created/updated by and at),
  * the workflow (transitions, approval, assignment, SLA), edit, delete,
  * restore and print (HTML or PDF, per print layout) as the record's
- * permissions allow; the View Mode panels (or the form when none are set
+ * permissions allow; the form's actions placed on the record page; the View Mode panels (or the form when none are set
  * up); and tabs for the status timeline, history, comments and attachments.
  */
 interface HistoryEntry {
@@ -90,11 +94,30 @@ async function load(): Promise<void> {
     record.value = r.data
     files.value = { ...(r.data.files ?? {}) }
     document.title = [r.data.title ?? r.data.system.record_number ?? name.value, session.systemName].filter(Boolean).join(' · ')
+    // An action's condition is decided for the record as it is now.
+    actions.value = r.data.system.deleted_at ? [] : await actionsRuntimeApi.list(formUuid.value, 'view_page', recordUuid.value).catch(() => [])
+    downloads.value = r.data.system.deleted_at ? [] : await downloadsApi.available(formUuid.value, 'record_view').catch(() => [])
   } catch (e) {
     loadError.value = e instanceof ApiError && e.status !== 0 ? e.message : t('records.load_failed')
   }
 }
 const when = (iso: string | null | undefined) => (iso ? formatDatetime(iso, locale.value) : '—')
+
+// The form's actions on this page (§4.15): the first two as buttons, the rest in a menu.
+const actions = ref<AvailableAction[]>([])
+const runner = ref<InstanceType<typeof ActionRunDialog> | null>(null)
+const moreMenu = ref<InstanceType<typeof Menu> | null>(null)
+const moreItems = computed(() => actions.value.slice(2).map((a) => ({ label: a.label, icon: a.icon ? `pi ${a.icon}` : 'pi pi-bolt', command: () => runAction(a) })))
+function runAction(a: AvailableAction): void {
+  const r = record.value
+  if (r) void runner.value?.start(formUuid.value, a, { items: [{ uuid: r.uuid, row_version: r.row_version }] })
+}
+
+// Download profiles offered on the record page (§4.23): this record with its related data.
+const downloads = ref<AvailableProfile[]>([])
+const downloader = ref<InstanceType<typeof DownloadDialog> | null>(null)
+const downloadMenu = ref<InstanceType<typeof Menu> | null>(null)
+const downloadItems = computed(() => downloads.value.map((p) => ({ label: p.name, icon: 'pi pi-file-export', command: () => downloader.value?.open(formUuid.value, p, { record: recordUuid.value }) })))
 
 // Delete / restore (both may ask for a justification).
 function remove(): void {
@@ -257,6 +280,10 @@ watch(
         <RouterLink v-if="perms.edit" v-slot="{ navigate }" :to="{ name: 'records.edit', params: { form: formUuid, record: recordUuid } }" custom>
           <Button icon="pi pi-pencil" :label="t('common.edit')" data-testid="record-edit" @click="navigate" />
         </RouterLink>
+        <template v-if="downloads.length">
+          <Button icon="pi pi-download" :label="t('dl.download')" severity="secondary" outlined aria-haspopup="true" data-testid="record-download" @click="(e: Event) => downloadMenu?.toggle(e)" />
+          <Menu ref="downloadMenu" :model="downloadItems" popup />
+        </template>
         <template v-if="perms.print">
           <Button
             icon="pi pi-print"
@@ -269,6 +296,20 @@ watch(
             @click="(e: Event) => printMenu?.toggle(e)"
           />
           <Menu ref="printMenu" :model="printItems" popup />
+        </template>
+        <Button
+          v-for="a in actions.slice(0, 2)"
+          :key="a.uuid"
+          :icon="a.icon ? `pi ${a.icon}` : 'pi pi-bolt'"
+          :label="a.label"
+          :severity="a.color === 'danger' ? 'danger' : 'secondary'"
+          outlined
+          data-testid="record-action"
+          @click="runAction(a)"
+        />
+        <template v-if="actions.length > 2">
+          <Button icon="pi pi-ellipsis-h" :label="t('act.run.more')" severity="secondary" outlined aria-haspopup="true" data-testid="record-actions-more" @click="(e: Event) => moreMenu?.toggle(e)" />
+          <Menu ref="moreMenu" :model="moreItems" popup />
         </template>
         <Button v-if="perms.restore" icon="pi pi-replay" :label="t('records.restore')" severity="secondary" outlined data-testid="record-restore" @click="restore" />
         <Button v-if="perms.delete" icon="pi pi-trash" :label="t('common.delete')" severity="danger" outlined data-testid="record-delete" @click="remove" />
@@ -352,6 +393,8 @@ watch(
       </TabPanels>
     </Tabs>
     <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
+    <ActionRunDialog ref="runner" @done="load" />
+    <DownloadDialog ref="downloader" />
   </div>
 </template>
 

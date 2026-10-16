@@ -116,10 +116,10 @@ final class QueueController extends Controller
             ->get(['forms.uuid', 'forms.key', 'forms.id', 'queue_forms.columns']);
 
         return [
-            'uuid' => strtolower($q->uuid), 'key' => $q->key, 'name' => $q->translate('name') ?? $q->key, 'names' => $q->translationsFor('name'),
+            'uuid' => strtolower($q->uuid), 'key' => $q->key, 'name' => $q->translate('name') ?? Translator::humanize((string) $q->key), 'names' => $q->translationsFor('name'),
             'type' => $q->type, 'subject' => $this->members->uuidOf($q->type, (int) ($q->type === 'role' ? $q->role_id : $q->department_id)),
             'claim_timeout_minutes' => $q->claim_timeout_minutes, 'is_active' => $q->is_active,
-            'forms' => $forms->map(fn ($f) => ['form' => strtolower((string) $f->uuid), 'key' => $f->key, 'name' => $this->translator->get('form', (int) $f->id, 'name') ?? $f->key, 'columns' => json_decode((string) $f->columns, true) ?: []])->values(),
+            'forms' => $forms->map(fn ($f) => ['form' => strtolower((string) $f->uuid), 'key' => $f->key, 'name' => $this->translator->get('form', (int) $f->id, 'name') ?? Translator::humanize((string) $f->key), 'columns' => json_decode((string) $f->columns, true) ?: []])->values(),
             'updated_at' => $this->stamp($q),
         ];
     }

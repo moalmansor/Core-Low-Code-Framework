@@ -3,6 +3,7 @@
 return [
     'bound_table_unavailable' => 'That table cannot be bound: it does not exist, belongs to the framework, or is already used by another form.',
     'table_name_taken' => 'The table :table already exists. Choose another key.',
+    'untitled_template' => 'Untitled template',
     'never_published' => 'This form has never been published.',
     'schema_inconsistent' => 'The form is locked because its database schema is inconsistent. Open the repair screen.',
     'delete_published' => 'A published form cannot be deleted. Archive it instead; its records are kept.',

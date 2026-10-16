@@ -70,7 +70,40 @@ final class SettingsRegistry
 
         // Records import/export (§4.8)
         $d('records', 'export_max_rows', 50000, ['required', 'integer', 'between:100,1000000']);
-        $d('records', 'import_max_rows', 5000, ['required', 'integer', 'between:10,50000']);
+        // Imports run as background jobs (§4.15): these are the job's own guards.
+        $d('records', 'import_max_rows', 100000, ['required', 'integer', 'between:10,1000000']);
+        $d('records', 'import_time_limit_minutes', 60, ['required', 'integer', 'between:1,1440']);
+        // Exports of more rows than this run as background jobs; smaller ones download at once.
+        $d('records', 'export_sync_rows', 5000, ['required', 'integer', 'between:0,100000']);
+        // Exported and generated files (exports, error reports, downloads) expire after this many hours.
+        $d('records', 'job_file_hours', 72, ['required', 'integer', 'between:1,2160']);
+
+        // Data quality (§4.35, ADR-0044)
+        // Deleted records can be restored for this many days; then the daily purge removes them.
+        $d('data_quality', 'recycle_bin_days', 90, ['required', 'integer', 'between:1,3650']);
+        // Duplicate checks while saving compare against at most this many records (the sweep covers all).
+        $d('data_quality', 'duplicate_scan_limit', 20000, ['required', 'integer', 'between:100,1000000']);
+
+        // Notifications and the Operations Center (§4.2, §4.16)
+        $d('notifications', 'email_max_attempts', 5, ['required', 'integer', 'between:1,20']);
+        $d('operations', 'stuck_email_minutes', 15, ['required', 'integer', 'between:1,1440']);
+
+        // Actions (§4.15): the most records one run may touch, and above how many it runs in the background (each action may set its own).
+        $d('actions', 'max_records', 500, ['required', 'integer', 'between:1,100000']);
+        $d('actions', 'queue_threshold', 50, ['required', 'integer', 'between:1,10000']);
+
+        // Custom downloads (§4.23): how deep a profile's relation tree reaches, up to how many rows a download
+        // is produced at once (larger ones run in the background), the most rows a profile may produce unless it
+        // sets its own lower limit, and the largest file a scheduled download attaches to its email (larger ones
+        // are announced with a link that needs sign-in).
+        $d('downloads', 'max_depth', 5, ['required', 'integer', 'between:1,10']);
+        $d('downloads', 'sync_rows', 5000, ['required', 'integer', 'between:1,100000']);
+        $d('downloads', 'max_rows', 100000, ['required', 'integer', 'between:100,1000000']);
+        $d('downloads', 'email_attachment_mb', 10, ['required', 'integer', 'between:1,25']);
+
+        // Document templates (§4.17): the size of an uploaded Word template, and how long one conversion to PDF may take.
+        $d('documents', 'max_template_mb', 10, ['required', 'integer', 'between:1,50']);
+        $d('documents', 'convert_timeout_seconds', 120, ['required', 'integer', 'between:10,600']);
 
         // Formats and calendar (§2)
         $d('formats', 'timezone', 'UTC', ['required', 'timezone:all']);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Modules\Records\Templating\HtmlPreviews;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Vite;
@@ -35,7 +36,14 @@ final class SecurityHeaders
         }
 
         $isHtml = str_contains((string) $headers->get('Content-Type'), 'text/html');
-        $headers->set('Content-Security-Policy', $isHtml ? $this->htmlPolicy($nonce, $request) : "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+        if ($headers->has(HtmlPreviews::HEADER)) {
+            // Rendered email shown in a sandboxed frame of this application: inline styles only, nothing that runs.
+            $headers->remove(HtmlPreviews::HEADER);
+            $headers->set('X-Frame-Options', 'SAMEORIGIN');
+            $headers->set('Content-Security-Policy', HtmlPreviews::POLICY);
+        } else {
+            $headers->set('Content-Security-Policy', $isHtml ? $this->htmlPolicy($nonce, $request) : "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+        }
         // API answers are never cached unless a controller marked them public
         // (interface string catalogs, branding images).
         if (str_starts_with($request->path(), 'api/') && ! str_contains((string) $headers->get('Cache-Control'), 'public')) {

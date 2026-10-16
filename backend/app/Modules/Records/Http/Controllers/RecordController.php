@@ -10,6 +10,7 @@ use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\RecordScope;
 use App\Modules\Core\I18n\Translator;
+use App\Modules\DataQuality\DuplicateGuard;
 use App\Modules\Forms\Definition\ClientDefinition;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
@@ -72,7 +73,7 @@ final class RecordController extends Controller
         // Print layouts the user can choose from (names only; printing checks the print permission).
         $layouts = ($levels['modes']['print'] ?? false) ? array_map(static fn (array $l) => ['key' => $l['key'], 'name' => app(Translator::class)->labelOf($l['i18n']['name'] ?? null, $l['key']), 'default' => $l['default']], app(PrintLayouts::class)->load($form)) : [];
 
-        return response()->json(['data' => $client->build($rt->definition, $levels, $mode) + ['name' => $form->translate('name') ?? $form->key, 'names' => $form->translationsFor('name'), 'user' => app(ExpressionContext::class)->client($this->user()), 'print_layouts' => $layouts]]);
+        return response()->json(['data' => $client->build($rt->definition, $levels, $mode) + ['name' => $form->translate('name') ?? Translator::humanize((string) $form->key), 'names' => $form->translationsFor('name'), 'user' => app(ExpressionContext::class)->client($this->user()), 'print_layouts' => $layouts]]);
     }
 
     public function index(Request $request, Form $form, RecordQuery $query): JsonResponse
@@ -148,7 +149,8 @@ final class RecordController extends Controller
     public function store(Request $request, Form $form): JsonResponse
     {
         $rt = $this->runtime($form, 'create');
-        $data = $request->validate(['values' => ['present', 'array'], 'params' => ['sometimes', 'array', 'max:20'], 'params.*' => ['nullable', 'string', 'max:500']]);
+        $data = $request->validate(['values' => ['present', 'array'], 'params' => ['sometimes', 'array', 'max:20'], 'params.*' => ['nullable', 'string', 'max:500'], 'confirm_duplicates' => ['sometimes', 'boolean']]);
+        app(DuplicateGuard::class)->acknowledge((bool) ($data['confirm_duplicates'] ?? false));
 
         return $this->run(function () use ($rt, $data, $request, $form): JsonResponse {
             $result = $this->pipeline->create($rt, $this->user(), $data['values'], $data['params'] ?? [], $this->key($request));
@@ -162,7 +164,8 @@ final class RecordController extends Controller
     public function update(Request $request, Form $form, string $record): JsonResponse
     {
         $rt = $this->runtime($form, 'edit');
-        $data = $request->validate(['values' => ['present', 'array'], 'row_version' => ['required_without:If-Match', 'nullable', 'integer', 'min:1']] + self::justificationRules());
+        $data = $request->validate(['values' => ['present', 'array'], 'row_version' => ['required_without:If-Match', 'nullable', 'integer', 'min:1'], 'confirm_duplicates' => ['sometimes', 'boolean']] + self::justificationRules());
+        app(DuplicateGuard::class)->acknowledge((bool) ($data['confirm_duplicates'] ?? false));
         $expected = (int) ($data['row_version'] ?? $request->header('If-Match'));
         abort_if($expected < 1, 428, __('records.row_version_required'));
 
@@ -254,7 +257,7 @@ final class RecordController extends Controller
             }
             $rows = $q->orderBy('id')->limit(500)->get();
             $titles = $refs->titles($rt, $f, $rows->pluck('uuid')->map(fn ($u) => strtolower((string) $u))->all());
-            $items = $rows->map(static fn ($r) => ['value' => strtolower((string) $r->uuid), 'label' => $titles[strtolower((string) $r->uuid)] ?? (string) $r->uuid])->values()->all();
+            $items = $rows->map(static fn ($r) => ['value' => strtolower((string) $r->uuid), 'label' => $titles[strtolower((string) $r->uuid)] ?? __('records.untitled')])->values()->all();
             if ($term !== '' && $table !== 'users') {
                 $needle = mb_strtolower($term);
                 $items = array_values(array_filter($items, static fn ($o) => str_contains(mb_strtolower($o['label']), $needle)));
@@ -293,12 +296,20 @@ final class RecordController extends Controller
         $rows = $q->orderBy($display ?? 'id')->forPage($page, $pageSize)->get();
         $records = $this->store->hydrate($target, $rows->map(static fn ($r) => (array) $r)->all(), false);
         $previewKeys = array_map(static fn ($p) => $p[0], $opts['preview'] ?? []);
+        // The preview card names each value by its field's label, never by its key.
+        $translator = app(Translator::class);
+        $previewLabels = [];
+        foreach ($previewKeys as $k) {
+            $pf = $target->fields[$target->keys[$k] ?? ''] ?? null;
+            $previewLabels[$k] = $translator->labelOf($pf['i18n']['label'] ?? null, (string) $k);
+        }
 
-        return response()->json(['data' => array_map(static function ($r, $raw) use ($display, $previewKeys) {
+        return response()->json(['data' => array_map(static function ($r, $raw) use ($display, $previewKeys, $previewLabels) {
             return [
                 'value' => $r['uuid'],
-                'label' => (string) ($display !== null ? ($raw->{$display} ?? $r['uuid']) : ($r['system']['record_number'] ?? $r['uuid'])),
+                'label' => (string) ($display !== null ? ($raw->{$display} ?? __('records.untitled')) : ($r['system']['record_number'] ?? __('records.untitled'))),
                 'preview' => array_intersect_key($r['values'], array_flip($previewKeys)),
+                'previewLabels' => $previewLabels,
             ];
         }, $records, $rows->all()), 'meta' => ['total' => $total]]);
     }

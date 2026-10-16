@@ -13,10 +13,11 @@ RUN mkdir -p backend/public && cd frontend && NODE_ENV=production npx vite build
 
 FROM php:8.3-fpm-bookworm AS base
 ARG ACCEPT_EULA=Y
-# System libraries, the Microsoft ODBC driver for SQL Server, and PHP extensions.
+# System libraries, LibreOffice Writer (Word documents to PDF), the Microsoft ODBC driver for SQL Server, and PHP extensions.
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends gnupg curl ca-certificates unzip git libicu-dev libzip-dev libpng-dev libjpeg62-turbo-dev libwebp-dev libfreetype6-dev libldap2-dev unixodbc-dev; \
+    apt-get install -y --no-install-recommends gnupg curl ca-certificates unzip git libicu-dev libzip-dev libpng-dev libjpeg62-turbo-dev libwebp-dev libfreetype6-dev libldap2-dev unixodbc-dev \
+        libreoffice-writer-nogui fonts-dejavu-core fonts-noto-core; \
     curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg; \
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list; \
     apt-get update; \

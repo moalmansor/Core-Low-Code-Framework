@@ -30,7 +30,7 @@ use Illuminate\Validation\ValidationException;
  */
 final class JustificationRules
 {
-    public const SCOPES = ['form', 'group', 'field', 'status', 'transition', 'delete', 'restore', 'reassign'];
+    public const SCOPES = ['form', 'group', 'field', 'status', 'transition', 'action', 'delete', 'restore', 'reassign', 'import', 'bulk', 'merge'];
 
     public const LEVELS = ['not_required', 'optional', 'mandatory'];
 
@@ -52,6 +52,7 @@ final class JustificationRules
             'field' => DB::table('fields')->whereIn('id', $rows->pluck('field_id')->filter()->all())->pluck('uuid', 'id')->all(),
             'status' => DB::table('statuses')->whereIn('id', $rows->pluck('status_id')->filter()->all())->pluck('uuid', 'id')->all(),
             'transition' => DB::table('transitions')->whereIn('id', $rows->pluck('transition_id')->filter()->all())->pluck('uuid', 'id')->all(),
+            'action' => DB::table('actions')->whereIn('id', $rows->pluck('action_id')->filter()->all())->pluck('uuid', 'id')->all(),
             'collection' => DB::table('forms')->whereIn('id', $rows->pluck('reason_code_collection_id')->filter()->all())->pluck('uuid', 'id')->all(),
         ];
         $subjects = [
@@ -71,6 +72,7 @@ final class JustificationRules
                 'field' => $lower($uuids['field'][$r->field_id] ?? null),
                 'status' => $lower($uuids['status'][$r->status_id] ?? null),
                 'transition' => $lower($uuids['transition'][$r->transition_id] ?? null),
+                'action' => $lower($uuids['action'][$r->action_id] ?? null),
                 default => null,
             },
             'subject' => ['type' => $r->subject_type, 'uuid' => $r->subject_type === 'everyone' ? null : $lower($subjects[$r->subject_type][$r->subject_id] ?? null)],
@@ -114,7 +116,7 @@ final class JustificationRules
                 $existing = DB::table('justification_rules')->where('form_id', $form->id)->where('uuid', $r['uuid'])->first();
                 $row = [
                     'updated_at' => $now, 'updated_by' => $userId, 'scope' => $r['scope'],
-                    'group_id' => $ids['group'], 'field_id' => $ids['field'], 'status_id' => $ids['status'], 'transition_id' => $ids['transition'],
+                    'group_id' => $ids['group'], 'field_id' => $ids['field'], 'status_id' => $ids['status'], 'transition_id' => $ids['transition'], 'action_id' => $ids['action'],
                     'subject_type' => $r['subject']['type'], 'subject_id' => $ids['subject'], 'level' => $r['level'],
                     'level_when_condition' => ($r['condition'] ?? null) === null ? null : ($r['levelWhen'] ?? null),
                     'min_length' => $r['text']['min'] ?? null, 'max_length' => $r['text']['max'] ?? null,
@@ -155,7 +157,7 @@ final class JustificationRules
 
     /**
      * @param  list<array<string, mixed>>  $rules
-     * @return list<array{group: int|null, field: int|null, status: int|null, transition: int|null, subject: int|null, collection: int|null}>
+     * @return list<array{group: int|null, field: int|null, status: int|null, transition: int|null, action: int|null, subject: int|null, collection: int|null}>
      */
     private function validate(Form $form, array $rules): array
     {
@@ -167,7 +169,7 @@ final class JustificationRules
         $levels = ['none', 'optional', 'required'];
         foreach ($rules as $i => $r) {
             $p = "rules.{$i}";
-            $ids = ['group' => null, 'field' => null, 'status' => null, 'transition' => null, 'subject' => null, 'collection' => null];
+            $ids = ['group' => null, 'field' => null, 'status' => null, 'transition' => null, 'action' => null, 'subject' => null, 'collection' => null];
             if (! is_array($r) || ! is_string($r['uuid'] ?? null) || ! Str::isUuid($r['uuid']) || isset($seen[$r['uuid']])) {
                 $errors["{$p}.uuid"][] = __('validation.uuid', ['attribute' => 'uuid']);
                 $out[] = $ids;
@@ -184,15 +186,15 @@ final class JustificationRules
             }
             $target = $r['target'] ?? null;
             $table = match ($scope) {
-                'group' => 'field_groups', 'field' => 'fields', 'status' => 'statuses', 'transition' => 'transitions', default => null,
+                'group' => 'field_groups', 'field' => 'fields', 'status' => 'statuses', 'transition' => 'transitions', 'action' => 'actions', default => null,
             };
             if ($table !== null) {
-                $id = is_string($target) ? DB::table($table)->where('form_id', $form->id)->where('uuid', strtolower($target))->whereNull('archived_at')->value('id') : null;
+                $id = is_string($target) ? DB::table($table)->where('form_id', $form->id)->where('uuid', strtolower($target))->when($table !== 'actions', static fn ($q) => $q->whereNull('archived_at'))->value('id') : null;
                 if ($id === null) {
                     $errors["{$p}.target"][] = __('justification.unknown_target');
                 } else {
                     $ids[match ($scope) {
-                        'group' => 'group', 'field' => 'field', 'status' => 'status', default => 'transition',
+                        'group' => 'group', 'field' => 'field', 'status' => 'status', 'action' => 'action', default => 'transition',
                     }] = (int) $id;
                 }
             } elseif ($target !== null) {

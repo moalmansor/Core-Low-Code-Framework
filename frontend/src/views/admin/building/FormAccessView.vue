@@ -145,13 +145,16 @@ watch(
     if (v !== 'form' || catalog.value.length) return
     try {
       const prefix = `form.${formUuid.value}.`
-      const [own, transitions, views] = await Promise.all(
-        (['form', 'transition', 'view'] as const).map((scope) => get<{ data: CatalogEntry[] }>('/permissions', { scope_type: scope, form: formUuid.value }).then((r) => r.data)),
+      const [own, transitions, views, actions, downloads, fields] = await Promise.all(
+        (['form', 'transition', 'view', 'action', 'download_profile', 'field'] as const).map((scope) =>
+          get<{ data: CatalogEntry[] }>('/permissions', { scope_type: scope, form: formUuid.value }).then((r) => r.data),
+        ),
       )
-      // The form's own abilities first, then its workflow transitions and table views.
-      const all = [...own!.filter((p) => p.key.startsWith(prefix)), ...transitions!, ...views!]
+      // The form's own abilities first, then its workflow transitions, table views, actions, download profiles and sensitive fields.
+      const all = [...own!.filter((p) => p.key.startsWith(prefix)), ...transitions!, ...views!, ...actions!, ...downloads!, ...fields!]
+      const after = ['transition.', 'view.', 'action.', 'download.', 'field.']
       const rank = (k: string) => {
-        if (!k.startsWith(prefix)) return ORDER.length + (k.startsWith('transition.') ? 1 : 2)
+        if (!k.startsWith(prefix)) return ORDER.length + 1 + after.findIndex((p) => k.startsWith(p))
         const i = ORDER.indexOf(k.slice(prefix.length))
         return i < 0 ? ORDER.length : i
       }

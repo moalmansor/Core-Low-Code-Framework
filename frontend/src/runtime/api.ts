@@ -12,6 +12,8 @@ export interface OptionItem {
   parent?: string | null
   uuid?: string
   preview?: Record<string, unknown>
+  /** Field labels for the preview values, by key. */
+  previewLabels?: Record<string, string>
 }
 
 export function newUuid(): string {

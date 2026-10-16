@@ -10,8 +10,8 @@ Project memory file (specification §8.1). Updated at the end of every run.
 | 1 — Foundation, Security & Administration Core | `phase-1-foundation` | **Complete. Merged.** | [moalmansor/Core-Low-Code-Framework#10](https://github.com/moalmansor/Core-Low-Code-Framework/pull/10) |
 | 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | **Complete. Merged.** (plus the interface pull request) | [moalmansor/Core-Low-Code-Framework#11](https://github.com/moalmansor/Core-Low-Code-Framework/pull/11), [#12](https://github.com/moalmansor/Core-Low-Code-Framework/pull/12) |
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | **Complete.** Owner confirmed 2026-10-09; no findings, no code changes (`docs/pilot-findings.md`) | — (issue #5 closed) |
-| 3 — Workflow, Records & Views | `phase-3-workflow` | **Complete; pull request open for review** (issue #6) | pull request from `phase-3-workflow` into `main` |
-| 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | Not started | — |
+| 3 — Workflow, Records & Views | `phase-3-workflow` | **Complete. Merged.** Owner re-tested after merge. | [moalmansor/Core-Low-Code-Framework#13](https://github.com/moalmansor/Core-Low-Code-Framework/pull/13) |
+| 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | **In progress** (issue #7) | — |
 | 5 — Platform & Extensibility | `phase-5-platform` | Not started | — |
 | 6 — Hardening & Final Delivery | `phase-6-hardening` | Not started | — |
 
@@ -379,15 +379,194 @@ Decided by the owner:
   endpoints, checks strip (client and server: unreachable, dead end, no
   entry), outline, no keys on nodes. Spec §4.12, design system §5.6a.
 
+## Phase 4: progress (branch `phase-4-actions`, issue #7)
+
+- **Before Phase 4 — identifier guard (owner request).** The designer's
+  warnings named statuses by key although the browser guard existed, because
+  the key was put into the message on the server. The browser guard now also
+  catches identifiers passed to messages, keys printed in templates and
+  `{key}`/`{uuid}`/`{id}` catalog placeholders, and tests its own rules; a new
+  server guard (`backend/tests/Unit/IdentifierLeakTest.php`) covers server
+  messages and API names/labels/titles. Fixed what they found (lookup preview
+  labels, publish impact, blueprint confirmations, about thirty API name
+  fallbacks). Design system §5.6.
+- **Schema.** All Phase 4 tables generated from the ERD and checked by the
+  conformance test; the Phase 4 deferred columns added. Deferred to Phase 5:
+  `automation_triggers.inbound_endpoint_id`, `notification_deliveries`.
+- **Import and export as background jobs** (issue #7 item): upload and inspect,
+  column mapping (suggested, saved mappings, text clean-up), preview, insert /
+  update / upsert by key field, dry run, batches of 500 in one transaction each,
+  idempotent retry, cancel, error report, import justification scope, journal
+  `import_job_id`, in-app notification. The synchronous `POST /r/{form}/import`
+  and its 50 000-row cap are gone: guards are `records.import_max_rows`
+  (default 100 000, up to 1 000 000) and `records.import_time_limit_minutes`.
+  Exports: xlsx / csv / pdf of the table as shown, export jobs above
+  `records.export_sync_rows`, expiring personal files.
+- **Notifications** (ADR-0039): email templates designed from blocks with a
+  live preview through a sandboxed signed link, test send; notification rules
+  per form (record created/updated, status change, field changed, condition
+  met, date reminders, SLA escalations, assignment, approvals) with To/CC/BCC
+  from users, roles, departments, user fields, the creator, linked records'
+  users and static addresses; one message per language showing only what all
+  its readers may see; email queue with backoff, resend and cancel; in-app
+  notifications center (bell) and per-user channel preferences. e2e
+  `07-notifications`.
+- **Document templates** (ADR-0040): Word templates per language (untrusted
+  input checks, run-split placeholders, repeating table rows) and designed
+  templates (blocks, paper, live preview) producing Word and PDF; LibreOffice
+  conversion for Word to PDF (in the image and CI); documents attached to
+  notification emails, generated per message for its readers. The email and
+  document designers share `Records/Templating` (values, block validation,
+  placeholders, HTML previews) and the `BlockListEditor` component.
+  e2e `08-documents`.
+- **System Settings** gained Notifications, Documents and Operations tabs; a
+  test now fails when a registry setting has no field on the settings screen.
+- **Actions** (ADR-0041): one actions document per form on its "Actions"
+  tab. Built-ins (duplicate, print, bulk field update, bulk status change,
+  bulk delete) and custom actions with chained, conditional steps (set
+  fields, change status, email, in-app notification, signed webhook through
+  the egress gateway, generate a document, create a linked record, assign).
+  Each action has its own `action.{uuid}.run` permission in the access
+  matrix plus the form ability its work needs; every change goes through the
+  record pipeline. One justification per run at the strictest level needed;
+  runs tracked in `bulk_operations` with progress and per-record results,
+  in the background above the threshold. Runtime: row menu, selection and
+  table actions menu in the records list, buttons on the record page, a run
+  dialog with inputs, progress and results. e2e `09-actions`.
+- **Custom downloads** (ADR-0042): shared and personal download profiles
+  built from a lazy relation tree (forward links, child records, repeating
+  sections, system values) with a live preview and a "columns a role
+  receives" check; one row per related record, aggregates or separate
+  sheets; fixed filters, parameters, the table's filters and selection;
+  Excel (sheets, styled frozen header, title row with logo, RTL, number
+  formats), CSV with BOM, PDF with header, footer and page numbers. Runs
+  are download_jobs (inline or background, audited, expiring files);
+  field access, record scope and sensitive masking at every level. A
+  generic scheduler (`scheduled_tasks`, `scheduler:run`) runs scheduled
+  downloads per recipient and emails them. Action step `run_download`.
+  Download menus on the records table and record page; "Downloads" tab in
+  the form configuration; "My download profiles". e2e `10-downloads`.
+- **Automations** (ADR-0043):
+  - Automations belong to a form. Triggers: record created, changed or
+    deleted; field changed; status changed; condition became true; a
+    schedule (hourly to cron, in a time zone); a date reached with an
+    offset; a file in a watched folder; manual.
+  - Steps are shared with actions through one step runner, plus "wait" and
+    "wait until".
+  - Runs act as the triggering user or a chosen user. Making one run as
+    someone else needs "Manage permissions".
+  - Schedule and manual runs cover the matching records, with a hard
+    maximum and a confirmation threshold.
+  - Loop protection through an outbox context; concurrency limit; retry
+    policy with back-off; manual retry of failed records.
+  - Test runs roll back data steps and only describe outside effects.
+  - The `automations:tick` clock resumes waits, fires date triggers and
+    picks up watched-folder files.
+  - Screens: run history; a scheduled-task manager listing automation
+    schedules, scheduled downloads and the system's own jobs; admin areas
+    "Automations" and "Scheduled tasks"; an "Automations" tab in the form
+    configuration with the builder.
+  - The action step editor is now a shared component used by both
+    builders.
+  - Tests: `tests/Engine/AutomationsTest.php`, e2e `11-automations`.
+  - Found and fixed on the way: the download-schedule recipient check and
+    the action-step UUID lookups sent non-UUID input to SQL Server
+    `uniqueidentifier` columns, which caused 500 errors; the branding e2e
+    test raced its own save.
+- **Data quality and bulk tools** (ADR-0044):
+  - Duplicate rules per form (exact, normalized with Arabic folding,
+    similar), warn or block while saving, and background sweeps. The
+    record form shows likely duplicates and offers "Save anyway".
+  - Merge screen: the survivor, the value for each differing field, and a
+    mandatory justification. Links are repointed, the others go to the
+    recycle bin, and the history is immutable.
+  - Bulk reassign built-in; a preview of the records in every bulk run;
+    "Try first" dry runs in rolled-back transactions.
+  - Repair scans for broken links and records that break the current
+    rules, with the guided clearing of links.
+  - Recycle-bin retention (`data_quality.recycle_bin_days`, daily purge
+    that skips legal hold) and the purge date in the bin.
+  - Screens: a "Data quality" tab in the form configuration (rules,
+    sweeps, repair), the merge page, the duplicate dialog, "Merge selected"
+    in the records list.
+  - Tests: `tests/Engine/DataQualityTest.php`, the bulk test in
+    `ActionsTest.php`, e2e `12-data-quality` and the trial run in
+    `09-actions`.
+- **Operations Center** (ADR-0045):
+  - Admin › Operations Center with five tabs: overview (health widgets),
+    e-mail queue, failed submissions, failed jobs and alerts.
+  - E-mails: stuck detection, resend (bulk or to edited recipients),
+    cancel, and the rendered HTML in a sandboxed frame.
+  - Submissions: retry as the submitter with the same idempotency key,
+    corrected values kept beside the original, sensitive values masked,
+    discard with a reason.
+  - Jobs: imports, exports, downloads, action runs and scans, automation
+    runs, scheduled tasks, webhook calls and queue failures, each with a
+    safe retry; dismissal with a reason (`operations_dismissals`).
+  - Alerts: rules per measure with threshold, period, quiet period and
+    roles; `ops:check-alerts` every five minutes e-mails through the queue.
+  - Fixed on the way: Horizon had no workers for the `heavy` and `mail`
+    queues, and the `redis` connection would hand a running job out again
+    after 90 seconds. Long jobs now have connections that wait longer than
+    their timeout.
+  - Tests: `tests/Engine/OperationsTest.php`, e2e `13-operations`.
+- **Verification:** CI passes on both engines (backend, end-to-end with
+  `php artisan serve`, and the Docker stack from a Windows checkout).
+  CI on SQL Server caught a trial-run lookup that used a non-UUID
+  placeholder; it was fixed. One Docker/SQL Server run (152) timed out
+  waiting for a repair scan, and the next runs passed. The e2e now waits up
+  to 60 seconds and reports the scan's status, and CI prints the
+  application's errors and unfinished operations when the stack fails.
+- **Pull request** to `main` closing #7, with the verification report.
+  Phase 4 is complete pending the owner's review. Do not start Phase 5
+  until it is merged.
+- **Owner review of Phase 4 (2026-10-14), four items:**
+  1. *Notification recipients from the record* (ADR-0047). Recipients can now be:
+     - a user, role or department picker field, on this form or on a linked form through a relation path of up to four links;
+     - an e-mail field;
+     - the current assignee;
+     - the person who last changed the status.
+     Each kind can be chosen for To, CC and BCC independently and is resolved at send time. The old "user field" option never worked: it looked for type `user`, not `user_picker`. Test: `NotificationsTest` "reaches the people a record holds".
+  2. *Document template builder* (ADR-0046). Added:
+     - a placeholder picker over linked forms and system values;
+     - per-value formats (dates, numbers, currencies, Arabic-Indic or Western digits);
+     - linked child-record tables with chosen columns;
+     - signature blocks, QR codes and barcodes;
+     - a title, and a header and footer with logo and page numbers, in both PDF and Word;
+     - templates saved as blueprints (`document_template`).
+     Conditional blocks and live preview were already there. Configuration packages are Phase 5 and will carry these blueprints. Tests: `DocumentsTest` (8), e2e `08-documents`.
+  3. *Actions against §4.15* (ADR-0049). Every built-in and step in §4.15 was already implemented. Added:
+     - bulk status change with a fixed transition, offered by an "Approve or move selected records" preset;
+     - one comment for the run when the transition takes one;
+     - a per-record "not in status …" refusal, reported by record title;
+     - typed inputs for bulk field update.
+     Test: `ActionsTest` "approves every selected record".
+  4. *Design checklist* (ADR-0048, design system §5.7). The checklist was applied to every Phase 4 screen. It is now enforced by `src/design/screens.spec.ts`, with pre-checklist screens waived per rule and the waiver list only allowed to shrink. It is also enforced by e2e `15-screens.spec.ts`: every Phase 4 screen in English and Arabic at desktop and phone width. The sweep found and fixed:
+     - the scheduled-tasks header on phones;
+     - the autocomplete width in Arabic;
+     - the raw `subject` key in a validation message;
+     - the sidebar emptying itself after a refused request.
+     A pull-request template carries the checklist.
+
 ## Resume point
 
-Phase 3 is complete and its pull request is open for the owner's review. Do
-not start Phase 4 until that pull request is merged. Address review comments
-by pushing to `phase-3-workflow`, re-run CI on the new head, and update the
-verification report in the pull request.
+Phase 3 is complete and merged (pull request
+[moalmansor/Core-Low-Code-Framework#13](https://github.com/moalmansor/Core-Low-Code-Framework/pull/13),
+merge commit `e4c89ad`). The owner re-tested the workflow designer,
+transitions with required fields, removing a status that has records, and
+field access by status, and all behaved correctly.
+
+Phase 4 is built on branch `phase-4-actions`
+([moalmansor/Core-Low-Code-Framework#7](https://github.com/moalmansor/Core-Low-Code-Framework/issues/7))
+and its pull request to `main` is open for the owner's review. The owner's
+four-item review of 2026-10-14 is addressed (see Phase 4 above); resume by
+checking CI on the head commit, updating the report, and addressing any new
+review comments on that pull request (push to the same branch, re-run CI,
+update the report). Phase 5 starts only after it is merged.
 
 ### Local development notes
 
+- Local e2e: after `migrate:fresh` of `lcf_e2e`, also run `CACHE_STORE=file php artisan cache:clear`; the file cache outlives the database and can serve a published definition from the previous run. Run Playwright with `DB_DATABASE=lcf_e2e` so `setup:token` reaches the e2e database.
 - Dev container / Codespaces: everything is prepared by `.devcontainer/post-create.sh`;
   the application runs on port 8000; `cd backend && php artisan setup:token`.
 - Without a container: `cd backend && cp .env.example .env && php artisan key:generate && php artisan db:ensure && php artisan migrate --seed && php artisan setup:token`

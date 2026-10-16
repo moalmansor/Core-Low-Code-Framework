@@ -1,0 +1,54 @@
+<?php
+
+declare(strict_types=1);
+
+// The Operations Center (specification §4.2, ADR-0045).
+return [
+    'not_editable' => 'لا يمكن تعديل القيم إلا لعملية إنشاء أو تعديل أو تغيير حالة فشلت.',
+    'form_unavailable' => 'النموذج لم يعد منشورًا، لذا لا يمكن إعادة محاولة هذا الإرسال.',
+    'unknown_field' => 'لا يحتوي النموذج على الحقل ":field".',
+    'not_retryable' => 'لا يمكن إعادة محاولة هذا العنصر من هنا.',
+    'submitter_inactive' => 'الشخص الذي أرسل هذا لم يعد نشطًا، لذا لا يمكن إعادة المحاولة باسمه.',
+    'retry_failed' => 'فشلت إعادة المحاولة مرة أخرى. راجع مراقبة الأخطاء للتفاصيل.',
+    'not_discardable' => 'لا يمكن تجاهل إلا الإرسال الذي فشل.',
+    'not_found' => 'لم يُعثر على هذا الفشل، أو تمت معالجته من قبل.',
+    'records_failed' => 'السجلات التي تعذّر تغييرها: :n',
+    'steps_failed' => 'فشلت بعض الخطوات.',
+    'recipients_single' => 'يمكن تغيير المستلمين لرسالة واحدة في كل مرة.',
+    'changed_elsewhere' => 'غيّر شخص آخر قواعد التنبيه. تُعرض أحدث نسخة.',
+    'too_many_rules' => 'الحد الأقصى :max من قواعد التنبيه.',
+    'bad_metric' => 'اختر ما تريد مراقبته.',
+    'bad_threshold' => 'أدخل حدًا من 1 إلى :max.',
+    'bad_window' => 'أدخل مدة من 5 دقائق إلى 7 أيام.',
+    'bad_cooldown' => 'أدخل فترة هدوء من 5 دقائق إلى 7 أيام.',
+    'roles_required' => 'اختر دورًا واحدًا على الأقل لتنبيهه.',
+    'metric' => [
+        'failed_submissions' => 'الإرسالات الفاشلة',
+        'failed_jobs' => 'المهام الفاشلة',
+        'failed_emails' => 'الرسائل الفاشلة',
+        'stuck_emails' => 'الرسائل العالقة',
+        'failed_webhooks' => 'استدعاءات الويب الفاشلة',
+        'queue_size' => 'المهام المنتظرة',
+        'error_rate' => 'الأخطاء',
+        'storage_usage' => 'التخزين المستخدم (%)',
+        'scheduler_lag' => 'الدقائق منذ آخر تشغيل للمجدول',
+    ],
+    'operation' => [
+        'update' => 'تحديث جماعي',
+        'reassign' => 'إعادة إسناد جماعية',
+        'status_change' => 'تغيير حالة جماعي',
+        'delete' => 'حذف جماعي',
+        'restore' => 'استعادة جماعية',
+        'duplicate_sweep' => 'البحث عن المكررات',
+        'validation_sweep' => 'فحص القواعد',
+        'orphan_scan' => 'فحص الروابط المعطلة',
+        'repair' => 'إصلاح',
+        'action' => 'إجراء',
+    ],
+    'alert' => [
+        'subject' => 'تنبيه: بلغ :measure القيمة :value',
+        'body' => 'بلغ :measure القيمة :value خلال آخر :window دقيقة (الحد :threshold).',
+        'body_now' => ':measure الآن :value (الحد :threshold).',
+        'open' => 'فتح مركز العمليات',
+    ],
+];

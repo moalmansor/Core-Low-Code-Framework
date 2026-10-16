@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
+import Checkbox from 'primevue/checkbox'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import InputOtp from 'primevue/inputotp'
@@ -40,7 +41,17 @@ watch(
 )
 
 const details = reactive({ name: session.me?.name ?? '', phone: '' })
-const prefs = reactive<Me['preferences']>({ locale: null, timezone: null, calendar: null, digits: null, date_format: null, density: null, theme_mode: 'system', ...(session.me?.preferences ?? {}) })
+const prefs = reactive<Me['preferences']>({
+  locale: null,
+  timezone: null,
+  calendar: null,
+  digits: null,
+  date_format: null,
+  density: null,
+  theme_mode: 'system',
+  ...(session.me?.preferences ?? {}),
+  notification_channels: { email: true, in_app: true, ...(session.me?.preferences?.notification_channels ?? {}) },
+})
 const pw = reactive({ current: '', password: '', confirmation: '' })
 const pwErrors = ref<Record<string, string>>({})
 const sessions = ref<SessionRow[]>([])
@@ -211,6 +222,12 @@ async function revokeOthers(): Promise<void> {
             <label for="pd">{{ t('settings.formats.digits') }}</label
             ><Select v-model="prefs.digits" input-id="pd" :options="['western', 'arabic_indic'].map((v) => ({ v, l: t(`settings.digits.${v}`) }))" option-label="l" option-value="v" show-clear />
           </div>
+          <fieldset class="col-span-full flex flex-col gap-2" data-testid="notification-channels">
+            <legend class="text-sm font-semibold mb-1">{{ t('profile.notifications') }}</legend>
+            <p class="m-0 text-xs text-muted-color">{{ t('profile.notifications_hint') }}</p>
+            <label class="flex items-center gap-2"><Checkbox v-model="prefs.notification_channels!.in_app" binary input-id="pn-in-app" />{{ t('profile.channel_in_app') }}</label>
+            <label class="flex items-center gap-2"><Checkbox v-model="prefs.notification_channels!.email" binary input-id="pn-email" />{{ t('profile.channel_email') }}</label>
+          </fieldset>
           <div class="flex items-end"><Button type="submit" :label="t('common.save')" data-testid="save-preferences" /></div>
         </form>
       </TabPanel>

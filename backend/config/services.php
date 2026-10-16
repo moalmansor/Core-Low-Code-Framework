@@ -14,6 +14,11 @@ return [
     |
     */
 
+    // Converts Word documents to PDF (§4.17): the LibreOffice program, run headless and offline.
+    'documents' => [
+        'converter' => env('LCF_DOCUMENT_CONVERTER', 'soffice'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

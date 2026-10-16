@@ -5,7 +5,10 @@ defineProps<{ title: string; text?: string }>()
 
 <template>
   <header class="flex flex-col gap-1">
-    <h2 class="m-0 text-base font-semibold">{{ title }}</h2>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="m-0 text-base font-semibold">{{ title }}</h2>
+      <div v-if="$slots.actions" class="flex flex-wrap items-center gap-2"><slot name="actions" /></div>
+    </div>
     <p v-if="text" class="m-0 cfg-intro" data-testid="tab-intro">{{ text }}</p>
     <slot />
   </header>

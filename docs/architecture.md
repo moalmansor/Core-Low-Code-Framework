@@ -280,7 +280,7 @@ module's models.
 | **Documents** | document_templates | `DocumentRenderer` | P4 |
 | **Automation** | automations, automation_triggers, automation_steps, automation_runs, scheduled_tasks | `AutomationEngine` | P4 |
 | **DataQuality** | duplicate_rules, merge_history, recycle_bin | `DuplicateDetector`, `MergeService` | P4 |
-| **Operations** | operations_alert_rules (reads the submission journal, the email queue, and Laravel failed jobs through their owners' contracts) | `HealthProbe` | P4 |
+| **Operations** | `GET /ops/health`; `GET /ops/emails?status=&search=&page=` (`stuck` computed); `GET /ops/emails/{uuid}/html` → signed sandboxed preview link; `POST /ops/emails/resend` (`emails[]`, optional `recipients{to,cc,bcc}` for one); `POST /ops/emails/cancel` (`emails[]`); `GET /ops/submissions?status=failed|rejected|discarded`; `GET /ops/submissions/{uuid}` (masked payload, trace); `PATCH /ops/submissions/{uuid}/payload`; `POST /ops/submissions/retry` (`submissions[]`, as the submitter, same idempotency key); `POST /ops/submissions/{uuid}/discard` (`reason`); `GET /ops/jobs?kind=`; `GET /ops/jobs/{kind}/{id}`; `POST /ops/jobs/{kind}/{id}/retry`; `POST /ops/jobs/{kind}/{id}/discard` (`reason`, `operations_dismissals`); `GET/PUT /ops/alert-rules` (`base_hash`, ADR-0045) | | `manage_operations` |
 | **Reports** | reports, dashboards, dashboard_widgets | `ReportEngine` | P5 |
 | **Platform** | api_tokens, webhooks, webhook_deliveries, inbound_endpoints, config_packages, environment_drift_reports | `OpenApiGenerator`, `PackageService` | P5 |
 | **Extensions** | extensions, extension_versions | `HookRunner` | P5 |
@@ -585,14 +585,17 @@ denied; every audit entry carries `actor_user_id` (admin) and
 
 ### 8.1 Queues (Horizon + Redis)
 
-| Queue | Workloads | Notes |
-|---|---|---|
-| `critical` | submission retries, approvals fan-out, publish (schema) jobs | low latency, `tries=3` |
-| `default` | notifications dispatch, automations (event-triggered), SLA evaluations | |
-| `mail` | `SendEmailJob` per `email_queue` row | rate-limited per SMTP settings |
-| `webhooks` | outbound webhook deliveries, integration calls | backoff, egress only |
-| `heavy` | imports, exports, custom downloads, document generation, bulk ops, merges, retention runs, reconciliation, logical backups | long timeout, `maxProcesses` capped |
-| `scheduled` | jobs dispatched by the scheduler tick | |
+| Queue | Connection (handed out again after) | Workloads | Horizon supervisor |
+|---|---|---|---|
+| `default` | `redis` (3,700 s) | action runs, automation runs and event handling, notification rules, SLA work | `supervisor-1` |
+| `heavy` | `redis_heavy` (7,300 s) | imports, exports, custom downloads, data repair scans, duplicate sweeps | `heavy-1` |
+| `mail` | `redis` (3,700 s) | `SendQueuedEmail` per `email_queue` row, error alerts | `mail-1` |
+| `schema` | `redis_schema` (3,700 s) | migration plans (publish) | `schema-1` |
+
+Each connection waits longer than the longest job on it before handing a
+running job to another worker, so a long job never runs twice (ADR-0045).
+Outbound webhooks run inside the action or automation step that calls them.
+Scheduled work is started by the scheduler's own commands.
 
 Every job implements `CorrelatedJob` (carries correlation ID, organization ID,
 acting user, on-behalf-of user) and `TracksProgress` where user-visible
@@ -2846,7 +2849,8 @@ erDiagram
 | `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
 | `key` | VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(48) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
 | `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `builtin`, `custom` |
-| `builtin` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `export`, `import`, `print`, `duplicate`, `bulk_delete`, `bulk_status`, `bulk_update`, `download` |
+| `builtin` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NULL | — | values: `export`, `import`, `print`, `duplicate`, `bulk_delete`, `bulk_status`, `bulk_update`, `bulk_reassign`, `download` |
+| `settings` | JSON | NVARCHAR(MAX) | NULL | — | a built-in's own settings: for `bulk_status`, `{transition}` — the transition it always makes ("Approve all selected"), or null to let the person choose |
 | `placements` | JSON | NVARCHAR(MAX) | NOT NULL | — | subset of `row`,`bulk`,`toolbar`,`view_page` |
 | `condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION (availability) |
 | `requires_confirmation` | TINYINT(1) | BIT | NOT NULL | 0 |  |
@@ -2872,10 +2876,11 @@ erDiagram
 - **Foreign key:** `fk_actions_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
 - **Foreign key:** `fk_actions_condition_id`: `condition_id` → `conditions`(`id`) ON DELETE NO ACTION
 - **Check:** `ck_actions_kind`: `kind IN ('builtin', 'custom')` (both engines)
-- **Check:** `ck_actions_builtin`: `builtin IN ('export', 'import', 'print', 'duplicate', 'bulk_delete', 'bulk_status', 'bulk_update', 'download')` (both engines)
+- **Check:** `ck_actions_builtin`: `builtin IN ('export', 'import', 'print', 'duplicate', 'bulk_delete', 'bulk_status', 'bulk_update', 'bulk_reassign', 'download')` (both engines)
 - **Check:** `ck_actions_run_mode`: `run_mode IN ('sync', 'queued', 'auto')` (both engines)
 - **Check:** `ck_actions_justification_level`: `justification_level IN ('not_required', 'optional', 'mandatory')` (both engines)
 - **Check (SQL Server):** `ck_actions_placements_json`: `ISJSON(placements) = 1`
+- **Check (SQL Server):** `ck_actions_settings_json`: `ISJSON(settings) = 1`
 - Translatable: `label`, `confirmation_text`, `success_message`. Permission: `action.{uuid}.run`.
 
 **`action_steps`**
@@ -3206,6 +3211,8 @@ erDiagram
 | `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
 | `download_profile_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `download_profiles.id` NO ACTION |
 | `download_schedule_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `download_schedules.id` NO ACTION |
+| `automation_run_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `automation_runs.id` NO ACTION (a download step of an automation) |
+| `deliver_by_email` | TINYINT(1) | BIT | NOT NULL | 0 | email the file to its user when it is ready (scheduled runs and automation steps) |
 | `user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION |
 | `format` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `xlsx`, `csv`, `pdf` |
 | `parameters` | JSON | NVARCHAR(MAX) | NULL | — |  |
@@ -3230,11 +3237,13 @@ erDiagram
 - **Index:** `ix_download_jobs_download_profile_id_created_at` (`download_profile_id`, `created_at`)
 - **Index:** `ix_download_jobs_download_schedule_id` (`download_schedule_id`) — supports FK
 - **Index:** `ix_download_jobs_file_id` (`file_id`) — supports FK
+- **Index:** `ix_download_jobs_automation_run_id` (`automation_run_id`) — supports FK
 - **Foreign key:** `fk_download_jobs_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_download_jobs_download_profile_id`: `download_profile_id` → `download_profiles`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_download_jobs_download_schedule_id`: `download_schedule_id` → `download_schedules`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_download_jobs_user_id`: `user_id` → `users`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_download_jobs_file_id`: `file_id` → `files`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_download_jobs_automation_run_id`: `automation_run_id` → `automation_runs`(`id`) ON DELETE NO ACTION
 - **Check:** `ck_download_jobs_format`: `format IN ('xlsx', 'csv', 'pdf')` (both engines)
 - **Check:** `ck_download_jobs_status`: `status IN ('queued', 'running', 'completed', 'failed', 'expired', 'cancelled')` (both engines)
 - **Check (SQL Server):** `ck_download_jobs_parameters_json`: `ISJSON(parameters) = 1`
@@ -3930,6 +3939,7 @@ erDiagram
 | `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `docx`, `html` |
 | `file_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `files.id` NO ACTION (DOCX source, per locale via `locale_files`) |
 | `locale_files` | JSON | NVARCHAR(MAX) | NULL | — | `{locale: file_uuid}` |
+| `design` | JSON | NVARCHAR(MAX) | NULL | — | `type=html`: block design (headings, texts, field lists, repeater tables, page breaks, conditional blocks) with per-locale texts |
 | `output_formats` | JSON | NVARCHAR(MAX) | NOT NULL | — | `docx`, `pdf` |
 | `paper` | JSON | NVARCHAR(MAX) | NOT NULL | — | size, orientation, margins |
 | `placeholders_detected` | JSON | NVARCHAR(MAX) | NOT NULL | — | validated against the form definition |
@@ -3949,10 +3959,11 @@ erDiagram
 - **Foreign key:** `fk_document_templates_file_id`: `file_id` → `files`(`id`) ON DELETE NO ACTION
 - **Check:** `ck_document_templates_type`: `type IN ('docx', 'html')` (both engines)
 - **Check (SQL Server):** `ck_document_templates_locale_files_json`: `ISJSON(locale_files) = 1`
+- **Check (SQL Server):** `ck_document_templates_design_json`: `ISJSON(design) = 1`
 - **Check (SQL Server):** `ck_document_templates_output_formats_json`: `ISJSON(output_formats) = 1`
 - **Check (SQL Server):** `ck_document_templates_paper_json`: `ISJSON(paper) = 1`
 - **Check (SQL Server):** `ck_document_templates_placeholders_detected_json`: `ISJSON(placeholders_detected) = 1`
-- Translatable: `name`, `html` (for `type=html`).
+- Translatable: `name`, `html` (for `type=html`: the design compiled per locale with its placeholders, for reading and search).
 
 **`reports`**
 
@@ -4322,7 +4333,7 @@ admin-created, never seeded.
 | `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
 | `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
 | `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` NO ACTION |
-| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `update`, `reassign`, `status_change`, `delete`, `restore`, `duplicate_sweep`, `validation_sweep`, `orphan_scan`, `repair` |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `update`, `reassign`, `status_change`, `delete`, `restore`, `duplicate_sweep`, `validation_sweep`, `orphan_scan`, `repair`, `action` |
 | `criteria` | JSON | NVARCHAR(MAX) | NOT NULL | — | filter AST or explicit ids |
 | `payload` | JSON | NVARCHAR(MAX) | NULL | — | values / target status / assignee |
 | `dry_run` | TINYINT(1) | BIT | NOT NULL | 0 |  |
@@ -4340,6 +4351,7 @@ admin-created, never seeded.
 | `finished_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 | `error` | TEXT | NVARCHAR(MAX) | NULL | — |  |
 | `correlation_id` | VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(36) COLLATE Latin1_General_100_BIN2 | NOT NULL | — |  |
+| `action_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `actions.id` NO ACTION (type `action`: the custom action run) |
 
 - **Primary key:** `pk_bulk_operations` (`id`); SQL Server clustered.
 - **Unique:** `uq_bulk_operations_uuid` (`uuid`)
@@ -4351,7 +4363,9 @@ admin-created, never seeded.
 - **Foreign key:** `fk_bulk_operations_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_bulk_operations_justification_id`: `justification_id` → `justifications`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_bulk_operations_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
-- **Check:** `ck_bulk_operations_type`: `type IN ('update', 'reassign', 'status_change', 'delete', 'restore', 'duplicate_sweep', 'validation_sweep', 'orphan_scan', 'repair')` (both engines)
+- **Index:** `ix_bulk_operations_action_id` (`action_id`) — supports FK
+- **Foreign key:** `fk_bulk_operations_action_id`: `action_id` → `actions`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_bulk_operations_type`: `type IN ('update', 'reassign', 'status_change', 'delete', 'restore', 'duplicate_sweep', 'validation_sweep', 'orphan_scan', 'repair', 'action')` (both engines)
 - **Check:** `ck_bulk_operations_status`: `status IN ('previewing', 'awaiting_confirmation', 'queued', 'running', 'completed', 'completed_with_errors', 'failed', 'cancelled')` (both engines)
 - **Check (SQL Server):** `ck_bulk_operations_criteria_json`: `ISJSON(criteria) = 1`
 - **Check (SQL Server):** `ck_bulk_operations_payload_json`: `ISJSON(payload) = 1`
@@ -4401,7 +4415,7 @@ admin-created, never seeded.
 | `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 | `deleted_at` | DATETIME(6) | DATETIME2(6) | NULL | — | soft delete |
 | `deleted_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
-| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `form`, `collection`, `workflow`, `view`, `action`, `notification`, `dashboard`, `application` |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `form`, `collection`, `workflow`, `view`, `action`, `notification`, `dashboard`, `application`, `document_template` (Phase 4, ADR-0046) |
 | `category` | VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(64) COLLATE Latin1_General_100_BIN2 | NULL | — |  |
 | `tags` | JSON | NVARCHAR(MAX) | NULL | — |  |
 | `is_library` | TINYINT(1) | BIT | NOT NULL | 0 | appears in template library |
@@ -5272,6 +5286,26 @@ admin-created, never seeded.
 - **Foreign key:** `fk_operations_alert_rules_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
 - **Check:** `ck_operations_alert_rules_metric`: `metric IN ('failed_submissions', 'failed_jobs', 'failed_emails', 'stuck_emails', 'failed_webhooks', 'failed_integrations', 'queue_size', 'error_rate', 'storage_usage', 'scheduler_lag')` (both engines)
 - **Check (SQL Server):** `ck_operations_alert_rules_recipient_role_ids_json`: `ISJSON(recipient_role_ids) = 1`
+
+**`operations_dismissals`** (supporting — §4.2 failed jobs dismissed with a reason, ADR-0045)
+
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `organization_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `organizations.id` NO ACTION |
+| `kind` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `import`, `export`, `download`, `action`, `automation`, `scheduled_task`, `webhook`, `queue_job` |
+| `reference_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | id of the failed row in its own table (`failed_jobs.id` for `queue_job`, `audit_logs.id` for `webhook`) |
+| `reason` | TEXT | NVARCHAR(MAX) | NOT NULL | — | mandatory |
+| `dismissed_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
+| `dismissed_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — |  |
+
+- **Primary key:** `pk_operations_dismissals` (`id`); SQL Server clustered.
+- **Unique:** `uq_operations_dismissals_kind_reference_id` (`kind`, `reference_id`)
+- **Index:** `ix_operations_dismissals_organization_id_dismissed_at` (`organization_id`, `dismissed_at`)
+- **Index:** `ix_operations_dismissals_dismissed_by` (`dismissed_by`) — supports FK
+- **Foreign key:** `fk_operations_dismissals_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
+- **Foreign key:** `fk_operations_dismissals_dismissed_by`: `dismissed_by` → `users`(`id`) ON DELETE NO ACTION
+- **Check:** `ck_operations_dismissals_kind`: `kind IN ('import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'queue_job')` (both engines)
 
 Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tracking rows).
 
@@ -7499,12 +7533,13 @@ object is configured by administrators.
 | **Views** | `GET/PUT /forms/{uuid}/views` (→ also the relation-path tree); `GET/POST/PATCH/DELETE /r/{form}/saved-views`; `GET/PUT /forms/{uuid}/view-panels`; `GET/PUT /forms/{uuid}/reference-previews`; `GET/PUT /forms/{uuid}/print-layouts`; `GET /r/{form}/{uuid}/panels` (visible panels with data); `GET /r/{form}/preview/{field}/{record}` (lookup card + auto-fill); `GET /r/{form}/{uuid}/print?layout=&format=html|pdf` (audited, throttled) | documents with `base_hash` (ADR-0033, ADR-0034) | `manage_forms` / authenticated for saved views; `view.{uuid}.use`; form `print` |
 | **Justification** | `GET/PUT /forms/{uuid}/justification-rules`; `GET/POST/PATCH /justification-reason-codes` (PATCH carries `base_updated_at`); `GET /r/{form}/{uuid}/justifications`; any write may answer 422 `justification_required` / `justification_invalid` with the prompt (ADR-0035) | `{reason_text, reason_code, note, attachments[]}` | `manage_justification_rules` / `view_justifications` |
 | **Assignment & My Work** | `GET /my-work?kind=&overdue=&form=`; `POST /r/{form}/{uuid}/assign`; `POST /r/{form}/{uuid}/claim|release`; `GET/PUT /forms/{uuid}/assignment-rules`; `GET/POST/PATCH /queues` (PATCH carries `base_updated_at`); `GET/POST /delegations?scope=mine|all`, `DELETE /delegations/{uuid}` (revoke); `POST /approvals/{uuid}/decide`; `GET /subject-options?type=&search=&uuids[]=` (people pickers, ADR-0036) | | `assign_records`, `reassign_records`, `manage_delegation`, `delegate_own_work`, approver membership; `manage_forms` for queues and rules |
-| **Actions** | `GET/PUT /forms/{uuid}/actions`; `POST /r/{form}/actions/{action}/run` (`ids[]`, input, justification) → result or job | | `action.{uuid}.run` |
+| **Actions** | `GET/PUT /forms/{uuid}/actions`; `GET /r/{form}/actions?placement=&record=`; `POST /r/{form}/actions/{action}/prepare` (count, background or not, justification prompt, inputs, `preview` of the first records, `dry_run` offered); `POST /r/{form}/actions/{action}/dry-run` (bulk built-ins: each record tried in a rolled-back transaction → `would_succeed`, `would_fail`, errors; ADR-0044); `POST /r/{form}/actions/{action}/run` (`items[{uuid, row_version}]` or `filters`, `inputs`, justification) → run; `GET /action-runs/{uuid}`; `POST /action-runs/{uuid}/cancel` | built-in inputs: `values` (bulk update), `transition` (bulk status), `assignee{type, uuid}` (bulk reassign) | `action.{uuid}.run` + form ability; reassign also `assign_records`/`reassign_records` |
 | **Import/Export** | `POST /r/{form}/imports` (file, mapping, mode, key, dry_run); `GET /imports/{uuid}`; `GET/POST /forms/{uuid}/import-mappings`; `POST /r/{form}/exports`; `GET /exports/{uuid}` | | `form.import` / `form.export` |
-| **Bulk & data quality** | `POST /r/{form}/bulk/preview`; `POST /r/{form}/bulk`; `GET /bulk-operations/{uuid}`; `GET/PUT /forms/{uuid}/duplicate-rules`; `POST /forms/{uuid}/duplicate-sweep`; `POST /r/{form}/merge`; `GET /recycle-bin`; `POST /recycle-bin/{id}/restore`; `POST /repair/orphans`, `/repair/validation-sweep` | | `bulk_update`, `merge_records`, `access_recycle_bin`, `repair_data` |
-| **Downloads** | `GET/POST/PATCH/DELETE /download-profiles`; `GET /download-profiles/{uuid}/relation-tree?node=`; `POST /download-profiles/{uuid}/preview`; `GET /download-profiles/{uuid}/effective-columns?role=`; `POST /download-profiles/{uuid}/duplicate`; `POST /r/{form}/downloads/{profile}` (params, filters, ids) → stream or job; `GET /download-jobs/{uuid}`; `GET/POST/PATCH/DELETE /download-profiles/{uuid}/schedules` | §14.11 | `manage_download_profiles` / `create_personal_download_profiles` / `download.{uuid}.use` |
+| **Bulk & data quality** | Bulk update, status change, delete and reassign are action built-ins (row above); `GET/PUT /forms/{uuid}/duplicate-rules` (`base_hash`); `POST /duplicate-rules/{uuid}/sweep` → background operation; `GET /data-operations/{uuid}` (sweep groups or repair findings, records the user may not view only counted); `POST /r/{form}/merge/preview` (`records[]`); `POST /r/{form}/merge` (`survivor`, `merged[]`, `choices{field: uuid}`, `versions{uuid: row_version}`, justification); `GET /r/{form}?trashed=1` (recycle bin, `system.purge_after`); `POST /r/{form}/{uuid}/restore`; `GET /forms/{uuid}/repair`; `POST /forms/{uuid}/repair` (`type: orphan_scan|validation_sweep`); `POST /forms/{uuid}/repair/clear-links` (`items[{record, field}]`); saves answer 409 `duplicate` (`duplicates[]`, `hidden`, `blocking`, `rules[]`) and are sent again with `confirm_duplicates` (ADR-0044) | | `manage_forms` (rules, sweeps), `merge_records`, `repair_data`, form `restore` |
+| **Downloads** | `GET/POST /forms/{form}/download-profiles`; `GET/PUT/DELETE /download-profiles/{uuid}` (PUT with `base_hash`); `POST /download-profiles/{uuid}/duplicate`; `GET /forms/{form}/download-tree?path=`; `POST /forms/{form}/download-preview`; `POST /forms/{form}/download-effective` (role); `GET /r/{form}/downloads?place=`; `POST /r/{form}/downloads/{profile}` (format, parameters, filters, uuids or record) → job, produced at once when small; `GET /download-jobs/{uuid}`, `POST …/cancel`, `POST …/retry`; `GET/POST /download-profiles/{uuid}/schedules`, `PUT/DELETE /download-schedules/{uuid}` | §14.11 | `manage_download_profiles` / `create_personal_download_profiles` / `download.{uuid}.use` |
+| **Automations** | `GET /automations` (all forms); `GET/POST /forms/{form}/automations`; `GET/PUT/DELETE /automations/{uuid}` (PUT with `base_hash`); `POST /automations/{uuid}/enable`; `POST /automations/{uuid}/test` (record) → rolled-back run; `POST /automations/{uuid}/run` → run over the matching records; `GET /automations/{uuid}/runs?status=&page=`; `GET /automation-runs/{uuid}`; `POST /automation-runs/{uuid}/confirm`, `…/cancel`, `…/retry`; `GET /scheduled-tasks` | §19.9 | `manage_automations` / `run_automations` (scheduled tasks: also `manage_operations`) |
 | **Notifications** | `GET/POST/PATCH/DELETE /notification-rules`; `GET/POST/PATCH /email-templates`; `POST /email-templates/{uuid}/preview` (record, recipient); `POST /email-templates/{uuid}/test`; `GET /notifications` (bell); `POST /notifications/read` | | `manage_notifications` / authenticated |
-| **Documents** | `GET/POST/PATCH/DELETE /document-templates`; `POST /r/{form}/{uuid}/documents/{template}` | | `manage_document_templates` / form print |
+| **Documents** | `GET/POST/PATCH/DELETE /document-templates`; `POST /r/{form}/{uuid}/documents/{template}`; `GET /forms/{form}/field-tree` (fields, linked forms by relation path and system values, each node with its storage and recipient kind — also used by notification recipients, ADR-0046/0047); `GET /forms/{form}/linked-from` (forms with a reference field pointing at this one, for linked-records tables); a template is saved as a blueprint with `POST /blueprints` (`source_type: document_template`) and made from one with `POST /blueprints/{uuid}/instantiate` (form) | | `manage_document_templates` / form print |
 | **Automations & scheduler** | `GET/POST/PATCH/DELETE /automations`; `POST /automations/{uuid}/enable|disable|run|test`; `GET /automations/{uuid}/runs`; `POST /automation-runs/{uuid}/confirm|cancel`; `GET /scheduled-tasks` | | `manage_automations` / `run_automations` |
 | **Operations** | `GET /ops/health`; `GET /ops/emails?status=`; `POST /ops/emails/resend|cancel` (bulk); `PATCH /ops/emails/{uuid}/recipients`; `GET /ops/emails/{uuid}/html`; `GET /ops/submissions`; `POST /ops/submissions/retry` (bulk); `PATCH /ops/submissions/{uuid}/payload`; `POST /ops/submissions/{uuid}/discard`; `GET /ops/jobs`; `POST /ops/jobs/{id}/retry|discard`; `GET/PUT /ops/alert-rules` | | `manage_operations` |
 | **Reference data** | `/business-calendars` (+ holidays), `/number-sequences` (+ `POST …/adjust`), `/currencies`, `/exchange-rates`, `/units` — CRUD | | `manage_calendars`, `manage_numbering`, `manage_currencies`, `manage_reference_data` |

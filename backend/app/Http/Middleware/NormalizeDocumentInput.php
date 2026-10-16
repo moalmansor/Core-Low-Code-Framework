@@ -22,7 +22,10 @@ final class NormalizeDocumentInput
 {
     public static function applies(Request $request): bool
     {
-        return $request->is('api/v1/forms/*/draft', 'api/v1/forms/*/draft/validate', 'api/v1/expressions/*', 'api/v1/field-templates', 'api/v1/field-templates/*');
+        // Every per-form configuration document (views, rules, workflow, actions…) and the
+        // template designs carry expressions too, in their conditions and values.
+        return $request->is('api/v1/forms/*/*', 'api/v1/forms/*/draft/validate', 'api/v1/expressions/*', 'api/v1/field-templates', 'api/v1/field-templates/*',
+            'api/v1/notifications/templates', 'api/v1/notifications/templates/*', 'api/v1/documents/templates', 'api/v1/documents/templates/*');
     }
 
     public function handle(Request $request, Closure $next): Response

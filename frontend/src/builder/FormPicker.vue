@@ -37,7 +37,7 @@ watch(
     v-model="model"
     :options="options"
     option-value="uuid"
-    :option-label="(o: FormSummary) => `${o.name} (${o.key})`"
+    :option-label="(o: FormSummary) => o.name"
     filter
     show-clear
     :placeholder="t('builder.pick_form')"

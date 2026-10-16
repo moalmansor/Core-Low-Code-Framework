@@ -9,7 +9,7 @@ import { useSession } from '@/stores/session'
  * locale, never as fixed Arabic and English columns). Each input takes the
  * direction of its own language.
  */
-const props = defineProps<{ label: string; field: string; errors?: Record<string, string>; multiline?: boolean; idPrefix: string }>()
+const props = defineProps<{ label: string; field: string; errors?: Record<string, string>; multiline?: boolean; idPrefix: string; optional?: boolean }>()
 const model = defineModel<Record<string, string>>({ required: true })
 const session = useSession()
 const { t } = useI18n()
@@ -19,7 +19,7 @@ const err = (code: string) => props.errors?.[`${props.field}.${code}`] ?? (code 
 <template>
   <div v-for="l in session.boot?.locales ?? []" :key="l.code" class="field">
     <label :for="`${idPrefix}-${l.code}`"
-      >{{ label }} ({{ l.native_name }})<span v-if="l.code === session.boot?.default_locale" class="text-danger ms-1" aria-hidden="true">*</span
+      >{{ label }} ({{ l.native_name }})<span v-if="l.code === session.boot?.default_locale && !optional" class="text-danger ms-1" aria-hidden="true">*</span
       ><span v-else class="ms-1 font-normal text-muted-color">{{ t('common.optional_locale') }}</span></label
     >
     <Textarea v-if="multiline" :id="`${idPrefix}-${l.code}`" v-model="model[l.code]" :dir="l.direction" rows="2" auto-resize :data-testid="`${idPrefix}-${l.code}`" />

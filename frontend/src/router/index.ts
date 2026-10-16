@@ -11,6 +11,8 @@ declare module 'vue-router' {
     /** Any one of these permissions grants access (checked again server-side). */
     anyOf?: string[]
     title?: string
+    /** The download profile screens work on the user's own personal profiles. */
+    personalDownloads?: boolean
   }
 }
 
@@ -29,6 +31,12 @@ const routes: RouteRecordRaw[] = [
         name: 'admin.health',
         component: () => import('@/views/admin/SystemHealth.vue'),
         meta: { anyOf: ['system.view_errors', 'system.manage_operations'], title: 'admin.area.system_health' },
+      },
+      {
+        path: 'admin/operations/:tab?',
+        name: 'admin.operations',
+        component: () => import('@/views/operations/OperationsCenter.vue'),
+        meta: { anyOf: ['system.manage_operations'], title: 'admin.area.operations_center' },
       },
       { path: 'admin/users', name: 'admin.users', component: () => import('@/views/admin/UsersView.vue'), meta: { anyOf: ['system.manage_users'], title: 'admin.area.users' } },
       { path: 'admin/departments', name: 'admin.departments', component: () => import('@/views/admin/DepartmentsView.vue'), meta: { anyOf: ['system.manage_users'], title: 'admin.area.departments' } },
@@ -56,6 +64,30 @@ const routes: RouteRecordRaw[] = [
         name: 'admin.work',
         component: () => import('@/views/admin/WorkAdminView.vue'),
         meta: { anyOf: ['system.manage_forms', 'system.manage_delegation'], title: 'admin.area.assignment_queues' },
+      },
+      {
+        path: 'admin/notifications',
+        name: 'admin.notifications',
+        component: () => import('@/views/admin/notifications/TemplatesView.vue'),
+        meta: { anyOf: ['system.manage_notifications'], title: 'admin.area.notifications' },
+      },
+      {
+        path: 'admin/notifications/:template',
+        name: 'admin.notifications.template',
+        component: () => import('@/views/admin/notifications/TemplateEditor.vue'),
+        meta: { anyOf: ['system.manage_notifications'], title: 'admin.area.notifications' },
+      },
+      {
+        path: 'admin/documents',
+        name: 'admin.documents',
+        component: () => import('@/views/admin/documents/DocumentsView.vue'),
+        meta: { anyOf: ['system.manage_document_templates'], title: 'admin.area.documents' },
+      },
+      {
+        path: 'admin/documents/:template',
+        name: 'admin.documents.template',
+        component: () => import('@/views/admin/documents/DocumentEditor.vue'),
+        meta: { anyOf: ['system.manage_document_templates'], title: 'admin.area.documents' },
       },
       { path: 'admin/audit', name: 'admin.audit', component: () => import('@/views/admin/AuditLogView.vue'), meta: { anyOf: ['system.view_audit_log'], title: 'admin.area.audit_log' } },
       { path: 'admin/errors', name: 'admin.errors', component: () => import('@/views/admin/ErrorsView.vue'), meta: { anyOf: ['system.view_errors'], title: 'admin.area.error_monitoring' } },

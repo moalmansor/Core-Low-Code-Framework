@@ -40,3 +40,16 @@ One short record per significant decision (specification §8.1). New records are
 | [0034](0034-table-views-and-view-blueprints.md) | Table views as relation paths; view blueprints apply directly |
 | [0035](0035-justification-scope-in-phase-3.md) | Justification scopes delivered in Phase 3, and how rules combine |
 | [0036](0036-assignment-delegation-and-approvals.md) | Assignment, queues, delegation and approvals |
+| [0037](0037-record-pages-and-labels.md) | Record page layout, labels and sidebar entries |
+| [0038](0038-background-import-and-export.md) | Imports and large exports run as background jobs |
+| [0039](0039-notification-rendering-and-delivery.md) | How notifications are rendered for several recipients, and delivered |
+| [0040](0040-document-templates.md) | Document templates — Word files, designed templates, and conversion |
+| [0041](0041-actions.md) | Actions — built-ins, custom steps, runs and permissions |
+| [0042](0042-custom-downloads.md) | Custom downloads — paths, one-to-many handling, security and scheduling |
+| [0043](0043-automations.md) | Automations — runs, run-as user, loop protection, waits and test runs |
+| [0044](0044-data-quality.md) | Data quality — duplicate rules, merge, bulk tools, repair and recycle-bin retention |
+| [0045](0045-operations-center.md) | Operations Center — failures, retries, alerts and queue workers |
+| [0046](0046-document-template-builder-and-blueprints.md) | Document template builder — values, formats, blocks and blueprints |
+| [0047](0047-notification-recipients-at-send-time.md) | Notification recipients from the record, resolved at send time |
+| [0048](0048-design-checklist-enforced-by-tests.md) | The screen checklist is enforced by tests |
+| [0049](0049-fixed-transition-bulk-status.md) | Bulk status change with a fixed transition |

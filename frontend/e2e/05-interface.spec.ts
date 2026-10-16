@@ -73,7 +73,10 @@ test('a brand colour set in Appearance & Branding reaches every screen, and an u
   await page.getByTestId('brand-primary-use').click()
   await expect(page.getByTestId('brand-primary-ok')).toBeVisible()
   const chosen = (await page.getByTestId('brand-primary').inputValue()).toLowerCase()
+  // Wait for the save itself: the field already shows the colour, so it cannot tell.
+  const saved = page.waitForResponse((r) => r.url().endsWith('/settings/branding') && r.request().method() === 'PATCH')
   await page.getByTestId('settings-save-branding').click()
+  expect((await saved).ok()).toBe(true)
   await expect(page.getByTestId('brand-primary')).toHaveValue(chosen)
 
   // After a reload, every screen uses it: the root token and a primary button.
@@ -86,7 +89,9 @@ test('a brand colour set in Appearance & Branding reaches every screen, and an u
   // Back to the theme default for the other tests.
   await page.goto('/admin/settings/branding')
   await page.getByTestId('brand-primary').fill('')
+  const reset = page.waitForResponse((r) => r.url().endsWith('/settings/branding') && r.request().method() === 'PATCH')
   await page.getByTestId('settings-save-branding').click()
+  expect((await reset).ok()).toBe(true)
   await expect(page.getByTestId('brand-primary')).toHaveValue('')
   expect(problems).toEqual([])
 })

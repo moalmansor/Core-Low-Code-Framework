@@ -60,7 +60,7 @@ final class PrintRenderer
                 default => '',
             };
         }
-        $title = e($rt->form->translate('name') ?? $rt->form->key).($presented['title'] !== null ? ' — '.e((string) $presented['title']) : '');
+        $title = e($rt->form->translate('name') ?? Translator::humanize((string) $rt->form->key)).($presented['title'] !== null ? ' — '.e((string) $presented['title']) : '');
         $logo = ($layout['showLogo'] ?? true) ? $this->logo() : null;
         $header = $layout === null ? null : $this->pick((array) ($layout['i18n']['header'] ?? []));
         $footer = $layout === null ? null : $this->pick((array) ($layout['i18n']['footer'] ?? []));
@@ -99,6 +99,12 @@ final class PrintRenderer
         $mpdf->SetDirectionality(in_array(app()->getLocale(), ['ar', 'fa', 'he', 'ur'], true) ? 'rtl' : 'ltr');
         // Remote resources are never fetched while rendering (all images are embedded).
         $mpdf->showImageErrors = false;
+        if (($layout['header_html'] ?? null) !== null) {
+            $mpdf->SetHTMLHeader((string) $layout['header_html']);
+        }
+        if (($layout['footer_html'] ?? null) !== null) {
+            $mpdf->SetHTMLFooter((string) $layout['footer_html']);
+        }
         $mpdf->WriteHTML($html);
 
         return $mpdf->Output('', Destination::STRING_RETURN);
@@ -287,6 +293,14 @@ final class PrintRenderer
 
     private function logo(): ?string
     {
+        $logo = $this->logoData();
+
+        return $logo === null ? null : 'data:'.$logo['mime'].';base64,'.base64_encode($logo['bytes']);
+    }
+
+    /** @return array{mime: string, bytes: string}|null the organization's logo (Appearance & Branding) */
+    public function logoData(): ?array
+    {
         $uuid = $this->settings->get('branding', 'logo_file');
         $file = is_string($uuid) ? StoredFile::query()->where('uuid', $uuid)->first() : null;
         if ($file === null || ! in_array($file->mime_type, ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], true)) {
@@ -294,7 +308,7 @@ final class PrintRenderer
         }
         $data = Storage::disk($file->disk)->get($file->path);
 
-        return $data === null ? null : 'data:'.$file->mime_type.';base64,'.base64_encode($data);
+        return $data === null ? null : ['mime' => (string) $file->mime_type, 'bytes' => $data];
     }
 
     private function date(?string $iso): string

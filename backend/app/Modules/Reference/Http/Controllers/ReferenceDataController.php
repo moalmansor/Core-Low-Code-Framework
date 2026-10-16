@@ -173,7 +173,8 @@ final class ReferenceDataController extends Controller
 
     public function currencies(): JsonResponse
     {
-        abort_unless(Gate::any(['system.manage_currencies', 'system.manage_forms']), 403);
+        // Template designers pick a currency for a placeholder's format.
+        abort_unless(Gate::any(['system.manage_currencies', 'system.manage_forms', 'system.manage_document_templates', 'system.manage_notifications']), 403);
 
         return response()->json(['data' => Currency::query()->orderByDesc('is_base')->orderBy('code')->get()->map(fn (Currency $c) => $this->currency($c))->values()]);
     }

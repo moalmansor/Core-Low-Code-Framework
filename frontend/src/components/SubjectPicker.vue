@@ -34,7 +34,7 @@ async function resolve(): Promise<void> {
   }
   if (picked.value?.uuid === m.uuid) return
   const rows = (await get<{ data: Option[] }>('/subject-options', { type: m.type, uuids: [m.uuid] })).data
-  picked.value = rows[0] ?? { uuid: m.uuid, name: m.uuid }
+  picked.value = rows[0] ?? { uuid: m.uuid, name: t('subjects.not_found') }
 }
 watch(
   model,

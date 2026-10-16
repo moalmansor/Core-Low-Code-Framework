@@ -14,6 +14,7 @@ use App\Modules\Assignment\Claims;
 use App\Modules\Assignment\DelegationResolver;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\Outbox\OutboxWriter;
+use App\Modules\DataQuality\DuplicateGuard;
 use App\Modules\Identity\Models\User;
 use App\Modules\Justification\JustificationGate;
 use App\Modules\Records\Models\StoredFile;
@@ -58,6 +59,7 @@ final class RecordPipeline
         private readonly Claims $claims,
         private readonly DelegationResolver $delegations,
         private readonly SlaTimers $sla,
+        private readonly RecordObservers $observers,
     ) {}
 
     /**
@@ -91,6 +93,7 @@ final class RecordPipeline
             if ($errors !== []) {
                 throw new RecordException(422, 'invalid', __('records.invalid'), ['errors' => $errors]);
             }
+            app(DuplicateGuard::class)->check($rt, $user, $values, null, 'create', $source);
             // A crash between commit and journal update: the record exists under the journal's uuid.
             if (($existing = $this->store->find($rt, $entry['uuid'], true)) !== null) {
                 $this->journal->processed($entry['id'], $existing['id']);
@@ -117,7 +120,8 @@ final class RecordPipeline
                 $this->attachFiles($rt, $id, $values, $user);
                 $this->audit->record('record.created', 'data', $this->diff($rt, [], $values), 'record', $id, ['form' => $rt->form->key, 'row_version' => 1], $user->id, null, $rt->form->id, $id, $onBehalf);
                 $this->workflow->enter($rt, $id, $values, $user->id, $onBehalf, $user->department_id === null ? null : (int) $user->department_id);
-                $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $entry['uuid'], 'operation' => 'create']);
+                $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $entry['uuid'], 'operation' => 'create', 'actor' => $user->id]
+                    + $this->observers->payload($rt, null, $values, $user));
 
                 return $id;
             });
@@ -137,7 +141,7 @@ final class RecordPipeline
      * @param  array<string, mixed>  $input  only the submitted keys change
      * @return array{id: int, uuid: string, changed: list<string>}
      */
-    public function update(FormRuntime $rt, User $user, string $uuid, int $expectedVersion, array $input, string $key, string $source = 'ui', ?array $justification = null): array
+    public function update(FormRuntime $rt, User $user, string $uuid, int $expectedVersion, array $input, string $key, string $source = 'ui', ?array $justification = null, ?int $justifiedBy = null): array
     {
         $onBehalf = $this->guardForm($rt, $user, 'edit');
         $current = $this->store->find($rt, $uuid) ?? throw new RecordException(404, 'not_found', __('records.not_found'));
@@ -175,14 +179,18 @@ final class RecordPipeline
                     $changed[] = (string) $k;
                 }
             }
-            $validated = $changed === [] ? null : $this->justifications->enforce($rt, $user, 'edit', [
+            if ($changed !== []) {
+                app(DuplicateGuard::class)->check($rt, $user, $values, $current['id'], 'update', $source);
+            }
+            // An action or bulk edit asks once: the caller passes the justification it already saved.
+            $validated = $changed === [] || $justifiedBy !== null ? null : $this->justifications->enforce($rt, $user, 'edit', [
                 'fields' => $changed, 'status' => $statusId, 'values' => $values, 'old' => $current['values'],
             ], $justification);
             if ($changed !== []) {
-                DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $input, $levels, $validated, $onBehalf): void {
+                DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $input, $levels, $validated, $onBehalf, $justifiedBy): void {
                     $values = $this->assignNumbers($rt, $values, $current['values']);
                     $diff = $this->diff($rt, $current['values'], $values);
-                    $justificationId = $validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'edit', $validated, $this->justified($diff), 1, $onBehalf);
+                    $justificationId = $justifiedBy ?? ($validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'edit', $validated, $this->justified($diff), 1, $onBehalf));
                     $ok = $this->store->update($rt, $current['id'], $expectedVersion, $values, $changed, [
                         'updated_by' => $user->id, 'form_version_id' => $rt->versionId, 'search_text' => $this->searchText($rt, $values),
                     ], $rt->form->organization_id, $user->id);
@@ -191,7 +199,8 @@ final class RecordPipeline
                     }
                     $this->attachFiles($rt, $current['id'], $values, $user);
                     $this->audit->record('record.updated', 'data', $diff, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $expectedVersion + 1], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
-                    $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $current['uuid'], 'operation' => 'update', 'changed' => $changed]);
+                    $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $current['uuid'], 'operation' => 'update', 'changed' => $changed, 'actor' => $user->id]
+                        + $this->observers->payload($rt, $current['values'], $values, $user));
                 });
             }
             $this->journal->processed($entry['id'], $current['id']);
@@ -218,7 +227,7 @@ final class RecordPipeline
      * @param  array{values?: array<string, mixed>, comment?: string|null, attachments?: list<string>, justification?: array<string, mixed>|null}  $input
      * @return array{state: string, approval: string|null, row_version: int, status: array<string, mixed>|null}
      */
-    public function transition(FormRuntime $rt, User $user, string $uuid, string $transitionUuid, int $expectedVersion, array $input, string $key, string $source = 'ui'): array
+    public function transition(FormRuntime $rt, User $user, string $uuid, string $transitionUuid, int $expectedVersion, array $input, string $key, string $source = 'ui', ?int $justifiedBy = null): array
     {
         $onBehalf = $this->guardForm($rt, $user, 'view');
         $current = $this->store->find($rt, $uuid) ?? throw new RecordException(404, 'not_found', __('records.not_found'));
@@ -286,12 +295,12 @@ final class RecordPipeline
                     $changed[] = (string) $k;
                 }
             }
-            $validated = $this->justifications->enforce($rt, $user, 'transition', [
+            $validated = $justifiedBy !== null ? null : $this->justifications->enforce($rt, $user, 'transition', [
                 'fields' => $changed, 'status' => $statusId, 'transition' => $t['id'], 'values' => $values, 'old' => $current['values'],
             ], $input['justification'] ?? null);
-            $result = DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $levels, $t, $validated, $onBehalf, $comment, $attachments, $source): array {
+            $result = DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $levels, $t, $validated, $onBehalf, $comment, $attachments, $source, $justifiedBy): array {
                 $diff = $this->diff($rt, $current['values'], $values);
-                $justificationId = $validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'transition', $validated, $this->justified($diff), 1, $onBehalf);
+                $justificationId = $justifiedBy ?? ($validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'transition', $validated, $this->justified($diff), 1, $onBehalf));
                 $version = $expectedVersion;
                 if ($changed !== []) {
                     $values = $this->assignNumbers($rt, $values, $current['values']);
@@ -313,7 +322,7 @@ final class RecordPipeline
                 }
                 $this->workflow->move($rt, $current['id'], $t, [
                     'actor' => $user->id, 'onBehalfOf' => $onBehalf, 'justification' => $justificationId, 'comment' => $comment,
-                    'attachments' => $attachments, 'source' => $source === 'api' ? 'api' : 'user', 'expectedVersion' => $version,
+                    'attachments' => $attachments, 'source' => in_array($source, ['api', 'automation'], true) ? $source : 'user', 'expectedVersion' => $version,
                 ]);
 
                 return ['state' => 'moved', 'approval' => null, 'row_version' => $version + 1];
@@ -393,13 +402,14 @@ final class RecordPipeline
                     $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'edit');
                     throw $this->conflict($rt, $this->store->find($rt, $current['uuid'], true) ?? $current, $expectedVersion, [], $levels['fields']);
                 }
+                app(RecycleBin::class)->entered($rt, $current['id'], $user->id, $justificationId);
                 // Open work on a deleted record ends: approvals, assignments, claims and SLA timers.
                 app(ApprovalService::class)->cancelFor($rt, $current['id']);
                 app(AssignmentService::class)->close($rt->form->id, $current['id'], 'cancelled', true);
                 $this->claims->releaseAll($rt->form->id, $current['id'], 'admin');
                 $this->sla->complete($rt->form->id, $current['id'], SlaTimers::nowUtc(), 'cancelled');
                 $this->audit->record('record.deleted', 'data', null, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $expectedVersion + 1], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
-                $this->outbox->publish('record.deleted', ['form' => $rt->form->uuid, 'record' => $current['uuid']]);
+                $this->outbox->publish('record.deleted', ['form' => $rt->form->uuid, 'record' => $current['uuid'], 'actor' => $user->id]);
             });
             $this->journal->processed($entry['id'], $current['id']);
         } catch (RecordException $e) {
@@ -428,6 +438,7 @@ final class RecordPipeline
             DB::transaction(function () use ($rt, $user, $current, $validated, $onBehalf, $justifiedBy): void {
                 $justificationId = $justifiedBy ?? ($validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'restore', $validated, [], 1, $onBehalf));
                 $this->store->restore($rt, $current['id'], $user->id);
+                app(RecycleBin::class)->restored($rt, $current['id'], $user->id);
                 $this->audit->record('record.restored', 'data', null, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $current['row_version'] + 1], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
                 $this->outbox->publish('record.restored', ['form' => $rt->form->uuid, 'record' => $current['uuid']]);
             });

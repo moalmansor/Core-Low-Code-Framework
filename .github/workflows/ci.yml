@@ -81,6 +81,11 @@ jobs:
             sudo ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive apt-get install -y msodbcsql18 unixodbc-dev
           fi
           odbcinst -q -d || true
+      - name: LibreOffice Writer (document templates convert Word files to PDF)
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-writer-nogui fonts-dejavu-core fonts-noto-core
+          soffice --version
       - uses: shivammathur/setup-php@v2
         with: { php-version: '${{ env.PHP_VERSION }}', extensions: '${{ env.PHP_EXTENSIONS }}', coverage: none, tools: composer:v2 }
       - run: composer install --no-interaction --no-progress --prefer-dist
@@ -180,6 +185,11 @@ jobs:
             sudo ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive apt-get install -y msodbcsql18 unixodbc-dev
           fi
           odbcinst -q -d || true
+      - name: LibreOffice Writer (document templates convert Word files to PDF)
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-writer-nogui fonts-dejavu-core fonts-noto-core
+          soffice --version
       # PHP's built-in server runs with OPcache; keep the JIT off as the production image does
       # (setup-php enables it, and PHP 8.3.35's JIT segfaults on the publish analysis).
       - uses: shivammathur/setup-php@v2
@@ -339,7 +349,13 @@ jobs:
       - name: Container logs (on failure)
         if: failure()
         working-directory: ${{ env.STACK }}
-        run: docker compose --profile sqlsrv logs --no-color --tail 200
+        run: |
+          # Error alert mails cannot be sent in CI (no SMTP); leave them out so the jobs that matter stay visible.
+          docker compose --profile sqlsrv logs --no-color | grep -v 'ErrorAlertMail' | tail -n 400
+          echo '--- recent application errors'
+          docker compose exec -T app php artisan tinker --no-ansi --execute='foreach (DB::table("error_logs")->orderByDesc("id")->limit(25)->get(["occurred_at", "exception_class", "message", "file", "line", "job"]) as $e) { echo $e->occurred_at, " ", $e->exception_class, " ", substr((string) $e->message, 0, 400), " @ ", $e->file, ":", $e->line, " ", $e->job, PHP_EOL; }' || true
+          echo '--- background operations that did not complete'
+          docker compose exec -T app php artisan tinker --no-ansi --execute='foreach (DB::table("bulk_operations")->whereNotIn("status", ["completed"])->orderByDesc("id")->limit(10)->get(["id", "type", "status", "error", "created_at", "started_at"]) as $o) { echo json_encode($o), PHP_EOL; }' || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
