@@ -59,7 +59,6 @@ final class ApiToken extends BaseModel
         $abilities = $this->abilities;
         $form = strtolower($formUuid);
 
-        return in_array("form:{$form}:write", $abilities, true) || in_array('form:*:write', $abilities, true)
-            || (! $write && (in_array("form:{$form}:read", $abilities, true) || in_array('form:*:read', $abilities, true)));
+        return in_array("form:{$form}:write", $abilities, true) || (! $write && in_array("form:{$form}:read", $abilities, true));
     }
 }

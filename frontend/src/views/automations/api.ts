@@ -4,7 +4,8 @@ import type { ActionStepDoc } from '@/views/admin/formconfig/api'
 
 /** Automations (specification §4.31, ADR-0043). */
 export type I18nMap = Record<string, string>
-export type TriggerType = 'record_created' | 'record_updated' | 'record_deleted' | 'field_changed' | 'status_changed' | 'condition_true' | 'schedule' | 'date_reached' | 'watched_folder' | 'manual'
+export type TriggerType =
+  'record_created' | 'record_updated' | 'record_deleted' | 'field_changed' | 'status_changed' | 'condition_true' | 'schedule' | 'date_reached' | 'watched_folder' | 'inbound_webhook' | 'manual'
 export type Frequency = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'cron'
 export type RunStatus = 'queued' | 'awaiting_confirmation' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'partially_failed' | 'cancelled' | 'skipped_loop'
 
@@ -34,6 +35,7 @@ export interface TriggerDoc {
   folder?: string | null
   fileField?: string | null
   nameField?: string | null
+  inboundEndpoint?: string | null
 }
 export interface AutomationDoc {
   uuid?: string

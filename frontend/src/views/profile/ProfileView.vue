@@ -20,6 +20,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { ApiError, get, send } from '@/api/http'
 import PasswordFields from '@/components/PasswordFields.vue'
+import ApiTokensPanel from './ApiTokensPanel.vue'
 import { useSession, type Me } from '@/stores/session'
 
 interface SessionRow {
@@ -174,6 +175,7 @@ async function revokeOthers(): Promise<void> {
       <Tab v-if="isLocal" value="password">{{ t('profile.password') }}</Tab>
       <Tab value="security">{{ t('profile.two_factor') }}</Tab>
       <Tab value="sessions">{{ t('profile.sessions') }}</Tab>
+      <Tab value="tokens" data-testid="profile-tab-tokens">{{ t('intg.my_tokens') }}</Tab>
     </TabList>
     <TabPanels>
       <TabPanel value="details">
@@ -310,6 +312,9 @@ async function revokeOthers(): Promise<void> {
             </template>
           </Column>
         </DataTable>
+      </TabPanel>
+      <TabPanel value="tokens">
+        <ApiTokensPanel v-if="tab === 'tokens'" />
       </TabPanel>
     </TabPanels>
   </Tabs>

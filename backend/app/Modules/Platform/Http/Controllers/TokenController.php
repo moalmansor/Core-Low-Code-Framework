@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Platform\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Identity\Models\User;
 use App\Modules\Platform\ApiTokens;
 use App\Modules\Platform\Models\ApiToken;
@@ -28,7 +29,7 @@ final class TokenController extends Controller
     {
         $rows = ApiToken::query()->where('tokenable_type', 'user')->where('tokenable_id', $this->user()->id)->orderByDesc('id')->get();
 
-        return response()->json(['data' => $rows->map(fn (ApiToken $t) => $this->present($t))->all(), 'meta' => ['grantable' => $this->tokens->grantable($this->user())]]);
+        return response()->json(['data' => $rows->map(fn (ApiToken $t) => $this->present($t))->all(), 'meta' => ['grantable' => $this->tokens->grantable($this->user()), 'max_days' => (int) app(SettingsService::class)->get('api', 'token_max_days'), 'enabled' => (bool) app(SettingsService::class)->get('api', 'enabled')]]);
     }
 
     public function store(Request $request): JsonResponse
@@ -36,7 +37,7 @@ final class TokenController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'abilities' => ['required', 'array', 'min:1', 'max:200'],
-            'abilities.*' => ['string', 'regex:/^form:([0-9a-fA-F-]{36}|\*):(read|write)$/'],
+            'abilities.*' => ['string', 'regex:/^form:[0-9a-fA-F-]{36}:(read|write)$/'],
             'expires_in_days' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'ip_allowlist' => ['sometimes', 'nullable', 'array', 'max:20'],
             'ip_allowlist.*' => ['string', 'max:64'],

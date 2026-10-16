@@ -36,7 +36,8 @@ final class InboundEndpointController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        Gate::authorize('system.manage_integrations');
+        // Automation builders pick an endpoint of their form for the inbound webhook trigger.
+        abort_unless(Gate::any(['system.manage_integrations', 'system.manage_automations']), 403);
         $form = $request->query('form');
         $q = InboundEndpoint::query()->orderBy('slug');
         if (is_string($form) && Str::isUuid($form)) {
@@ -49,6 +50,33 @@ final class InboundEndpointController extends Controller
         return response()->json(['data' => $rows->map(fn (InboundEndpoint $e) => $this->present($e) + [
             'last_day' => collect($stats[$e->id] ?? [])->mapWithKeys(static fn ($r) => [$r->status => (int) $r->n])->all() ?: (object) [],
         ])->all()]);
+    }
+
+    /** The fields of a published form a call can set, and which of them can find a record. */
+    public function fields(Request $request): JsonResponse
+    {
+        Gate::authorize('system.manage_integrations');
+        $data = $request->validate(['form' => ['required', 'uuid']]);
+        $form = Form::query()->where('uuid', strtolower($data['form']))->first();
+        $rt = $form === null ? null : $this->runtimes->forForm($form);
+        if ($rt === null) {
+            throw ValidationException::withMessages(['form' => __('platform.inbound_form_unpublished')]);
+        }
+        $tr = app(Translator::class);
+        $out = [];
+        foreach ($rt->mainFields() as $f) {
+            $type = $rt->type($f);
+            if ($type === null || ! $rt->isStored($f)) {
+                continue;
+            }
+            $out[] = ['uuid' => $f['uuid'], 'key' => $f['key'], 'label' => $tr->labelOf($f['i18n']['label'] ?? null, (string) $f['key']), 'type' => $f['type'],
+                'matchable' => in_array($type->valueType, ['text', 'number'], true) && ! $type->multiple && $rt->column($f['uuid']) !== null, 'rows' => false];
+        }
+        foreach ($rt->repeaterKeys as $key => $groupUuid) {
+            $out[] = ['uuid' => $groupUuid, 'key' => $key, 'label' => $tr->labelOf($rt->groups[$groupUuid]['i18n']['title'] ?? null, (string) $key), 'type' => 'repeater', 'matchable' => false, 'rows' => true];
+        }
+
+        return response()->json(['data' => $out]);
     }
 
     public function show(string $endpoint): JsonResponse

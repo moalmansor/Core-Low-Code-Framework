@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { signIn, watchConsole } from './support.ts'
 
 /**
- * Every screen added in Phase 4, opened in English and Arabic on a desktop
+ * Every screen added in Phases 4 and 5, opened in English and Arabic on a desktop
  * window and a phone: the page reads in the language's direction, nothing
  * makes the page scroll sideways, and the screen has its title. This is the
  * half of the design checklist (docs/design-system.md §5.7) that needs the
@@ -44,7 +44,7 @@ const SIZES = [
   { name: 'phone', width: 390, height: 844 },
 ]
 
-test('every Phase 4 screen reads in both directions without sideways scrolling, on a desktop and a phone', async ({ page }) => {
+test('every Phase 4 and Phase 5 screen reads in both directions without sideways scrolling, on a desktop and a phone', async ({ page }) => {
   test.setTimeout(1_200_000)
   const problems = watchConsole(page)
   const forms = (await api(page, 'GET', '/forms?search=visit_requests')).data as { uuid: string; key: string }[]
@@ -69,10 +69,16 @@ test('every Phase 4 screen reads in both directions without sideways scrolling, 
     `/admin/forms/${form}/configure/automations`,
     `/admin/forms/${form}/configure/data_quality`,
     `/app/${form}/downloads`,
+    '/admin/integrations',
+    '/admin/integrations/inbound',
+    '/admin/integrations/tokens',
+    '/admin/integrations/webhooks/new',
+    '/admin/integrations/inbound/new',
+    '/profile?tab=tokens',
   ]
 
   await page.goto('/admin')
-  // Opening 76 pages back to back is far above a person's pace: the sweep lifts the API rate limit (a System
+  // Opening 100 pages back to back is far above a person's pace: the sweep lifts the API rate limit (a System
   // Setting) while it runs and puts it back after, so it never measures the limiter instead of the screens.
   const limit = ((await api(page, 'GET', '/settings/security')).data as { api_rate_limit_per_minute: number }).api_rate_limit_per_minute
   await api(page, 'PATCH', '/settings/security', { api_rate_limit_per_minute: 10_000 })

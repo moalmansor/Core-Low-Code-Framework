@@ -66,6 +66,7 @@
   "admin.area.departments": "الإدارات",
   "admin.area.error_monitoring": "مراقبة الأخطاء",
   "admin.area.forms": "النماذج والمجموعات",
+  "admin.area.integrations": "التكاملات",
   "admin.area.reference_data": "البيانات المرجعية",
   "admin.area.roles_permissions": "الأدوار والصلاحيات",
   "admin.area.schema": "مخطط قاعدة البيانات",

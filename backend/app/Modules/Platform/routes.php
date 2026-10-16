@@ -29,6 +29,7 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
 
     Route::get('/inbound-endpoints', [InboundEndpointController::class, 'index']);
     Route::post('/inbound-endpoints', [InboundEndpointController::class, 'store']);
+    Route::get('/inbound-endpoints/fields', [InboundEndpointController::class, 'fields']);
     Route::get('/inbound-endpoints/{endpoint}', [InboundEndpointController::class, 'show'])->whereUuid('endpoint');
     Route::patch('/inbound-endpoints/{endpoint}', [InboundEndpointController::class, 'update'])->whereUuid('endpoint');
     Route::delete('/inbound-endpoints/{endpoint}', [InboundEndpointController::class, 'destroy'])->whereUuid('endpoint');

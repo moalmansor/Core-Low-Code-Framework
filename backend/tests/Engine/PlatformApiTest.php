@@ -221,6 +221,8 @@ it('creates and updates records from signed incoming webhooks, and logs every ca
         'signature_header' => 'X-Shop-Signature', 'signature_algorithm' => 'hmac_sha256', 'run_as_user' => $this->admin->uuid, 'is_active' => true])->assertCreated();
     $secret = $made->json('data.secret');
     expect($made->json('data.url'))->toEndWith('/api/inbound/shop-orders');
+    $fields = collect($this->getJson("/api/v1/inbound-endpoints/fields?form={$o['form']}")->assertOk()->json('data'))->keyBy('key');
+    expect($fields->keys()->all())->toBe(['reference', 'amount', 'note'])->and($fields['reference']['matchable'])->toBeTrue();
     // The slug is unique across the installation.
     $this->postJson('/api/v1/inbound-endpoints', ['form' => $o['form'], 'kind' => 'api', 'slug' => 'shop-orders', 'operation' => 'create', 'mapping' => ['reference' => 'r'], 'is_active' => true])
         ->assertJsonValidationErrors('slug');

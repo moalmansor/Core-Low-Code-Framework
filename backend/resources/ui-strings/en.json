@@ -66,6 +66,7 @@
   "admin.area.departments": "Departments",
   "admin.area.error_monitoring": "Error monitoring",
   "admin.area.forms": "Forms & collections",
+  "admin.area.integrations": "Integrations",
   "admin.area.reference_data": "Reference data",
   "admin.area.roles_permissions": "Roles & permissions",
   "admin.area.schema": "Database schema",
