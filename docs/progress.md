@@ -11,8 +11,8 @@ Project memory file (specification §8.1). Updated at the end of every run.
 | 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | **Complete. Merged.** (plus the interface pull request) | [moalmansor/Core-Low-Code-Framework#11](https://github.com/moalmansor/Core-Low-Code-Framework/pull/11), [#12](https://github.com/moalmansor/Core-Low-Code-Framework/pull/12) |
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | **Complete.** Owner confirmed 2026-10-09; no findings, no code changes (`docs/pilot-findings.md`) | — (issue #5 closed) |
 | 3 — Workflow, Records & Views | `phase-3-workflow` | **Complete. Merged.** Owner re-tested after merge. | [moalmansor/Core-Low-Code-Framework#13](https://github.com/moalmansor/Core-Low-Code-Framework/pull/13) |
-| 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | **In progress** (issue #7) | — |
-| 5 — Platform & Extensibility | `phase-5-platform` | Not started | — |
+| 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | **Complete. Merged.** Owner verified 2026-10-16. | [moalmansor/Core-Low-Code-Framework#14](https://github.com/moalmansor/Core-Low-Code-Framework/pull/14) |
+| 5 — Platform & Extensibility | `phase-5-platform` | **In progress** (issue #8) | — |
 | 6 — Hardening & Final Delivery | `phase-6-hardening` | Not started | — |
 
 ## Phase 0: completed deliverables
@@ -379,7 +379,7 @@ Decided by the owner:
   endpoints, checks strip (client and server: unreachable, dead end, no
   entry), outline, no keys on nodes. Spec §4.12, design system §5.6a.
 
-## Phase 4: progress (branch `phase-4-actions`, issue #7)
+## Phase 4: completed deliverables (branch `phase-4-actions`, issue #7)
 
 - **Before Phase 4 — identifier guard (owner request).** The designer's
   warnings named statuses by key although the browser guard existed, because
@@ -550,19 +550,18 @@ Decided by the owner:
 
 ## Resume point
 
-Phase 3 is complete and merged (pull request
-[moalmansor/Core-Low-Code-Framework#13](https://github.com/moalmansor/Core-Low-Code-Framework/pull/13),
-merge commit `e4c89ad`). The owner re-tested the workflow designer,
-transitions with required fields, removing a status that has records, and
-field access by status, and all behaved correctly.
+Phase 4 is complete and merged (pull request
+[moalmansor/Core-Low-Code-Framework#14](https://github.com/moalmansor/Core-Low-Code-Framework/pull/14),
+merge commit `06008cc`). The owner verified it on 2026-10-16: custom
+downloads with a restricted user across linked forms, the bulk approve
+action, notifications to a user from a linked form's field, document
+generation as PDF and Word, and the Phase 4 screens in Arabic at narrow
+widths all behaved correctly.
 
-Phase 4 is built on branch `phase-4-actions`
-([moalmansor/Core-Low-Code-Framework#7](https://github.com/moalmansor/Core-Low-Code-Framework/issues/7))
-and its pull request to `main` is open for the owner's review. The owner's
-four-item review of 2026-10-14 is addressed (see Phase 4 above); resume by
-checking CI on the head commit, updating the report, and addressing any new
-review comments on that pull request (push to the same branch, re-run CI,
-update the report). Phase 5 starts only after it is merged.
+Phase 5 is in progress on branch `phase-5-platform`
+([moalmansor/Core-Low-Code-Framework#8](https://github.com/moalmansor/Core-Low-Code-Framework/issues/8)).
+See "Phase 5: progress" for what is done and the next item. Phase 6 starts
+only after the Phase 5 pull request is merged.
 
 ### Local development notes
 
