@@ -17,6 +17,7 @@ use App\Modules\Monitoring\ErrorReporter;
 use App\Modules\Notifications\EmailQueue;
 use App\Modules\Notifications\Notifier;
 use App\Modules\Operations\AlertRules;
+use App\Modules\Platform\Webhooks;
 use App\Modules\Records\Exchange\ExportService;
 use App\Modules\Records\FileStore;
 use App\Modules\Records\Runtime\RecycleBin;
@@ -52,6 +53,12 @@ Artisan::command('scheduler:run', function (ScheduledTasks $tasks): int {
 
     return 0;
 })->purpose('Run the scheduled tasks that are due (scheduled downloads, automations)');
+
+Artisan::command('webhooks:purge', function (Webhooks $webhooks): int {
+    $this->info('Removed '.$webhooks->purge().' webhook delivery log row(s).');
+
+    return 0;
+})->purpose('Remove webhook delivery log rows past the retention set in System Settings › API and webhooks');
 
 Artisan::command('records:purge-recycle-bin', function (RecycleBin $bin): int {
     $this->info('Purged '.$bin->purgeDue().' record(s) past the recycle bin retention.');
@@ -241,6 +248,7 @@ Schedule::command('documents:expire')->hourly()->onOneServer();
 Schedule::command('downloads:expire')->hourly()->onOneServer();
 Schedule::command('scheduler:run')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('automations:tick')->everyMinute()->withoutOverlapping()->onOneServer();
+Schedule::command('webhooks:purge')->dailyAt('03:35')->withoutOverlapping()->onOneServer();
 Schedule::command('records:purge-recycle-bin')->dailyAt('03:25')->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('mail:dispatch-due')->everyMinute()->withoutOverlapping()->onOneServer();

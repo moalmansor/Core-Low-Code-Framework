@@ -159,6 +159,24 @@ final class AutomationEngine
         $this->start($a, 'watched_folder', ['record' => $recordUuid, 'file' => mb_substr($file, 0, 255)], [$recordId], null, null);
     }
 
+    /** An inbound webhook created or updated a record: the runs of the automations listening to that endpoint. */
+    public function inboundArrived(int $endpointId, string $recordUuid, int $recordId, string $delivery): void
+    {
+        $triggers = DB::table('automation_triggers')->join('automations', 'automations.id', '=', 'automation_triggers.automation_id')
+            ->where('automation_triggers.type', 'inbound_webhook')->where('automation_triggers.inbound_endpoint_id', $endpointId)
+            ->where('automations.is_enabled', true)->orderBy('automation_triggers.id')->get(['automation_triggers.*']);
+        $started = [];
+        foreach ($triggers as $t) {
+            $a = isset($started[$t->automation_id]) ? null : DB::table('automations')->where('id', $t->automation_id)->first();
+            if ($a === null) {
+                continue;
+            }
+            $started[$t->automation_id] = true;
+            $this->start($a, 'inbound_webhook', ['record' => $recordUuid, 'delivery' => $delivery], [$recordId], null, null);
+            DB::table('automation_triggers')->where('id', $t->id)->update(['last_fired_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u')]);
+        }
+    }
+
     /** "Run now": a manual run over the records that meet the condition, started by an admin. */
     public function runNow(object $a, User $user): object
     {

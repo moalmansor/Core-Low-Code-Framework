@@ -153,7 +153,7 @@ final class RecordController extends Controller
         app(DuplicateGuard::class)->acknowledge((bool) ($data['confirm_duplicates'] ?? false));
 
         return $this->run(function () use ($rt, $data, $request, $form): JsonResponse {
-            $result = $this->pipeline->create($rt, $this->user(), $data['values'], $data['params'] ?? [], $this->key($request));
+            $result = $this->pipeline->create($rt, $this->user(), $data['values'], $data['params'] ?? [], $this->key($request), self::source($request));
             $record = $this->store->findById($rt, $result['id']);
             $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'view');
 
@@ -170,7 +170,7 @@ final class RecordController extends Controller
         abort_if($expected < 1, 428, __('records.row_version_required'));
 
         return $this->run(function () use ($rt, $data, $request, $form, $record, $expected): JsonResponse {
-            $result = $this->pipeline->update($rt, $this->user(), strtolower($record), $expected, $data['values'], $this->key($request), 'ui', $data['justification'] ?? null);
+            $result = $this->pipeline->update($rt, $this->user(), strtolower($record), $expected, $data['values'], $this->key($request), self::source($request), $data['justification'] ?? null);
             $found = $this->store->findById($rt, $result['id']);
             $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'view');
 
@@ -405,6 +405,12 @@ final class RecordController extends Controller
         abort_if($uuid === null, 404);
 
         return $rt->fields[$uuid];
+    }
+
+    /** Writes made through the token API are journalled as `api`, the application's own as `ui`. */
+    public static function source(Request $request): string
+    {
+        return $request->is('api/v1/data/*') ? 'api' : 'ui';
     }
 
     private function key(Request $request): string

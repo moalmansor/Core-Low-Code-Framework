@@ -101,6 +101,30 @@ final class EgressGateway
      */
     public function authorize(UriInterface $uri): string
     {
+        $port = $this->permits($uri);
+        $host = strtolower($uri->getHost());
+        $addresses = $this->resolver->resolve($host);
+        if ($addresses === []) {
+            throw new EgressViolation("Host [{$host}] does not resolve.");
+        }
+        foreach ($addresses as $address) {
+            if ($this->policy->isBlocked($address)) {
+                throw new EgressViolation("Host [{$host}] resolves to a blocked address.");
+            }
+        }
+        $pinned = $addresses[0];
+
+        return sprintf('%s:%d:%s', $host, $port, str_contains($pinned, ':') ? '['.$pinned.']' : $pinned);
+    }
+
+    /**
+     * The checks that do not need the network: scheme, credentials, host on the
+     * allowlist, port. Used when an address is saved (a webhook, an endpoint);
+     * the address it resolves to is checked again at every request. Returns the
+     * port the request would use.
+     */
+    public function permits(UriInterface $uri): int
+    {
         $scheme = strtolower($uri->getScheme());
         $host = strtolower($uri->getHost());
         if ($uri->getUserInfo() !== '') {
@@ -124,18 +148,8 @@ final class EgressGateway
         if (! in_array($port, $ports, true)) {
             throw new EgressViolation("Port {$port} is not allowed for [{$host}].");
         }
-        $addresses = $this->resolver->resolve($host);
-        if ($addresses === []) {
-            throw new EgressViolation("Host [{$host}] does not resolve.");
-        }
-        foreach ($addresses as $address) {
-            if ($this->policy->isBlocked($address)) {
-                throw new EgressViolation("Host [{$host}] resolves to a blocked address.");
-            }
-        }
-        $pinned = $addresses[0];
 
-        return sprintf('%s:%d:%s', $host, $port, str_contains($pinned, ':') ? '['.$pinned.']' : $pinned);
+        return $port;
     }
 
     private function allowlistEntry(string $host): ?EgressAllowlistEntry

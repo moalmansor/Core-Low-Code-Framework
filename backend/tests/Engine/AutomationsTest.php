@@ -390,7 +390,7 @@ it('rejects automations that cannot work, and deletes one with its history', fun
     ]))->assertStatus(422)->assertJsonValidationErrors(['steps.0.type']);
     createAutomation($this, $w['requests'], automationDoc('wait_all', [autoTrigger('manual')], [autoStep('wait_delay', ['minutes' => 5])],
         ['runAs' => 'specific_user', 'runAsUser' => $this->admin->uuid]))->assertStatus(422)->assertJsonValidationErrors(['steps.0.type']);
-    createAutomation($this, $w['requests'], automationDoc('bad', [autoTrigger('inbound_webhook')], []))->assertStatus(422)->assertJsonValidationErrors(['triggers.0.type', 'steps']);
+    createAutomation($this, $w['requests'], automationDoc('bad', [autoTrigger('inbound_webhook')], []))->assertStatus(422)->assertJsonValidationErrors(['triggers.0.inboundEndpoint', 'steps']);
 
     $a = createAutomation($this, $w['requests'], automationDoc('notify_delete', [autoTrigger('record_deleted')], [
         autoStep('send_notification', ['template' => null, 'recipients' => ['to' => [['type' => 'creator', 'ref' => null]]]]),
@@ -431,4 +431,30 @@ it('e-mails a download of the record to each recipient, run under their own perm
         ->and((int) $jobs[0]->user_id)->toBe($this->admin->id)->and((bool) $jobs[0]->deliver_by_email)->toBeTrue()
         ->and($jobs[0]->status)->toBe('completed')
         ->and(DB::table('email_queue')->where('source', 'download')->where('to', 'like', '%'.$this->admin->email.'%')->exists())->toBeTrue();
+});
+
+it('starts a run for the record an incoming webhook created, from the inbound webhook trigger', function () {
+    $w = automationForms($this);
+    $endpoint = $this->postJson('/api/v1/inbound-endpoints', ['form' => $w['requests'], 'kind' => 'webhook', 'slug' => 'requests-in', 'operation' => 'create',
+        'mapping' => ['subject' => 'title'], 'signature_header' => 'X-Sig', 'signature_algorithm' => 'hmac_sha256', 'run_as_user' => $this->admin->uuid, 'is_active' => true])->assertCreated();
+    // An endpoint of another form is refused.
+    $other = $this->postJson('/api/v1/inbound-endpoints', ['form' => $w['followups'], 'kind' => 'webhook', 'slug' => 'followups-in', 'operation' => 'create',
+        'mapping' => ['title' => 'title'], 'signature_header' => 'X-Sig', 'signature_algorithm' => 'hmac_sha256', 'run_as_user' => $this->admin->uuid, 'is_active' => true])->assertCreated();
+    $doc = automationDoc('mark_inbound', [autoTrigger('inbound_webhook', ['inboundEndpoint' => $other->json('data.uuid')])],
+        [autoStep('update_fields', ['set' => [['field' => $w['f']['notes']['uuid'], 'value' => autoText('from the shop')]]])], ['runAs' => 'specific_user', 'runAsUser' => $this->admin->uuid]);
+    createAutomation($this, $w['requests'], $doc)->assertStatus(422)->assertJsonStructure(['errors' => ['triggers.0.inboundEndpoint']]);
+    $doc['triggers'][0]['inboundEndpoint'] = $endpoint->json('data.uuid');
+    $a = createAutomation($this, $w['requests'], $doc)->assertCreated()->json('data.automation.uuid');
+    expect($this->getJson("/api/v1/automations/{$a}")->json('data.automation.triggers.0.inboundEndpoint'))->toBe($endpoint->json('data.uuid'));
+    // The endpoint cannot be removed while an automation listens to it.
+    $this->deleteJson('/api/v1/inbound-endpoints/'.$endpoint->json('data.uuid'))->assertStatus(422);
+
+    $raw = json_encode(['title' => 'Broken printer']);
+    $this->flushSession();
+    $made = $this->call('POST', '/api/inbound/requests-in', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json',
+        'HTTP_X_SIG' => hash_hmac('sha256', $raw, $endpoint->json('data.secret'))], $raw)->assertCreated();
+    $this->actingAs($this->admin, 'web');
+    $runs = automationRuns($a);
+    expect($runs)->toHaveCount(1)->and($runs[0]->status)->toBe('succeeded')->and($runs[0]->trigger_type)->toBe('inbound_webhook')
+        ->and(requestValues($this, $w['requests'], $made->json('data.record'))['values']['notes'])->toBe('from the shop');
 });

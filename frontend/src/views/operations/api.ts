@@ -58,7 +58,7 @@ export interface OpsSubmission {
   trace?: string | null
 }
 
-export type JobKind = 'import' | 'export' | 'download' | 'action' | 'automation' | 'scheduled_task' | 'webhook' | 'queue_job'
+export type JobKind = 'import' | 'export' | 'download' | 'action' | 'automation' | 'scheduled_task' | 'webhook' | 'webhook_delivery' | 'queue_job'
 export interface OpsJob {
   key: string
   kind: JobKind
