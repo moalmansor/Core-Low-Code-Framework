@@ -548,6 +548,31 @@ Decided by the owner:
      - the sidebar emptying itself after a refused request.
      A pull-request template carries the checklist.
 
+## Phase 5: progress (branch `phase-5-platform`, issue #8)
+
+Done:
+1. **Schema.** Every Phase 5 table of the ERD exists, together with the columns that earlier phases deferred to it. Schema conformance passes; `DEFERRED_COLUMNS` is now empty. Phase 6 tables are not created.
+2. **Settings fix.** Eight System Settings tabs (Records, Schema, Data quality, Actions, Downloads, Notifications, Documents and Operations) answered 404 and now load and save. The new "API and webhooks" settings group is added. A regression test covers every group that has a screen.
+3. **REST API and webhooks** (ADR-0050):
+   - personal API tokens, with a token-only guard, per-token rate limits and IP allow-lists;
+   - the `/api/v1/data/{form}` API through the record pipeline, with OpenAPI 3.1;
+   - signed outgoing webhooks with retries, a masked delivery log, resend, purge and Operations Center entries;
+   - inbound endpoints (`/api/inbound/{slug}`, signed webhook or API token) that create, update or upsert records through the pipeline;
+   - the inbound webhook automation trigger;
+   - the screens: Admin › Integrations (outgoing webhooks, incoming endpoints, API tokens), the webhook and endpoint editors with their logs, Profile › API tokens, and the trigger in the automation editor.
+   Fixed on the way: a bearer header on a session endpoint answered 500 (Sanctum looked up a table that does not exist). It now answers 401.
+
+Next, in order:
+4. Developer extensions (§4.19).
+5. Configuration packages and the drift report.
+6. Reports and dashboards.
+7. Applications, pages, home screens, navigation, global search, announcements, maintenance mode and appearance.
+8. External data sources, sync jobs and notification channels.
+9. External access.
+10. The blueprint library and application cloning.
+11. Self-service, impersonation, access policies, feature flags, help, tours and usage.
+12. Specification and architecture updates, the full test run on both engines, and the pull request.
+
 ## Resume point
 
 Phase 4 is complete and merged (pull request

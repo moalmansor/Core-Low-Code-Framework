@@ -805,7 +805,15 @@ All access control lives in **one** interface.
   - scoped tokens;
   - OpenAPI documentation generated automatically;
   - rate limits.
+  - Tokens are personal. Each is shown once and stored only as a hash. Each grants read or read-and-write on chosen forms, never beyond its holder's own permissions, which are checked again on every call.
+  - Each token has a lifetime capped by a System Setting, an optional IP allow-list, and its own rate limit or the system default.
+  - Tokens reach only the data API (`/api/v1/data/{form}`), its OpenAPI document and API-kind inbound endpoints. Every other endpoint needs a signed-in session.
+  - The API can be switched off per organization. Holders of "Manage integrations" see and revoke every token. (ADR-0050)
 - Incoming and outgoing webhooks, with signing secrets and delivery logs.
+  - An outgoing webhook sends chosen record events (created, changed, deleted, status changed), of one form or every form, to an address on the egress allowlist.
+  - It is signed `X-LCF-Signature: sha256=HMAC(secret, timestamp.body)`. Failures are retried with backoff.
+  - The payload is the record as the webhook's owner may see it. A record the owner cannot see is logged as not sent.
+  - The delivery log masks signatures, custom header values and sensitive fields. It keeps rows for a period set in System Settings, and can send a delivery again. Failures appear in the Operations Center. (ADR-0050)
 - In-app notifications center (bell icon) in addition to email.
 - System settings: branding, languages, formats, calendar system, SMTP, file limits, security policies, SSO/LDAP configuration.
 
@@ -1010,7 +1018,7 @@ A status alone does not say who is expected to act, so records carry assignment 
   - Folders live under a root mounted by the operator (`WATCHED_FOLDERS_ROOT`), and admins name a folder inside it.
   - Each new file is checked like an upload and becomes a record, saved as the run-as user, with the file in a chosen file field and, optionally, its name in a text field.
   - Processed files move to `processed/`. Rejected ones move to `failed/` with a note saying why.
-- Inbound-webhook triggers arrive with inbound endpoints (Phase 5).
+- An inbound-webhook trigger names one inbound endpoint of the automation's form. It runs for the record that endpoint's call created or updated, as the automation's run-as user.
 
 ### 4.32 External Access & Public Portals
 - Any form can be published as an **external form** reachable without an internal account, with a dedicated URL, its own theme, and a defined status on submission.
@@ -1025,6 +1033,11 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Sync jobs:** scheduled import from, or export to, an external source, with field mapping, matching keys, conflict rules, dry run, and a run log.
 - **Inbound API endpoints per form**, with scoped tokens, schema documentation, validation, and the same permission and workflow enforcement as the UI.
 - **Incoming webhooks** that create or update records, with signature verification and a payload mapping screen.
+  - Both are configured as inbound endpoints at `/api/inbound/{slug}`, where the slug is unique across the installation. An endpoint creates, updates or upserts records of one form.
+  - An endpoint is authenticated by an HMAC signature, acting as a chosen user, or by a personal API token with write access, acting as the token's owner.
+  - Each field takes its value from a dot path in the JSON body. Updates find the record by a mapped single-value text or number field, against the version read on arrival.
+  - Created records start in the workflow's initial status. Every call is logged.
+  - Automations can be triggered by an inbound endpoint. (ADR-0050)
 - **Notification channels beyond email:** in-app, SMS, and messaging providers configured as channels, selectable per notification rule, with per-user channel preferences and the same template, placeholder, and logging treatment as email.
 - Every integration appears in the Operations Center with its failures, retries, and delivery history.
 

@@ -53,3 +53,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0047](0047-notification-recipients-at-send-time.md) | Notification recipients from the record, resolved at send time |
 | [0048](0048-design-checklist-enforced-by-tests.md) | The screen checklist is enforced by tests |
 | [0049](0049-fixed-transition-bulk-status.md) | Bulk status change with a fixed transition |
+| [0050](0050-api-tokens-webhooks-inbound.md) | API tokens, webhooks and inbound endpoints |
