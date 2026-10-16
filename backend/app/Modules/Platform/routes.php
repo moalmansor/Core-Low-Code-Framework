@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Platform\Http\Controllers\DataApiController;
 use App\Modules\Platform\Http\Controllers\InboundEndpointController;
+use App\Modules\Platform\Http\Controllers\PackageController;
 use App\Modules\Platform\Http\Controllers\TokenController;
 use App\Modules\Platform\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +36,17 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::delete('/inbound-endpoints/{endpoint}', [InboundEndpointController::class, 'destroy'])->whereUuid('endpoint');
     Route::post('/inbound-endpoints/{endpoint}/secret', [InboundEndpointController::class, 'rotateSecret'])->whereUuid('endpoint');
     Route::get('/inbound-endpoints/{endpoint}/deliveries', [InboundEndpointController::class, 'deliveries'])->whereUuid('endpoint');
+
+    Route::get('/packages', [PackageController::class, 'index']);
+    Route::get('/packages/catalog', [PackageController::class, 'catalog']);
+    Route::post('/packages/export', [PackageController::class, 'export'])->middleware('throttle:20,1');
+    Route::post('/packages/import', [PackageController::class, 'import'])->middleware('throttle:20,1');
+    Route::post('/packages/compare', [PackageController::class, 'compare'])->middleware('throttle:20,1');
+    Route::get('/packages/{package}', [PackageController::class, 'show'])->whereUuid('package');
+    Route::get('/packages/{package}/download', [PackageController::class, 'download'])->whereUuid('package');
+    Route::post('/packages/{package}/apply', [PackageController::class, 'apply'])->whereUuid('package');
+    Route::get('/drift-reports', [PackageController::class, 'reports']);
+    Route::get('/drift-reports/{report}', [PackageController::class, 'showReport'])->whereUuid('report');
 });
 
 // The data API: personal API tokens only.
