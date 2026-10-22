@@ -120,7 +120,7 @@ final class Dashboards
             if ($type === 'text' && $text === []) {
                 $errors["{$p}.text"][] = __('reports.text_required');
             }
-                $roles = [];
+            $roles = [];
             foreach ((array) ($w['roles'] ?? []) as $r) {
                 if (is_string($r) && Str::isUuid($r) && DB::table('roles')->where('uuid', strtolower($r))->exists()) {
                     $roles[] = strtolower($r);

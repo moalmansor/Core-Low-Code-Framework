@@ -392,13 +392,7 @@ function remove(): void {
               <InputNumber v-model="doc.cacheSeconds" input-id="report-cache" :min="0" :max="86400" size="small" :use-grouping="false" />
             </ConfigField>
           </div>
-          <SettingSwitch
-            v-if="['bar', 'line', 'area'].includes(doc.visualization)"
-            id="report-stacked"
-            v-model="doc.options.stacked"
-            :label="t('rep.stacked')"
-            :description="t('rep.stacked_desc')"
-          />
+          <SettingSwitch v-if="['bar', 'line', 'area'].includes(doc.visualization)" id="report-stacked" v-model="doc.options.stacked" :label="t('rep.stacked')" :description="t('rep.stacked_desc')" />
           <SettingSwitch id="report-values" v-model="doc.options.showValues" :label="t('rep.show_values')" :description="t('rep.show_values_desc')" />
           <SettingSwitch id="report-legend" v-model="doc.options.showLegend" :label="t('rep.show_legend')" :description="t('rep.show_legend_desc')" />
           <SettingSwitch id="report-totals" v-model="doc.options.showTotals" :label="t('rep.show_totals')" :description="t('rep.show_totals_desc')" />

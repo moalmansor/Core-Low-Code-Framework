@@ -32,7 +32,10 @@ test('a report is previewed, read as a chart and a table, exported, and shown on
   const made = (
     await api(page, 'POST', '/reports', {
       report: {
-        key: 'visits_by_month', form, visualization: 'bar', i18n: { name: { en: 'Visits by month', ar: 'الزيارات حسب الشهر' } },
+        key: 'visits_by_month',
+        form,
+        visualization: 'bar',
+        i18n: { name: { en: 'Visits by month', ar: 'الزيارات حسب الشهر' } },
         dimensions: [{ uuid: crypto.randomUUID(), path: ['@created_at'], bucket: 'month', i18n: { label: {} } }],
         measures: [{ uuid: crypto.randomUUID(), aggregate: 'count', path: null, i18n: { label: {} } }],
       },

@@ -11,7 +11,8 @@ export const admin = { name: 'E2E Root', email: 'root@e2e.test', password: 'Vq7!
  */
 export function artisan(...args: string[]): string {
   if (process.env.LCF_E2E_DOCKER === '1') {
-    return execFileSync('docker', ['compose', 'exec', '-T', 'app', 'php', 'artisan', ...args, '--no-ansi'], {
+    // HOME=/tmp: tinker (psysh) writes its config under the home folder, which the image's www-data cannot.
+    return execFileSync('docker', ['compose', 'exec', '-T', '-e', 'HOME=/tmp', 'app', 'php', 'artisan', ...args, '--no-ansi'], {
       cwd: process.env.LCF_E2E_COMPOSE_DIR ?? '..',
       encoding: 'utf8',
     })
