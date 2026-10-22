@@ -93,6 +93,9 @@ const active = computed(() =>
   activeNavId(route.path, [
     { id: 'home', path: '/', exact: true },
     { id: 'my_work', path: '/my-work' },
+    { id: 'insights', path: '/insights' },
+    { id: 'insights', path: '/reports' },
+    { id: 'insights', path: '/dashboards' },
     ...apps.value.flatMap((a) => appCandidates(a.items)),
     { id: 'admin', path: '/admin', exact: true },
     ...areas.value.map((a) => ({ id: `area-${a.key}`, path: a.route })),
@@ -139,6 +142,9 @@ const userItems = computed(() => [
         <RouterLink :class="navClass('home')" :to="{ name: 'home' }" active-class="" exact-active-class="" :aria-current="current('home')"><i class="pi pi-home" />{{ t('shell.home') }}</RouterLink>
         <RouterLink :class="navClass('my_work')" :to="{ name: 'my_work' }" active-class="" exact-active-class="" :aria-current="current('my_work')" data-testid="nav-my-work"
           ><i class="pi pi-inbox" />{{ t('my_work.title') }}</RouterLink
+        >
+        <RouterLink :class="navClass('insights')" :to="{ name: 'insights' }" active-class="" exact-active-class="" :aria-current="current('insights')" data-testid="nav-insights"
+          ><i class="pi pi-chart-bar" />{{ t('rep.insights') }}</RouterLink
         >
         <section v-for="app in apps" :key="app.uuid" class="mt-3" :data-testid="`nav-app-${app.key}`">
           <button
@@ -218,6 +224,7 @@ export const icons: Record<string, string> = {
   integrations: 'pi-link',
   extensions: 'pi-code',
   packages: 'pi-box',
+  reports: 'pi-chart-bar',
 }
 </script>
 

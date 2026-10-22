@@ -29,6 +29,7 @@ final class ConsoleAreas
         'automations' => ['building', ['system.manage_automations'], '/admin/automations'],
         'reference_data' => ['building', ['system.manage_reference_data', 'system.manage_calendars', 'system.manage_numbering', 'system.manage_currencies'], '/admin/reference'],
         'assignment_queues' => ['people', ['system.manage_forms', 'system.manage_delegation'], '/admin/work'],
+        'reports' => ['building', ['system.manage_reports'], '/admin/reports'],
         'extensions' => ['building', ['system.manage_code', 'system.approve_code'], '/admin/extensions'],
         'integrations' => ['configuration', ['system.manage_integrations'], '/admin/integrations'],
         'packages' => ['configuration', ['system.manage_packages'], '/admin/packages'],

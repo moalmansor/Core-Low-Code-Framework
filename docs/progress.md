@@ -579,8 +579,17 @@ Done:
    - the screens Admin › Configuration packages (packages, export picker, import with choices and outcome, drift reports);
    - tests: `PackagesTest` (6) and e2e `17-packages`.
 
+6. **Reports and dashboards** (ADR-0053):
+   - a report engine over relation paths, with date buckets, count/sum/average/min/max, detail lists, per-viewer scope and field access, a record cap and caching;
+   - the report builder with live preview;
+   - ECharts charts with a validated palette and a table view, pivot tables and key figures;
+   - dashboards on a twelve-column grid with drag-and-drop and role-limited widgets;
+   - Excel/CSV/PDF export with chart images;
+   - the Reports page for viewers;
+   - reports and dashboards in configuration packages;
+   - tests: `ReportsTest` (4), a package round trip, and e2e `18-reports`.
+
 Next, in order:
-6. Reports and dashboards.
 7. Applications, pages, home screens, navigation, global search, announcements, maintenance mode and appearance.
 8. External data sources, sync jobs and notification channels.
 9. External access.

@@ -266,3 +266,33 @@ it('is only for holders of "Manage configuration packages"', function () {
     grantPermission($user->id, 'system.manage_packages');
     $this->getJson('/api/v1/packages/catalog')->assertOk()->assertJsonStructure(['data' => ['application', 'form', 'email_template', 'document_template', 'download_profile']]);
 });
+
+it('carries reports and dashboards with the forms they read', function () {
+    $s = packagedSetup($this);
+    $report = $this->postJson('/api/v1/reports', ['report' => ['key' => 'leave_count', 'form' => $s['form'], 'visualization' => 'kpi', 'i18n' => ['name' => ['en' => 'Leave count']],
+        'measures' => [['uuid' => uid(), 'aggregate' => 'count', 'path' => null, 'i18n' => ['label' => []]]]]])->assertCreated()->json('data');
+    $dashboard = $this->postJson('/api/v1/dashboards', ['dashboard' => ['key' => 'leave_board', 'i18n' => ['name' => ['en' => 'Leave board']], 'widgets' => [
+        ['type' => 'report', 'report' => $report['uuid'], 'roles' => [$s['role']], 'layout' => ['w' => 6, 'h' => 2]],
+    ]]])->assertCreated()->json('data');
+
+    $package = exportPackage($this, [['type' => 'dashboard', 'uuid' => $dashboard['uuid']]]);
+    expect(collect($package['objects'])->pluck('type')->all())->toBe(['application', 'form', 'email_template', 'report', 'dashboard']);
+
+    $other = asOtherEnvironment($package);
+    $imported = uploadPackage($this, $other)->assertCreated()->json('data');
+    $choices = [];
+    foreach ($other['objects'] as $o) {
+        $choices[$o['uuid']] = ['action' => 'rename', 'key' => 'copy_'.$o['key']];
+    }
+    $this->postJson("/api/v1/packages/{$imported['uuid']}/apply", ['choices' => $choices])->assertStatus(202);
+    $done = waitApplied($this, $imported['uuid']);
+    expect($done['status'])->toBe('applied', json_encode($done['results']));
+
+    $byType = collect($other['objects'])->keyBy('type');
+    $copy = $this->getJson("/api/v1/dashboards/{$byType['dashboard']['uuid']}")->assertOk()->json('data');
+    expect($copy['key'])->toBe('copy_leave_board')
+        ->and($copy['widgets'][0]['report'])->toBe($byType['report']['uuid'])
+        ->and($copy['widgets'][0]['roles'])->toBe([$s['role']]);
+    $data = $this->getJson("/api/v1/reports/{$byType['report']['uuid']}/data")->assertOk()->json('data');
+    expect($data['result']['totals'])->toBe([0]);
+});

@@ -9,10 +9,12 @@ use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
 use App\Modules\Notifications\NotificationRules;
 use App\Modules\Platform\Packages\Parts\ApplicationPart;
+use App\Modules\Platform\Packages\Parts\DashboardPart;
 use App\Modules\Platform\Packages\Parts\DocumentTemplatePart;
 use App\Modules\Platform\Packages\Parts\DownloadProfilePart;
 use App\Modules\Platform\Packages\Parts\EmailTemplatePart;
 use App\Modules\Platform\Packages\Parts\FormPart;
+use App\Modules\Platform\Packages\Parts\ReportPart;
 use App\Modules\Schema\Execution\SchemaReconciler;
 use App\Support\Json\Canonical;
 use Illuminate\Support\Carbon;
@@ -51,7 +53,7 @@ final class PackageService
     public const MAX_BYTES = 20 * 1024 * 1024;
 
     /** Apply order: what others depend on first. Forms' notification rules are saved after the templates. */
-    private const ORDER = ['application', 'form', 'email_template', 'document_template', 'download_profile'];
+    private const ORDER = ['application', 'form', 'email_template', 'document_template', 'download_profile', 'report', 'dashboard'];
 
     /** @var array<string, PackagePart> */
     private array $parts;
@@ -62,9 +64,11 @@ final class PackageService
         EmailTemplatePart $emails,
         DocumentTemplatePart $documents,
         DownloadProfilePart $downloads,
+        ReportPart $reports,
+        DashboardPart $dashboards,
         private readonly SchemaReconciler $reconciler,
     ) {
-        foreach ([$applications, $forms, $emails, $documents, $downloads] as $part) {
+        foreach ([$applications, $forms, $emails, $documents, $downloads, $reports, $dashboards] as $part) {
             $this->parts[$part->type()] = $part;
         }
     }

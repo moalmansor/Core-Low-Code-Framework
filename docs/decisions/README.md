@@ -56,3 +56,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0050](0050-api-tokens-webhooks-inbound.md) | API tokens, webhooks and inbound endpoints |
 | [0051](0051-developer-extensions.md) | Developer extensions |
 | [0052](0052-configuration-packages.md) | Configuration packages and the environment drift report |
+| [0053](0053-reports-and-dashboards.md) | Reports and dashboards |

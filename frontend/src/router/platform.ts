@@ -54,4 +54,26 @@ export const platformRoutes: RouteRecordRaw[] = [
     component: () => import('@/views/packages/PackagesView.vue'),
     meta: { anyOf: ['system.manage_packages'], title: 'admin.area.packages' },
   },
+  {
+    path: 'admin/reports/r/:report',
+    name: 'admin.reports.report',
+    component: () => import('@/views/reports/ReportEditor.vue'),
+    meta: { anyOf: ['system.manage_reports'], title: 'admin.area.reports' },
+  },
+  {
+    path: 'admin/reports/d/:dashboard',
+    name: 'admin.reports.dashboard',
+    component: () => import('@/views/reports/DashboardEditor.vue'),
+    meta: { anyOf: ['system.manage_reports'], title: 'admin.area.reports' },
+  },
+  {
+    path: 'admin/reports/:tab?',
+    name: 'admin.reports',
+    component: () => import('@/views/reports/ReportsAdmin.vue'),
+    meta: { anyOf: ['system.manage_reports'], title: 'admin.area.reports' },
+  },
+  // Viewing: the server decides per report and dashboard.
+  { path: 'insights', name: 'insights', component: () => import('@/views/reports/InsightsView.vue'), meta: { title: 'rep.insights' } },
+  { path: 'reports/:report', name: 'reports.view', component: () => import('@/views/reports/ReportView.vue'), meta: { title: 'rep.report' } },
+  { path: 'dashboards/:dashboard', name: 'dashboards.view', component: () => import('@/views/reports/DashboardView.vue'), meta: { title: 'rep.dashboard' } },
 ]

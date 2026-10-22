@@ -69,6 +69,7 @@
   "admin.area.forms": "النماذج والمجموعات",
   "admin.area.integrations": "التكاملات",
   "admin.area.packages": "حزم الإعدادات",
+  "admin.area.reports": "التقارير ولوحات المعلومات",
   "admin.area.reference_data": "البيانات المرجعية",
   "admin.area.roles_permissions": "الأدوار والصلاحيات",
   "admin.area.schema": "مخطط قاعدة البيانات",
@@ -493,5 +494,7 @@
   "users.two_factor_reset": "أُعيد ضبط المصادقة الثنائية؛ سيعيد المستخدم التفعيل عند الدخول التالي.",
   "users.unlock": "فك القفل",
   "users.unlocked": "تم فك قفل الحساب.",
-  "users.username": "اسم المستخدم"
+  "users.username": "اسم المستخدم",
+  "translations.type.report": "التقارير",
+  "translations.type.dashboard": "لوحات المعلومات"
 }

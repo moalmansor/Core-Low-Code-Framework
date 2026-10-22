@@ -131,7 +131,8 @@ final class ReportController extends Controller
     public function preview(Request $request): JsonResponse
     {
         Gate::authorize('system.manage_reports');
-        $p = $this->definitions->check((array) $request->input('report', []) + ['key' => 'preview_only'], null);
+        // The key is not the preview's business: an existing report previews under its own.
+        $p = $this->definitions->check(array_replace((array) $request->input('report', []), ['key' => 'preview_only']), null);
         $rt = $this->runtimeFor($p['form']);
 
         return response()->json(['data' => $this->engine->run($rt, $p['definition'], $this->user())]);

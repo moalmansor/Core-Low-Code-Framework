@@ -763,6 +763,16 @@ All access control lives in **one** interface.
   - drag-and-drop widget layout;
   - per-role visibility;
   - export to Excel/PDF.
+- **As built (ADR-0053):**
+  - **Paths.** Reports read through the same relation paths as download profiles: forward links, multi-links, reverse links and repeating sections.
+  - **Grouping and values.** Dates can be grouped by day, week, month, quarter or year. Values are worked out over the viewer's own records only, after the report's fixed filters. A report reads at most the "Reports › most records" setting and says when it stopped there.
+  - **Visibility.** A report that groups or adds up a field the viewer cannot see, or sees masked, is not shown to them.
+  - **Shapes.** Each visualization has a required shape: a pivot needs two groupings, a pie one grouping and one value, key figures one to four values. Every chart can be read as a table.
+  - **Charts.** Charts use a fixed, colour-vision-safe palette of eight hues in light and dark mode.
+  - **Dashboards.** Widgets (reports or notes) sit on a twelve-column grid, reordered by dragging or with buttons, and each can be limited to roles.
+  - **Permissions.** Viewing needs the per-object permissions "View report" and "View dashboard". Building needs "Manage reports and dashboards".
+  - **Export.** Exports go to Excel, CSV (reports) and PDF, with the chart drawn in the PDF.
+  - **Packages.** Reports and dashboards travel in configuration packages.
 
 ### 4.19 Developer Extensibility (Rare Cases Only)
 - Available only with the **Manage Code** permission.

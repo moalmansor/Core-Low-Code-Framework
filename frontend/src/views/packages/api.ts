@@ -2,8 +2,8 @@ import { get, send } from '@/api/http'
 import { downloadBlob } from '@/runtime/api'
 
 /** Configuration packages and drift reports (specification §4.10, §4.22, ADR-0052). */
-export type ObjectType = 'application' | 'form' | 'email_template' | 'document_template' | 'download_profile'
-export const OBJECT_TYPES: ObjectType[] = ['application', 'form', 'email_template', 'document_template', 'download_profile']
+export type ObjectType = 'application' | 'form' | 'email_template' | 'document_template' | 'download_profile' | 'report' | 'dashboard'
+export const OBJECT_TYPES: ObjectType[] = ['application', 'form', 'email_template', 'document_template', 'download_profile', 'report', 'dashboard']
 
 export type ObjectState = 'new' | 'key_taken' | 'same' | 'changed' | 'changed_here' | 'changed_in_both' | 'unpublished_here' | 'schema_drift'
 export type Action = 'take' | 'keep' | 'rename'

@@ -52,7 +52,7 @@ final class PackageController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'objects' => ['required', 'array', 'min:1', 'max:500'],
-            'objects.*.type' => ['required', Rule::in(['application', 'form', 'email_template', 'document_template', 'download_profile'])],
+            'objects.*.type' => ['required', Rule::in(['application', 'form', 'email_template', 'document_template', 'download_profile', 'report', 'dashboard'])],
             'objects.*.uuid' => ['required', 'uuid'],
         ]);
         $user = $this->user();

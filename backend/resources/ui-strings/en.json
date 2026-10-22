@@ -69,6 +69,7 @@
   "admin.area.forms": "Forms & collections",
   "admin.area.integrations": "Integrations",
   "admin.area.packages": "Configuration packages",
+  "admin.area.reports": "Reports & dashboards",
   "admin.area.reference_data": "Reference data",
   "admin.area.roles_permissions": "Roles & permissions",
   "admin.area.schema": "Database schema",
@@ -493,5 +494,7 @@
   "users.two_factor_reset": "Two-factor reset; the user enrolls again at next sign-in.",
   "users.unlock": "Unlock",
   "users.unlocked": "Account unlocked.",
-  "users.username": "Username"
+  "users.username": "Username",
+  "translations.type.report": "Reports",
+  "translations.type.dashboard": "Dashboards"
 }
