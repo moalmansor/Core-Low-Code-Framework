@@ -589,8 +589,16 @@ Done:
    - reports and dashboards in configuration packages;
    - tests: `ReportsTest` (4), a package round trip, and e2e `18-reports`.
 
+7. **Pages, navigation, home screens, announcements, maintenance mode and global search** (ADR-0054):
+   - custom pages (content, link, dashboard, report, a form's records) with their own permission and the permission of what they show;
+   - the navigation builder with page, report, dashboard and My Work items, live badges, rules on the person and 20 levels;
+   - home screens per person, role, department or everyone, for the main home and each application, built from widgets;
+   - announcements as banners, on home screens or in the bell; system-wide maintenance mode; global search configured per form;
+   - fixed on the way: My Work titles now respect field access; the e2e screen sweep waits out the rate-limit minute it used (the cause of the SQL Server sign-in failures in specs 16 and 17);
+   - tests: `PagesNavigationTest` (2), `HomeScreensTest` (2), `AnnouncementsSearchMaintenanceTest` (3), e2e `19-experience`.
+
 Next, in order:
-7. Applications, pages, home screens, navigation, global search, announcements, maintenance mode and appearance.
+7b. Appearance and themes per application and per organization, with contrast checks (§4.28).
 8. External data sources, sync jobs and notification channels.
 9. External access.
 10. The blueprint library and application cloning.

@@ -613,6 +613,7 @@ All access control lives in **one** interface.
   - allowed roles/users.
 - A menu editor provides drag-and-drop ordering and nesting.
 - Unpublish, archive, and republish without data loss.
+- **As built (ADR-0054):** menu items open forms, collections, pages, reports, dashboards or My Work, besides links, section headers and separators; menus nest up to 20 levels and 500 items. Items can show a live count (my work, my approvals, my overdue items, or the records of their form I can see). Visibility per role, department or condition is a rule on the person in the expression language; it narrows who sees an item and never grants access to what the item opens.
 
 ### 4.14 Records Table View, View Mode & Edit Mode
 
@@ -1013,6 +1014,12 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Global search configuration:** which forms and fields are searchable, their weighting, result display, and per-role scope.
 - **Announcements and banners:** system-wide or per application, scheduled, dismissible, targeted by role, with severity styling.
 - **Maintenance mode:** admins take the system or a single application offline with a custom message, while retaining their own access.
+- **As built (ADR-0054):**
+  - **Pages** are content, a link, a dashboard, a report or a form's records list. Opening one needs its own permission and, for a dashboard, report or form, that object's permission too; content is sanitized when saved and when shown.
+  - **Home screens** follow the access precedence (a person's own, a role's, a department's including parent departments, then everyone's; the highest priority within a tier) for the main home or an application's home. Each widget can carry a rule on the person and loads its data through the ordinary permission-checked endpoints.
+  - **Announcements** are placed as a banner, on home screens or in the notification bell, between a start and an optional end, for some roles or everyone, system-wide or for one application; dismissible ones stay dismissed per person.
+  - **System maintenance** answers 503 to signed-in requests and API tokens, except for people who may switch it; the sign-in page shows its translatable message and those who keep working see a banner.
+  - **Global search** covers, per form, up to 10 text fields with weights, a field shown under each result and the roles allowed. It never searches sensitive or encrypted fields and only matches fields and records the person may see.
 
 ### 4.30 Blueprints, Cloning & the Template Library
 - Any form, collection, workflow, view, action, notification, dashboard, or whole application can be **saved as a blueprint** and reused.

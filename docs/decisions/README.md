@@ -57,3 +57,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0051](0051-developer-extensions.md) | Developer extensions |
 | [0052](0052-configuration-packages.md) | Configuration packages and the environment drift report |
 | [0053](0053-reports-and-dashboards.md) | Reports and dashboards |
+| [0054](0054-pages-home-navigation-announcements-search.md) | Pages, home screens, navigation, announcements, maintenance mode and global search |
