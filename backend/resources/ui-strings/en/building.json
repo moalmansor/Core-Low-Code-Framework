@@ -594,6 +594,7 @@
   "settings.group.notifications": "Notifications",
   "settings.group.operations": "Operations",
   "settings.group.records": "Records",
+  "settings.group.reports": "Reports",
   "settings.group.schema": "Schema changes",
   "settings.notifications.email_max_attempts": "Attempts before an email is marked failed",
   "settings.operations.stuck_email_minutes": "An email waiting longer than this is stuck (minutes)",
@@ -602,6 +603,7 @@
   "settings.records.import_max_rows": "Maximum rows per import",
   "settings.records.import_time_limit_minutes": "Time limit per import (minutes)",
   "settings.records.job_file_hours": "Exported files are kept for (hours)",
+  "settings.reports.max_records": "Most records one report reads (a report that stops there says so)",
   "settings.schema.blocking_confirmation_rows": "Ask for extra confirmation above this many rows",
   "settings.schema.reconcile_daily": "Run the schema reconciliation check every day",
   "settings.schema.snapshot_retention_days": "Keep pre-publish backups for (days)"

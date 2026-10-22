@@ -405,7 +405,20 @@ final class DownloadEngine
      */
     private function applyFilters(Builder $q, FormRuntime $rt, array $profile, User $user, array $parameters): void
     {
-        foreach ($profile['filters'] as $f) {
+        $this->filter($q, $rt, (array) $profile['filters'], $user, $parameters);
+    }
+
+    /**
+     * Fixed filters (of a download profile or a report) on the base records,
+     * through to-one and multi-reference paths, within the user's scope.
+     *
+     * @param  list<array<string, mixed>>  $filters
+     * @param  array<string, mixed>  $parameters
+     */
+    public function filter(Builder $q, FormRuntime $rt, array $filters, User $user, array $parameters = []): void
+    {
+        foreach ($filters as $f) {
+            $f += ['parameter' => null, 'valueExpression' => null, 'value' => null];
             $op = (string) $f['operator'];
             if ($f['parameter'] !== null) {
                 $value = $parameters[$f['parameter']] ?? null;

@@ -106,6 +106,9 @@ final class SettingsRegistry
         $d('downloads', 'max_rows', 100000, ['required', 'integer', 'between:100,1000000']);
         $d('downloads', 'email_attachment_mb', 10, ['required', 'integer', 'between:1,25']);
 
+        // Reports (§4.18, ADR-0053): the most records one report reads; a report that stops there says so.
+        $d('reports', 'max_records', 100000, ['required', 'integer', 'between:100,1000000']);
+
         // Document templates (§4.17): the size of an uploaded Word template, and how long one conversion to PDF may take.
         $d('documents', 'max_template_mb', 10, ['required', 'integer', 'between:1,50']);
         $d('documents', 'convert_timeout_seconds', 120, ['required', 'integer', 'between:10,600']);

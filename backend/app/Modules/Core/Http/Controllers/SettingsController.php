@@ -27,7 +27,7 @@ final class SettingsController extends Controller
     public const EDITABLE = [
         'branding', 'formats', 'calendar', 'mail', 'files', 'clamav', 'security', 'sso', 'ldap', 'monitoring',
         // The groups later phases added: every one has a tab on the settings screen (SettingsScreenTest).
-        'records', 'schema', 'data_quality', 'actions', 'downloads', 'notifications', 'documents', 'operations', 'api',
+        'records', 'schema', 'data_quality', 'actions', 'downloads', 'reports', 'notifications', 'documents', 'operations', 'api',
     ];
 
     public function __construct(

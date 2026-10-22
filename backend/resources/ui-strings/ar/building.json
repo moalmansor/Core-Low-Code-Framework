@@ -594,6 +594,7 @@
   "settings.group.notifications": "الإشعارات",
   "settings.group.operations": "العمليات",
   "settings.group.records": "السجلات",
+  "settings.group.reports": "التقارير",
   "settings.group.schema": "تغييرات البنية",
   "settings.notifications.email_max_attempts": "عدد المحاولات قبل اعتبار البريد فاشلًا",
   "settings.operations.stuck_email_minutes": "يُعد البريد عالقًا إذا انتظر أكثر من (دقائق)",
@@ -602,6 +603,7 @@
   "settings.records.import_max_rows": "الحد الأقصى للصفوف في الاستيراد",
   "settings.records.import_time_limit_minutes": "الحد الزمني لكل استيراد (بالدقائق)",
   "settings.records.job_file_hours": "تُحفظ الملفات المصدَّرة لمدة (ساعات)",
+  "settings.reports.max_records": "أقصى عدد من السجلات يقرؤه التقرير الواحد (ويُنبّه التقرير إذا توقف عنده)",
   "settings.schema.blocking_confirmation_rows": "طلب تأكيد إضافي عند تجاوز هذا العدد من الصفوف",
   "settings.schema.reconcile_daily": "تشغيل فحص مطابقة البنية يوميًا",
   "settings.schema.snapshot_retention_days": "مدة الاحتفاظ بالنسخ الاحتياطية قبل النشر (بالأيام)"

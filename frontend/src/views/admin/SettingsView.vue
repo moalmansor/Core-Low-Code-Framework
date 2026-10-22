@@ -40,6 +40,7 @@ const tabs = computed(() => {
       'actions',
       'api',
       'downloads',
+      'reports',
       'notifications',
       'documents',
       'operations',

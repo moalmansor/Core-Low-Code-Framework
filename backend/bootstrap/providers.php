@@ -12,6 +12,7 @@ use App\Modules\Identity\IdentityServiceProvider;
 use App\Modules\ModulesServiceProvider;
 use App\Modules\Notifications\NotificationsServiceProvider;
 use App\Modules\Platform\PlatformServiceProvider;
+use App\Modules\Reports\ReportsServiceProvider;
 use App\Modules\Scheduling\SchedulingServiceProvider;
 use App\Providers\AppServiceProvider;
 
@@ -29,5 +30,6 @@ return [
     NotificationsServiceProvider::class,
     PlatformServiceProvider::class,
     ExtensionsServiceProvider::class,
+    ReportsServiceProvider::class,
     ModulesServiceProvider::class,
 ];
