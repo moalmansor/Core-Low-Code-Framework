@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace App\Modules\Forms\Http\Controllers;
 
-use App\Expressions\Checking\TypeChecker;
-use App\Expressions\Evaluation\Context;
-use App\Expressions\Evaluation\Evaluator;
-use App\Expressions\StaticError;
 use App\Modules\Access\AccessCache;
 use App\Modules\Access\AccessResolver;
 use App\Modules\Access\ObjectPermissions;
@@ -15,14 +11,15 @@ use App\Modules\Access\RecordScope;
 use App\Modules\Assignment\MyWork;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Experience\Maintenance;
+use App\Modules\Experience\Models\HomeScreen;
 use App\Modules\Experience\Models\Page;
 use App\Modules\Experience\Pages;
+use App\Modules\Experience\PersonRules;
 use App\Modules\Forms\Conditions\OwnedConditions;
 use App\Modules\Forms\Models\Application;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Forms\Models\MenuItem;
 use App\Modules\Identity\Models\User;
-use App\Modules\Records\Runtime\ExpressionContext;
 use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Reports\Models\Dashboard;
 use App\Modules\Reports\Models\Report;
@@ -65,6 +62,7 @@ final class MenuController extends Controller
         private readonly Translator $translator,
         private readonly ObjectPermissions $permissions,
         private readonly OwnedConditions $conditions,
+        private readonly PersonRules $rules,
     ) {}
 
     public function show(Application $application): JsonResponse
@@ -106,12 +104,8 @@ final class MenuController extends Controller
                 throw ValidationException::withMessages(['items' => __('experience.bad_badge')]);
             }
             if (isset($node['condition'])) {
-                try {
-                    // Only the person can be referred to: no record is open while the menu is built.
-                    TypeChecker::check($node['condition'], static fn (): ?string => null, 'boolean');
-                } catch (StaticError $e) {
-                    throw ValidationException::withMessages(['items' => __('experience.bad_condition', ['message' => $e->getMessage()])]);
-                }
+                // Only the person can be referred to: no record is open while the menu is built.
+                $this->rules->check($node['condition'], 'items');
             }
         }
         DB::transaction(function () use ($application, $flat): void {
@@ -158,20 +152,21 @@ final class MenuController extends Controller
     }
 
     /** The sidebar of the signed-in user: active applications they may use and the menu items they may see. */
-    public function navigation(AccessResolver $access, Pages $pages, Maintenance $maintenance, ExpressionContext $userContext): JsonResponse
+    public function navigation(AccessResolver $access, Pages $pages, Maintenance $maintenance): JsonResponse
     {
         $user = $this->user();
         $apps = Application::query()->where('status', 'active')->orderBy('sort_order')->orderBy('key')->get()
             ->filter(static fn (Application $a) => $access->allows($user, "app.{$a->uuid}.access"));
         $names = $this->translator->many('application', $apps->pluck('id')->map(fn ($i) => (int) $i)->all(), ['name']);
-        $context = Context::now(config('app.timezone', 'UTC'))->with(['mode' => 'view', 'user' => $userContext->user($user), 'locale' => app()->getLocale()]);
+        $withHome = array_flip(HomeScreen::query()->where('is_active', true)->whereNotNull('application_id')->distinct()->pluck('application_id')->map(static fn ($v) => (int) $v)->all());
         $out = [];
         foreach ($apps as $app) {
             $items = MenuItem::query()->where('application_id', $app->id)->where('is_active', true)->orderBy('sort_order')->get();
             $targets = $this->targets($items);
             $asts = $this->conditions->many($items->pluck('visibility_condition_id')->all());
-            $visible = $items->filter(function (MenuItem $i) use ($access, $user, $targets, $pages, $asts, $context): bool {
-                if ($i->visibility_condition_id !== null && Evaluator::evaluate($asts[(int) $i->visibility_condition_id] ?? ['k' => 'lit', 't' => 'boolean', 'v' => false], $context)->value->data !== true) {
+            $visible = $items->filter(function (MenuItem $i) use ($access, $user, $targets, $pages, $asts): bool {
+                // A rule that has gone missing hides the item rather than showing it to everyone.
+                if ($i->visibility_condition_id !== null && ! $this->rules->passes($asts[(int) $i->visibility_condition_id] ?? ['k' => 'lit', 't' => 'boolean', 'v' => false], $user)) {
                     return false;
                 }
                 $target = $targets[$i->target_type.':'.$i->target_id] ?? null;
@@ -187,10 +182,11 @@ final class MenuController extends Controller
                 };
             });
             $tree = $this->prune($this->tree($visible, false, $targets));
-            if ($tree !== [] || $maintenance->applicationOffline($app)) {
+            $home = isset($withHome[(int) $app->id]);
+            if ($tree !== [] || $home || $maintenance->applicationOffline($app)) {
                 $out[] = [
                     'uuid' => $app->uuid, 'key' => $app->key, 'name' => $names[$app->id]['name'] ?? Translator::humanize((string) $app->key), 'icon' => $app->icon, 'color' => $app->color,
-                    'maintenance' => $maintenance->applicationOffline($app), 'items' => $tree,
+                    'maintenance' => $maintenance->applicationOffline($app), 'home' => $home, 'items' => $tree,
                 ];
             }
         }

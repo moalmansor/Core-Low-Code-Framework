@@ -19,4 +19,10 @@ return [
     'menu_target_missing' => 'A menu item points to something that no longer exists.',
     'bad_badge' => 'Choose what the badge counts.',
     'bad_condition' => 'The visibility rule is not valid: :message',
+    'home_screen' => 'Home screen',
+    'bad_target' => 'Choose who the screen is for.',
+    'choose_target' => 'Choose the role, department or person.',
+    'bad_widget' => 'Choose what the widget shows.',
+    'bad_link' => 'Each link needs a label and an address that starts with https:// or /.',
+    'links_required' => 'Add at least one link.',
 ];

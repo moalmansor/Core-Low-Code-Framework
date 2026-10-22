@@ -20,6 +20,8 @@ interface NavApp {
   icon: string | null
   color: string | null
   maintenance: boolean
+  /** The application has a home screen of its own. */
+  home?: boolean
   items: NavItem[]
 }
 
@@ -115,7 +117,7 @@ const active = computed(() =>
     { id: 'insights', path: '/insights' },
     { id: 'insights', path: '/reports' },
     { id: 'insights', path: '/dashboards' },
-    ...apps.value.flatMap((a) => appCandidates(a.items)),
+    ...apps.value.flatMap((a) => [...(a.home ? [{ id: `app-home-${a.uuid}`, path: `/a/${a.uuid}`, exact: true }] : []), ...appCandidates(a.items)]),
     { id: 'admin', path: '/admin', exact: true },
     ...areas.value.map((a) => ({ id: `area-${a.key}`, path: a.route })),
   ]),
@@ -177,7 +179,19 @@ const userItems = computed(() => [
             <i v-if="app.maintenance" v-tooltip="t('records.app_maintenance')" class="pi pi-wrench text-warning" />
             <i :class="collapsedApps[app.uuid] ? 'pi pi-chevron-right rtl:rotate-180' : 'pi pi-chevron-down'" class="text-[0.625rem]" />
           </button>
-          <NavTree v-if="!collapsedApps[app.uuid]" :items="app.items" :active="active" :badges="badges" />
+          <template v-if="!collapsedApps[app.uuid]">
+            <RouterLink
+              v-if="app.home"
+              :class="navClass(`app-home-${app.uuid}`)"
+              :to="{ name: 'apps.home', params: { application: app.uuid } }"
+              active-class=""
+              exact-active-class=""
+              :aria-current="current(`app-home-${app.uuid}`)"
+              :data-testid="`nav-app-home-${app.key}`"
+              ><i class="pi pi-home" />{{ t('xp.app_home') }}</RouterLink
+            >
+            <NavTree :items="app.items" :active="active" :badges="badges" />
+          </template>
         </section>
         <div v-if="apps.length && areas.length" class="mt-3 border-t border-line" />
         <RouterLink v-if="areas.length" :class="navClass('admin')" :to="{ name: 'admin' }" active-class="" exact-active-class="" :aria-current="current('admin')"
@@ -244,6 +258,7 @@ export const icons: Record<string, string> = {
   extensions: 'pi-code',
   packages: 'pi-box',
   reports: 'pi-chart-bar',
+  home_screens: 'pi-home',
 }
 </script>
 

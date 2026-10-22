@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Assignment\Http\Controllers;
 
+use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Assignment\Claims;
 use App\Modules\Assignment\MyWork;
 use App\Modules\Core\I18n\Translator;
@@ -32,6 +33,7 @@ final class MyWorkController extends Controller
 {
     public function __construct(
         private readonly MyWork $work,
+        private readonly FieldAccessResolver $fieldAccess,
         private readonly RecordStore $store,
         private readonly RecordPresenter $presenter,
         private readonly RelationPaths $paths,
@@ -69,7 +71,9 @@ final class MyWorkController extends Controller
                 $values[implode('.', $c['path'])] = $this->paths->values($rt, $c['path'], $ids, $user);
             }
             $titles = [];
-            foreach ($this->presenter->many($rt, array_values($records), [], false) as $p) {
+            // Titles are built only from fields the person may see.
+            $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'view')['fields'];
+            foreach ($this->presenter->many($rt, array_values($records), $levels, false) as $p) {
                 $titles[$p['uuid']] = $p['title'];
             }
             $timers = DB::table('sla_timers')->where('form_id', $formId)->whereIn('record_id', $ids)->whereIn('state', ['running', 'warned', 'breached'])
