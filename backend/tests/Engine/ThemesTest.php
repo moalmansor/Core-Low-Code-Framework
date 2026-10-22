@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Experience\Themes\CustomCss;
 use App\Modules\Experience\Themes\ThemeTokens;
+use App\Modules\Notifications\TemplateRenderer;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -115,7 +116,7 @@ it('gives an application its own theme, carries artwork into emails, and round-t
     $url = $this->getJson("/api/v1/themes/{$org['uuid']}")->json('data.assets.email_header');
     expect($url)->toContain('/api/v1/theme-assets/');
     $this->get(parse_url($url, PHP_URL_PATH))->assertOk()->assertHeader('Content-Type', 'image/png');
-    $html = (fn () => $this->layout('<p>Hi</p>', '', ['style' => ['logo' => true]], 'en', 'Hi'))->call(app(App\Modules\Notifications\TemplateRenderer::class));
+    $html = (fn () => $this->layout('<p>Hi</p>', '', ['style' => ['logo' => true]], 'en', 'Hi'))->call(app(TemplateRenderer::class));
     expect($html)->toContain('/api/v1/theme-assets/'.$org['uuid'].'/email_header');
 
     // Export and import: a new theme with a free key, the same tokens and texts.

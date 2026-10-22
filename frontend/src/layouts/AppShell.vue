@@ -13,6 +13,7 @@ import NotificationsBell from './NotificationsBell.vue'
 import NavTree, { navPath, type NavItem } from '@/runtime/NavTree.vue'
 import { activeNavId, type NavCandidate } from './navActive'
 import { useSession } from '@/stores/session'
+import type { ClientTheme } from '@/theme/theme'
 
 /** A published application with the menu items the user may see (GET /navigation). */
 interface NavApp {
@@ -24,6 +25,8 @@ interface NavApp {
   maintenance: boolean
   /** The application has a home screen of its own. */
   home?: boolean
+  /** The application's own theme (ADR-0055), applied while the user works in it. */
+  theme?: ClientTheme | null
   items: NavItem[]
 }
 
@@ -89,12 +92,12 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(badgeTimer))
 watch(() => [session.gate, session.me?.permissions.length, session.locale], loadSidebar)
 watch(
-  () => route.fullPath,
+  () => [route.fullPath, session.browserTitle],
   () => {
     sidebarOpen.value = false
     // A long menu keeps the active item in view (instant: no motion).
     void nextTick(() => nav.value?.querySelector('.nav-active')?.scrollIntoView({ block: 'nearest' }))
-    document.title = [route.meta.title ? t(route.meta.title) : '', session.systemName].filter(Boolean).join(' · ')
+    document.title = [route.meta.title ? t(route.meta.title) : '', session.browserTitle].filter(Boolean).join(' · ')
   },
   { immediate: true },
 )
@@ -124,6 +127,18 @@ const active = computed(() =>
     ...areas.value.map((a) => ({ id: `area-${a.key}`, path: a.route })),
   ]),
 )
+// The application the user is working in wears its own theme; elsewhere the organization's applies.
+const holds = (items: NavItem[], id: string | null): boolean => items.some((i) => i.uuid === id || holds(i.children ?? [], id))
+const activeApp = computed(() => {
+  const param = route.params.application
+  return apps.value.find((a) => a.uuid === param || active.value === `app-home-${a.uuid}` || holds(a.items, active.value)) ?? null
+})
+watch(
+  () => activeApp.value?.theme ?? null,
+  (theme) => session.useTheme(theme),
+  { immediate: true },
+)
+onBeforeUnmount(() => session.useTheme(null))
 const navClass = (id: string) => ({ 'nav-link': true, 'nav-active': active.value === id })
 const current = (id: string) => (active.value === id ? 'page' : undefined)
 
@@ -228,7 +243,7 @@ const userItems = computed(() => [
         <Menu ref="userMenu" :model="userItems" popup />
       </header>
       <AnnouncementBanners />
-      <main class="flex-1 min-h-0 overflow-auto p-4 lg:p-6" data-testid="app-content">
+      <main class="app-content flex-1 min-h-0 overflow-auto p-4 lg:p-6" data-testid="app-content">
         <RouterView />
       </main>
     </div>
@@ -242,6 +257,7 @@ export const icons: Record<string, string> = {
   departments: 'pi-sitemap',
   roles_permissions: 'pi-shield',
   appearance_branding: 'pi-palette',
+  themes: 'pi-sun',
   translations: 'pi-language',
   system_settings: 'pi-sliders-h',
   audit_log: 'pi-history',

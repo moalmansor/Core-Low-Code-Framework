@@ -110,3 +110,46 @@ test('a page is built and placed in the menu, a home screen and a banner greet p
   await api(page, 'DELETE', `/announcements/${banner.uuid}`)
   expect(problems).toEqual([])
 })
+
+test('a theme is built from a preset, its contrast fixed, and made the organization default', async ({ page, browser }) => {
+  test.setTimeout(180_000)
+  const problems = watchConsole(page)
+  await page.goto('/admin/themes/new')
+  await expect(page.getByTestId('theme-editor')).toBeVisible()
+  await page.getByRole('textbox', { name: 'Name (English)' }).fill('Harbour')
+  await page.getByTestId('theme-key').fill('harbour_e2e')
+  await page.getByTestId('theme-preset').click()
+  await page.getByRole('option', { name: 'Ocean' }).click()
+  await expect(page.getByTestId('theme-color-page-light')).toHaveValue('#f5f9fb')
+
+  // A pale primary colour cannot be read as text: the check offers the nearest readable shade.
+  await page.getByTestId('theme-color-primary-light').fill('#9ecbf0')
+  await expect(page.getByTestId('theme-contrast-primary-light')).toBeVisible()
+  await page.getByTestId('theme-use-primary-light').click()
+  await expect(page.getByTestId('theme-contrast-ok')).toBeVisible()
+
+  await page.getByRole('textbox', { name: 'Welcome message (English)' }).fill('Welcome aboard the harbour')
+  await page.getByTestId('theme-css').fill('.page-title { letter-spacing: 0.02em }')
+  await page.getByTestId('theme-save').click()
+  await expect(page).toHaveURL(/\/admin\/themes\/[0-9a-f-]{36}$/)
+  const uuid = page.url().split('/').pop()!
+
+  // Made the default, it applies at once: its colours, and its stylesheet scoped to the page content.
+  await page.getByTestId('theme-make-default').click()
+  await expect.poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue('--theme-page'))).toBe('#f5f9fb')
+  await expect(page.locator('link#lcf-theme-css')).toHaveAttribute('href', new RegExp(`/api/v1/theme-css/${uuid}\\.css`))
+  const css = await (await page.request.get(`/api/v1/theme-css/${uuid}.css`)).text()
+  expect(css).toContain('.app-content .page-title')
+
+  // The sign-in page greets people with the theme's message.
+  const visitor = await browser.newContext()
+  const signInPage = await visitor.newPage()
+  await signInPage.goto(new URL('/login', page.url()).toString())
+  await expect(signInPage.getByTestId('login-welcome')).toHaveText('Welcome aboard the harbour')
+  await visitor.close()
+
+  // Leave the shared environment as it was.
+  await api(page, 'DELETE', '/themes/default')
+  await api(page, 'DELETE', `/themes/${uuid}`)
+  expect(problems).toEqual([])
+})

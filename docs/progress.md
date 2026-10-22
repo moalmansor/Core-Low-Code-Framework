@@ -597,8 +597,15 @@ Done:
    - fixed on the way: My Work titles now respect field access; the e2e screen sweep waits out the rate-limit minute it used (the cause of the SQL Server sign-in failures in specs 16 and 17);
    - tests: `PagesNavigationTest` (2), `HomeScreensTest` (2), `AnnouncementsSearchMaintenanceTest` (3), e2e `19-experience`.
 
+7b. **Themes per organization and per application** (ADR-0055):
+   - light and dark colours, corners, density, shadows and a font per script, applied as `--theme-*` properties over the product tokens;
+   - contrast checked on the server in both modes (text below 4.5:1 refused with the nearest readable shade; weak non-text contrasts acknowledged), live in the editor with a two-mode preview;
+   - presets, reset, JSON import and export; artwork for the sign-in page, favicon and emails; translatable sign-in welcome, support contact, browser title and legal links;
+   - custom CSS limited to safe properties, scoped to `.app-content` and served as its own stylesheet;
+   - the organization default reaches the sign-in page; an application's theme applies while the user works in it;
+   - tests: `ThemesTest` (4), `theme.spec.ts`, e2e `19-experience` (theme flow) and the screen sweep.
+
 Next, in order:
-7b. Appearance and themes per application and per organization, with contrast checks (§4.28).
 8. External data sources, sync jobs and notification channels.
 9. External access.
 10. The blueprint library and application cloning.

@@ -37,6 +37,7 @@ final class ConsoleAreas
         'integrations' => ['configuration', ['system.manage_integrations'], '/admin/integrations'],
         'packages' => ['configuration', ['system.manage_packages'], '/admin/packages'],
         'appearance_branding' => ['configuration', ['system.manage_branding'], '/admin/settings/branding'],
+        'themes' => ['configuration', ['system.manage_branding'], '/admin/themes'],
         'translations' => ['configuration', ['system.manage_translations'], '/admin/translations'],
         'system_settings' => ['configuration', ['system.manage_settings'], '/admin/settings'],
         'audit_log' => ['compliance', ['system.view_audit_log'], '/admin/audit'],

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { ensureCsrf, get, resetCsrf, send } from '@/api/http'
 import { useLocale, type LocaleInfo } from '@/i18n'
-import { applyBrand } from '@/theme/brand'
+import { applyTheme as paintTheme, type ClientTheme } from '@/theme/theme'
 import { setDefaultTextLocale } from '@/runtime/i18nText'
 
 export interface Bootstrap {
@@ -15,6 +15,8 @@ export interface Bootstrap {
   branding: { logo: string | null; favicon: string | null; primary_color?: string | null; primary_color_dark?: string | null }
   /** System-wide maintenance mode, shown on the sign-in page. */
   maintenance?: { active: boolean; until: string | null; message: string | null }
+  /** The organization's default theme (ADR-0055), or null for the product theme. */
+  theme?: ClientTheme | null
 }
 
 export interface Me {
@@ -74,14 +76,29 @@ export const useSession = defineStore('session', () => {
   async function loadBootstrap(): Promise<void> {
     boot.value = (await get<{ data: Bootstrap }>('/bootstrap')).data
     if (boot.value.default_locale) setDefaultTextLocale(boot.value.default_locale)
-    applyBrand(boot.value.branding.primary_color, boot.value.branding.primary_color_dark)
+    useTheme(null, true)
     const preferred = storedLocale()
     const browser = navigator.language.slice(0, 2)
     const enabled = boot.value.locales.map((l) => l.code)
     const pick = [preferred, browser].find((c) => c && enabled.includes(c)) ?? boot.value.default_locale
     await switchLocale(pick, false)
-    document.title = systemName.value || document.title
+    document.title = browserTitle.value || document.title
   }
+
+  /** The theme in effect: an application's own while the user works in it, else the organization's. */
+  const theme = ref<ClientTheme | null>(null)
+  let painted: string | null = null
+  function useTheme(appTheme: ClientTheme | null, force = false): void {
+    const next = appTheme ?? boot.value?.theme ?? null
+    const stamp = next ? `${next.uuid}:${next.version}` : ''
+    if (!force && painted === stamp) return
+    painted = stamp
+    theme.value = next
+    const b = boot.value?.branding
+    paintTheme(next, { primary: b?.primary_color, primaryDark: b?.primary_color_dark, favicon: b?.favicon })
+  }
+  /** The title shown in the browser tab: the theme's, else the system name. */
+  const browserTitle = computed(() => theme.value?.browser_title || systemName.value)
 
   async function loadMe(): Promise<Me | null> {
     try {
@@ -145,5 +162,5 @@ export const useSession = defineStore('session', () => {
     }
   }
 
-  return { boot, me, locale, direction, systemName, gate, can, loadBootstrap, loadMe, switchLocale, applyTheme, logout }
+  return { boot, me, locale, direction, systemName, browserTitle, theme, useTheme, gate, can, loadBootstrap, loadMe, switchLocale, applyTheme, logout }
 })

@@ -202,3 +202,80 @@ export const searchApi = {
   configs: () => get<{ data: SearchConfig[] }>('/search-configs').then((r) => r.data),
   save: (form: string, config: Pick<SearchConfig, 'enabled' | 'fields' | 'subtitle' | 'roles'>) => send<{ data: SearchConfig }>('put', `/search-configs/${form}`, { config }).then((r) => r.data),
 }
+
+/** Themes (specification §4.28, ADR-0055). */
+export const THEME_COLORS = ['primary', 'accent', 'success', 'warning', 'danger', 'page', 'surface', 'subtle', 'border'] as const
+export type ThemeColor = (typeof THEME_COLORS)[number]
+export const THEME_ASSETS = ['logo', 'logo_dark', 'favicon', 'login_background', 'email_header', 'email_footer'] as const
+export type ThemeAsset = (typeof THEME_ASSETS)[number]
+export const THEME_CHOICES = {
+  radius: ['square', 'normal', 'rounded'],
+  density: ['compact', 'normal', 'comfortable'],
+  shadow: ['none', 'soft', 'strong'],
+  font_latin: ['plex', 'system'],
+  font_arabic: ['plex', 'system'],
+} as const
+export type ThemeChoice = keyof typeof THEME_CHOICES
+
+export interface ThemeTokensDoc {
+  colors: Partial<Record<ThemeColor, { light?: string | null; dark?: string | null }>>
+  radius?: string | null
+  density?: string | null
+  shadow?: string | null
+  font_latin?: string | null
+  font_arabic?: string | null
+  legal_links: { url: string; label: I18nMap }[]
+}
+export interface ContrastRow {
+  check: string
+  mode: 'light' | 'dark'
+  ratio: number
+  required: number
+  level: 'ok' | 'warning' | 'error'
+  suggestion: string | null
+}
+export interface ThemeDoc {
+  uuid?: string
+  key: string
+  application: string | null
+  default?: boolean
+  tokens: ThemeTokensDoc
+  custom_css: string | null
+  i18n: { name: I18nMap; login_welcome: I18nMap; support_contact: I18nMap; browser_title: I18nMap }
+  hash?: string
+  label?: string
+  version?: number
+  assets?: Partial<Record<ThemeAsset, string | null>>
+  contrast?: ContrastRow[]
+}
+export interface ThemeSummary {
+  uuid: string
+  key: string
+  label: string
+  default: boolean
+  version: number
+  application_name: string | null
+  warnings: number
+}
+export interface ThemePreset {
+  key: string
+  tokens: Omit<ThemeTokensDoc, 'legal_links'>
+  resolved: Record<'light' | 'dark', Record<string, string>>
+}
+
+export const themesApi = {
+  list: () => get<{ data: ThemeSummary[] }>('/themes').then((r) => r.data),
+  presets: () => get<{ data: ThemePreset[]; meta: { defaults: Record<'light' | 'dark', Record<string, string>> } }>('/themes/presets'),
+  check: (tokens: ThemeTokensDoc) => send<{ data: { report: ContrastRow[] } }>('post', '/themes/check', { tokens }).then((r) => r.data.report),
+  load: (uuid: string) => get<{ data: ThemeDoc }>(`/themes/${uuid}`).then((r) => r.data),
+  create: (theme: ThemeDoc, acknowledge: boolean) => send<{ data: ThemeDoc }>('post', '/themes', { theme: { ...theme, acknowledge_warnings: acknowledge } }).then((r) => r.data),
+  save: (uuid: string, theme: ThemeDoc, baseHash: string, acknowledge: boolean) =>
+    send<{ data: ThemeDoc }>('put', `/themes/${uuid}`, { theme: { ...theme, acknowledge_warnings: acknowledge }, base_hash: baseHash }).then((r) => r.data),
+  remove: (uuid: string) => send('delete', `/themes/${uuid}`),
+  makeDefault: (uuid: string) => send<{ data: ThemeDoc }>('post', `/themes/${uuid}/default`).then((r) => r.data),
+  clearDefault: () => send('delete', '/themes/default'),
+  reset: (uuid: string) => send<{ data: ThemeDoc }>('post', `/themes/${uuid}/reset`).then((r) => r.data),
+  exportDoc: (uuid: string) => get<Record<string, unknown>>(`/themes/${uuid}/export`),
+  importDoc: (theme: unknown) => send<{ data: ThemeDoc }>('post', '/themes/import', { theme }).then((r) => r.data),
+  removeAsset: (uuid: string, kind: ThemeAsset) => send<{ data: ThemeDoc }>('delete', `/themes/${uuid}/assets/${kind}`).then((r) => r.data),
+}

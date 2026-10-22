@@ -31,6 +31,18 @@ export const buildingRoutes: RouteRecordRaw[] = [
     meta: { anyOf: ['system.manage_pages_menus'], title: 'xp.page' },
   },
   {
+    path: 'admin/themes',
+    name: 'admin.themes',
+    component: () => import('@/views/experience/ThemesAdmin.vue'),
+    meta: { anyOf: ['system.manage_branding'], title: 'admin.area.themes' },
+  },
+  {
+    path: 'admin/themes/:theme',
+    name: 'admin.themes.theme',
+    component: () => import('@/views/experience/ThemeEditor.vue'),
+    meta: { anyOf: ['system.manage_branding'], title: 'admin.area.themes' },
+  },
+  {
     path: 'admin/announcements',
     name: 'admin.announcements',
     component: () => import('@/views/experience/AnnouncementsAdmin.vue'),

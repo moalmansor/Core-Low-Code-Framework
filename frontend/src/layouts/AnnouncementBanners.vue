@@ -41,7 +41,7 @@ async function dismiss(a: ActiveAnnouncement): Promise<void> {
 
 <template>
   <div v-if="banners.length || maintenance?.active" class="flex flex-col" data-testid="banners">
-    <div v-if="maintenance?.active" class="banner sev-warning" role="status" data-testid="maintenance-banner">
+    <div v-if="maintenance?.active" class="banner maintenance-banner sev-warning" role="status" data-testid="maintenance-banner">
       <i class="pi pi-wrench" aria-hidden="true" />
       <span class="flex-1 text-sm"
         >{{ t('xp.maintenance_on') }} <span dir="auto">{{ maintenance.message }}</span></span

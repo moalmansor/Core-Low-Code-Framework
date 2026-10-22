@@ -48,6 +48,7 @@ async function submit(): Promise<void> {
 
 <template>
   <h1 class="page-title">{{ t('auth.sign_in') }}</h1>
+  <p v-if="session.theme?.login.welcome" class="mb-4 text-muted-color" dir="auto" data-testid="login-welcome">{{ session.theme.login.welcome }}</p>
   <Message v-if="route.query.expired" severity="info" class="mb-4">{{ t('auth.session_expired') }}</Message>
   <Message v-if="session.boot?.maintenance?.active" severity="warn" class="mb-4" data-testid="login-maintenance">
     <span dir="auto">{{ session.boot.maintenance.message }}</span>
