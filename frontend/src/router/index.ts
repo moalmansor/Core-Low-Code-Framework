@@ -69,6 +69,18 @@ const routes: RouteRecordRaw[] = [
         meta: { anyOf: ['system.manage_forms', 'system.manage_delegation'], title: 'admin.area.assignment_queues' },
       },
       {
+        path: 'admin/notification-channels',
+        name: 'admin.notification_channels',
+        component: () => import('@/views/admin/notifications/ChannelsView.vue'),
+        meta: { anyOf: ['system.manage_integrations'], title: 'admin.area.notification_channels' },
+      },
+      {
+        path: 'admin/notification-channels/:channel',
+        name: 'admin.notification_channels.channel',
+        component: () => import('@/views/admin/notifications/ChannelEditor.vue'),
+        meta: { anyOf: ['system.manage_integrations'], title: 'admin.area.notification_channels' },
+      },
+      {
         path: 'admin/notifications',
         name: 'admin.notifications',
         component: () => import('@/views/admin/notifications/TemplatesView.vue'),

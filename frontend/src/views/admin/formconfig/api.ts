@@ -275,7 +275,8 @@ export interface NotificationRuleDoc {
   condition: Ast | null
   schedule: { dateField: string; offsetMinutes: number } | null
   template: string | null
-  channels: ('email' | 'in_app')[]
+  /** email, in_app, or the key of an SMS or messaging channel. */
+  channels: string[]
   recipients: { to: RecipientDoc[]; cc: RecipientDoc[]; bcc: RecipientDoc[] }
   attachments: { fields: string[]; documents: { template: string; format: 'docx' | 'pdf' }[] } | null
   delayMinutes: number | null

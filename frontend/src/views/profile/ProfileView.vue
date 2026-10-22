@@ -51,7 +51,7 @@ const prefs = reactive<Me['preferences']>({
   density: null,
   theme_mode: 'system',
   ...(session.me?.preferences ?? {}),
-  notification_channels: { email: true, in_app: true, ...(session.me?.preferences?.notification_channels ?? {}) },
+  notification_channels: { email: true, in_app: true, sms: true, ...(session.me?.preferences?.notification_channels ?? {}) },
 })
 const pw = reactive({ current: '', password: '', confirmation: '' })
 const pwErrors = ref<Record<string, string>>({})
@@ -229,6 +229,7 @@ async function revokeOthers(): Promise<void> {
             <p class="m-0 text-xs text-muted-color">{{ t('profile.notifications_hint') }}</p>
             <label class="flex items-center gap-2"><Checkbox v-model="prefs.notification_channels!.in_app" binary input-id="pn-in-app" />{{ t('profile.channel_in_app') }}</label>
             <label class="flex items-center gap-2"><Checkbox v-model="prefs.notification_channels!.email" binary input-id="pn-email" />{{ t('profile.channel_email') }}</label>
+            <label class="flex items-center gap-2"><Checkbox v-model="prefs.notification_channels!.sms" binary input-id="pn-sms" />{{ t('profile.channel_sms') }}</label>
           </fieldset>
           <div class="flex items-end"><Button type="submit" :label="t('common.save')" data-testid="save-preferences" /></div>
         </form>

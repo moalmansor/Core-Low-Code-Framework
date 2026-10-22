@@ -62,14 +62,17 @@ final class MeController extends Controller
             'theme_mode' => ['sometimes', Rule::in(['light', 'dark', 'system'])],
             'density' => ['sometimes', 'nullable', Rule::in(['compact', 'normal', 'comfortable'])],
             // Channels a person receives notifications on (rules marked mandatory still reach them).
-            'notification_channels' => ['sometimes', 'array:email,in_app'],
+            'notification_channels' => ['sometimes', 'array:email,in_app,sms'],
             'notification_channels.email' => ['sometimes', 'boolean'],
             'notification_channels.in_app' => ['sometimes', 'boolean'],
+            'notification_channels.sms' => ['sometimes', 'boolean'],
         ]);
-        if (isset($data['notification_channels'])) {
-            $data['notification_channels'] = ['email' => (bool) ($data['notification_channels']['email'] ?? true), 'in_app' => (bool) ($data['notification_channels']['in_app'] ?? true)];
-        }
         $preference = $user->preference()->firstOrNew();
+        if (isset($data['notification_channels'])) {
+            // A channel left out keeps its current choice.
+            $current = (array) ($preference->notification_channels ?? []);
+            $data['notification_channels'] = array_map(static fn (string $c) => (bool) ($data['notification_channels'][$c] ?? $current[$c] ?? true), array_combine(['email', 'in_app', 'sms'], ['email', 'in_app', 'sms']));
+        }
         $preference->fill($data)->save();
         $user->setRelation('preference', $preference);
 
@@ -89,7 +92,8 @@ final class MeController extends Controller
             'date_format' => $p?->date_format,
             'theme_mode' => $p->theme_mode ?? 'system',
             'density' => $p?->density,
-            'notification_channels' => ['email' => ($p?->notification_channels['email'] ?? true) !== false, 'in_app' => ($p?->notification_channels['in_app'] ?? true) !== false],
+            'notification_channels' => ['email' => ($p?->notification_channels['email'] ?? true) !== false, 'in_app' => ($p?->notification_channels['in_app'] ?? true) !== false,
+                'sms' => ($p?->notification_channels['sms'] ?? true) !== false],
         ];
     }
 

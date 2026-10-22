@@ -13,6 +13,7 @@ use App\Modules\DataQuality\Jobs\RunDataRepair;
 use App\Modules\DataQuality\Jobs\RunDuplicateSweep;
 use App\Modules\Downloads\DownloadJobs;
 use App\Modules\Identity\Models\User;
+use App\Modules\Notifications\Channels\ChannelDeliveries;
 use App\Modules\Platform\Webhooks;
 use App\Modules\Records\Jobs\RunExportJob;
 use App\Modules\Records\Jobs\RunImportJob;
@@ -32,7 +33,7 @@ use Illuminate\Validation\ValidationException;
  */
 final class FailedJobs
 {
-    public const KINDS = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'webhook_delivery', 'extension', 'queue_job'];
+    public const KINDS = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'webhook_delivery', 'channel_delivery', 'extension', 'queue_job'];
 
     /** Failures older than this are not gathered (the scheduled clean-ups remove most of them). */
     private const LOOKBACK_DAYS = 30;
@@ -129,6 +130,9 @@ final class FailedJobs
                 break;
             case 'webhook_delivery':
                 app(Webhooks::class)->resend($id);
+                break;
+            case 'channel_delivery':
+                app(ChannelDeliveries::class)->retry($id);
                 break;
             case 'queue_job':
                 $uuid = DB::table('failed_jobs')->where('id', $id)->value('uuid');
@@ -229,6 +233,15 @@ final class FailedJobs
                     $d->error ?? ($d->response_status === null ? null : 'HTTP '.$d->response_status), $d->updated_at, $d->direction === 'outgoing' && $d->webhook_id !== null, max(1, (int) $d->attempt));
             }
         }
+        if ($want('channel_delivery')) {
+            $q = DB::table('notification_deliveries as d')->join('notification_channels as c', 'c.id', '=', 'd.notification_channel_id')
+                ->where('d.status', 'failed')->where('d.updated_at', '>=', $since)->orderByDesc('d.id')->limit(self::PER_KIND);
+            foreach ($q->get(['d.id', 'd.user_id', 'd.error', 'd.updated_at', 'd.attempts', 'd.payload', 'c.id as channel_id', 'c.key']) as $d) {
+                $name = $this->translator->many('notification_channel', [(int) $d->channel_id], ['name'])[(int) $d->channel_id]['name'] ?? Translator::humanize((string) $d->key);
+                $formId = (json_decode((string) $d->payload, true) ?: [])['form_id'] ?? null;
+                $rows[] = $this->row('channel_delivery', (int) $d->id, is_int($formId) ? $formId : null, $d->user_id, $name, $d->error, $d->updated_at, true, max(1, (int) $d->attempts));
+            }
+        }
         if ($want('extension')) {
             $q = DB::table('audit_logs')->where('event', 'extension.failed')->where('occurred_at', '>=', $since)->orderByDesc('occurred_at')->limit(self::PER_KIND);
             foreach ($q->get(['id', 'meta', 'form_id', 'actor_user_id', 'occurred_at']) as $a) {
@@ -282,6 +295,7 @@ final class FailedJobs
             'action' => DB::table('bulk_operations')->where('id', $id)->value('result'),
             'scheduled_task' => DB::table('scheduled_tasks')->where('id', $id)->value('last_error'),
             'webhook_delivery' => DB::table('webhook_deliveries')->where('id', $id)->value('response_body'),
+            'channel_delivery' => DB::table('notification_deliveries')->where('id', $id)->value('error'),
             default => null,
         };
 

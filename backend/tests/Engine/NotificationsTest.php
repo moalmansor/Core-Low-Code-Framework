@@ -169,7 +169,7 @@ it('fires on field changes and once when a condition becomes true, and respects 
 
     // In-app switched off: the optional rule is silent, a mandatory one still reaches the person.
     $this->patchJson('/api/v1/me/preferences', ['notification_channels' => ['in_app' => false, 'email' => true]])->assertOk()
-        ->assertJsonPath('data.notification_channels', ['email' => true, 'in_app' => false]);
+        ->assertJsonPath('data.notification_channels', ['email' => true, 'in_app' => false, 'sms' => true]);
     $this->patchJson("/api/v1/r/{$form}/{$rec['uuid']}", ['row_version' => 3, 'values' => ['reason' => 'Trip']])->assertOk();
     expect($count('rule.field_changed'))->toBe(1);
     $rules = $this->getJson("/api/v1/forms/{$form}/notification-rules")->json('data.rules');

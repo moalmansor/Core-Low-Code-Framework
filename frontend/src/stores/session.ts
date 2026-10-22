@@ -39,7 +39,7 @@ export interface Me {
     digits: string | null
     date_format: string | null
     density: string | null
-    notification_channels?: { email: boolean; in_app: boolean }
+    notification_channels?: { email: boolean; in_app: boolean; sms?: boolean }
   }
 }
 

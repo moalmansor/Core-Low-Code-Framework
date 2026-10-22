@@ -18,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $theme_mode
  * @property string|null $density
  * @property string $digest_frequency
- * @property array{email?: bool, in_app?: bool}|null $notification_channels
+ * @property array{email?: bool, in_app?: bool, sms?: bool}|null $notification_channels
  */
 final class UserPreference extends BaseModel
 {

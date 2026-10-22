@@ -56,6 +56,7 @@
   "ops.jobs_hint": "Failures of background work from the last 30 days. Dismissing one keeps it on record with your reason.",
   "ops.kind.action": "Action run",
   "ops.kind.automation": "Automation run",
+  "ops.kind.channel_delivery": "SMS or messaging delivery",
   "ops.kind.download": "Download",
   "ops.kind.export": "Export",
   "ops.kind.extension": "Developer extension",

@@ -258,6 +258,7 @@ export const icons: Record<string, string> = {
   roles_permissions: 'pi-shield',
   appearance_branding: 'pi-palette',
   themes: 'pi-sun',
+  notification_channels: 'pi-send',
   translations: 'pi-language',
   system_settings: 'pi-sliders-h',
   audit_log: 'pi-history',

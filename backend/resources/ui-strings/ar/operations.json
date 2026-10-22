@@ -56,6 +56,7 @@
   "ops.jobs_hint": "أعطال الأعمال الخلفية خلال آخر 30 يومًا. تجاهل أحدها يبقيه مسجلًا مع سببك.",
   "ops.kind.action": "تشغيل إجراء",
   "ops.kind.automation": "تشغيل أتمتة",
+  "ops.kind.channel_delivery": "رسالة نصية أو رسالة مراسلة",
   "ops.kind.download": "تنزيل",
   "ops.kind.export": "تصدير",
   "ops.kind.extension": "امتداد برمجي",

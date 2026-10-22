@@ -89,3 +89,50 @@ export const templatesApi = {
     send<{ data: { status: string; to: string } }>('post', `/notifications/templates/${uuid}/test`, { record, locale }).then((r) => r.data),
   placeholders: (form: string | null) => get<{ data: Placeholders }>('/notifications/placeholders', form ? { form } : {}).then((r) => r.data),
 }
+
+/** SMS and messaging channels (specification §4.33, ADR-0056). */
+export type ChannelType = 'sms' | 'messaging'
+export interface ChannelSummary {
+  uuid: string
+  key: string
+  type: ChannelType
+  provider: string
+  active: boolean
+  label: string
+  week: { sent: number; failed: number; pending: number }
+}
+export interface ChannelDoc {
+  uuid?: string
+  key: string
+  type: ChannelType
+  provider: string
+  name: Record<string, string>
+  config: Record<string, string | boolean | null>
+  rate_limit_per_minute: number | null
+  active: boolean
+  hash?: string
+  label?: string
+}
+export type ProviderFields = Record<ChannelType, Record<string, Record<string, { required: boolean; secret: boolean }>>>
+export interface ChannelDelivery {
+  id: number
+  recipient: string
+  status: 'pending' | 'sent' | 'failed' | 'cancelled'
+  attempts: number
+  error: string | null
+  title: string | null
+  created_at: string
+  sent_at: string | null
+}
+
+export const channelsApi = {
+  list: () => get<{ data: ChannelSummary[]; meta: { providers: ProviderFields } }>('/notification-channels'),
+  load: (uuid: string) => get<{ data: ChannelDoc }>(`/notification-channels/${uuid}`).then((r) => r.data),
+  create: (channel: ChannelDoc) => send<{ data: ChannelDoc }>('post', '/notification-channels', { channel }).then((r) => r.data),
+  save: (uuid: string, channel: ChannelDoc, baseHash: string) => send<{ data: ChannelDoc }>('put', `/notification-channels/${uuid}`, { channel, base_hash: baseHash }).then((r) => r.data),
+  remove: (uuid: string) => send('delete', `/notification-channels/${uuid}`),
+  test: (uuid: string, to: string | null) => send<{ data: { ok: boolean; answer: string } }>('post', `/notification-channels/${uuid}/test`, { to }).then((r) => r.data),
+  deliveries: (uuid: string, page: number, status: string | null) =>
+    get<{ data: ChannelDelivery[]; meta: { total: number } }>(`/notification-channels/${uuid}/deliveries`, { page, ...(status ? { status } : {}) }),
+  retry: (uuid: string, id: number) => send('post', `/notification-channels/${uuid}/deliveries/${id}/retry`),
+}

@@ -90,6 +90,8 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
     '/admin/search',
     '/admin/themes',
     '/admin/themes/new',
+    '/admin/notification-channels',
+    '/admin/notification-channels/new',
   ]
 
   await page.goto('/admin')
