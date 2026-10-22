@@ -10,6 +10,7 @@ use App\Modules\Core\Models\Organization;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Core\Tenancy\TenantContext;
 use App\Modules\Experience\Maintenance;
+use App\Modules\Experience\Themes\Themes;
 use App\Modules\Records\Models\StoredFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
@@ -38,6 +39,8 @@ final class PublicController extends Controller
             'formats' => $this->settings->publicGroup('formats'),
             'calendar' => $this->settings->get('calendar', 'system'),
             // Shown on the sign-in page; people who may work during maintenance still sign in.
+            // The organization's default theme (ADR-0055): colours, artwork and sign-in texts; null means the product theme.
+            'theme' => ($theme = app(Themes::class)->organizationDefault()) === null ? null : app(Themes::class)->client($theme),
             'maintenance' => array_intersect_key(app(Maintenance::class)->system(), array_flip(['active', 'until', 'message'])),
             'branding' => [
                 'logo' => $branding['logo_file'] ? url('/api/v1/branding/logo') : null,

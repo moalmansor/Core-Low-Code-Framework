@@ -7,6 +7,7 @@ use App\Modules\Experience\Http\Controllers\HomeScreenController;
 use App\Modules\Experience\Http\Controllers\MaintenanceController;
 use App\Modules\Experience\Http\Controllers\PageController;
 use App\Modules\Experience\Http\Controllers\SearchController;
+use App\Modules\Experience\Http\Controllers\ThemeController;
 use Illuminate\Support\Facades\Route;
 
 // Pages, home screens, navigation extras, announcements, search and themes (specification §4.27–4.29, ADR-0054).
@@ -30,6 +31,21 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::get('/search-configs', [SearchController::class, 'index']);
     Route::put('/search-configs/{form}', [SearchController::class, 'update'])->whereUuid('form');
 
+    Route::get('/themes', [ThemeController::class, 'index']);
+    Route::post('/themes', [ThemeController::class, 'store']);
+    Route::get('/themes/presets', [ThemeController::class, 'presets']);
+    Route::post('/themes/check', [ThemeController::class, 'check'])->middleware('throttle:120,1');
+    Route::post('/themes/import', [ThemeController::class, 'import']);
+    Route::delete('/themes/default', [ThemeController::class, 'clearDefault']);
+    Route::get('/themes/{theme}', [ThemeController::class, 'show'])->whereUuid('theme');
+    Route::put('/themes/{theme}', [ThemeController::class, 'update'])->whereUuid('theme');
+    Route::delete('/themes/{theme}', [ThemeController::class, 'destroy'])->whereUuid('theme');
+    Route::post('/themes/{theme}/default', [ThemeController::class, 'makeDefault'])->whereUuid('theme');
+    Route::post('/themes/{theme}/reset', [ThemeController::class, 'reset'])->whereUuid('theme');
+    Route::get('/themes/{theme}/export', [ThemeController::class, 'export'])->whereUuid('theme');
+    Route::post('/themes/{theme}/assets/{kind}', [ThemeController::class, 'storeAsset'])->whereUuid('theme')->middleware('throttle:30,1');
+    Route::delete('/themes/{theme}/assets/{kind}', [ThemeController::class, 'removeAsset'])->whereUuid('theme');
+
     Route::get('/maintenance', [MaintenanceController::class, 'show']);
     Route::put('/maintenance', [MaintenanceController::class, 'update']);
 
@@ -40,4 +56,10 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::get('/home-screens/{screen}', [HomeScreenController::class, 'show'])->whereUuid('screen');
     Route::put('/home-screens/{screen}', [HomeScreenController::class, 'update'])->whereUuid('screen');
     Route::delete('/home-screens/{screen}', [HomeScreenController::class, 'destroy'])->whereUuid('screen');
+});
+
+// Theme artwork and stylesheets are public: the sign-in page and emails show them (ADR-0055).
+Route::middleware(['throttle:public'])->group(function (): void {
+    Route::get('/theme-assets/{theme}/{kind}', [ThemeController::class, 'asset'])->whereUuid('theme');
+    Route::get('/theme-css/{theme}', [ThemeController::class, 'css'])->where('theme', '[0-9a-fA-F-]{36}\\.css');
 });

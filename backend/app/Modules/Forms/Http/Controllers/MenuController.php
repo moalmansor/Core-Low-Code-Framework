@@ -15,6 +15,7 @@ use App\Modules\Experience\Models\HomeScreen;
 use App\Modules\Experience\Models\Page;
 use App\Modules\Experience\Pages;
 use App\Modules\Experience\PersonRules;
+use App\Modules\Experience\Themes\Themes;
 use App\Modules\Forms\Conditions\OwnedConditions;
 use App\Modules\Forms\Models\Application;
 use App\Modules\Forms\Models\Form;
@@ -152,7 +153,7 @@ final class MenuController extends Controller
     }
 
     /** The sidebar of the signed-in user: active applications they may use and the menu items they may see. */
-    public function navigation(AccessResolver $access, Pages $pages, Maintenance $maintenance): JsonResponse
+    public function navigation(AccessResolver $access, Pages $pages, Maintenance $maintenance, Themes $themes): JsonResponse
     {
         $user = $this->user();
         $apps = Application::query()->where('status', 'active')->orderBy('sort_order')->orderBy('key')->get()
@@ -187,6 +188,7 @@ final class MenuController extends Controller
                 $out[] = [
                     'uuid' => $app->uuid, 'key' => $app->key, 'name' => $names[$app->id]['name'] ?? Translator::humanize((string) $app->key), 'icon' => $app->icon, 'color' => $app->color,
                     'maintenance' => $maintenance->applicationOffline($app), 'home' => $home, 'items' => $tree,
+                    'theme' => ($theme = $themes->forApplication((int) $app->id)) === null ? null : $themes->client($theme),
                 ];
             }
         }
