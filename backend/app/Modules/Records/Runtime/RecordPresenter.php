@@ -8,6 +8,8 @@ use App\Expressions\Calendars\Civil;
 use App\Expressions\Evaluation\Context;
 use App\Expressions\Evaluation\Evaluator;
 use App\Expressions\Values\Value;
+use App\Modules\Integrations\ExternalSources;
+use App\Modules\Integrations\Models\ExternalDataSource;
 use App\Modules\Records\Models\StoredFile;
 use App\Modules\Workflow\Runtime\WorkflowRuntime;
 use Illuminate\Support\Facades\DB;
@@ -54,7 +56,15 @@ final class RecordPresenter
                 }
             }
             foreach ($refUuids as $fieldUuid => $uuids) {
-                $titles[$fieldUuid] = $this->refs->titles($rt, $rt->fields[$fieldUuid], array_values(array_unique($uuids)));
+                $field = $rt->fields[$fieldUuid];
+                if (($field['options']['source'] ?? null) === 'external' && $rt->targetTable($field) === null) {
+                    // Labels of values chosen from an external data source (ADR-0057), from its cache.
+                    $source = ExternalDataSource::query()->where('uuid', strtolower((string) ($field['options']['external'] ?? '')))->first();
+                    $titles[$fieldUuid] = $source === null ? [] : app(ExternalSources::class)->labels($source, array_values(array_unique($uuids)));
+
+                    continue;
+                }
+                $titles[$fieldUuid] = $this->refs->titles($rt, $field, array_values(array_unique($uuids)));
             }
             if ($fileUuids !== []) {
                 foreach (StoredFile::query()->whereIn('uuid', array_values(array_unique($fileUuids)))->get() as $file) {
@@ -168,8 +178,8 @@ final class RecordPresenter
             $storage = $rt->type($f)?->storage;
             if (in_array($storage, ['file', 'files'], true)) {
                 $fileUuids = [...$fileUuids, ...array_values(array_filter((array) $v, 'is_string'))];
-            } elseif ($rt->targetTable($f) !== null) {
-                $refUuids[$f['uuid']] = [...($refUuids[$f['uuid']] ?? []), ...array_values(array_filter((array) $v, 'is_string'))];
+            } elseif ($rt->targetTable($f) !== null || ($f['options']['source'] ?? null) === 'external') {
+                $refUuids[$f['uuid']] = [...($refUuids[$f['uuid']] ?? []), ...array_values(array_map('strval', array_filter((array) $v, 'is_scalar')))];
             }
         }
     }

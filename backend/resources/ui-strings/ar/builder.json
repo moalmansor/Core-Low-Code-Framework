@@ -318,6 +318,8 @@
   "builder.issue.expression_syntax": "خطأ صياغة في صيغة",
   "builder.issue.expression_type": "خطأ نوع في صيغة",
   "builder.issue.expression_unknown_function": "دالة غير معروفة في صيغة",
+  "builder.issue.external_no_parent": "ليس لمصدر البيانات عمود أصل يُبنى عليه التسلسل.",
+  "builder.issue.external_not_choice": "لا يأخذ خياراته من مصدر بيانات خارجي إلا حقل اختيار.",
   "builder.issue.form_mismatch": "المستند يخص نموذجًا آخر.",
   "builder.issue.formula_required": "اكتب صيغة هذا الحقل المحسوب.",
   "builder.issue.group_cycle": "لا يمكن أن تحتوي مجموعة على نفسها.",

@@ -18,4 +18,7 @@ return [
     'status_history' => 'Status history',
     'yes' => 'Yes',
     'no' => 'No',
+    'unknown_source' => 'Choose an external data source.',
+    'bad_match_field' => 'Choose a field of this record with a single value.',
+    'bad_match_column' => 'Choose the source column to match the field against.',
 ];

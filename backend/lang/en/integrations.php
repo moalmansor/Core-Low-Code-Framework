@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'bad_key' => 'Use lowercase letters, digits and underscores, starting with a letter.',
+    'key_taken' => 'Another data source already uses this key.',
+    'key_in_use' => 'Forms or sync jobs use this source; its key cannot change.',
+    'bad_type' => 'Choose a REST endpoint or a database view.',
+    'bad_url' => 'Use an https:// address whose host is on the egress allowlist.',
+    'bad_method' => 'Use GET or POST.',
+    'bad_param' => 'A parameter name has letters, digits, dots, hyphens, underscores and brackets only.',
+    'bad_body' => 'The body must be JSON once filled in; use {{q}} and {{depends}} as whole values.',
+    'bad_path' => 'Write the path as names separated by dots, such as data.items.',
+    'bad_auth' => 'Choose how to authenticate.',
+    'required' => 'This setting is required.',
+    'bad_header' => 'Use a header name of letters, digits and hyphens with a value (Host, Content-Length and Authorization are set by the system).',
+    'bad_connection' => 'Choose a database connection defined for this installation.',
+    'bad_view' => 'The connection has no view with this name.',
+    'bad_mapping' => 'Choose a field of the source (a column of the view, or a path in each record).',
+    'bad_column' => 'Each extra column needs a key (lowercase letters, digits, underscores, not value, label or parent), a source field and a label.',
+    'bad_cache' => 'Choose a cache policy.',
+    'bad_ttl' => 'Keep results for 30 seconds to 7 days.',
+    'name_required' => 'Give the data source a name.',
+    'changed_meanwhile' => 'This was changed by someone else while you were editing. Reload to see the latest version.',
+    'in_use' => 'Used by :what. Remove it there first.',
+    'sync_jobs_n' => ':n sync job(s)',
+    'inactive' => 'The data source is switched off.',
+    'not_a_list' => 'The response does not hold a list of records at the configured path.',
+    'no_token' => 'The token endpoint did not return an access token.',
+    'unreachable' => 'The source could not be reached: :error',
+    'refused' => 'The source answered with HTTP :status.',
+    'not_json' => 'The source did not answer with JSON.',
+    'query_failed' => 'The view could not be read: :error',
+    'cannot_check' => 'The value cannot be checked right now because its data source is unavailable. Try again later.',
+    'options_unavailable' => 'The options cannot be loaded right now because their data source is unavailable.',
+];

@@ -15,6 +15,9 @@ use App\Modules\Extensions\HookRunner;
 use App\Modules\Forms\Definition\ClientDefinition;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
+use App\Modules\Integrations\ExternalSources;
+use App\Modules\Integrations\Models\ExternalDataSource;
+use App\Modules\Integrations\SourceFailure;
 use App\Modules\Justification\JustificationPresenter;
 use App\Modules\Records\Runtime\ExpressionContext;
 use App\Modules\Records\Runtime\FormRuntime;
@@ -253,6 +256,19 @@ final class RecordController extends Controller
             }
 
             return response()->json(['data' => $out, 'meta' => ['total' => count($out)]]);
+        }
+
+        if (($opts['source'] ?? null) === 'external' && $rt->targetTable($f) === null) {
+            // An external data source (ADR-0057): read through its cache, searched and cascaded like a collection.
+            $source = is_string($opts['external'] ?? null) ? ExternalDataSource::query()->where('uuid', strtolower($opts['external']))->first() : null;
+            abort_if($source === null, 404);
+            try {
+                $found = app(ExternalSources::class)->options($source, $term, ($opts['dependsOn'] ?? null) !== null ? ($data['depends'] ?? null) : null, $page, $pageSize);
+            } catch (SourceFailure $e) {
+                return response()->json(['message' => __('integrations.options_unavailable'), 'code' => 'source_unavailable'], 503);
+            }
+
+            return response()->json(['data' => array_map(static fn ($o) => $o + ['group' => null, 'color' => null, 'icon' => null, 'uuid' => null], $found['items']), 'meta' => ['total' => $found['total']]]);
         }
 
         $table = $rt->targetTable($f);

@@ -318,6 +318,8 @@
   "builder.issue.expression_syntax": "Syntax error in an expression",
   "builder.issue.expression_type": "Type error in an expression",
   "builder.issue.expression_unknown_function": "Unknown function in an expression",
+  "builder.issue.external_no_parent": "The data source has no parent column to cascade by.",
+  "builder.issue.external_not_choice": "Only a choice field can take its options from an external data source.",
   "builder.issue.form_mismatch": "The document belongs to another form.",
   "builder.issue.formula_required": "Write the formula of this calculated field.",
   "builder.issue.group_cycle": "A group cannot contain itself.",

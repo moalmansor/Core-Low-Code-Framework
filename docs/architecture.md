@@ -2742,7 +2742,7 @@ erDiagram
 | `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 | `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
 | `parent_panel_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `view_panels.id` NO ACTION (tabs/sections) |
-| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `tabs`, `tab`, `section`, `related_table`, `derived_fields`, `summary_widget`, `status_timeline`, `comments`, `attachments`, `form_body`, `html` |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `tabs`, `tab`, `section`, `related_table`, `derived_fields`, `summary_widget`, `status_timeline`, `comments`, `attachments`, `form_body`, `html`, `external_table` |
 | `relation_path` | JSON | NVARCHAR(MAX) | NULL | — | for related tables / derived fields |
 | `config` | JSON | NVARCHAR(MAX) | NOT NULL | — | columns, filters, actions, widget definition, derived field paths |
 | `visibility_condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION (per role etc.) |
@@ -2762,7 +2762,7 @@ erDiagram
 - **Foreign key:** `fk_view_panels_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
 - **Foreign key:** `fk_view_panels_parent_panel_id`: `parent_panel_id` → `view_panels`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_view_panels_visibility_condition_id`: `visibility_condition_id` → `conditions`(`id`) ON DELETE NO ACTION
-- **Check:** `ck_view_panels_type`: `type IN ('tabs', 'tab', 'section', 'related_table', 'derived_fields', 'summary_widget', 'status_timeline', 'comments', 'attachments', 'form_body', 'html')` (both engines)
+- **Check:** `ck_view_panels_type`: `type IN ('tabs', 'tab', 'section', 'related_table', 'derived_fields', 'summary_widget', 'status_timeline', 'comments', 'attachments', 'form_body', 'html', 'external_table')` (both engines)
 - **Check (SQL Server):** `ck_view_panels_relation_path_json`: `ISJSON(relation_path) = 1`
 - **Check (SQL Server):** `ck_view_panels_config_json`: `ISJSON(config) = 1`
 - Translatable: `title`, `content` (html).

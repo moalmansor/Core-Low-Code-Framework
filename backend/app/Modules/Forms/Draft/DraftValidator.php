@@ -333,6 +333,17 @@ final class DraftValidator
                 if ($opts['source'] === 'query' && empty($opts['query'])) {
                     $this->problem("{$path}.options.query", 'options_source_missing', 'Build the options query.');
                 }
+                if ($opts['source'] === 'external') {
+                    // An external data source (ADR-0057) feeds plain choice values, never a reference.
+                    $source = is_string($opts['external'] ?? null) ? DB::table('external_data_sources')->where('uuid', strtolower($opts['external']))->first(['is_active', 'response_mapping']) : null;
+                    if ($source === null) {
+                        $this->problem("{$path}.options.external", 'options_source_missing', 'Choose the external data source.');
+                    } elseif (! in_array($storageKind, ['choice', 'multi_choice'], true) || ($f['relation'] ?? null) !== null) {
+                        $this->problem("{$path}.options.external", 'external_not_choice', 'Only a choice field can take its options from an external data source.');
+                    } elseif (($opts['dependsOn'] ?? null) !== null && (json_decode((string) $source->response_mapping, true)['parent'] ?? null) === null) {
+                        $this->problem("{$path}.options.dependsOn", 'external_no_parent', 'The data source has no parent column to cascade by.');
+                    }
+                }
             }
             $v = $f['validation'] ?? [];
             foreach (array_keys($v) as $rule) {

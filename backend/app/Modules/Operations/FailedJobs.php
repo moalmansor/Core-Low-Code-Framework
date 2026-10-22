@@ -33,7 +33,7 @@ use Illuminate\Validation\ValidationException;
  */
 final class FailedJobs
 {
-    public const KINDS = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'webhook_delivery', 'channel_delivery', 'extension', 'queue_job'];
+    public const KINDS = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'webhook_delivery', 'channel_delivery', 'data_source', 'extension', 'queue_job'];
 
     /** Failures older than this are not gathered (the scheduled clean-ups remove most of them). */
     private const LOOKBACK_DAYS = 30;
@@ -240,6 +240,14 @@ final class FailedJobs
                 $name = $this->translator->many('notification_channel', [(int) $d->channel_id], ['name'])[(int) $d->channel_id]['name'] ?? Translator::humanize((string) $d->key);
                 $formId = (json_decode((string) $d->payload, true) ?: [])['form_id'] ?? null;
                 $rows[] = $this->row('channel_delivery', (int) $d->id, is_int($formId) ? $formId : null, $d->user_id, $name, $d->error, $d->updated_at, true, max(1, (int) $d->attempts));
+            }
+        }
+        if ($want('data_source')) {
+            $q = DB::table('audit_logs')->where('event', 'integration.source_failed')->where('occurred_at', '>=', $since)->orderByDesc('occurred_at')->limit(self::PER_KIND);
+            foreach ($q->get(['id', 'meta', 'object_id', 'occurred_at']) as $a) {
+                $meta = json_decode((string) $a->meta, true) ?: [];
+                $name = $a->object_id === null ? null : ($this->translator->many('external_data_source', [(int) $a->object_id], ['name'])[(int) $a->object_id]['name'] ?? null);
+                $rows[] = $this->row('data_source', (int) $a->id, null, null, $name ?? Translator::humanize((string) ($meta['key'] ?? '')), (string) ($meta['error'] ?? ''), $a->occurred_at, false, 1);
             }
         }
         if ($want('extension')) {
