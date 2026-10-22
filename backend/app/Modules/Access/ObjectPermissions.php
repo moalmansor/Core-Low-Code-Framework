@@ -80,6 +80,11 @@ final class ObjectPermissions
         $this->register('dashboard.'.strtolower($uuid).'.view', 'dashboard', $id, 'view', 'dashboard', 'View dashboard', 'عرض لوحة المعلومات', false);
     }
 
+    public function registerPage(int $id, string $uuid): void
+    {
+        $this->register('page.'.strtolower($uuid).'.view', 'page', $id, 'view', 'page', 'View page', 'عرض الصفحة', false);
+    }
+
     /** Seeing a sensitive field's value unmasked where values are otherwise masked (downloads, §4.23); granting it needs step-up. */
     public function registerSensitiveField(int $id, string $uuid): void
     {

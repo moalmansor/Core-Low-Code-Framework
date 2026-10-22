@@ -5,11 +5,23 @@
  * server's depth bound).
  */
 
-export const MENU_TYPES = ['form', 'collection', 'link', 'header', 'separator'] as const
+import type { Ast } from '@/builder/types'
+
+export const MENU_TYPES = ['form', 'collection', 'page', 'report', 'dashboard', 'my_work', 'link', 'header', 'separator'] as const
 export type MenuType = (typeof MENU_TYPES)[number]
 
-/** The server rejects trees nested deeper than this many levels. */
-export const MAX_MENU_LEVELS = 6
+/** Items that open an object chosen by its uuid. */
+export const TARGET_TYPES: readonly MenuType[] = ['form', 'collection', 'page', 'report', 'dashboard']
+export const hasTarget = (type: MenuType): boolean => TARGET_TYPES.includes(type)
+
+/** What a badge can count (live, for the person looking at the menu). */
+export const BADGE_KINDS = ['my_work', 'approvals', 'overdue', 'records'] as const
+export type BadgeKind = (typeof BADGE_KINDS)[number]
+/** Badges that only make sense on an item opening a form or collection. */
+export const badgeFits = (kind: BadgeKind, type: MenuType): boolean => kind !== 'records' || type === 'form' || type === 'collection'
+
+/** The server rejects trees nested deeper than this many levels (ADR-0054). */
+export const MAX_MENU_LEVELS = 20
 export const MAX_MENU_ITEMS = 500
 
 export interface MenuItemApi {
@@ -23,6 +35,8 @@ export interface MenuItemApi {
   labels?: Record<string, string>
   is_active?: boolean
   permission?: string
+  badge?: { kind: BadgeKind } | null
+  condition?: Ast | null
   children?: MenuItemApi[]
 }
 
@@ -37,6 +51,9 @@ export interface MenuNode {
   icon: string
   labels: Record<string, string>
   is_active: boolean
+  badge: BadgeKind | null
+  /** Visibility rule on the person (roles, department, attributes); null means everyone who may open the item. */
+  condition: Ast | null
   children: MenuNode[]
 }
 
@@ -49,6 +66,8 @@ export interface MenuItemPayload {
   icon: string | null
   label?: Record<string, string>
   is_active: boolean
+  badge?: { kind: BadgeKind }
+  condition?: Ast
   children: MenuItemPayload[]
 }
 
@@ -59,7 +78,7 @@ export function newNodeId(): string {
 }
 
 export function blankNode(type: MenuType, makeId: () => string = newNodeId): MenuNode {
-  return { id: makeId(), uuid: null, type, target: null, url: '', open_in_new_tab: false, icon: '', labels: {}, is_active: true, children: [] }
+  return { id: makeId(), uuid: null, type, target: null, url: '', open_in_new_tab: false, icon: '', labels: {}, is_active: true, badge: null, condition: null, children: [] }
 }
 
 export function fromApi(items: MenuItemApi[], makeId: () => string = newNodeId): MenuNode[] {
@@ -73,6 +92,8 @@ export function fromApi(items: MenuItemApi[], makeId: () => string = newNodeId):
     icon: i.icon ?? '',
     labels: { ...(i.labels ?? {}) },
     is_active: i.is_active ?? true,
+    badge: i.badge?.kind ?? null,
+    condition: i.condition ?? null,
     children: fromApi(i.children ?? [], makeId),
   }))
 }
@@ -98,8 +119,10 @@ export function toPayload(nodes: MenuNode[]): MenuItemPayload[] {
     }
     if (n.uuid) out.uuid = n.uuid
     if (n.type !== 'separator') out.label = cleanLabels(n.labels)
-    if ((n.type === 'form' || n.type === 'collection') && n.target) out.target = n.target
+    if (hasTarget(n.type) && n.target) out.target = n.target
     if (n.type === 'link') out.url = n.url.trim()
+    if (n.badge && n.type !== 'separator' && n.type !== 'header') out.badge = { kind: n.badge }
+    if (n.condition && n.type !== 'separator') out.condition = n.condition
     return out
   })
 }
@@ -132,7 +155,7 @@ export function removeNode(nodes: MenuNode[], id: string): boolean {
   return nodes.some((n) => removeNode(n.children, id))
 }
 
-export type MenuProblem = { id: string | null; code: 'too_deep' | 'too_many' | 'label_missing' | 'target_missing' | 'url_invalid' | 'separator_children' }
+export type MenuProblem = { id: string | null; code: 'too_deep' | 'too_many' | 'label_missing' | 'target_missing' | 'url_invalid' | 'separator_children' | 'badge_invalid' }
 
 /** Client-side checks mirroring the server's rules, so problems are shown next to the item. */
 export function validateTree(nodes: MenuNode[], defaultLocale: string): MenuProblem[] {
@@ -142,8 +165,9 @@ export function validateTree(nodes: MenuNode[], defaultLocale: string): MenuProb
   const walk = (list: MenuNode[]) => {
     for (const n of list) {
       if (n.type !== 'separator' && !(n.labels[defaultLocale] ?? '').trim()) problems.push({ id: n.id, code: 'label_missing' })
-      if ((n.type === 'form' || n.type === 'collection') && !n.target) problems.push({ id: n.id, code: 'target_missing' })
-      if (n.type === 'link' && !/^(https:\/\/|\/)\S*$/.test(n.url.trim())) problems.push({ id: n.id, code: 'url_invalid' })
+      if (hasTarget(n.type) && !n.target) problems.push({ id: n.id, code: 'target_missing' })
+      if (n.type === 'link' && (!/^(https:\/\/|\/)\S*$/.test(n.url.trim()) || n.url.trim().startsWith('//'))) problems.push({ id: n.id, code: 'url_invalid' })
+      if (n.badge && !badgeFits(n.badge, n.type)) problems.push({ id: n.id, code: 'badge_invalid' })
       if (n.type === 'separator' && n.children.length) problems.push({ id: n.id, code: 'separator_children' })
       walk(n.children)
     }

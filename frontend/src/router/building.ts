@@ -19,6 +19,18 @@ export const buildingRoutes: RouteRecordRaw[] = [
     meta: { anyOf: ['system.manage_pages_menus'], title: 'building.menu.page_title' },
   },
   {
+    path: 'admin/applications/:application/pages',
+    name: 'admin.applications.pages',
+    component: () => import('@/views/experience/PagesAdmin.vue'),
+    meta: { anyOf: ['system.manage_pages_menus'], title: 'xp.pages' },
+  },
+  {
+    path: 'admin/applications/:application/pages/:page',
+    name: 'admin.applications.page',
+    component: () => import('@/views/experience/PageEditor.vue'),
+    meta: { anyOf: ['system.manage_pages_menus'], title: 'xp.page' },
+  },
+  {
     path: 'admin/forms',
     name: 'admin.forms',
     component: () => import('@/views/admin/building/FormsView.vue'),

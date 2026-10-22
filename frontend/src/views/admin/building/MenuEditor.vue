@@ -9,7 +9,7 @@ import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { get, send } from '@/api/http'
 import { useSession } from '@/stores/session'
-import MenuItemEditor from './MenuItemEditor.vue'
+import MenuItemEditor, { type MenuObjectOption } from './MenuItemEditor.vue'
 import MenuTreeList from './MenuTreeList.vue'
 import {
   MAX_MENU_LEVELS,
@@ -41,6 +41,8 @@ const appName = ref('')
 const tree = ref<MenuNode[]>([])
 const saved = ref('[]')
 const forms = ref<FormOption[]>([])
+/** Null where the person may not list that kind of object. */
+const objects = ref<Record<'page' | 'report' | 'dashboard', MenuObjectOption[] | null>>({ page: [], report: null, dashboard: null })
 const formsAvailable = FORM_OPTION_PERMISSIONS.some((p) => session.can(p))
 const loading = ref(true)
 const saving = ref(false)
@@ -67,12 +69,25 @@ onMounted(async () => {
     appName.value = app?.name ?? (app ? humanize(app.key) : '')
     adopt(menu.data)
     if (formsAvailable) forms.value = await fetchFormOptions()
+    await loadObjects()
   } catch (e) {
     toast.add({ severity: 'error', summary: errorText(e, t('building.load_failed')), life: 6000 })
   } finally {
     loading.value = false
   }
 })
+
+async function loadObjects(): Promise<void> {
+  type Row = { uuid: string; label: string }
+  const list = (path: string) => get<{ data: Row[] }>(path).then((r) => r.data.map((x) => ({ uuid: x.uuid, label: x.label })))
+  const reports = session.can('system.manage_reports')
+  const [page, report, dashboard] = await Promise.all([
+    list(`/pages?application=${appUuid.value}`),
+    reports ? list('/reports') : Promise.resolve(null),
+    reports ? list('/dashboards') : Promise.resolve(null),
+  ])
+  objects.value = { page, report, dashboard }
+}
 
 onBeforeRouteLeave(() => !dirty.value || window.confirm(t('building.unsaved_leave')))
 
@@ -86,6 +101,7 @@ function targetOf(n: MenuNode): string {
     const f = formsById.value.get(n.target)
     return f ? f.key : ''
   }
+  if ((n.type === 'page' || n.type === 'report' || n.type === 'dashboard') && n.target) return objects.value[n.type]?.find((o) => o.uuid === n.target)?.label ?? ''
   return ''
 }
 
@@ -190,7 +206,7 @@ async function discard(): Promise<void> {
       <MenuTreeList :nodes="tree" :depth="0" />
     </section>
     <aside class="lg:w-96 shrink-0">
-      <MenuItemEditor v-if="selected" :node="selected" :forms="forms" :default-locale="defaultLocale" />
+      <MenuItemEditor v-if="selected" :node="selected" :forms="forms" :objects="objects" :default-locale="defaultLocale" />
       <p v-if="!selected" class="text-muted-color text-sm">{{ t('building.menu.select_item') }}</p>
     </aside>
   </div>

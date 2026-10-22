@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createHmac } from 'node:crypto'
-import { expect, type Page } from '@playwright/test'
+import { expect, type Page, type Response } from '@playwright/test'
 
 export const backendDir = process.env.LCF_BACKEND_DIR ?? '../backend'
 export const admin = { name: 'E2E Root', email: 'root@e2e.test', password: 'Vq7!mR2#tL9$wZ4p-Xk' }
@@ -72,12 +72,30 @@ export async function freshTotp(secret: string): Promise<string> {
 }
 
 export async function signIn(page: Page, secret: string): Promise<void> {
-  await page.goto('/login')
-  await page.getByTestId('login-email').fill(admin.email)
-  await page.getByTestId('login-password').locator('input').fill(admin.password)
-  await page.getByTestId('login-submit').click()
-  await expect(page).toHaveURL(/login\/two-factor/)
-  await fillOtp(page, 'otp', await freshTotp(secret))
-  await page.getByTestId('otp-submit').click()
-  await expect(page).not.toHaveURL(/login/)
+  // Redirects and refusals from the server while signing in, reported if signing in fails.
+  const refused: Promise<string>[] = []
+  const watch = (r: Response) => {
+    if (r.status() >= 300 && /\/(api|sanctum)\//.test(r.url()))
+      refused.push(
+        r.text().then(
+          (body) => `${r.request().method()} ${new URL(r.url()).pathname} → ${r.status()} ${body.slice(0, 200)}`,
+          () => `${r.request().method()} ${new URL(r.url()).pathname} → ${r.status()}`,
+        ),
+      )
+  }
+  page.on('response', watch)
+  try {
+    await page.goto('/login')
+    await page.getByTestId('login-email').fill(admin.email)
+    await page.getByTestId('login-password').locator('input').fill(admin.password)
+    await page.getByTestId('login-submit').click()
+    await expect(page).toHaveURL(/login\/two-factor/)
+    await fillOtp(page, 'otp', await freshTotp(secret))
+    await page.getByTestId('otp-submit').click()
+    await expect(page).not.toHaveURL(/login/)
+  } catch (e) {
+    throw new Error(`${(e as Error).message}\nServer responses while signing in:\n${(await Promise.all(refused)).join('\n')}`, { cause: e })
+  } finally {
+    page.off('response', watch)
+  }
 }

@@ -4,16 +4,11 @@ declare(strict_types=1);
 
 namespace App\Modules\Assignment\Http\Controllers;
 
-use App\Modules\Access\AccessResolver;
-use App\Modules\Access\RecordScope;
 use App\Modules\Assignment\Claims;
-use App\Modules\Assignment\DelegationResolver;
-use App\Modules\Assignment\Membership;
+use App\Modules\Assignment\MyWork;
 use App\Modules\Core\I18n\Translator;
-use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\Runtime\FormRuntime;
-use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RecordPresenter;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Views\RelationPaths;
@@ -35,18 +30,12 @@ use Illuminate\Validation\Rule;
  */
 final class MyWorkController extends Controller
 {
-    private const CANDIDATES = 2000;
-
     public function __construct(
-        private readonly Membership $members,
-        private readonly DelegationResolver $delegations,
-        private readonly FormRuntimes $runtimes,
-        private readonly RecordScope $scope,
+        private readonly MyWork $work,
         private readonly RecordStore $store,
         private readonly RecordPresenter $presenter,
         private readonly RelationPaths $paths,
         private readonly Claims $claims,
-        private readonly AccessResolver $access,
         private readonly Translator $translator,
     ) {}
 
@@ -60,56 +49,7 @@ final class MyWorkController extends Controller
             'per_page' => ['sometimes', 'integer', 'between:1,100'],
         ]);
         $user = $this->user();
-        $principals = $this->delegations->principalsFor($user, null);
-        $subjects = [];
-        foreach ($principals as $p) {
-            foreach ($this->members->subjectsOf($p) as $type => $ids) {
-                foreach ($ids as $id) {
-                    $subjects[$type.':'.$id] ??= ['type' => $type, 'id' => $id, 'for' => $p->id === $user->id ? null : $p];
-                }
-            }
-        }
-        $q = DB::table('assignments')->where('status', 'active')->where(static function ($w) use ($subjects): void {
-            foreach ($subjects as $s) {
-                $w->orWhere(static fn ($x) => $x->where('assignee_type', $s['type'])->where('assignee_id', $s['id']));
-            }
-        });
-        if (isset($data['form'])) {
-            $q->where('form_id', (int) DB::table('forms')->where('uuid', strtolower($data['form']))->value('id'));
-        }
-        match ($data['kind'] ?? 'all') {
-            'work' => $q->whereNull('approval_request_id'),
-            'approval' => $q->whereNotNull('approval_request_id'),
-            default => null,
-        };
-        if ($data['overdue'] ?? false) {
-            $q->whereNotNull('due_at')->where('due_at', '<', Carbon::now('UTC')->format('Y-m-d H:i:s.u'));
-        }
-        $candidates = $q->orderByRaw('case when due_at is null then 1 else 0 end')->orderBy('due_at')->orderByDesc('priority')->orderBy('id')->limit(self::CANDIDATES)->get();
-
-        // Keep the records the user (or a user they cover for) may see; one query per form.
-        $visible = [];
-        $runtimes = [];
-        foreach ($candidates->groupBy('form_id') as $formId => $rows) {
-            $form = Form::query()->find($formId);
-            $rt = $form === null ? null : $this->runtimes->forForm($form);
-            if ($rt === null || $form->state !== 'published') {
-                continue;
-            }
-            $allowed = false;
-            foreach ($principals as $p) {
-                $allowed = $allowed || $this->access->allows($p, "form.{$form->uuid}.view");
-            }
-            if (! $allowed) {
-                continue;
-            }
-            $runtimes[$formId] = $rt;
-            $ids = $rows->pluck('record_id')->map(static fn ($v) => (int) $v)->unique()->values()->all();
-            foreach ($this->scope->apply(DB::table($rt->table)->whereIn('id', $ids)->whereNull('deleted_at'), $rt, $user, 'view')->pluck('id') as $id) {
-                $visible[$formId.':'.$id] = true;
-            }
-        }
-        $items = $candidates->filter(static fn ($a) => isset($visible[$a->form_id.':'.$a->record_id]))->unique(static fn ($a) => $a->form_id.':'.$a->record_id.':'.($a->approval_request_id ?? 'w'))->values();
+        ['candidates' => $candidates, 'items' => $items, 'runtimes' => $runtimes, 'subjects' => $subjects] = $this->work->visible($user, $data);
         $total = $items->count();
         $perPage = $data['per_page'] ?? 25;
         $page = $items->forPage($data['page'] ?? 1, $perPage)->values();
@@ -163,7 +103,7 @@ final class MyWorkController extends Controller
         }
         usort($out, static fn ($x, $y) => [$x['due_at'] === null ? 1 : 0, $x['due_at'], -$x['priority']] <=> [$y['due_at'] === null ? 1 : 0, $y['due_at'], -$y['priority']]);
 
-        return response()->json(['data' => $out, 'meta' => ['total' => $total, 'page' => $data['page'] ?? 1, 'per_page' => $perPage, 'truncated' => $candidates->count() >= self::CANDIDATES]]);
+        return response()->json(['data' => $out, 'meta' => ['total' => $total, 'page' => $data['page'] ?? 1, 'per_page' => $perPage, 'truncated' => $candidates->count() >= MyWork::CANDIDATES]]);
     }
 
     /**

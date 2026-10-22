@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
 import Menu from 'primevue/menu'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { get } from '@/api/http'
 import BrandMark from '@/components/BrandMark.vue'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import NotificationsBell from './NotificationsBell.vue'
-import NavTree, { type NavItem } from '@/runtime/NavTree.vue'
+import NavTree, { navPath, type NavItem } from '@/runtime/NavTree.vue'
 import { activeNavId, type NavCandidate } from './navActive'
 import { useSession } from '@/stores/session'
 
@@ -62,11 +62,27 @@ async function loadNavigation(): Promise<void> {
     // As above: keep the applications already shown.
   }
 }
+/** Live counts for menu badges, refreshed every minute while the window is visible. */
+const badges = ref<Record<string, number>>({})
+const hasBadges = (items: NavItem[]): boolean => items.some((i) => i.badge || hasBadges(i.children ?? []))
+async function loadBadges(): Promise<void> {
+  if (session.gate !== 'none' || !apps.value.some((a) => hasBadges(a.items)) || document.visibilityState === 'hidden') return
+  try {
+    badges.value = (await get<{ data: Record<string, number> }>('/navigation/badges')).data
+  } catch {
+    // Counts are a convenience: a failed refresh keeps the last ones.
+  }
+}
+let badgeTimer: ReturnType<typeof setInterval> | undefined
 function loadSidebar(): void {
   void loadAreas()
-  void loadNavigation()
+  void loadNavigation().then(loadBadges)
 }
-onMounted(loadSidebar)
+onMounted(() => {
+  loadSidebar()
+  badgeTimer = setInterval(() => void loadBadges(), 60_000)
+})
+onBeforeUnmount(() => clearInterval(badgeTimer))
 watch(() => [session.gate, session.me?.permissions.length, session.locale], loadSidebar)
 watch(
   () => route.fullPath,
@@ -87,7 +103,10 @@ const sections = computed(() => {
 
 // Exactly one sidebar entry is active: the longest match, first in menu order on a tie.
 function appCandidates(items: NavItem[]): NavCandidate[] {
-  return items.flatMap((i) => [...((i.type === 'form' || i.type === 'collection') && i.target ? [{ id: i.uuid, path: `/app/${i.target}` }] : []), ...appCandidates(i.children ?? [])])
+  return items.flatMap((i) => {
+    const path = i.type === 'my_work' ? null : navPath(i)
+    return [...(path ? [{ id: i.uuid, path }] : []), ...appCandidates(i.children ?? [])]
+  })
 }
 const active = computed(() =>
   activeNavId(route.path, [
@@ -158,7 +177,7 @@ const userItems = computed(() => [
             <i v-if="app.maintenance" v-tooltip="t('records.app_maintenance')" class="pi pi-wrench text-warning" />
             <i :class="collapsedApps[app.uuid] ? 'pi pi-chevron-right rtl:rotate-180' : 'pi pi-chevron-down'" class="text-[0.625rem]" />
           </button>
-          <NavTree v-if="!collapsedApps[app.uuid]" :items="app.items" :active="active" />
+          <NavTree v-if="!collapsedApps[app.uuid]" :items="app.items" :active="active" :badges="badges" />
         </section>
         <div v-if="apps.length && areas.length" class="mt-3 border-t border-line" />
         <RouterLink v-if="areas.length" :class="navClass('admin')" :to="{ name: 'admin' }" active-class="" exact-active-class="" :aria-current="current('admin')"

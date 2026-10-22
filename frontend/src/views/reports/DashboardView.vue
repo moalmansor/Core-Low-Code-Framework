@@ -15,6 +15,8 @@ import ReportChart from './ReportChart.vue'
 const { t } = useI18n()
 const toast = useToast()
 const route = useRoute()
+/** A page that shows it passes it in, and the page's own title replaces the way back. */
+const props = defineProps<{ dashboard?: string; embedded?: boolean }>()
 const data = ref<DashboardView | null>(null)
 const failed = ref<string | null>(null)
 const exporting = ref(false)
@@ -22,7 +24,7 @@ const charts = ref<Record<string, InstanceType<typeof ReportChart> | null>>({})
 async function load(): Promise<void> {
   failed.value = null
   try {
-    data.value = await dashboardsApi.view(String(route.params.dashboard))
+    data.value = await dashboardsApi.view(String(props.dashboard ?? route.params.dashboard))
   } catch (e) {
     failed.value = errorText(e, t('rep.load_failed'))
   }
@@ -54,7 +56,7 @@ const height = (h: number) => Math.max(140, h * 150 - 60)
   <div class="flex flex-col gap-4" data-testid="dashboard-view">
     <header class="page-head">
       <div class="flex-1 min-w-0">
-        <RouterLink :to="{ name: 'insights' }" class="text-sm text-primary inline-flex items-center gap-1 mb-1">
+        <RouterLink v-if="!embedded" :to="{ name: 'insights' }" class="text-sm text-primary inline-flex items-center gap-1 mb-1">
           <i class="pi pi-arrow-left rtl:rotate-180" aria-hidden="true" />{{ t('rep.insights') }}
         </RouterLink>
         <h1 class="page-title !mb-1" dir="auto">{{ data?.label ?? t('rep.dashboard') }}</h1>

@@ -69,8 +69,8 @@
   "admin.area.forms": "Forms & collections",
   "admin.area.integrations": "Integrations",
   "admin.area.packages": "Configuration packages",
-  "admin.area.reports": "Reports & dashboards",
   "admin.area.reference_data": "Reference data",
+  "admin.area.reports": "Reports & dashboards",
   "admin.area.roles_permissions": "Roles & permissions",
   "admin.area.schema": "Database schema",
   "admin.area.system_health": "System health",
@@ -441,6 +441,7 @@
   "translations.type.blueprint": "Blueprints",
   "translations.type.business_calendar": "Calendars",
   "translations.type.currency": "Currencies",
+  "translations.type.dashboard": "Dashboards",
   "translations.type.department": "Department names",
   "translations.type.document_template": "Document templates",
   "translations.type.email_template": "Email templates",
@@ -453,7 +454,9 @@
   "translations.type.menu_item": "Menu items",
   "translations.type.notification_rule": "Notification rules",
   "translations.type.organization": "Organization names",
+  "translations.type.page": "Page",
   "translations.type.permission": "Permission labels",
+  "translations.type.report": "Reports",
   "translations.type.role": "Role names",
   "translations.type.ui": "Interface",
   "translations.type.unit_of_measure": "Units of measure",
@@ -494,7 +497,5 @@
   "users.two_factor_reset": "Two-factor reset; the user enrolls again at next sign-in.",
   "users.unlock": "Unlock",
   "users.unlocked": "Account unlocked.",
-  "users.username": "Username",
-  "translations.type.report": "Reports",
-  "translations.type.dashboard": "Dashboards"
+  "users.username": "Username"
 }

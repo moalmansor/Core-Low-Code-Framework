@@ -20,6 +20,7 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::get('/applications/{application}/menu', [MenuController::class, 'show']);
     Route::put('/applications/{application}/menu', [MenuController::class, 'update']);
     Route::get('/navigation', [MenuController::class, 'navigation']);
+    Route::get('/navigation/badges', [MenuController::class, 'badges'])->middleware('throttle:60,1');
 
     Route::get('/field-types', [FieldTypeController::class, 'index']);
     Route::get('/field-templates', [FieldTemplateController::class, 'index']);

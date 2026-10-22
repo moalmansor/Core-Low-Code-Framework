@@ -186,7 +186,10 @@ const menuItems = computed(() => {
   if (!a) return []
   const items: { label: string; icon: string; command: () => void }[] = [{ label: t('common.edit'), icon: 'pi pi-pencil', command: () => edit(a) }]
   if (session.can('system.manage_pages_menus'))
-    items.push({ label: t('building.app.edit_menu'), icon: 'pi pi-sitemap', command: () => router.push({ name: 'admin.applications.menu', params: { application: a.uuid } }) })
+    items.push(
+      { label: t('building.app.edit_menu'), icon: 'pi pi-sitemap', command: () => router.push({ name: 'admin.applications.menu', params: { application: a.uuid } }) },
+      { label: t('xp.pages'), icon: 'pi pi-book', command: () => router.push({ name: 'admin.applications.pages', params: { application: a.uuid } }) },
+    )
   if (session.can('system.enable_maintenance_mode')) items.push({ label: t('building.app.maintenance'), icon: 'pi pi-wrench', command: () => openMaintenance(a) })
   if (a.status !== 'active') items.push({ label: t('building.app.action_activate'), icon: 'pi pi-play', command: () => changeStatus(a, 'activate') })
   if (a.status === 'active') items.push({ label: t('building.app.action_archive'), icon: 'pi pi-inbox', command: () => changeStatus(a, 'archive') })

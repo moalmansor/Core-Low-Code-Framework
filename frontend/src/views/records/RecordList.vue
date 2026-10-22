@@ -59,7 +59,9 @@ const { t, locale } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
 
-const formUuid = computed(() => String(route.params.form).toLowerCase())
+/** A page that hosts the form passes it in; otherwise it comes from the address. */
+const props = defineProps<{ form?: string }>()
+const formUuid = computed(() => String(props.form ?? route.params.form).toLowerCase())
 const definition = ref<ClientDefinition | null>(null)
 const loadError = ref('')
 const rows = ref<RecordPayload[]>([])
