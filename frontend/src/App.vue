@@ -23,6 +23,10 @@ onApiError((e) => {
     router.push({ name: 'profile', query: { tab: e.code === 'password_expired' ? 'password' : 'security' } })
     return
   }
+  if (e.status === 503 && e.code === 'maintenance') {
+    if (router.currentRoute.value.name !== 'maintenance') void router.push({ name: 'maintenance' })
+    return
+  }
   if (e.status === 419) {
     toast.add({ severity: 'warn', summary: t('errors.page_expired'), life: 6000 })
     return

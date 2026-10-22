@@ -121,7 +121,7 @@ final class CoreServiceProvider extends ServiceProvider
     private function registerTranslatables(): void
     {
         $registry = $this->app->make(TranslatableRegistry::class);
-        $registry->register('organization', Organization::class, ['name'], 'translations.type.organization');
+        $registry->register('organization', Organization::class, ['name', 'maintenance_message'], 'translations.type.organization');
         $registry->register('department', Department::class, ['name'], 'translations.type.department');
         $registry->register('role', Role::class, ['name', 'description'], 'translations.type.role');
         $registry->register('permission', Permission::class, ['label', 'description'], 'translations.type.permission');

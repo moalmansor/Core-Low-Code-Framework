@@ -130,3 +130,75 @@ export const homeApi = {
   save: (uuid: string, screen: HomeScreenDoc, baseHash: string) => send<{ data: HomeScreenDoc }>('put', `/home-screens/${uuid}`, { screen, base_hash: baseHash }).then((r) => r.data),
   remove: (uuid: string) => send('delete', `/home-screens/${uuid}`),
 }
+
+/** Announcements and banners (specification §4.29, ADR-0054). */
+export type Severity = 'info' | 'success' | 'warning' | 'danger'
+export type Placement = 'banner' | 'home' | 'bell'
+export interface AnnouncementDoc {
+  uuid?: string
+  application: string | null
+  severity: Severity
+  placement: Placement
+  roles: string[]
+  starts_at: string | null
+  ends_at: string | null
+  dismissible: boolean
+  published: boolean
+  i18n: { title: I18nMap; body: I18nMap }
+  hash?: string
+  label?: string
+}
+export interface ActiveAnnouncement {
+  uuid: string
+  title: string | null
+  body: string | null
+  severity: Severity
+  placement: Placement
+  dismissible: boolean
+  application: { uuid: string; name: string } | null
+  starts_at: string
+}
+export const announcementsApi = {
+  list: () => get<{ data: AnnouncementDoc[] }>('/announcements').then((r) => r.data),
+  create: (announcement: AnnouncementDoc) => send<{ data: AnnouncementDoc }>('post', '/announcements', { announcement }).then((r) => r.data),
+  save: (uuid: string, announcement: AnnouncementDoc, baseHash: string) => send<{ data: AnnouncementDoc }>('put', `/announcements/${uuid}`, { announcement, base_hash: baseHash }).then((r) => r.data),
+  remove: (uuid: string) => send('delete', `/announcements/${uuid}`),
+  active: (placement?: Placement) => get<{ data: ActiveAnnouncement[] }>('/announcements/active', placement ? { placement } : undefined).then((r) => r.data),
+  dismiss: (uuid: string) => send('post', `/announcements/${uuid}/dismiss`),
+}
+
+/** System maintenance mode. */
+export interface MaintenanceState {
+  active: boolean
+  until: string | null
+  message: string | null
+  messages: I18nMap | null
+  blocked: boolean
+  can_manage: boolean
+}
+export const maintenanceApi = {
+  get: () => get<{ data: MaintenanceState }>('/maintenance').then((r) => r.data),
+  save: (enabled: boolean, until: string | null, message: I18nMap) => send<{ data: MaintenanceState }>('put', '/maintenance', { enabled, until, message }).then((r) => r.data),
+}
+
+/** Global search and its configuration. */
+export interface SearchHit {
+  form: { uuid: string; name: string }
+  record: { uuid: string; title: string | null; subtitle: string | null }
+  score: number
+}
+export interface SearchConfig {
+  form: string
+  form_name: string
+  published: boolean
+  enabled: boolean
+  fields: { field: string; weight: number }[]
+  subtitle: string | null
+  roles: string[]
+  available: { uuid: string; key: string; label: string }[]
+}
+export const searchApi = {
+  search: (q: string) => get<{ data: SearchHit[] }>('/search', { q }).then((r) => r.data),
+  configs: () => get<{ data: SearchConfig[] }>('/search-configs').then((r) => r.data),
+  save: (form: string, config: Pick<SearchConfig, 'enabled' | 'fields' | 'subtitle' | 'roles'>) => send<{ data: SearchConfig }>('put', `/search-configs/${form}`, { config }).then((r) => r.data),
+}

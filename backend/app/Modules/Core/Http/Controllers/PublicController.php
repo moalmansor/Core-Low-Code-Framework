@@ -9,6 +9,7 @@ use App\Modules\Core\Models\Locale;
 use App\Modules\Core\Models\Organization;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Core\Tenancy\TenantContext;
+use App\Modules\Experience\Maintenance;
 use App\Modules\Records\Models\StoredFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
@@ -36,6 +37,8 @@ final class PublicController extends Controller
             'locales' => $locales->map(static fn (Locale $l): array => LocaleController::present($l))->values(),
             'formats' => $this->settings->publicGroup('formats'),
             'calendar' => $this->settings->get('calendar', 'system'),
+            // Shown on the sign-in page; people who may work during maintenance still sign in.
+            'maintenance' => array_intersect_key(app(Maintenance::class)->system(), array_flip(['active', 'until', 'message'])),
             'branding' => [
                 'logo' => $branding['logo_file'] ? url('/api/v1/branding/logo') : null,
                 'favicon' => $branding['favicon_file'] ? url('/api/v1/branding/favicon') : null,

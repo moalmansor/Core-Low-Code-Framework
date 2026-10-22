@@ -7,6 +7,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { get } from '@/api/http'
 import BrandMark from '@/components/BrandMark.vue'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+import AnnouncementBanners from './AnnouncementBanners.vue'
+import GlobalSearchBox from './GlobalSearchBox.vue'
 import NotificationsBell from './NotificationsBell.vue'
 import NavTree, { navPath, type NavItem } from '@/runtime/NavTree.vue'
 import { activeNavId, type NavCandidate } from './navActive'
@@ -218,12 +220,14 @@ const userItems = computed(() => [
     <div class="flex-1 min-w-0 min-h-0 flex flex-col">
       <header class="h-14 shrink-0 px-4 flex items-center gap-3 bg-card border-b border-line">
         <Button class="lg:hidden" icon="pi pi-bars" text rounded :aria-label="t('shell.menu')" @click="sidebarOpen = true" />
-        <div class="flex-1" />
+        <GlobalSearchBox />
+        <div class="flex-1 max-sm:hidden" />
         <NotificationsBell />
         <LanguageSwitcher />
         <Button :label="session.me?.name" icon="pi pi-user" text aria-haspopup="true" data-testid="user-menu" @click="(e: Event) => userMenu?.toggle(e)" />
         <Menu ref="userMenu" :model="userItems" popup />
       </header>
+      <AnnouncementBanners />
       <main class="flex-1 min-h-0 overflow-auto p-4 lg:p-6" data-testid="app-content">
         <RouterView />
       </main>
@@ -259,6 +263,8 @@ export const icons: Record<string, string> = {
   packages: 'pi-box',
   reports: 'pi-chart-bar',
   home_screens: 'pi-home',
+  global_search: 'pi-search',
+  announcements: 'pi-megaphone',
 }
 </script>
 

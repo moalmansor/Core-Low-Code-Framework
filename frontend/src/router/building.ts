@@ -31,6 +31,18 @@ export const buildingRoutes: RouteRecordRaw[] = [
     meta: { anyOf: ['system.manage_pages_menus'], title: 'xp.page' },
   },
   {
+    path: 'admin/announcements',
+    name: 'admin.announcements',
+    component: () => import('@/views/experience/AnnouncementsAdmin.vue'),
+    meta: { anyOf: ['system.publish_announcements'], title: 'admin.area.announcements' },
+  },
+  {
+    path: 'admin/search',
+    name: 'admin.search',
+    component: () => import('@/views/experience/SearchConfigView.vue'),
+    meta: { anyOf: ['system.manage_pages_menus'], title: 'admin.area.global_search' },
+  },
+  {
     path: 'admin/home-screens',
     name: 'admin.home_screens',
     component: () => import('@/views/experience/HomeScreensAdmin.vue'),

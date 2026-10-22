@@ -108,6 +108,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'login', name: 'login', component: () => import('@/views/auth/LoginView.vue'), meta: { guest: true, title: 'auth.sign_in' } },
       { path: 'login/two-factor', name: 'two-factor', component: () => import('@/views/auth/TwoFactorChallenge.vue'), meta: { guest: true, title: 'auth.two_factor_title' } },
       { path: 'forgot-password', name: 'forgot', component: () => import('@/views/auth/ForgotPassword.vue'), meta: { guest: true, title: 'auth.forgot_title' } },
+      // Shown while the system is offline for maintenance (a 503 with code "maintenance").
+      { path: 'maintenance', name: 'maintenance', component: () => import('@/views/experience/MaintenanceView.vue'), meta: { public: true, title: 'xp.maintenance_title' } },
       { path: 'reset-password/:token', name: 'reset', component: () => import('@/views/auth/ResetPassword.vue'), meta: { guest: true, title: 'auth.reset_title' } },
     ],
   },

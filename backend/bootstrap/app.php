@@ -7,6 +7,7 @@ use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
 use App\Modules\Core\Correlation\CorrelationId;
 use App\Modules\Core\Http\Middleware\AssignCorrelationId;
+use App\Modules\Experience\Http\Middleware\SystemMaintenance;
 use App\Modules\Identity\Http\Middleware\EnforceSessionPolicy;
 use App\Modules\Identity\Http\Middleware\EnsureActiveUser;
 use App\Modules\Identity\Http\Middleware\EnsurePasswordNotExpired;
@@ -59,6 +60,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'lcf.session',
             EnsureTwoFactorEnrolled::class,
             EnsurePasswordNotExpired::class,
+            SystemMaintenance::class,
         ]);
         $middleware->alias(['lcf.setup' => SetupOpen::class]);
         $middleware->redirectGuestsTo(static fn (Request $request): ?string => $request->expectsJson() ? null : '/login');

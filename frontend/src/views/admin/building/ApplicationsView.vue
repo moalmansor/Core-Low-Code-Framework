@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { maintenanceApi } from '@/views/experience/api'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -153,7 +154,8 @@ function changeStatus(a: AppRow, action: 'activate' | 'archive' | 'retire'): voi
 }
 
 // Maintenance
-const maintenance = ref<{ app: AppRow; enabled: boolean; until: Date | null; messages: Record<string, string> } | null>(null)
+/** For one application, or for the whole system when `app` is null. */
+const maintenance = ref<{ app: AppRow | null; enabled: boolean; until: Date | null; messages: Record<string, string> } | null>(null)
 const maintenanceErrors = ref<Record<string, string>>({})
 async function openMaintenance(a: AppRow): Promise<void> {
   maintenanceErrors.value = {}
@@ -164,11 +166,22 @@ async function openMaintenance(a: AppRow): Promise<void> {
     toast.add({ severity: 'error', summary: errorText(e, t('building.load_failed')), life: 6000 })
   }
 }
+async function openSystemMaintenance(): Promise<void> {
+  maintenanceErrors.value = {}
+  try {
+    const d = await maintenanceApi.get()
+    maintenance.value = { app: null, enabled: d.active, until: d.until ? new Date(d.until) : null, messages: { ...(d.messages ?? {}) } }
+  } catch (e) {
+    toast.add({ severity: 'error', summary: errorText(e, t('building.load_failed')), life: 6000 })
+  }
+}
 async function saveMaintenance(): Promise<void> {
   const m = maintenance.value!
   maintenanceErrors.value = {}
   try {
-    await send('post', `/applications/${m.app.uuid}/maintenance`, { enabled: m.enabled, until: m.enabled && m.until ? m.until.toISOString() : null, message: filledLocales(m.messages) })
+    const until = m.enabled && m.until ? m.until.toISOString() : null
+    if (m.app === null) await maintenanceApi.save(m.enabled, until, filledLocales(m.messages))
+    else await send('post', `/applications/${m.app.uuid}/maintenance`, { enabled: m.enabled, until, message: filledLocales(m.messages) })
     maintenance.value = null
     toast.add({ severity: 'success', summary: t('common.saved'), life: 3000 })
     await load()
@@ -206,6 +219,14 @@ function openMenu(event: Event, a: AppRow): void {
   <div class="flex flex-wrap items-center gap-3 mb-4">
     <h1 class="page-title !mb-0 flex-1">{{ t('admin.area.applications') }}</h1>
     <InputText v-model="search" :placeholder="t('common.search')" class="w-60" data-testid="app-search" />
+    <Button
+      v-if="session.can('system.enable_maintenance_mode')"
+      icon="pi pi-wrench"
+      :label="t('xp.system_maintenance')"
+      severity="secondary"
+      data-testid="system-maintenance"
+      @click="openSystemMaintenance"
+    />
     <Button icon="pi pi-plus" :label="t('building.app.new')" data-testid="app-new" @click="create" />
   </div>
   <p class="text-sm text-muted-color mb-3">{{ t('building.app.hint') }}</p>
@@ -306,9 +327,15 @@ function openMenu(event: Event, a: AppRow): void {
     </form>
   </Dialog>
 
-  <Dialog :visible="!!maintenance" modal :header="t('building.app.maintenance')" :style="{ width: '36rem' }" @update:visible="(v: boolean) => !v && (maintenance = null)">
+  <Dialog
+    :visible="!!maintenance"
+    modal
+    :header="maintenance?.app ? t('building.app.maintenance') : t('xp.system_maintenance')"
+    :style="{ width: '36rem' }"
+    @update:visible="(v: boolean) => !v && (maintenance = null)"
+  >
     <form v-if="maintenance" class="flex flex-col gap-3" @submit.prevent="saveMaintenance">
-      <Message severity="secondary" size="small">{{ t('building.app.maintenance_hint', { name: maintenance.app.name }) }}</Message>
+      <Message severity="secondary" size="small">{{ maintenance.app ? t('building.app.maintenance_hint', { name: maintenance.app.name }) : t('xp.system_maintenance_hint') }}</Message>
       <label class="flex items-center gap-2"><ToggleSwitch v-model="maintenance.enabled" data-testid="maintenance-enabled" />{{ t('building.app.maintenance_enabled') }}</label>
       <div class="field">
         <label for="mt-until">{{ t('building.app.maintenance_until') }}</label>

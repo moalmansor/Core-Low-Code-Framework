@@ -185,7 +185,8 @@ it('never returns a raw key as a label: a missing label becomes a readable phras
 it('serves every settings group that has a screen, so each tab can be read and saved', function () {
     // Regression: groups added after Phase 1 (records, actions, downloads, …) answered 404, so their tabs could neither load nor save.
     foreach (app(SettingsRegistry::class)->groups() as $group) {
-        if (in_array($group, ['setup', 'tenancy'], true)) {
+        // Maintenance mode has its own endpoint (/maintenance), which also holds its translatable message.
+        if (in_array($group, ['setup', 'tenancy', 'maintenance'], true)) {
             $this->getJson("/api/v1/settings/{$group}")->assertNotFound();
 
             continue;

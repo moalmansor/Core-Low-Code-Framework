@@ -8,6 +8,7 @@ use App\Modules\Core\I18n\TranslatableRegistry;
 use App\Modules\Core\Models\OutboxEvent;
 use App\Modules\Core\Outbox\OutboxRelay;
 use App\Modules\Core\Settings\SettingsService;
+use App\Modules\Experience\Http\Middleware\SystemMaintenance;
 use App\Modules\Identity\Http\Middleware\SetTenantFromUser;
 use App\Modules\Platform\Jobs\QueueWebhookEvent;
 use App\Modules\Platform\Models\Webhook;
@@ -48,7 +49,7 @@ final class PlatformServiceProvider extends ServiceProvider
         RateLimiter::for('inbound', static fn (Request $request): Limit => Limit::perMinute(120)->by('inbound:'.$request->route('slug').':'.$request->ip()));
 
         // Token requests: no session, no CSRF; the tenant is the token owner's.
-        Route::middlewareGroup('lcf.token', ['auth:api-token', SetTenantFromUser::class, 'throttle:api-token']);
+        Route::middlewareGroup('lcf.token', ['auth:api-token', SetTenantFromUser::class, 'throttle:api-token', SystemMaintenance::class]);
 
         $relay = $this->app->make(OutboxRelay::class);
         foreach (self::EVENTS as $type) {

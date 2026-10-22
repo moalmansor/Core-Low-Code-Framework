@@ -13,6 +13,8 @@ export interface Bootstrap {
   formats: Record<string, unknown>
   calendar: string
   branding: { logo: string | null; favicon: string | null; primary_color?: string | null; primary_color_dark?: string | null }
+  /** System-wide maintenance mode, shown on the sign-in page. */
+  maintenance?: { active: boolean; until: string | null; message: string | null }
 }
 
 export interface Me {

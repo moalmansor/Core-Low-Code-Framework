@@ -49,6 +49,9 @@ async function submit(): Promise<void> {
 <template>
   <h1 class="page-title">{{ t('auth.sign_in') }}</h1>
   <Message v-if="route.query.expired" severity="info" class="mb-4">{{ t('auth.session_expired') }}</Message>
+  <Message v-if="session.boot?.maintenance?.active" severity="warn" class="mb-4" data-testid="login-maintenance">
+    <span dir="auto">{{ session.boot.maintenance.message }}</span>
+  </Message>
   <Message v-if="route.query.reset" severity="success" class="mb-4">{{ t('auth.password_reset_done') }}</Message>
   <Message v-if="error" severity="error" class="mb-4" data-testid="login-error">{{ error }}</Message>
   <form class="flex flex-col gap-4" @submit.prevent="submit">

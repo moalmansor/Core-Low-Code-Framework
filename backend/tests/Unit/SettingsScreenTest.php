@@ -17,6 +17,7 @@ const SETTINGS_ELSEWHERE = [
     'tenancy' => 'fixed at installation (immutable)',
     'branding' => 'Appearance & Branding screen',
     'sso' => 'the SSO providers editor of System Settings',
+    'maintenance' => 'the system maintenance dialog of Applications, with its translatable message',
 ];
 
 it('has a System Settings field for every setting', function () {

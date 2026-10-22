@@ -63,6 +63,11 @@ final class SettingsRegistry
         $d('branding', 'primary_color', null, ['nullable', 'string', new ReadableBrandColour('light')]);
         $d('branding', 'primary_color_dark', null, ['nullable', 'string', new ReadableBrandColour('dark')]);
 
+        // System-wide maintenance mode (§4.29, ADR-0054): its message is the platform organization's
+        // translatable `maintenance_message`; people who may switch it keep working.
+        $d('maintenance', 'enabled', false, ['required', 'boolean']);
+        $d('maintenance', 'until', null, ['nullable', 'date']);
+
         // Schema changes (§4.9, architecture §12.3, §12.5, §12.6)
         $d('schema', 'snapshot_retention_days', 30, ['required', 'integer', 'between:1,3650']);
         $d('schema', 'blocking_confirmation_rows', 100000, ['required', 'integer', 'between:0,1000000000']);

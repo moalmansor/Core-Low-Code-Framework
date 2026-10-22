@@ -7,7 +7,9 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { get, send } from '@/api/http'
 import EmptyState from '@/components/config/EmptyState.vue'
+import SafeHtml from '@/runtime/SafeHtml'
 import { useSession } from '@/stores/session'
+import { announcementsApi, type ActiveAnnouncement } from '@/views/experience/api'
 
 /**
  * The notifications center in the header (specification §4.16): a bell with
@@ -27,6 +29,8 @@ const router = useRouter()
 const session = useSession()
 const unread = ref(0)
 const items = ref<Item[]>([])
+/** Announcements placed in the bell (specification §4.29), above the person's notifications. */
+const news = ref<ActiveAnnouncement[]>([])
 const loading = ref(false)
 const panel = ref<InstanceType<typeof Popover> | null>(null)
 let timer: ReturnType<typeof setInterval> | null = null
@@ -42,9 +46,10 @@ async function open(e: Event): Promise<void> {
   panel.value?.toggle(e)
   loading.value = true
   try {
-    const res = await get<{ data: Item[]; meta: { unread: number } }>('/me/notifications')
+    const [res, bell] = await Promise.all([get<{ data: Item[]; meta: { unread: number } }>('/me/notifications'), announcementsApi.active('bell').catch(() => [])])
     items.value = res.data
     unread.value = res.meta.unread
+    news.value = bell
   } finally {
     loading.value = false
   }
@@ -56,6 +61,10 @@ async function choose(item: Item): Promise<void> {
   }
   panel.value?.hide()
   if (item.link && item.link.startsWith('/')) void router.push(item.link)
+}
+async function dismiss(a: ActiveAnnouncement): Promise<void> {
+  news.value = news.value.filter((x) => x.uuid !== a.uuid)
+  await announcementsApi.dismiss(a.uuid).catch(() => undefined)
 }
 async function readAll(): Promise<void> {
   await send('post', '/me/notifications/read-all')
@@ -82,6 +91,15 @@ onBeforeUnmount(() => timer && clearInterval(timer))
         <h2 class="m-0 text-base font-semibold">{{ t('inbox.title') }}</h2>
         <Button v-if="unread" :label="t('inbox.read_all')" text size="small" @click="readAll" />
       </div>
+      <ul v-if="news.length" class="flex flex-col gap-2" data-testid="bell-announcements">
+        <li v-for="a in news" :key="a.uuid" class="bell-news" :class="`sev-${a.severity}`">
+          <div class="flex items-start gap-2">
+            <strong class="flex-1 text-sm" dir="auto">{{ a.title }}</strong>
+            <Button v-if="a.dismissible" icon="pi pi-times" text rounded size="small" severity="secondary" :aria-label="t('xp.dismiss')" @click="dismiss(a)" />
+          </div>
+          <SafeHtml v-if="a.body" :html="a.body" class="text-xs" />
+        </li>
+      </ul>
       <EmptyState v-if="!loading && !items.length" icon="pi pi-bell" :title="t('inbox.empty')" :description="t('inbox.empty_desc')" />
       <ul class="flex flex-col max-h-[24rem] overflow-auto -mx-2">
         <li v-for="item in items" :key="item.uuid">
@@ -116,6 +134,21 @@ onBeforeUnmount(() => timer && clearInterval(timer))
 }
 .inbox-item:hover {
   background: var(--bg-subtle);
+}
+.bell-news {
+  padding: 0.5rem 0.75rem;
+  border-inline-start: 3px solid var(--primary);
+  background: var(--bg-subtle);
+  border-radius: 6px;
+}
+.bell-news.sev-success {
+  border-inline-start-color: var(--success);
+}
+.bell-news.sev-warning {
+  border-inline-start-color: var(--warning);
+}
+.bell-news.sev-danger {
+  border-inline-start-color: var(--danger);
 }
 .inbox-item.is-unread {
   background: var(--primary-subtle);

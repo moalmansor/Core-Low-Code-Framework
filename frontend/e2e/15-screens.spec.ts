@@ -84,6 +84,10 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
     '/admin/reports/r/new',
     '/admin/reports/d/new',
     '/insights',
+    '/admin/home-screens',
+    '/admin/home-screens/new',
+    '/admin/announcements',
+    '/admin/search',
   ]
 
   await page.goto('/admin')
@@ -129,6 +133,9 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
   } finally {
     await setLanguage(page, 'en')
     await api(page, 'PATCH', '/settings/security', { api_rate_limit_per_minute: limit })
+    // The sweep's requests still count in the limiter's current minute: once the ordinary limit is back,
+    // wait that minute out, so the next spec's sign-in is not refused with 429 (which reads as signed out).
+    await expect.poll(async () => (await page.request.get('/api/v1/me', { headers: { Accept: 'application/json' } })).status(), { timeout: 75_000, intervals: [5_000] }).not.toBe(429)
   }
   expect(problems).toEqual([])
 })
