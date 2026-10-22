@@ -23,7 +23,7 @@ None of these may widen what a person can open: every list, count and search sti
 - Its name and content are translatable. Content is sanitized with the same allow-list as other rich text, both when saved and when shown, because translations can also be edited in the translations manager.
 - A link is an `https://` address or a path inside the application; `javascript:` and protocol-relative addresses are refused.
 - Opening a page needs `page.{uuid}.view`, an active application and, for a dashboard, report or form, that object's own permission as well. A page never grants access to what it hosts.
-- Deleting a page is a soft delete with an audit entry; its menu items and its permission go with it.
+- Deleting a page is a soft delete with an audit entry; its menu items and its permission go with it, and its key is freed for a new page (the deleted row keeps a `_deleted_…` key no valid key can match; the audit entry keeps the original).
 
 **Navigation**
 - Menu items now open forms, collections, pages, reports, dashboards or My Work, besides links, section headers and separators.

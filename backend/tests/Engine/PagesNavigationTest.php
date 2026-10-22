@@ -91,6 +91,8 @@ it('keeps page content safe, checks the page and what it shows, and refuses stal
     expect(DB::table('permissions')->where('key', "page.{$host['uuid']}.view")->exists())->toBeFalse()
         ->and(DB::table('audit_logs')->where('event', 'page.deleted')->exists())->toBeTrue();
     $this->getJson("/api/v1/pages/{$host['uuid']}")->assertNotFound();
+    // Its key is free for a new page.
+    $this->postJson('/api/v1/pages', ['page' => pageDoc($app, 'form_host', ['form' => $form, 'key' => $host['key']])])->assertCreated();
 });
 
 it('builds menus with pages, reports, dashboards and My Work, hides items by rule and counts badges', function () {

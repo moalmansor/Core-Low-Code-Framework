@@ -108,6 +108,7 @@ test('a page is built and placed in the menu, a home screen and a banner greet p
   // Leave the shared environment as it was.
   await api(page, 'DELETE', `/home-screens/${home.uuid}`)
   await api(page, 'DELETE', `/announcements/${banner.uuid}`)
+  await api(page, 'DELETE', `/pages/${pageUuid}`)
   expect(problems).toEqual([])
 })
 

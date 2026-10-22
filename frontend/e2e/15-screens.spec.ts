@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, request, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { signIn, watchConsole } from './support.ts'
 
@@ -137,7 +137,12 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
     await api(page, 'PATCH', '/settings/security', { api_rate_limit_per_minute: limit })
     // The sweep's requests still count in the limiter's current minute: once the ordinary limit is back,
     // wait that minute out, so the next spec's sign-in is not refused with 429 (which reads as signed out).
-    await expect.poll(async () => (await page.request.get('/api/v1/me', { headers: { Accept: 'application/json' } })).status(), { timeout: 75_000, intervals: [5_000] }).not.toBe(429)
+    // Both buckets: the signed-in one (per user) and the anonymous one (per address), which the sign-in
+    // and maintenance pages of the sweep used and which the next spec's sign-in page uses first.
+    const anonymous = await request.newContext({ baseURL: new URL(page.url()).origin })
+    const status = async (ctx: typeof page.request) => (await ctx.get('/api/v1/me', { headers: { Accept: 'application/json' } })).status()
+    await expect.poll(async () => [await status(page.request), await status(anonymous)].includes(429), { timeout: 90_000, intervals: [5_000] }).toBe(false)
+    await anonymous.dispose()
   }
   expect(problems).toEqual([])
 })

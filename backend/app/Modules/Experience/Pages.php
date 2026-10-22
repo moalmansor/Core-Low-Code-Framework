@@ -191,8 +191,11 @@ final class Pages
         DB::transaction(function () use ($page, $actor): void {
             DB::table('menu_items')->where('target_type', 'page')->where('target_id', $page->id)->delete();
             $this->permissions->forget('page.'.strtolower($page->uuid));
-            $page->forceFill(['deleted_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u'), 'deleted_by' => $actor->id, 'is_published' => false])->save();
-            $this->audit->record('page.deleted', 'config', null, 'page', $page->id, ['key' => $page->key], $actor->id);
+            $key = $page->key;
+            // The key is freed for a new page: a deleted page keeps a key no valid key can match (they start with a letter).
+            $page->forceFill(['deleted_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u'), 'deleted_by' => $actor->id, 'is_published' => false,
+                'key' => mb_substr('_deleted_'.$page->id.'_'.$key, 0, 48)])->save();
+            $this->audit->record('page.deleted', 'config', null, 'page', $page->id, ['key' => $key], $actor->id);
         });
     }
 
