@@ -15,6 +15,7 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::post('/applications', [ApplicationController::class, 'store']);
     Route::get('/applications/{application}', [ApplicationController::class, 'show']);
     Route::patch('/applications/{application}', [ApplicationController::class, 'update']);
+    Route::post('/applications/{application}/clone', [ApplicationController::class, 'clone'])->middleware('throttle:10,1');
     Route::post('/applications/{application}/maintenance', [ApplicationController::class, 'maintenance']);
     Route::post('/applications/{application}/{action}', [ApplicationController::class, 'status'])->whereIn('action', ['archive', 'retire', 'activate']);
     Route::get('/applications/{application}/menu', [MenuController::class, 'show']);
