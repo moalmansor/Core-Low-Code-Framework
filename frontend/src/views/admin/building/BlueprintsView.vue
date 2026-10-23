@@ -5,7 +5,6 @@ import Dialog from 'primevue/dialog'
 import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
-import Message from 'primevue/message'
 import Select from 'primevue/select'
 import SelectButton from 'primevue/selectbutton'
 import Tag from 'primevue/tag'
@@ -16,6 +15,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ensureCsrf, get, http, send } from '@/api/http'
 import { useSession } from '@/stores/session'
+import EmptyState from '@/components/config/EmptyState.vue'
 import LocaleFields from './LocaleFields.vue'
 import { INCLUDE_MODES, errorText, fieldErrors, filledLocales, formatDateTime, type FormSummary, type IncludeMode } from './shared'
 
@@ -38,6 +38,16 @@ const toast = useToast()
 const router = useRouter()
 const session = useSession()
 
+const KIND_ICONS: Record<string, string> = {
+  collection: 'pi pi-table',
+  workflow: 'pi pi-sitemap',
+  view: 'pi pi-eye',
+  action: 'pi pi-bolt',
+  notification: 'pi pi-bell',
+  dashboard: 'pi pi-chart-bar',
+  application: 'pi pi-th-large',
+  document: 'pi pi-file',
+}
 const KINDS = ['form', 'collection', 'workflow', 'view', 'action', 'notification', 'dashboard', 'application'] as const
 const rows = ref<BlueprintRow[]>([])
 const loading = ref(false)
@@ -99,9 +109,26 @@ async function importFile(event: Event): Promise<void> {
   }
 }
 
-// Create from a form or collection
-const canPickForms = session.can('system.manage_forms')
+// Create from a form or collection, a form's workflow, rules or actions, an application or a dashboard
+type SourceType = 'form' | 'workflow' | 'notification' | 'action' | 'application' | 'dashboard'
+const sourceTypes = computed(() =>
+  (['form', 'workflow', 'notification', 'action', 'application', 'dashboard'] as const)
+    .filter((v) =>
+      v === 'dashboard'
+        ? session.can('system.manage_reports')
+        : v === 'application'
+          ? session.can('system.manage_applications') && session.can('system.manage_forms')
+          : session.can('system.manage_forms'),
+    )
+    .map((v) => ({ value: v, label: t(`building.blueprints.source_type.${v}`) })),
+)
+const canCreate = computed(() => sourceTypes.value.length > 0)
+const fromForm = (v: SourceType) => v !== 'application' && v !== 'dashboard'
+const withInclude = (v: SourceType) => v === 'form' || v === 'application'
+const pickList = ref<{ uuid: string; name: string }[]>([])
 const creating = ref<{
+  type: SourceType
+  picked: string | null
   source: FormSummary | null
   names: Record<string, string>
   descriptions: Record<string, string>
@@ -118,8 +145,43 @@ async function searchForms(e: { query: string }): Promise<void> {
 }
 function openCreate(): void {
   createErrors.value = {}
-  creating.value = { source: null, names: {}, descriptions: {}, category: filters.category ?? '', tags: '', include_mode: 'structure', is_library: true }
+  creating.value = {
+    type: sourceTypes.value[0]!.value,
+    picked: null,
+    source: null,
+    names: {},
+    descriptions: {},
+    category: filters.category ?? '',
+    tags: '',
+    include_mode: 'structure',
+    is_library: true,
+  }
 }
+watch(
+  () => creating.value?.type,
+  async (type) => {
+    const c = creating.value
+    if (!c || !type) return
+    c.source = null
+    c.picked = null
+    pickList.value = []
+    try {
+      if (type === 'application') pickList.value = (await get<{ data: { uuid: string; name: string }[] }>('/applications')).data
+      if (type === 'dashboard') pickList.value = (await get<{ data: { uuid: string; label: string }[] }>('/dashboards')).data.map((d) => ({ uuid: d.uuid, name: d.label }))
+    } catch (e) {
+      toast.add({ severity: 'error', summary: errorText(e, t('building.load_failed')), life: 6000 })
+    }
+  },
+)
+watch(
+  () => creating.value?.picked,
+  (uuid) => {
+    const c = creating.value
+    const picked = pickList.value.find((p) => p.uuid === uuid)
+    if (c && picked && !Object.values(c.names).some(Boolean)) c.names = { [session.boot?.default_locale ?? 'en']: picked.name }
+  },
+)
+const sourceUuid = computed(() => (creating.value ? (fromForm(creating.value.type) ? creating.value.source?.uuid : creating.value.picked) : null))
 watch(
   () => creating.value?.source,
   (f) => {
@@ -132,8 +194,9 @@ async function submitCreate(): Promise<void> {
   createErrors.value = {}
   try {
     const res = await send<{ data: { uuid: string } }>('post', '/blueprints', {
-      source: c.source?.uuid,
-      include_mode: c.include_mode,
+      source: sourceUuid.value,
+      source_type: c.type,
+      ...(withInclude(c.type) ? { include_mode: c.include_mode } : {}),
       name: filledLocales(c.names),
       description: filledLocales(c.descriptions),
       category: c.category.trim() || null,
@@ -159,7 +222,7 @@ async function submitCreate(): Promise<void> {
       <i class="pi pi-upload me-2" />{{ t('building.blueprints.import') }}
       <input type="file" accept=".json,application/json" class="hidden" @change="importFile" />
     </label>
-    <Button v-if="canPickForms" icon="pi pi-plus" :label="t('building.blueprints.new')" data-testid="bp-new" @click="openCreate" />
+    <Button v-if="canCreate" icon="pi pi-plus" :label="t('building.blueprints.new')" data-testid="bp-new" @click="openCreate" />
   </div>
   <p class="text-sm text-muted-color mb-3">{{ t('building.blueprints.hint') }}</p>
 
@@ -174,7 +237,7 @@ async function submitCreate(): Promise<void> {
   </div>
 
   <p v-if="loading" class="text-muted-color"><i class="pi pi-spin pi-spinner me-1" />{{ t('building.loading') }}</p>
-  <Message v-else-if="!rows.length" severity="info">{{ t('building.blueprints.empty') }}</Message>
+  <EmptyState v-else-if="!rows.length" icon="pi pi-clone" :title="t('building.blueprints.empty')" testid="bp-empty" />
   <div v-else class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(18rem,1fr))]" data-testid="bp-list">
     <RouterLink
       v-for="b in rows"
@@ -183,7 +246,7 @@ async function submitCreate(): Promise<void> {
       class="p-4 rounded-xl bg-card shadow-sm hover:shadow flex flex-col gap-2 no-underline text-color"
     >
       <div class="flex items-center gap-2">
-        <i :class="b.kind === 'collection' ? 'pi pi-table' : 'pi pi-clone'" class="text-primary text-xl" />
+        <i :class="KIND_ICONS[b.kind] ?? 'pi pi-clone'" class="text-primary text-xl" />
         <span class="font-medium flex-1">{{ b.name ?? t('building.blueprints.untitled') }}</span>
         <Tag v-if="b.version" severity="secondary" :value="`v${b.version}`" />
       </div>
@@ -205,7 +268,17 @@ async function submitCreate(): Promise<void> {
   <Dialog :visible="!!creating" modal :header="t('building.blueprints.new')" :style="{ width: '42rem' }" @update:visible="(v: boolean) => !v && (creating = null)">
     <form v-if="creating" class="flex flex-col gap-3" @submit.prevent="submitCreate">
       <div class="field">
-        <label for="bpn-source">{{ t('building.blueprints.source') }}</label>
+        <label for="bpn-type">{{ t('building.blueprints.what_to_save') }}</label>
+        <Select v-model="creating.type" input-id="bpn-type" :options="sourceTypes" option-label="label" option-value="value" data-testid="bpn-type" />
+        <small class="text-muted-color">{{ t(`building.blueprints.source_type_hint.${creating.type}`) }}</small>
+      </div>
+      <div v-if="!fromForm(creating.type)" class="field">
+        <label for="bpn-pick">{{ t(`building.blueprints.source_label.${creating.type}`) }}</label>
+        <Select v-model="creating.picked" input-id="bpn-pick" :options="pickList" option-label="name" option-value="uuid" filter data-testid="bpn-pick" />
+        <span v-if="createErrors.source" class="field-error">{{ createErrors.source }}</span>
+      </div>
+      <div v-else class="field">
+        <label for="bpn-source">{{ t(`building.blueprints.source_label.${creating.type}`) }}</label>
         <AutoComplete
           v-model="creating.source"
           input-id="bpn-source"
@@ -241,7 +314,7 @@ async function submitCreate(): Promise<void> {
           <InputText id="bpn-tags" v-model="creating.tags" />
           <small class="text-muted-color">{{ t('building.blueprints.tags_hint') }}</small>
         </div>
-        <div class="field">
+        <div v-if="withInclude(creating.type)" class="field">
           <label for="bpn-include">{{ t('building.include_label') }}</label>
           <Select v-model="creating.include_mode" input-id="bpn-include" :options="includeOptions" option-label="label" option-value="value" option-disabled="disabled" />
           <small class="text-muted-color">{{ t(`building.include_hint.${creating.include_mode}`) }}</small>
@@ -250,7 +323,7 @@ async function submitCreate(): Promise<void> {
       <label class="flex items-center gap-2"><ToggleSwitch v-model="creating.is_library" />{{ t('building.blueprints.in_library') }}</label>
       <div class="flex justify-end gap-2">
         <Button type="button" severity="secondary" :label="t('common.cancel')" @click="creating = null" />
-        <Button type="submit" :label="t('building.blueprints.create')" :disabled="!creating.source" data-testid="bp-create" />
+        <Button type="submit" :label="t('building.blueprints.create')" :disabled="!sourceUuid" data-testid="bp-create" />
       </div>
     </form>
   </Dialog>

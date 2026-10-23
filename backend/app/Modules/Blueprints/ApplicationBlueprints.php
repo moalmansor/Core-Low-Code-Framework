@@ -474,7 +474,7 @@ final class ApplicationBlueprints
             }
             if ($form === null) {
                 $out[] = ['uuid' => $uuid, 'form' => null, 'entry' => $entry, 'map' => $targetMap, 'document' => null, 'workflow' => null, 'notifications' => null, 'actions' => null,
-                    'changes' => [['kind' => 'form', 'uuid' => $uuid, 'label' => (string) $entry['suggestedKey'], 'action' => 'add', 'status' => 'apply', 'reason' => null, 'value' => null]]];
+                    'changes' => [['kind' => 'new_form', 'uuid' => $uuid, 'label' => (string) $entry['suggestedKey'], 'action' => 'add', 'status' => 'apply', 'reason' => null, 'value' => null]]];
 
                 continue;
             }

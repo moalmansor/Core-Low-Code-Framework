@@ -38,6 +38,13 @@ interface Instance {
   include_mode: IncludeMode
   version: number | null
   form: { uuid: string; key: string; name: string | null; state: string } | null
+  application?: Named | null
+  dashboard?: Named | null
+}
+interface Named {
+  uuid: string
+  key: string
+  name: string
 }
 interface Blueprint {
   uuid: string
@@ -66,14 +73,14 @@ interface Change {
 }
 interface PreviewEntry {
   instance: string
-  form: { uuid: string; key: string; name: string | null; state: string }
+  form: { uuid: string; key: string; name: string | null; state: string | null }
   from_version: number
   changes: Change[]
 }
 interface PropagationResult {
   instance: string
   form: string
-  status: 'applied' | 'failed'
+  status: 'applied' | 'created' | 'failed'
   applied?: number
   conflicts?: Change[]
   errors?: Record<string, string[]> | unknown[]
@@ -89,7 +96,24 @@ const uuid = computed(() => String(route.params.blueprint))
 const bp = ref<Blueprint | null>(null)
 const tab = ref('overview')
 const includeOptions = computed(() => INCLUDE_MODES.map((v) => ({ value: v, label: t(`building.include.${v}`), disabled: v !== 'structure' && !session.can('system.manage_permissions') })))
-const canForms = session.can('system.manage_forms')
+/** Form parts (workflow, rules, actions) are applied to an existing form; the other kinds make something new. */
+const PARTS = ['workflow', 'notification', 'action']
+const isPart = computed(() => PARTS.includes(bp.value?.kind ?? ''))
+const kind = computed(() => bp.value?.kind ?? '')
+/** Kinds whose versions carry what is included (structure, permissions, everything). */
+const withInclude = computed(() => ['form', 'collection', 'application'].includes(kind.value))
+const canForms = computed(() =>
+  kind.value === 'dashboard'
+    ? session.can('system.manage_reports')
+    : kind.value === 'application'
+      ? session.can('system.manage_applications') && session.can('system.manage_forms')
+      : session.can('system.manage_forms'),
+)
+const pickList = ref<{ uuid: string; name: string }[]>([])
+async function loadPickList(): Promise<void> {
+  if (kind.value === 'application') pickList.value = (await get<{ data: { uuid: string; name: string }[] }>('/applications')).data
+  if (kind.value === 'dashboard') pickList.value = (await get<{ data: { uuid: string; label: string }[] }>('/dashboards')).data.map((d) => ({ uuid: d.uuid, name: d.label }))
+}
 
 async function load(): Promise<void> {
   try {
@@ -141,6 +165,7 @@ async function searchForms(e: { query: string }): Promise<void> {
 function openNewVersion(): void {
   const b = bp.value!
   versionErrors.value = {}
+  if (kind.value === 'application' || kind.value === 'dashboard') void loadPickList()
   newVersion.value = { source: b.source ? { uuid: b.source.uuid, key: b.source.key, name: b.source.name } : null, include_mode: b.include_mode ?? 'structure', changelog: '' }
 }
 async function submitVersion(): Promise<void> {
@@ -150,7 +175,7 @@ async function submitVersion(): Promise<void> {
     const isView = bp.value?.kind === 'view'
     const res = await send<{ data: { version: number } }>('post', `/blueprints/${uuid.value}/versions`, {
       source: isView ? null : (v.source?.uuid ?? null),
-      ...(isView ? {} : { include_mode: v.include_mode }),
+      ...(withInclude.value ? { include_mode: v.include_mode } : {}),
       changelog: v.changelog.trim() || null,
     })
     newVersion.value = null
@@ -170,7 +195,9 @@ const instErrors = ref<Record<string, string>>({})
 async function openInstantiate(): Promise<void> {
   instErrors.value = {}
   const b = bp.value!
-  if (b.kind !== 'view' && !apps.value.length) apps.value = (await get<{ data: { uuid: string; name: string; status: string }[] }>('/applications')).data
+  if (b.kind === 'form' || b.kind === 'collection') {
+    if (!apps.value.length) apps.value = (await get<{ data: { uuid: string; name: string; status: string }[] }>('/applications')).data
+  }
   inst.value = {
     application: apps.value.find((a) => a.status === 'active')?.uuid ?? null,
     form: null,
@@ -187,12 +214,28 @@ async function submitInstantiate(): Promise<void> {
     const isView = bp.value?.kind === 'view'
     // The confirmation names what was created by the name just typed, never by its key.
     const name = labelOf(filledLocales(i.names), session.locale, i.key)
-    const res = await send<{ data: { uuid: string; key: string; skipped?: unknown[] } }>('post', `/blueprints/${uuid.value}/instantiate`, {
-      ...(isView ? { form: i.form } : { application: i.application, include_mode: i.include_mode }),
-      key: i.key,
-      name: filledLocales(i.names),
-      ...(i.version ? { version: i.version } : {}),
-    })
+    const body: Record<string, unknown> = { ...(i.version ? { version: i.version } : {}) }
+    if (isPart.value) body.form = i.form
+    else {
+      body.key = i.key
+      body.name = filledLocales(i.names)
+      if (isView) body.form = i.form
+      else if (kind.value === 'application') body.include_mode = i.include_mode
+      else if (kind.value !== 'dashboard') Object.assign(body, { application: i.application, include_mode: i.include_mode })
+    }
+    const res = await send<{ data: { uuid: string; key: string; skipped?: unknown[]; notes?: string[] } }>('post', `/blueprints/${uuid.value}/instantiate`, body)
+    if (isPart.value || kind.value === 'application' || kind.value === 'dashboard') {
+      inst.value = null
+      notes.value = res.data.notes ?? []
+      toast.add({
+        severity: notes.value.length ? 'warn' : 'success',
+        summary: isPart.value ? t('building.blueprints.applied_to_form') : t(`building.blueprints.created_${kind.value}`, { name }),
+        life: 6000,
+      })
+      await load()
+      tab.value = 'instances'
+      return
+    }
     if (isView) {
       inst.value = null
       toast.add({ severity: 'success', summary: t('building.blueprints.created_view', { name }), life: 6000 })
@@ -215,10 +258,21 @@ async function submitInstantiate(): Promise<void> {
   }
 }
 
+/** What the last "create from it" reported (fields that did not match, parts not copied). */
+const notes = ref<string[]>([])
+
 // Instances
+const instanceName = (i: Instance): string | null => i.application?.name ?? i.dashboard?.name ?? i.form?.name ?? (i.form ? humanize(i.form.key) : null)
+/** The object's key, shown as a secondary, left-to-right detail beside its name. */
+const instanceKey = (i: Instance): string | null => (i.application ?? i.dashboard ?? i.form)?.key ?? null
+function openInstance(i: Instance): void {
+  if (i.application) void router.push({ name: 'admin.applications' })
+  else if (i.dashboard) void router.push({ name: 'admin.reports.dashboard', params: { dashboard: i.dashboard.uuid } })
+  else if (i.form) void router.push({ name: 'admin.forms.builder', params: { form: i.form.uuid } })
+}
 function detach(i: Instance): void {
   confirm.require({
-    message: t('building.blueprints.detach_confirm', { name: i.form?.name ?? (i.form ? humanize(i.form.key) : '') }),
+    message: t('building.blueprints.detach_confirm', { name: instanceName(i) ?? '' }),
     header: t('common.confirm'),
     acceptProps: { label: t('building.blueprints.detach'), severity: 'warn' },
     rejectProps: { label: t('common.cancel'), severity: 'secondary' },
@@ -314,7 +368,14 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
     <h1 class="page-title !mb-0 flex-1">{{ bp?.name ?? t('building.blueprints.untitled') }}</h1>
     <template v-if="bp">
       <Button icon="pi pi-download" severity="secondary" :label="t('building.blueprints.export')" data-testid="bp-export" @click="exportFile" />
-      <Button v-if="canForms" icon="pi pi-plus-circle" :label="t('building.blueprints.instantiate')" :disabled="!bp.version" data-testid="bp-instantiate" @click="openInstantiate" />
+      <Button
+        v-if="canForms"
+        icon="pi pi-plus-circle"
+        :label="t(`building.blueprints.instantiate_${isPart ? 'part' : kind === 'application' || kind === 'dashboard' || kind === 'view' ? kind : 'form'}`)"
+        :disabled="!bp.version"
+        data-testid="bp-instantiate"
+        @click="openInstantiate"
+      />
       <Button icon="pi pi-trash" severity="danger" text :aria-label="t('common.delete')" @click="destroy" />
     </template>
   </div>
@@ -373,25 +434,23 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
       </TabPanel>
 
       <TabPanel value="instances">
+        <Message v-if="notes.length" severity="warn" class="mb-3" closable data-testid="bp-notes" @close="notes = []">
+          <ul class="text-sm list-disc ps-5 m-0">
+            <li v-for="(n, j) in notes" :key="j">{{ n }}</li>
+          </ul>
+        </Message>
         <p v-if="!bp.instances.length" class="text-muted-color">{{ t('building.blueprints.no_instances') }}</p>
         <div v-else class="rounded-lg border border-line divide-y divide-line">
-          <div v-for="i in bp.instances" :key="i.uuid" class="flex flex-wrap items-center gap-3 p-2" :data-testid="`bp-instance-${i.form?.key}`">
+          <div v-for="i in bp.instances" :key="i.uuid" class="flex flex-wrap items-center gap-3 p-2" :data-testid="`bp-instance-${instanceKey(i)}`">
             <div class="flex-1 min-w-48">
-              <div class="font-medium">{{ i.form?.name ?? (i.form ? humanize(i.form.key) : null) ?? t('building.blueprints.form_removed') }}</div>
-              <div class="text-xs text-muted-color ltr-value">{{ i.form?.key }}</div>
+              <div class="font-medium">{{ instanceName(i) ?? t('building.blueprints.form_removed') }}</div>
+              <div class="text-xs text-muted-color ltr-value">{{ instanceKey(i) }}</div>
             </div>
-            <Tag v-if="i.form" severity="secondary" :value="t(`building.form_state.${i.form.state}`)" />
+            <Tag v-if="i.form && !isPart" severity="secondary" :value="t(`building.form_state.${i.form.state}`)" />
             <span class="text-sm">{{ t('building.blueprints.based_on', { n: i.version ?? '—' }) }}</span>
             <Tag v-if="i.version !== null && bp.version !== null && i.version < bp.version && !i.detached" severity="warn" :value="t('building.blueprints.outdated')" />
             <Tag v-if="i.detached" severity="contrast" :value="t('building.blueprints.detached')" />
-            <Button
-              v-if="i.form && canForms"
-              size="small"
-              text
-              icon="pi pi-pencil"
-              :label="t('building.forms.open_builder')"
-              @click="router.push({ name: 'admin.forms.builder', params: { form: i.form.uuid } })"
-            />
+            <Button v-if="(i.form || i.application || i.dashboard) && canForms" size="small" text icon="pi pi-pencil" :label="t('building.blueprints.open')" @click="openInstance(i)" />
             <Button v-if="!i.detached" size="small" severity="warn" text icon="pi pi-link" :label="t('building.blueprints.detach')" @click="detach(i)" />
           </div>
         </div>
@@ -409,7 +468,8 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
             <li v-for="r in results" :key="r.instance">
               <span class="ltr-value">{{ formKeyOf(r.form) }}</span
               >:
-              <template v-if="r.status === 'applied'">{{ t('building.blueprints.result_applied', { n: r.applied ?? 0, c: r.conflicts?.length ?? 0 }) }}</template>
+              <template v-if="r.status === 'created'">{{ t('building.blueprints.result_created') }}</template>
+              <template v-else-if="r.status === 'applied'">{{ t('building.blueprints.result_applied', { n: r.applied ?? 0, c: r.conflicts?.length ?? 0 }) }}</template>
               <template v-else>
                 {{ t('building.blueprints.result_failed') }}
                 <ul class="list-[circle] ps-5">
@@ -423,6 +483,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
         <div v-for="p in preview ?? []" :key="p.instance" class="rounded-xl border border-line p-3 mb-3" :data-testid="`bp-preview-${p.form.key}`">
           <div class="flex flex-wrap items-center gap-2 mb-2">
             <span class="font-semibold">{{ p.form.name ?? humanize(p.form.key) }}</span>
+            <Tag v-if="p.form.state === 'new'" severity="info" :value="t('building.blueprints.new_form')" />
             <span class="text-xs text-muted-color ltr-value">{{ p.form.key }}</span>
             <span class="text-sm">v{{ p.from_version }} → v{{ bp.version }}</span>
             <Tag severity="success" :value="t('building.blueprints.change_counts.apply', { n: counts(p.changes).apply })" />
@@ -487,6 +548,21 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
   <Dialog :visible="!!newVersion" modal :header="t('building.blueprints.new_version')" :style="{ width: '36rem' }" @update:visible="(v: boolean) => !v && (newVersion = null)">
     <form v-if="newVersion" class="flex flex-col gap-3" @submit.prevent="submitVersion">
       <p v-if="bp?.kind === 'view'" class="text-sm text-muted-color">{{ t('building.blueprints.view_version_hint') }}</p>
+      <div v-else-if="kind === 'application' || kind === 'dashboard'" class="field">
+        <label for="nv-pick">{{ t(`building.blueprints.source_label.${kind}`) }}</label>
+        <Select
+          :model-value="newVersion.source?.uuid ?? null"
+          input-id="nv-pick"
+          :options="pickList"
+          option-label="name"
+          option-value="uuid"
+          filter
+          :placeholder="newVersion.source?.name"
+          @update:model-value="(u: string) => newVersion && (newVersion.source = { uuid: u, key: '', name: pickList.find((p) => p.uuid === u)?.name ?? '' })"
+        />
+        <small class="text-muted-color">{{ t(`building.blueprints.version_source_hint_${kind}`) }}</small>
+        <span v-if="versionErrors.source" class="field-error">{{ versionErrors.source }}</span>
+      </div>
       <div v-else class="field">
         <label for="nv-source">{{ t('building.blueprints.source') }}</label>
         <AutoComplete v-if="canForms" v-model="newVersion.source" input-id="nv-source" :suggestions="formSuggestions" option-label="key" force-selection dropdown @complete="searchForms">
@@ -498,7 +574,7 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
         <small class="text-muted-color">{{ t('building.blueprints.version_source_hint') }}</small>
         <span v-if="versionErrors.source" class="field-error">{{ versionErrors.source }}</span>
       </div>
-      <div v-if="bp?.kind !== 'view'" class="field">
+      <div v-if="withInclude" class="field">
         <label for="nv-include">{{ t('building.include_label') }}</label>
         <Select v-model="newVersion.include_mode" input-id="nv-include" :options="includeOptions" option-label="label" option-value="value" option-disabled="disabled" />
       </div>
@@ -517,17 +593,17 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
   <Dialog :visible="!!inst" modal :header="t('building.blueprints.instantiate')" :style="{ width: '40rem' }" @update:visible="(v: boolean) => !v && (inst = null)">
     <form v-if="inst && bp" class="flex flex-col gap-3" @submit.prevent="submitInstantiate">
       <div class="form-grid">
-        <div v-if="bp.kind === 'view'" class="field">
+        <div v-if="bp.kind === 'view' || isPart" class="field">
           <label for="in-form">{{ t('building.blueprints.target_form') }}</label>
           <FormPicker v-model="inst.form" kind="form" input-id="in-form" />
           <span v-if="instErrors.form" class="field-error">{{ instErrors.form }}</span>
         </div>
-        <div v-else class="field">
+        <div v-else-if="kind === 'form' || kind === 'collection'" class="field">
           <label for="in-app">{{ t('building.application') }}</label>
           <Select v-model="inst.application" input-id="in-app" :options="apps" option-label="name" option-value="uuid" data-testid="in-app" />
           <span v-if="instErrors.application" class="field-error">{{ instErrors.application }}</span>
         </div>
-        <div class="field">
+        <div v-if="!isPart" class="field">
           <label for="in-key">{{ t('building.key') }}</label>
           <InputText id="in-key" v-model="inst.key" class="ltr-value" data-testid="in-key" />
           <small class="text-muted-color">{{ t('building.forms.key_hint') }}</small>
@@ -537,18 +613,24 @@ const changeSeverity: Record<string, string> = { apply: 'success', skip: 'second
           <label for="in-version">{{ t('building.blueprints.version') }}</label>
           <Select v-model="inst.version" input-id="in-version" :options="bp.versions" :option-label="(v: Version) => `v${v.version}`" option-value="version" />
         </div>
-        <div v-if="bp.kind !== 'view'" class="field">
+        <div v-if="withInclude" class="field">
           <label for="in-include">{{ t('building.include_label') }}</label>
           <Select v-model="inst.include_mode" input-id="in-include" :options="includeOptions" option-label="label" option-value="value" option-disabled="disabled" />
         </div>
       </div>
-      <small v-if="bp.kind !== 'view'" class="text-muted-color">{{ t(`building.include_hint.${inst.include_mode}`) }}</small>
-      <div class="form-grid">
+      <small v-if="withInclude" class="text-muted-color">{{ t(`building.include_hint.${inst.include_mode}`) }}</small>
+      <small v-if="isPart" class="text-muted-color">{{ t(`building.blueprints.part_hint.${kind}`) }}</small>
+      <div v-if="!isPart" class="form-grid">
         <LocaleFields v-model="inst.names" :label="t('building.name')" field="name" :errors="instErrors" id-prefix="in-name" />
       </div>
       <div class="flex justify-end gap-2">
         <Button type="button" severity="secondary" :label="t('common.cancel')" @click="inst = null" />
-        <Button type="submit" :label="bp.kind === 'view' ? t('building.blueprints.create_view') : t('building.blueprints.create_form')" data-testid="in-submit" />
+        <Button
+          type="submit"
+          :label="isPart ? t('building.blueprints.apply_to_form') : t(`building.blueprints.create_${kind === 'collection' ? 'form' : kind}`)"
+          :disabled="isPart && !inst.form"
+          data-testid="in-submit"
+        />
       </div>
     </form>
   </Dialog>

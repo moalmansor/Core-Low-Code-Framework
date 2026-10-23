@@ -28,4 +28,5 @@ return [
     'keys_taken' => 'The form already has items with these keys: :keys.',
     'fields_unmatched' => 'These fields are not on the form: :fields. Rules and actions that use them were left out; a workflow that uses them needs attention.',
     'source_missing_dashboard' => 'Choose the dashboard to take the new version from.',
+    'already_linked' => 'The form already follows a blueprint of this kind. Detach it from that blueprint first.',
 ];

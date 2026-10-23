@@ -1029,6 +1029,16 @@ A status alone does not say who is expected to act, so records carry assignment 
 - Blueprints carry a version, and updating a blueprint offers to propagate changes to objects created from it, listing what would change before anything is applied. Elements changed locally in an object are kept and listed as conflicts; propagated changes land in the object's draft and take effect when it is published; an object can be detached to stop receiving updates.
 - Import and export of blueprints between environments and installations; each exported version carries a content hash that import verifies, and objects that the blueprint relates to must exist in the target before it can be used.
 - **Document templates** are blueprints too (Phase 4): a designed or Word template is saved as a `document_template` blueprint and new templates are made from it for any form, with its Word files carried inside and verified by the content hash (§4.17).
+- **As built (ADR-0059):**
+  - Everything a blueprint makes gets a uuid derived from the object it lands in, so later versions map onto it without a stored map. Links between an application's own forms point at the new forms; links outside the application must exist.
+  - Making an application from a blueprint, or **copying an application** from the Applications screen, creates its forms (keys prefixed with the new application's key) and publishes them in the order their links need. Notification rules and actions are added after publishing. Webhook secrets never travel, and records are never copied.
+  - A workflow, notification rules or actions are applied to another form, with fields, statuses and transitions matched by key.
+    - A workflow goes only to a form without one.
+    - Rules and actions whose keys the form already uses are refused.
+    - A rule or action that uses a field the form does not have is left out and reported.
+    - A form follows one blueprint of each kind; another is accepted once the first is detached.
+  - A dashboard blueprint makes a new dashboard; it needs Manage Reports.
+  - Propagation merges three ways for every kind. Local changes are kept as conflicts, form designs change in the draft, and rules, actions, workflows and dashboards change when propagation is confirmed after its preview.
 
 ### 4.31 Scheduler & Automation Rules
 - An admin-managed **automation builder** with no code: a trigger, optional conditions, and a sequence of steps reusing the action library of 4.15.

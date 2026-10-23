@@ -269,7 +269,7 @@ module's models.
 | **Expressions** | — (pure) | `ExpressionService` | P2 |
 | **Records** | per-form tables, submission_journal, record_comments, files | `RecordPipeline`, `QueryPlanner`, `DynamicRecord` | P2 (P3 views) |
 | **Reference** | business_calendars, holidays, number_sequences, currencies, exchange_rates, units_of_measure | `WorkingTimeCalculator`, `NumberGenerator`, `FxConverter` | P2 |
-| **Blueprints** | blueprints, blueprint_versions, blueprint_instances | `BlueprintService` | P2 forms and collections; P3 views; library completed P5 |
+| **Blueprints** | blueprints, blueprint_versions, blueprint_instances | `BlueprintService`, `ApplicationBlueprints`, `PartBlueprints` | P2 forms and collections; P3 views; P4 document templates; P5 applications (and cloning), workflows, notification rules, actions, dashboards (ADR-0059) |
 | **Workflow** | statuses, transitions, status_history, status_mappings, sla_rules, sla_timers | `WorkflowEngine` | P3 |
 | **Views** | views, view_columns, filters, saved_views, saved_view_shares, view_panels, reference_previews, print_layouts | `ViewResolver` | P3 |
 | **Justification** | justification_rules, justifications, justification_reason_codes, justification_attachments | `JustificationGate` | P3 |

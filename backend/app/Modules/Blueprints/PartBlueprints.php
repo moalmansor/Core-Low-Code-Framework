@@ -154,11 +154,17 @@ final class PartBlueprints
         if ($form === null) {
             throw ValidationException::withMessages(['form' => __('blueprints.form_required')]);
         }
+        // A form follows one blueprint of each kind; a detached link no longer counts.
+        $linked = BlueprintInstance::query()->where('object_type', $bp->kind)->where('object_id', $form->id)->first();
+        if ($linked !== null && ! $linked->is_detached) {
+            throw ValidationException::withMessages(['form' => __('blueprints.already_linked')]);
+        }
         $map = $this->map($content, $form);
         $notes = $this->unmatched($content, $form);
         $missing = array_values(array_diff(array_keys((array) ($content['keys']['fields'] ?? [])), array_keys($map)));
         $doc = self::remap($content['document'], $map);
-        DB::transaction(function () use ($bp, $version, $form, $doc, $user, $missing): void {
+        DB::transaction(function () use ($bp, $version, $form, $doc, $user, $missing, $linked): void {
+            $linked?->delete();
             if ($bp->kind === 'workflow') {
                 if ($this->workflow->load($form)['statuses'] !== []) {
                     throw ValidationException::withMessages(['form' => __('blueprints.form_has_workflow')]);

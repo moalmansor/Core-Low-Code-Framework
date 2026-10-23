@@ -21,7 +21,7 @@ import { get, send } from '@/api/http'
 import { useSession } from '@/stores/session'
 import { labelColor, PICKER_FALLBACK } from '@/theme/color'
 import LocaleFields from './LocaleFields.vue'
-import { errorText, fieldErrors, filledLocales, formatDateTime } from './shared'
+import { INCLUDE_MODES, errorText, fieldErrors, filledLocales, formatDateTime, type IncludeMode } from './shared'
 
 interface AppRow {
   uuid: string
@@ -191,6 +191,39 @@ async function saveMaintenance(): Promise<void> {
   }
 }
 
+// Make a copy (specification §4.30): forms published in the new application, links remapped, records never copied.
+const cloning = ref<{ app: AppRow; key: string; names: Record<string, string>; include_mode: IncludeMode } | null>(null)
+const cloneErrors = ref<Record<string, string>>({})
+const cloneBusy = ref(false)
+const cloneNotes = ref<string[]>([])
+const includeOptions = computed(() => INCLUDE_MODES.map((v) => ({ value: v, label: t(`building.include.${v}`), disabled: v !== 'structure' && !session.can('system.manage_permissions') })))
+function openClone(a: AppRow): void {
+  cloneErrors.value = {}
+  cloning.value = { app: a, key: '', names: {}, include_mode: 'structure' }
+}
+async function submitClone(): Promise<void> {
+  const c = cloning.value!
+  cloneErrors.value = {}
+  cloneBusy.value = true
+  try {
+    const name = filledLocales(c.names)
+    const res = await send<{ data: { uuid: string; forms: unknown[]; notes: string[] } }>('post', `/applications/${c.app.uuid}/clone`, { key: c.key, name, include_mode: c.include_mode })
+    cloning.value = null
+    cloneNotes.value = res.data.notes
+    toast.add({
+      severity: res.data.notes.length ? 'warn' : 'success',
+      summary: t('building.app.cloned', { name: name[session.locale] ?? Object.values(name)[0] ?? '', n: res.data.forms.length }),
+      life: 6000,
+    })
+    await load()
+  } catch (e) {
+    cloneErrors.value = fieldErrors(e)
+    toast.add({ severity: 'error', summary: errorText(e, t('building.save_failed')), life: 8000 })
+  } finally {
+    cloneBusy.value = false
+  }
+}
+
 // Row menu
 const rowMenu = ref<InstanceType<typeof Menu> | null>(null)
 const menuFor = ref<AppRow | null>(null)
@@ -203,6 +236,7 @@ const menuItems = computed(() => {
       { label: t('building.app.edit_menu'), icon: 'pi pi-sitemap', command: () => router.push({ name: 'admin.applications.menu', params: { application: a.uuid } }) },
       { label: t('xp.pages'), icon: 'pi pi-book', command: () => router.push({ name: 'admin.applications.pages', params: { application: a.uuid } }) },
     )
+  if (session.can('system.manage_forms')) items.push({ label: t('building.app.clone'), icon: 'pi pi-copy', command: () => openClone(a) })
   if (session.can('system.enable_maintenance_mode')) items.push({ label: t('building.app.maintenance'), icon: 'pi pi-wrench', command: () => openMaintenance(a) })
   if (a.status !== 'active') items.push({ label: t('building.app.action_activate'), icon: 'pi pi-play', command: () => changeStatus(a, 'activate') })
   if (a.status === 'active') items.push({ label: t('building.app.action_archive'), icon: 'pi pi-inbox', command: () => changeStatus(a, 'archive') })
@@ -230,6 +264,13 @@ function openMenu(event: Event, a: AppRow): void {
     <Button icon="pi pi-plus" :label="t('building.app.new')" data-testid="app-new" @click="create" />
   </div>
   <p class="text-sm text-muted-color mb-3">{{ t('building.app.hint') }}</p>
+
+  <Message v-if="cloneNotes.length" severity="warn" closable class="mb-3" data-testid="clone-notes" @close="cloneNotes = []">
+    <div class="font-semibold mb-1">{{ t('building.app.clone_notes') }}</div>
+    <ul class="text-sm list-disc ps-5 m-0">
+      <li v-for="(n, i) in cloneNotes" :key="i">{{ n }}</li>
+    </ul>
+  </Message>
 
   <DataTable :value="filtered" :loading="loading" data-key="uuid" size="small" striped-rows data-testid="app-table">
     <template #empty>{{ t('building.app.empty') }}</template>
@@ -323,6 +364,38 @@ function openMenu(event: Event, a: AppRow): void {
       <div class="flex justify-end gap-2">
         <Button type="button" severity="secondary" :label="t('common.cancel')" @click="editing = null" />
         <Button type="submit" :label="t('common.save')" :loading="saving" data-testid="app-save" />
+      </div>
+    </form>
+  </Dialog>
+
+  <Dialog
+    :visible="!!cloning"
+    modal
+    :header="cloning ? t('building.app.clone_title', { name: cloning.app.name }) : ''"
+    :style="{ width: '40rem' }"
+    @update:visible="(v: boolean) => !v && (cloning = null)"
+  >
+    <form v-if="cloning" class="flex flex-col gap-3" @submit.prevent="submitClone">
+      <p class="m-0 text-sm text-muted-color">{{ t('building.app.clone_hint') }}</p>
+      <div class="form-grid">
+        <div class="field">
+          <label for="clone-key">{{ t('building.key') }}</label>
+          <InputText id="clone-key" v-model="cloning.key" class="ltr-value" data-testid="clone-key" />
+          <small class="text-muted-color">{{ t('building.key_hint') }}</small>
+          <span v-if="cloneErrors.key" class="field-error">{{ cloneErrors.key }}</span>
+        </div>
+        <div class="field">
+          <label for="clone-include">{{ t('building.include_label') }}</label>
+          <Select v-model="cloning.include_mode" input-id="clone-include" :options="includeOptions" option-label="label" option-value="value" option-disabled="disabled" />
+          <small class="text-muted-color">{{ t(`building.include_hint.${cloning.include_mode}`) }}</small>
+        </div>
+      </div>
+      <div class="form-grid">
+        <LocaleFields v-model="cloning.names" :label="t('building.name')" field="name" :errors="cloneErrors" id-prefix="clone-name" />
+      </div>
+      <div class="flex justify-end gap-2">
+        <Button type="button" severity="secondary" :label="t('common.cancel')" @click="cloning = null" />
+        <Button type="submit" :label="t('building.app.clone_submit')" :loading="cloneBusy" data-testid="clone-submit" />
       </div>
     </form>
   </Dialog>

@@ -91,6 +91,14 @@ it('adds notification rules from a blueprint, matches fields by key, reports mis
     expect($rules->firstWhere('key', 'amount_changed')['field'])->toBe($targetAmount['uuid']);
 
     $this->postJson("/api/v1/blueprints/{$bp}/instantiate", ['form' => $target])->assertUnprocessable()->assertJsonValidationErrors('form');
+    // A second rules blueprint on the same form is refused until the first is detached.
+    $other = $this->postJson('/api/v1/blueprints', ['source_type' => 'notification', 'source' => $source, 'name' => ['en' => 'Other alerts']])->assertCreated()->json('data.uuid');
+    $this->postJson("/api/v1/blueprints/{$other}/instantiate", ['form' => $target])->assertUnprocessable()->assertJsonPath('errors.form.0', __('blueprints.already_linked'));
+    $link = $this->getJson("/api/v1/blueprints/{$bp}")->json('data.instances.0.uuid');
+    $this->postJson("/api/v1/blueprint-instances/{$link}/detach")->assertNoContent();
+    // Detached, the form takes the other blueprint; its rules with the same keys are still refused.
+    $this->postJson("/api/v1/blueprints/{$other}/instantiate", ['form' => $target])->assertUnprocessable()->assertJsonValidationErrors('form');
+    expect(DB::table('blueprint_instances')->where('object_type', 'notification')->count())->toBe(1);
     // An empty form cannot be captured.
     [$empty] = partForm($this, 'empty_rules');
     $this->postJson('/api/v1/blueprints', ['source_type' => 'notification', 'source' => $empty, 'name' => ['en' => 'Nothing']])->assertUnprocessable()->assertJsonValidationErrors('source');

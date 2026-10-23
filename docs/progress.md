@@ -627,8 +627,22 @@ Done:
      - a record uuid was used as a label in sync logs;
    - tests: `ExternalAccessTest` (6), `ThrottlePerRouteTest`, `pow.spec.ts`, e2e `21-external` and the screen sweep.
 
+10. **Blueprint library and application cloning** (ADR-0059):
+   - blueprints of a whole application: every form and collection with its design and workflow, plus permissions and notification rules and actions by the chosen level;
+   - making an application from one, and "Make a copy" on the Applications screen:
+     - forms are created with derived uuids and links remapped to the copies, and published in link order;
+     - rules and actions are added after publishing; webhook secrets never travel;
+   - blueprints of a form's workflow, notification rules or actions, applied to another form with fields, statuses and transitions matched by key:
+     - a workflow only goes to a form without one;
+     - taken keys are refused;
+     - rules that use missing fields are left out and reported;
+     - one blueprint per kind per form;
+   - dashboard blueprints that make new dashboards;
+   - three-way propagation for every kind, keeping local changes as conflicts and creating forms an application blueprint gained as drafts;
+   - the library asks what to save; a blueprint page creates or applies by kind and lists what was made from it;
+   - tests: `ApplicationBlueprintsTest` (2), `PartBlueprintsTest` (3), e2e `22-blueprints`.
+
 Next, in order:
-10. The blueprint library and application cloning.
 11. Self-service, impersonation, access policies, feature flags, help, tours and usage.
 12. Specification and architecture updates, the full test run on both engines, and the pull request.
 
