@@ -47,6 +47,7 @@ const tabs = computed(() => {
       'schema',
       'clamav',
       'security',
+      'self_service',
       'sso',
       'ldap',
       'monitoring',

@@ -16,6 +16,9 @@ use Illuminate\Validation\Rule;
  */
 final class SettingsRegistry
 {
+    /** Personal preferences an administrator can leave to people or keep for the organization. */
+    public const PREFERENCES = ['locale', 'timezone', 'calendar', 'date_format', 'number_format', 'digits', 'theme_mode', 'density', 'notification_channels', 'digest_frequency', 'landing_page'];
+
     /** @var array<string, array<string, SettingDefinition>> */
     private array $definitions = [];
 
@@ -166,6 +169,8 @@ final class SettingsRegistry
         $d('security', 'session_idle_minutes', 30, ['required', 'integer', 'between:5,1440']);
         $d('security', 'session_absolute_minutes', 720, ['required', 'integer', 'between:15,10080']);
         $d('security', 'api_rate_limit_per_minute', 240, ['required', 'integer', 'between:30,10000']);
+        // Self-service (§4.36, ADR-0063): the personal preferences people may change themselves.
+        $d('self_service', 'editable_preferences', self::PREFERENCES, ['present', 'array', '*' => ['distinct', Rule::in(self::PREFERENCES)]]);
         // Impersonation (§4.36, ADR-0061): the longest one, and what is refused during it.
         $d('security', 'impersonation_max_minutes', 60, ['required', 'integer', 'between:5,480']);
         $d('security', 'impersonation_blocked_actions', ['delete_records', 'export_data', 'run_actions', 'change_access'], ['present', 'array', '*' => ['distinct', Rule::in(array_keys(Impersonation::BLOCKABLE))]]);

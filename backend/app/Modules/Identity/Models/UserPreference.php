@@ -19,6 +19,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $density
  * @property string $digest_frequency
  * @property array{email?: bool, in_app?: bool, sms?: bool}|null $notification_channels
+ * @property array{group: string, decimal: string}|null $number_format
+ * @property array{type: string, target?: string|null}|null $landing_page
+ * @property list<array{form: string, record: string}>|null $pinned_records
+ * @property list<array{form: string, action: string, label: string|null}>|null $shortcuts
+ * @property string|null $digest_sent_at
  */
 final class UserPreference extends BaseModel
 {

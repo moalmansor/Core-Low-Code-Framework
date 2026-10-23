@@ -29,4 +29,7 @@ return [
     'impersonation_ended' => 'The impersonation has ended. You are signed in as yourself again.',
     'impersonation_expired' => 'The impersonation reached its time limit and has ended. You are signed in as yourself again.',
     'impersonation_blocked' => 'This is not allowed while impersonating someone.',
+    'preference_locked' => 'Your organization sets this for everyone.',
+    'too_many_pins' => 'You can pin up to :max records. Unpin one first.',
+    'shortcut_form' => 'Choose a form you can open.',
 ];

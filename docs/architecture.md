@@ -5952,6 +5952,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `landing_page` | JSON | NVARCHAR(MAX) | NULL | — |  |
 | `pinned_records` | JSON | NVARCHAR(MAX) | NULL | — | `[{form_uuid, record_id}]` (max 50) |
 | `shortcuts` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `digest_sent_at` | DATETIME(6) | DATETIME2(6) | NULL | — | last notification digest (ADR-0063) |
 
 - **Primary key:** `pk_user_preferences` (`id`); SQL Server clustered.
 - **Unique:** `uq_user_preferences_user_id` (`user_id`)

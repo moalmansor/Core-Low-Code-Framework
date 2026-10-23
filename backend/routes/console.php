@@ -16,6 +16,7 @@ use App\Modules\Downloads\DownloadJobs;
 use App\Modules\External\Signatures;
 use App\Modules\External\Throttles;
 use App\Modules\Monitoring\ErrorReporter;
+use App\Modules\Notifications\Digests;
 use App\Modules\Notifications\EmailQueue;
 use App\Modules\Notifications\Notifier;
 use App\Modules\Operations\AlertRules;
@@ -61,6 +62,12 @@ Artisan::command('external:maintain', function (Throttles $throttles, Signatures
 
     return 0;
 })->purpose('Remove old external form submission windows and expire signature requests past their date');
+
+Artisan::command('notifications:digest', function (Digests $digests): int {
+    $this->info('Queued '.$digests->sendDue().' digest(s).');
+
+    return 0;
+})->purpose('E-mail the daily and weekly notification digests that are due');
 
 Artisan::command('webhooks:purge', function (Webhooks $webhooks): int {
     $this->info('Removed '.$webhooks->purge().' webhook delivery log row(s).');
@@ -260,6 +267,7 @@ Schedule::command('external:maintain')->hourly()->withoutOverlapping()->onOneSer
 Schedule::command('webhooks:purge')->dailyAt('03:35')->withoutOverlapping()->onOneServer();
 Schedule::command('records:purge-recycle-bin')->dailyAt('03:25')->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
+Schedule::command('notifications:digest')->hourlyAt(5)->withoutOverlapping()->onOneServer();
 Schedule::command('mail:dispatch-due')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('ops:check-alerts')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('schema:purge-snapshots')->dailyAt('04:10')->onOneServer();

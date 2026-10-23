@@ -53,4 +53,9 @@ return [
         'test_title' => 'Test message',
         'test_text' => 'This channel is set up correctly.',
     ],
+    'digest_intro' => 'Hello :name, here is what is still unread in your notifications.',
+    'digest_more' => 'There are more; open the system to see them all.',
+    'digest_open' => 'Open the system',
+    'digest_subject_daily' => 'Your daily summary: :n unread notifications',
+    'digest_subject_weekly' => 'Your weekly summary: :n unread notifications',
 ];

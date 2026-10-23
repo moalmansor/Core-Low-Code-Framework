@@ -8,6 +8,7 @@ use App\Modules\Access\AccessResolver;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\Flags\FeatureFlags;
 use App\Modules\Core\I18n\Translator;
+use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Identity\Impersonation\Impersonation;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Security\PasswordPolicy;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /** The signed-in user's own profile, permissions, and sessions (§5). */
 final class MeController extends Controller
@@ -84,14 +86,34 @@ final class MeController extends Controller
             'notification_channels.email' => ['sometimes', 'boolean'],
             'notification_channels.in_app' => ['sometimes', 'boolean'],
             'notification_channels.sms' => ['sometimes', 'boolean'],
+            // A space is a valid group separator, so the keys are required rather than their values.
+            'number_format' => ['sometimes', 'nullable', 'array:group,decimal', 'required_array_keys:group,decimal'],
+            'number_format.group' => ['nullable', Rule::in([',', '.', ' ', "'", ''])],
+            'number_format.decimal' => ['required_with:number_format', Rule::in(['.', ',']), 'different:number_format.group'],
+            'digest_frequency' => ['sometimes', Rule::in(['none', 'daily', 'weekly'])],
+            'landing_page' => ['sometimes', 'nullable', 'array:type,target'],
+            'landing_page.type' => ['required_with:landing_page', Rule::in(['home', 'my_work', 'application', 'page', 'form'])],
+            'landing_page.target' => ['nullable', 'uuid', 'required_if:landing_page.type,application,page,form'],
         ]);
+        // Only what the administrator lets people change (System Settings › Self-service).
+        $editable = (array) app(SettingsService::class)->get('self_service', 'editable_preferences');
+        $locked = array_values(array_diff(array_keys($data), $editable));
+        if ($locked !== []) {
+            throw ValidationException::withMessages(array_fill_keys($locked, __('identity.preference_locked')));
+        }
+        if (isset($data['number_format']['group'])) {
+            $data['number_format']['group'] = (string) $data['number_format']['group'];
+        }
+        if (isset($data['landing_page']['target'])) {
+            $data['landing_page']['target'] = strtolower((string) $data['landing_page']['target']);
+        }
         $preference = $user->preference()->firstOrNew();
         if (isset($data['notification_channels'])) {
             // A channel left out keeps its current choice.
             $current = (array) ($preference->notification_channels ?? []);
             $data['notification_channels'] = array_map(static fn (string $c) => (bool) ($data['notification_channels'][$c] ?? $current[$c] ?? true), array_combine(['email', 'in_app', 'sms'], ['email', 'in_app', 'sms']));
         }
-        $preference->fill($data)->save();
+        $preference->forceFill($data)->save();
         $user->setRelation('preference', $preference);
 
         return response()->json(['data' => $this->presentPreferences($user)]);
@@ -112,6 +134,11 @@ final class MeController extends Controller
             'density' => $p?->density,
             'notification_channels' => ['email' => ($p?->notification_channels['email'] ?? true) !== false, 'in_app' => ($p?->notification_channels['in_app'] ?? true) !== false,
                 'sms' => ($p?->notification_channels['sms'] ?? true) !== false],
+            'number_format' => $p?->number_format,
+            'digest_frequency' => $p->digest_frequency ?? 'none',
+            'landing_page' => $p?->landing_page,
+            // What this person may change; the rest is set by the organization.
+            'editable' => array_values((array) app(SettingsService::class)->get('self_service', 'editable_preferences')),
         ];
     }
 
