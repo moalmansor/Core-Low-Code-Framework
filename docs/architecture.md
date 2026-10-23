@@ -7362,6 +7362,12 @@ workflow, and permissions of the bound principal. Channels: provider drivers (SM
 messaging) registered in `NotificationChannelRegistry`, HTTP through the egress
 gateway.
 
+As built (ADR-0056, ADR-0057): database views are read from connections named in
+`LCF_EXTERNAL_DB_CONNECTIONS` (`external_<name>`, configured by `LCF_EXT_<NAME>_*`);
+sync jobs keep their export target in `field_mapping.export` and their matching
+settings in `match_keys` (`fields`, `updated_from`); View Mode panels gain the type
+`external_table`.
+
 ### 19.22 Self-service, impersonation, access policies, feature flags
 
 - Profile preferences constrained by `settings.self_service` limits.

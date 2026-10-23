@@ -220,3 +220,62 @@ export const sourcesApi = {
   remove: (uuid: string) => send('delete', `/data-sources/${uuid}`),
   test: (uuid: string) => send<{ data: SourceTest }>('post', `/data-sources/${uuid}/test`).then((r) => r.data),
 }
+
+/** Sync jobs (specification §4.33, ADR-0057). */
+export type SyncDirection = 'import' | 'export'
+export type ConflictRule = 'source_wins' | 'target_wins' | 'newest_wins' | 'skip'
+export interface SyncRun {
+  uuid: string
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'partially_failed'
+  dry_run: boolean
+  created: number
+  updated: number
+  skipped: number
+  errors: number
+  error: string | null
+  has_log: boolean
+  started_at: string | null
+  finished_at: string | null
+  created_at: string | null
+  triggered_by: string | null
+}
+export interface SyncJobDoc {
+  uuid?: string
+  name: Record<string, string>
+  direction: SyncDirection
+  source: string | null
+  form: string | null
+  run_as: string | null
+  fields: { field: string; from?: string; to?: string }[]
+  export: { url: string; method: 'POST' | 'PUT' } | null
+  match: string[]
+  updated_from: string | null
+  conflict_rule: ConflictRule
+  active: boolean
+  schedule: { cron: string; timezone: string } | null
+  hash?: string
+  label?: string
+  run_as_name?: string | null
+  next_run_at?: string | null
+}
+export interface SyncJobSummary {
+  uuid: string
+  label: string
+  direction: SyncDirection
+  active: boolean
+  source_name: string | null
+  form_name: string | null
+  scheduled: boolean
+  last_run: SyncRun | null
+}
+
+export const syncApi = {
+  list: () => get<{ data: SyncJobSummary[] }>('/sync-jobs').then((r) => r.data),
+  load: (uuid: string) => get<{ data: SyncJobDoc }>(`/sync-jobs/${uuid}`).then((r) => r.data),
+  create: (job: SyncJobDoc) => send<{ data: SyncJobDoc }>('post', '/sync-jobs', { job }).then((r) => r.data),
+  save: (uuid: string, job: SyncJobDoc, baseHash: string) => send<{ data: SyncJobDoc }>('put', `/sync-jobs/${uuid}`, { job, base_hash: baseHash }).then((r) => r.data),
+  remove: (uuid: string) => send('delete', `/sync-jobs/${uuid}`),
+  run: (uuid: string, dryRun: boolean) => send<{ data: SyncRun }>('post', `/sync-jobs/${uuid}/run`, { dry_run: dryRun }).then((r) => r.data),
+  runs: (uuid: string) => get<{ data: SyncRun[] }>(`/sync-jobs/${uuid}/runs`).then((r) => r.data),
+  logUrl: (uuid: string, run: string) => `/api/v1/sync-jobs/${uuid}/runs/${run}/log`,
+}

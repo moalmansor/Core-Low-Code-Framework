@@ -1080,6 +1080,14 @@ A status alone does not say who is expected to act, so records carry assignment 
   - Automations can be triggered by an inbound endpoint. (ADR-0050)
 - **Notification channels beyond email:** in-app, SMS, and messaging providers configured as channels, selectable per notification rule, with per-user channel preferences and the same template, placeholder, and logging treatment as email.
 - Every integration appears in the Operations Center with its failures, retries, and delivery history.
+- **As built (ADR-0056, ADR-0057):**
+  - REST sources are called through the egress gateway with API key, bearer, basic or OAuth 2.0 client-credentials authentication. Database views come from connections defined in the server environment, so no database credentials are stored.
+  - Sources feed choice fields ("external" option source, checked again on save), record labels and an "External data" panel, with no-cache, TTL or stale-while-revalidate caching.
+  - Sync jobs import through the record pipeline as a run-as user, with matching fields and source-wins, record-wins, newest-wins or skip rules. They also export changed records to an allowlisted address.
+  - Dry runs roll back. Every run keeps a CSV log. Jobs run on a schedule or on demand.
+  - SMS channels use Twilio or an HTTPS endpoint; messaging channels use Slack, Teams or an HTTPS endpoint. Provider secrets are write-only.
+  - SMS goes to each recipient's mobile number unless they turned it off; messaging posts once per notification. The text is the template's subject and preheader with the record link.
+  - Deliveries retry with backoff and respect a per-minute limit. Failures of channels, sources and sync runs appear in the Operations Center.
 
 ### 4.34 Reference Data, Calendars & Numbering
 - **Business calendars:** working days, working hours, public holidays per country or organization, and multiple calendars assignable per department or form. SLA timers, due dates, and reminders count working time, not wall-clock time, when the admin chooses.

@@ -605,8 +605,14 @@ Done:
    - the organization default reaches the sign-in page; an application's theme applies while the user works in it;
    - tests: `ThemesTest` (4), `theme.spec.ts`, e2e `19-experience` (theme flow) and the screen sweep.
 
+8. **Notification channels, external data sources and sync jobs** (ADR-0056, ADR-0057):
+   - SMS (Twilio, HTTPS) and messaging (Slack, Teams, HTTPS) channels chosen per notification rule, with encrypted write-only provider settings, a test message, a per-minute limit, a delivery log with retries, an SMS preference per person, and failures in the Operations Center;
+   - REST data sources through the egress gateway (API key, bearer, basic, OAuth 2.0 client credentials) and views of environment-defined database connections, mapped to value, label, parent and columns, cached per policy, with a live test;
+   - an "external" option source for choice fields (checked again on save, labels on records) and an "External data" panel in View Mode;
+   - sync jobs: import through the record pipeline as a run-as user with matching fields and four conflict rules, export of changed records, dry runs rolled back, CSV run logs, schedules, and failed runs in the Operations Center;
+   - tests: `NotificationChannelsTest` (3), `DataSourcesTest` (3), `SyncJobsTest` (3), e2e `20-integrations` and the screen sweep.
+
 Next, in order:
-8. External data sources, sync jobs and notification channels.
 9. External access.
 10. The blueprint library and application cloning.
 11. Self-service, impersonation, access policies, feature flags, help, tours and usage.

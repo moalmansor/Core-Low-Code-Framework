@@ -59,3 +59,5 @@ One short record per significant decision (specification §8.1). New records are
 | [0053](0053-reports-and-dashboards.md) | Reports and dashboards |
 | [0054](0054-pages-home-navigation-announcements-search.md) | Pages, home screens, navigation, announcements, maintenance mode and global search |
 | [0055](0055-themes.md) | Themes per organization and per application |
+| [0056](0056-notification-channels.md) | SMS and messaging notification channels |
+| [0057](0057-data-sources-and-sync-jobs.md) | External data sources and sync jobs |
