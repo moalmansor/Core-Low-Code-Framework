@@ -12,7 +12,7 @@ Project memory file (specification §8.1). Updated at the end of every run.
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | **Complete.** Owner confirmed 2026-10-09; no findings, no code changes (`docs/pilot-findings.md`) | — (issue #5 closed) |
 | 3 — Workflow, Records & Views | `phase-3-workflow` | **Complete. Merged.** Owner re-tested after merge. | [moalmansor/Core-Low-Code-Framework#13](https://github.com/moalmansor/Core-Low-Code-Framework/pull/13) |
 | 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | **Complete. Merged.** Owner verified 2026-10-16. | [moalmansor/Core-Low-Code-Framework#14](https://github.com/moalmansor/Core-Low-Code-Framework/pull/14) |
-| 5 — Platform & Extensibility | `phase-5-platform` | **In progress** (issue #8) | — |
+| 5 — Platform & Extensibility | `phase-5-platform` | **Complete. Awaiting review.** (issue #8) | [moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmansor/Core-Low-Code-Framework/pull/15) |
 | 6 — Hardening & Final Delivery | `phase-6-hardening` | Not started | — |
 
 ## Phase 0: completed deliverables
@@ -678,9 +678,12 @@ Done:
      - tests: `UsageInsightTest` (2);
    - e2e `23-adoption`, which passed locally on MySQL; the new screens are in the screen sweep.
 
-12. **Documentation and delivery:** the specification (§4.36, §4.37 "As built") and architecture (§19.22, §19.23) are updated. Remaining:
-   - the full CI run on both engines on the head commit;
-   - the pull request phase-5-platform → main with "Closes #8" and the §8.2 report.
+12. **Documentation and delivery:**
+   - the specification (§4.36, §4.37 "As built") and architecture (§19.22, §19.23) are updated;
+   - the Self-service and Adoption settings tabs are served;
+   - the screen sweep switches language from inside the application and waits out a whole rate-limit window afterwards;
+   - every CI job passes on both engines;
+   - pull request [moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmansor/Core-Low-Code-Framework/pull/15) carries the §8.2 report and cites the CI run on its head commit.
 
 ## Resume point
 
@@ -692,10 +695,16 @@ action, notifications to a user from a linked form's field, document
 generation as PDF and Word, and the Phase 4 screens in Arabic at narrow
 widths all behaved correctly.
 
-Phase 5 is in progress on branch `phase-5-platform`
+Phase 5 is complete on branch `phase-5-platform`
 ([moalmansor/Core-Low-Code-Framework#8](https://github.com/moalmansor/Core-Low-Code-Framework/issues/8)).
-See "Phase 5: progress" for what is done and the next item. Phase 6 starts
-only after the Phase 5 pull request is merged.
+Pull request [moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmansor/Core-Low-Code-Framework/pull/15)
+is open for the owner's review and carries the full §8.2 report.
+
+Resume point:
+- Address review comments on #15 by pushing to `phase-5-platform`.
+- After each push, re-run CI on the head commit and update the report.
+- Do not merge.
+- Phase 6 starts only after #15 is merged.
 
 ### Local development notes
 
