@@ -4730,6 +4730,8 @@ admin-created, never seeded.
 | `password_hash` | VARCHAR(255) | NVARCHAR(255) | NULL | — |  |
 | `run_as_user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION (service principal recorded as creator) |
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `audience` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | 'public' | values: `public`, `accounts` — open to anyone, or only to signed-in external users (ADR-0058) |
+| `role_ids` | JSON | NVARCHAR(MAX) | NULL | — | external roles allowed when `audience = accounts`; NULL = every external user |
 
 - **Primary key:** `pk_external_forms` (`id`); SQL Server clustered.
 - **Unique:** `uq_external_forms_uuid` (`uuid`)
@@ -4749,6 +4751,8 @@ admin-created, never seeded.
 - **Foreign key:** `fk_external_forms_initial_status_id`: `initial_status_id` → `statuses`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_external_forms_run_as_user_id`: `run_as_user_id` → `users`(`id`) ON DELETE NO ACTION
 - **Check:** `ck_external_forms_verification`: `verification IN ('none', 'email', 'sms')` (both engines)
+- **Check:** `ck_external_forms_audience`: `audience IN ('public', 'accounts')` (both engines)
+- **Check (SQL Server):** `ck_external_forms_role_ids_json`: `ISJSON(role_ids) = 1`
 - **Check (SQL Server):** `ck_external_forms_exposed_fields_json`: `ISJSON(exposed_fields) = 1`
 - **Check (SQL Server):** `ck_external_forms_daily_window_json`: `ISJSON(daily_window) = 1`
 - Translatable: `title`, `intro`, `success_message`.
@@ -4824,6 +4828,7 @@ admin-created, never seeded.
 | `revoked_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 | `last_used_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 | `last_used_ip` | VARCHAR(45) | NVARCHAR(45) | NULL | — |  |
+| `transition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `transitions.id` NO ACTION — the transition an `approve` or `reject` link performs (ADR-0058) |
 
 - **Primary key:** `pk_access_tokens` (`id`); SQL Server clustered.
 - **Unique:** `uq_access_tokens_token_hash` (`token_hash`)
@@ -4838,6 +4843,8 @@ admin-created, never seeded.
 - **Foreign key:** `fk_access_tokens_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_access_tokens_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_access_tokens_revoked_by`: `revoked_by` → `users`(`id`) ON DELETE NO ACTION
+- **Index:** `ix_access_tokens_transition_id` (`transition_id`) — supports FK
+- **Foreign key:** `fk_access_tokens_transition_id`: `transition_id` → `transitions`(`id`) ON DELETE NO ACTION
 - **Check:** `ck_access_tokens_purpose`: `purpose IN ('record_action', 'signature', 'external_resume', 'email_verification')` (both engines)
 - **Check:** `ck_access_tokens_action`: `action IN ('view', 'approve', 'reject', 'complete_section', 'sign')` (both engines)
 
@@ -7450,7 +7457,8 @@ Conventions: base `/api/v1`, JSON, Sanctum cookie (SPA) or bearer token,
 writes, `If-Match: <row_version>` (or body `row_version`) on record updates.
 Errors: 401/403/404 (out-of-scope = 404), 409 conflict, 422 validation (+
 `justification_required`), 423 locked (claim / schema inconsistent / publish lock),
-429 rate limit; body `{message, code, reference, errors?}`. Lists support
+429 rate limit (a `throttle:N,M` limit counts per person or address and per route, so one
+action's limit is never used up by others); body `{message, code, reference, errors?}`. Lists support
 `page`, `per_page` (≤ 100), `sort`, `filter[...]`, `search`. Permission keys:
 `system.*` from §21.1, `form.{uuid}.{ability}`, etc. (§10.4 `permissions.key`).
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Middleware\NormalizeDocumentInput;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\ThrottlePerRoute;
 use App\Modules\Core\Correlation\CorrelationId;
 use App\Modules\Core\Http\Middleware\AssignCorrelationId;
 use App\Modules\Experience\Http\Middleware\SystemMaintenance;
@@ -62,7 +63,7 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsurePasswordNotExpired::class,
             SystemMaintenance::class,
         ]);
-        $middleware->alias(['lcf.setup' => SetupOpen::class]);
+        $middleware->alias(['lcf.setup' => SetupOpen::class, 'throttle' => ThrottlePerRoute::class]);
         $middleware->redirectGuestsTo(static fn (Request $request): ?string => $request->expectsJson() ? null : '/login');
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -432,20 +432,20 @@ final class SyncJobs
                 }
                 data_set($payload, $m['to'], $record['values'][$m['field']] ?? null);
             }
-            $label = (string) ($record['system']['record_number'] ?? $record['uuid']);
+            $reference = (string) ($record['system']['record_number'] ?? $record['uuid']);
             if ($dryRun) {
                 $counts['created']++;
-                $log[] = [$n + 1, $label, 'would_send', (string) $record['uuid'], ''];
+                $log[] = [$n + 1, $reference, 'would_send', (string) $record['uuid'], ''];
 
                 continue;
             }
             try {
                 $status = $this->sources->push($source, (string) $target['url'], (string) $target['method'], $payload);
                 $counts['created']++;
-                $log[] = [$n + 1, $label, 'sent', (string) $record['uuid'], 'HTTP '.$status];
+                $log[] = [$n + 1, $reference, 'sent', (string) $record['uuid'], 'HTTP '.$status];
             } catch (SourceFailure $e) {
                 $counts['errors']++;
-                $log[] = [$n + 1, $label, 'failed', (string) $record['uuid'], $e->getMessage()];
+                $log[] = [$n + 1, $reference, 'failed', (string) $record['uuid'], $e->getMessage()];
             }
         }
     }
