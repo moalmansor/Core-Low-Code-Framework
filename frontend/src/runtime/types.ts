@@ -27,7 +27,7 @@ export interface StaticOption {
 }
 
 export interface FieldOptions {
-  source: 'static' | 'collection' | 'form' | 'query' | 'users' | 'roles' | 'departments'
+  source: 'static' | 'collection' | 'form' | 'query' | 'users' | 'roles' | 'departments' | 'external'
   static?: StaticOption[]
   collection?: string | null
   dependsOn?: string | null

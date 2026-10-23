@@ -26,6 +26,7 @@
   "panels_run.add": "إضافة",
   "panels_run.collapse": "طي",
   "panels_run.expand": "توسيع",
+  "panels_run.name": "الاسم",
   "panels_run.no_access": "ليس لديك صلاحية الوصول إلى هذه السجلات.",
   "panels_run.none": "لا توجد سجلات.",
   "panels_run.record": "السجل",

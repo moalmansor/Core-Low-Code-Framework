@@ -453,6 +453,7 @@
   "translations.type.department": "أسماء الإدارات",
   "translations.type.document_template": "قوالب المستندات",
   "translations.type.email_template": "قوالب البريد",
+  "translations.type.external_data_source": "مصادر البيانات الخارجية",
   "translations.type.field": "تسميات الحقول",
   "translations.type.field_group": "عناوين المجموعات",
   "translations.type.field_option": "تسميات الخيارات",

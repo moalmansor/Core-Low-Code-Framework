@@ -156,3 +156,67 @@ export interface MappableField {
 export const inboundFieldsApi = {
   list: async (form: string) => (await get<{ data: MappableField[] }>('/inbound-endpoints/fields', { form })).data,
 }
+
+/** External data sources (specification §4.33, ADR-0057). */
+export type SourceType = 'rest' | 'db_view'
+export type SourceAuth = 'none' | 'api_key' | 'bearer' | 'basic' | 'oauth2_client_credentials'
+export type CachePolicy = 'none' | 'ttl' | 'stale_while_revalidate'
+export interface SourceColumn {
+  key: string
+  path: string
+  label: Record<string, string>
+}
+export interface SourceDoc {
+  uuid?: string
+  key: string
+  type: SourceType
+  name: Record<string, string>
+  rest_config: { url: string; method: 'GET' | 'POST'; query: { name: string; value: string }[]; body: string | null; records: string } | null
+  db_connection: string | null
+  db_view: string | null
+  auth_type: SourceAuth
+  credentials: Record<string, string | boolean | null>
+  headers: { name: string; value: string | null; set?: boolean }[]
+  response_mapping: { value: string; label: string; parent: string | null; columns: SourceColumn[] }
+  cache_policy: CachePolicy
+  cache_ttl_seconds: number | null
+  active: boolean
+  hash?: string
+  label?: string
+  used_by?: string[]
+}
+export interface SourceSummary {
+  uuid: string
+  key: string
+  type: SourceType
+  label: string
+  active: boolean
+  last_tested_at: string | null
+  last_test_status: 'ok' | 'failed' | null
+  target: string | null
+}
+export interface SourceTest {
+  ok: boolean
+  error: string | null
+  count: number
+  rows: { value: string; label: string; parent: string | null; cells: Record<string, unknown> }[]
+  sample: unknown
+}
+export interface SourceOption {
+  uuid: string
+  key: string
+  label: string
+  cascades: boolean
+  columns: { key: string; label: string | null }[]
+}
+
+export const sourcesApi = {
+  list: () =>
+    get<{ data: SourceSummary[]; meta: { connections: string[]; auth_fields: Record<SourceAuth, Record<string, boolean>>; secrets: Partial<Record<SourceAuth, string[]>> } }>('/data-sources'),
+  options: () => get<{ data: SourceOption[] }>('/data-sources/options').then((r) => r.data),
+  load: (uuid: string) => get<{ data: SourceDoc }>(`/data-sources/${uuid}`).then((r) => r.data),
+  create: (source: SourceDoc) => send<{ data: SourceDoc }>('post', '/data-sources', { source }).then((r) => r.data),
+  save: (uuid: string, source: SourceDoc, baseHash: string) => send<{ data: SourceDoc }>('put', `/data-sources/${uuid}`, { source, base_hash: baseHash }).then((r) => r.data),
+  remove: (uuid: string) => send('delete', `/data-sources/${uuid}`),
+  test: (uuid: string) => send<{ data: SourceTest }>('post', `/data-sources/${uuid}/test`).then((r) => r.data),
+}

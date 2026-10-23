@@ -8,15 +8,16 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import InboundPanel from './InboundPanel.vue'
+import SourcesPanel from './SourcesPanel.vue'
 import TokensPanel from './TokensPanel.vue'
 import WebhooksPanel from './WebhooksPanel.vue'
 
 /**
  * Integrations (specification §4.22, §4.33): outgoing webhooks, incoming
- * endpoints and every API token of the organization, for holders of
+ * endpoints, external data sources and every API token of the organization, for holders of
  * "Manage integrations".
  */
-const TABS = ['webhooks', 'inbound', 'tokens'] as const
+const TABS = ['webhooks', 'inbound', 'sources', 'tokens'] as const
 type TabKey = (typeof TABS)[number]
 const route = useRoute()
 const router = useRouter()
@@ -39,6 +40,7 @@ const open = computed({ get: () => tab.value, set: (v: TabKey) => (tab.value = v
           <template v-if="k === tab">
             <WebhooksPanel v-if="k === 'webhooks'" />
             <InboundPanel v-else-if="k === 'inbound'" />
+            <SourcesPanel v-else-if="k === 'sources'" />
             <TokensPanel v-else-if="k === 'tokens'" />
           </template>
         </TabPanel>

@@ -31,6 +31,12 @@ export const platformRoutes: RouteRecordRaw[] = [
     meta: { anyOf: ['system.manage_integrations'], title: 'admin.area.integrations' },
   },
   {
+    path: 'admin/integrations/sources/:source',
+    name: 'admin.integrations.source',
+    component: () => import('@/views/integrations/SourceEditor.vue'),
+    meta: { anyOf: ['system.manage_integrations'], title: 'admin.area.integrations' },
+  },
+  {
     path: 'admin/integrations/:tab?',
     name: 'admin.integrations',
     component: () => import('@/views/integrations/IntegrationsView.vue'),

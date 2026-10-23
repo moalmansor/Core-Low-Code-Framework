@@ -231,7 +231,7 @@ export const fieldTreeApi = {
 export interface PanelDoc {
   uuid: string
   parent: string | null
-  type: 'tabs' | 'tab' | 'section' | 'related_table' | 'derived_fields' | 'summary_widget' | 'status_timeline' | 'comments' | 'attachments' | 'form_body' | 'html'
+  type: 'tabs' | 'tab' | 'section' | 'related_table' | 'derived_fields' | 'summary_widget' | 'status_timeline' | 'comments' | 'attachments' | 'form_body' | 'html' | 'external_table'
   i18n: { title: I18nMap; content: I18nMap }
   relationPath?: Path | null
   config: Record<string, unknown>
