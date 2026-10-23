@@ -80,3 +80,24 @@ export const flagsApi = {
   save: (uuid: string, flag: FlagDoc, baseHash: string) => send<{ data: FlagDoc }>('put', `/feature-flags/${uuid}`, { flag, base_hash: baseHash }).then((r) => r.data),
   remove: (uuid: string) => send('delete', `/feature-flags/${uuid}`),
 }
+
+/** Pinned records and personal shortcuts (specification §4.36, ADR-0063). */
+export interface Pin {
+  form: string
+  record: string
+  title: string
+  form_name: string
+}
+export interface Shortcut {
+  form: string
+  action: 'list' | 'new'
+  label: string | null
+  form_name?: string
+}
+export const personalApi = {
+  pins: () => get<{ data: Pin[] }>('/me/pins').then((r) => r.data),
+  pin: (form: string, record: string) => send('post', '/me/pins', { form, record }),
+  unpin: (record: string) => send('delete', `/me/pins/${record}`),
+  shortcuts: () => get<{ data: Shortcut[] }>('/me/shortcuts').then((r) => r.data),
+  saveShortcuts: (shortcuts: Shortcut[]) => send<{ data: Shortcut[] }>('put', '/me/shortcuts', { shortcuts }).then((r) => r.data),
+}

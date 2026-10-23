@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { landingPath } from '@/runtime/landing'
 import { useSession } from '@/stores/session'
 import { builderRoutes } from './builder'
 import { buildingRoutes } from './building'
@@ -164,6 +165,9 @@ const routes: RouteRecordRaw[] = [
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFound.vue'), meta: { public: true } },
 ]
 
+/** Whether the start page has been shown in this page load. */
+let landed = false
+
 export const router = createRouter({ history: createWebHistory(), routes })
 
 // Pages whose document carries a different Content-Security-Policy (the extension code editor, ADR-0051)
@@ -177,6 +181,8 @@ router.beforeEach(async (to, from) => {
     return false
   }
   const session = useSession()
+  // Signing in again shows the start page again.
+  if (to.name === 'login') landed = false
   if (!session.boot) await session.loadBootstrap()
   if (!session.boot!.setup_completed) return to.name === 'setup' ? true : { name: 'setup' }
   if (to.name === 'setup') return { name: 'login' }
@@ -187,5 +193,11 @@ router.beforeEach(async (to, from) => {
   // Two-factor enrollment or an expired password must be resolved first.
   if (session.gate !== 'none' && to.name !== 'profile') return { name: 'profile', query: { tab: session.gate === 'two_factor' ? 'security' : 'password' } }
   if (to.meta.anyOf && !to.meta.anyOf.some((p) => session.can(p))) return { name: 'home' }
+  // The first time home is opened after signing in, the person's start page is shown instead (ADR-0063).
+  if (to.name === 'home' && !landed) {
+    landed = true
+    const start = landingPath(session.me.preferences.landing_page)
+    if (start) return start
+  }
   return true
 })

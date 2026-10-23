@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { setDisplayPrefs } from '@/runtime/displayPrefs'
 import { computed, ref } from 'vue'
 import { ensureCsrf, get, resetCsrf, send } from '@/api/http'
 import { useLocale, type LocaleInfo } from '@/i18n'
@@ -44,6 +45,11 @@ export interface Me {
     date_format: string | null
     density: string | null
     notification_channels?: { email: boolean; in_app: boolean; sms?: boolean }
+    number_format?: { group: string | null; decimal: string } | null
+    digest_frequency?: 'none' | 'daily' | 'weekly'
+    landing_page?: { type: 'home' | 'my_work' | 'application' | 'page' | 'form'; target?: string | null } | null
+    /** What the person may change; the rest is set by the organization. */
+    editable?: string[]
   }
 }
 
@@ -112,6 +118,7 @@ export const useSession = defineStore('session', () => {
       const pref = me.value.preferences.locale
       if (pref && pref !== locale.value) await switchLocale(pref, false)
       applyTheme(me.value.preferences.theme_mode)
+      applyPersonal(me.value.preferences)
     } catch {
       me.value = null
     }
@@ -157,18 +164,40 @@ export const useSession = defineStore('session', () => {
   }
   applyTheme('system')
 
+  /** Dates, numbers and density the way the person chose (ADR-0063). */
+  function applyPersonal(p: Me['preferences'] | null): void {
+    setDisplayPrefs(
+      p
+        ? {
+            timeZone: p.timezone,
+            calendar: (p.calendar as 'gregorian' | 'hijri' | 'both' | null) ?? null,
+            digits: (p.digits as 'western' | 'arabic_indic' | null) ?? null,
+            dateFormat: p.date_format,
+            number: p.number_format ?? null,
+          }
+        : null,
+    )
+    const root = document.documentElement
+    for (const d of ['compact', 'normal', 'comfortable']) root.classList.toggle(`density-${d}`, p?.density === d)
+  }
+  /** Whether the person may change a preference themselves. */
+  const mayChange = (preference: string) => (me.value?.preferences.editable ?? [preference]).includes(preference)
+
   async function logout(): Promise<void> {
     try {
       await send('post', '/auth/logout')
     } finally {
       me.value = null
       applyTheme('system')
+      applyPersonal(null)
       resetCsrf()
       await ensureCsrf()
     }
   }
 
   return {
+    applyPersonal,
+    mayChange,
     capable,
     boot,
     me,

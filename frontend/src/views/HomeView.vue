@@ -8,6 +8,7 @@ import { useSession } from '@/stores/session'
 import { errorText } from './admin/building/shared'
 import { homeApi, type ShownHome } from './experience/api'
 import HomeWidget from './experience/HomeWidget.vue'
+import PersonalCorner from './PersonalCorner.vue'
 
 /**
  * The landing page (specification §4.29): the home screen meant for this
@@ -43,6 +44,7 @@ watch(application, load, { immediate: true })
     <template v-else-if="loaded && home">
       <h1 class="page-title !mb-0" dir="auto">{{ home.label }}</h1>
       <p class="m-0 text-muted-color">{{ t('home.welcome', { name: session.me?.name }) }}</p>
+      <PersonalCorner v-if="!application" />
       <div class="home-grid" data-testid="home-widgets">
         <HomeWidget v-for="w in home.widgets" :key="w.uuid" :widget="w" />
       </div>
@@ -50,6 +52,7 @@ watch(application, load, { immediate: true })
     <div v-else-if="loaded" class="max-w-2xl">
       <h1 class="page-title">{{ t('home.welcome', { name: session.me?.name }) }}</h1>
       <p class="text-muted-color mb-4">{{ t('home.empty_shell') }}</p>
+      <PersonalCorner class="mb-4" />
       <RouterLink v-if="session.me?.permissions.length" :to="{ name: 'admin' }"><Button :label="t('admin.title')" icon="pi pi-cog" /></RouterLink>
     </div>
   </div>

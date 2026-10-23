@@ -66,3 +66,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0060](0060-access-policies-and-trusted-devices.md) | Access policies per role and trusted devices |
 | [0061](0061-impersonation.md) | Impersonation |
 | [0062](0062-feature-flags.md) | Feature flags |
+| [0063](0063-self-service.md) | Self-service preferences, pinned records, shortcuts and digests |

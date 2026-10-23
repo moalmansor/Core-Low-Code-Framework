@@ -22,6 +22,7 @@ import { ApiError, get, send } from '@/api/http'
 import PasswordFields from '@/components/PasswordFields.vue'
 import ApiTokensPanel from './ApiTokensPanel.vue'
 import TrustedDevicesPanel from './TrustedDevicesPanel.vue'
+import type { NavItem } from '@/runtime/NavTree.vue'
 import { useSession, type Me } from '@/stores/session'
 
 interface SessionRow {
@@ -51,6 +52,9 @@ const prefs = reactive<Me['preferences']>({
   date_format: null,
   density: null,
   theme_mode: 'system',
+  number_format: null,
+  digest_frequency: 'none',
+  landing_page: null,
   ...(session.me?.preferences ?? {}),
   notification_channels: { email: true, in_app: true, sms: true, ...(session.me?.preferences?.notification_channels ?? {}) },
 })
@@ -81,8 +85,52 @@ async function saveDetails(): Promise<void> {
   toast.add({ severity: 'success', summary: t('common.saved'), life: 3000 })
 }
 
+// Number separators, the start page and its choices (ADR-0063).
+const numberStyle = ref(prefs.number_format ? `${prefs.number_format.group ?? 'none'}|${prefs.number_format.decimal}` : '')
+const numberStyles = computed(() => [
+  { v: '', l: t('profile.number_default') },
+  ...[
+    [',', '.'],
+    ['.', ','],
+    [' ', ','],
+    ["'", '.'],
+    ['none', '.'],
+  ].map(([g, d]) => ({
+    v: `${g}|${d}`,
+    l: `${(1234567.89)
+      .toFixed(2)
+      .replace(/\B(?=(\d{3})+(?!\d))/g, '#')
+      .replace('.', d!)
+      .replace(/#/g, g === 'none' ? '' : g!)}`,
+  })),
+])
+const landingKey = ref(prefs.landing_page ? `${prefs.landing_page.type}|${prefs.landing_page.target ?? ''}` : 'home|')
+const landingOptions = ref<{ v: string; l: string }[]>([])
+async function loadLandingOptions(): Promise<void> {
+  const nav = (await get<{ data: { uuid: string; name: string; home: boolean; items: NavItem[] }[] }>('/navigation')).data
+  const flat = (items: NavItem[]): NavItem[] => items.flatMap((i) => [i, ...flat(i.children ?? [])])
+  landingOptions.value = [
+    { v: 'home|', l: t('profile.landing.home') },
+    { v: 'my_work|', l: t('profile.landing.my_work') },
+    ...nav.flatMap((a) => [
+      ...(a.home ? [{ v: `application|${a.uuid}`, l: t('profile.landing.app_home', { name: a.name }) }] : []),
+      ...flat(a.items)
+        .filter((i) => (i.type === 'form' || i.type === 'collection' || i.type === 'page') && i.target && i.label)
+        .map((i) => ({ v: `${i.type === 'page' ? 'page' : 'form'}|${i.target}`, l: `${a.name} › ${i.label}` })),
+    ]),
+  ]
+}
+onMounted(loadLandingOptions)
+const may = (preference: string) => session.mayChange(preference)
+
 async function savePrefs(): Promise<void> {
-  await send('patch', '/me/preferences', prefs)
+  const [group, decimal] = numberStyle.value ? numberStyle.value.split('|') : [null, null]
+  prefs.number_format = group && decimal ? { group: group === 'none' ? '' : group, decimal } : null
+  const [type, target] = landingKey.value.split('|')
+  prefs.landing_page = type === 'home' ? null : { type: type as 'my_work', target: target || null }
+  // Only what the person may change is sent; the organization sets the rest.
+  const body = Object.fromEntries(Object.entries(prefs).filter(([k]) => k !== 'editable' && may(k)))
+  await send('patch', '/me/preferences', body)
   if (prefs.locale && prefs.locale !== session.locale) await session.switchLocale(prefs.locale, false)
   session.applyTheme(prefs.theme_mode)
   await session.loadMe()
@@ -198,19 +246,19 @@ async function revokeOthers(): Promise<void> {
       </TabPanel>
       <TabPanel value="preferences">
         <form class="form-grid max-w-2xl" @submit.prevent="savePrefs">
-          <div class="field">
+          <div v-if="may('locale')" class="field">
             <label for="pl">{{ t('shell.language') }}</label
             ><Select v-model="prefs.locale" input-id="pl" :options="session.boot?.locales ?? []" option-label="native_name" option-value="code" show-clear />
           </div>
-          <div class="field">
+          <div v-if="may('theme_mode')" class="field">
             <label for="pt">{{ t('profile.theme') }}</label
             ><Select v-model="prefs.theme_mode" input-id="pt" :options="['system', 'light', 'dark'].map((v) => ({ v, l: t(`profile.theme_mode.${v}`) }))" option-label="l" option-value="v" />
           </div>
-          <div class="field">
+          <div v-if="may('timezone')" class="field">
             <label for="ptz">{{ t('settings.formats.timezone') }}</label
             ><Select v-model="prefs.timezone" input-id="ptz" :options="timezones" filter show-clear />
           </div>
-          <div class="field">
+          <div v-if="may('calendar')" class="field">
             <label for="pc">{{ t('settings.calendar.system') }}</label
             ><Select
               v-model="prefs.calendar"
@@ -221,11 +269,48 @@ async function revokeOthers(): Promise<void> {
               show-clear
             />
           </div>
-          <div class="field">
+          <div v-if="may('digits')" class="field">
             <label for="pd">{{ t('settings.formats.digits') }}</label
             ><Select v-model="prefs.digits" input-id="pd" :options="['western', 'arabic_indic'].map((v) => ({ v, l: t(`settings.digits.${v}`) }))" option-label="l" option-value="v" show-clear />
           </div>
-          <fieldset class="col-span-full flex flex-col gap-2" data-testid="notification-channels">
+          <div v-if="may('date_format')" class="field">
+            <label for="pdf">{{ t('profile.date_format') }}</label>
+            <Select
+              v-model="prefs.date_format"
+              input-id="pdf"
+              :options="['dd/MM/yyyy', 'MM/dd/yyyy', 'yyyy-MM-dd', 'dd.MM.yyyy'].map((f) => ({ v: f, l: f }))"
+              option-label="l"
+              option-value="v"
+              show-clear
+              :placeholder="t('profile.number_default')"
+              class="ltr-value"
+            />
+          </div>
+          <div v-if="may('number_format')" class="field">
+            <label for="pnf">{{ t('profile.number_format') }}</label>
+            <Select v-model="numberStyle" input-id="pnf" :options="numberStyles" option-label="l" option-value="v" class="ltr-value" data-testid="pref-number-format" />
+          </div>
+          <div v-if="may('density')" class="field">
+            <label for="pden">{{ t('profile.density') }}</label>
+            <Select
+              v-model="prefs.density"
+              input-id="pden"
+              :options="['compact', 'normal', 'comfortable'].map((v) => ({ v, l: t(`profile.density_mode.${v}`) }))"
+              option-label="l"
+              option-value="v"
+              show-clear
+            />
+          </div>
+          <div v-if="may('landing_page')" class="field">
+            <label for="plp">{{ t('profile.start_page') }}</label>
+            <Select v-model="landingKey" input-id="plp" :options="landingOptions" option-label="l" option-value="v" filter data-testid="pref-landing" />
+          </div>
+          <div v-if="may('digest_frequency')" class="field">
+            <label for="pdg">{{ t('profile.digest') }}</label>
+            <Select v-model="prefs.digest_frequency" input-id="pdg" :options="['none', 'daily', 'weekly'].map((v) => ({ v, l: t(`profile.digest_mode.${v}`) }))" option-label="l" option-value="v" />
+            <small class="text-muted-color">{{ t('profile.digest_hint') }}</small>
+          </div>
+          <fieldset v-if="may('notification_channels')" class="col-span-full flex flex-col gap-2" data-testid="notification-channels">
             <legend class="text-sm font-semibold mb-1">{{ t('profile.notifications') }}</legend>
             <p class="m-0 text-xs text-muted-color">{{ t('profile.notifications_hint') }}</p>
             <label class="flex items-center gap-2"><Checkbox v-model="prefs.notification_channels!.in_app" binary input-id="pn-in-app" />{{ t('profile.channel_in_app') }}</label>

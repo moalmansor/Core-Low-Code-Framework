@@ -116,7 +116,8 @@
 
   --radius-control: var(--theme-radius-control, 6px);
   --radius-card: var(--theme-radius-card, 12px);
-  --control-height: var(--theme-control-height, 2.25rem);
+  /* The person's density (ADR-0063) wins over the theme's. */
+  --control-height: var(--user-control-height, var(--theme-control-height, 2.25rem));
   --control-height-compact: 2rem;
   /* Input widths on configuration screens (design system §5.5): sized to what they hold. */
   --field-xs: 7rem; /* numbers, minutes, counts */
@@ -125,4 +126,15 @@
   --field-lg: 32rem; /* longer text, paths */
   /* Reading width of help text. */
   --measure: 42rem;
+}
+
+/* Density chosen in the person's profile (specification §4.36, ADR-0063). */
+:root.density-compact {
+  --user-control-height: 2rem;
+}
+:root.density-normal {
+  --user-control-height: 2.25rem;
+}
+:root.density-comfortable {
+  --user-control-height: 2.5rem;
 }

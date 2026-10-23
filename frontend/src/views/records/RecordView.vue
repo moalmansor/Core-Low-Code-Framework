@@ -18,6 +18,7 @@ import { ApiError, ensureCsrf, get, http, send } from '@/api/http'
 import ActionRunDialog from '@/runtime/actions/ActionRunDialog.vue'
 import { actionsRuntimeApi, type AvailableAction } from '@/runtime/actions/api'
 import DownloadDialog from '@/runtime/downloads/DownloadDialog.vue'
+import PinButton from './PinButton.vue'
 import ShareDialog from './ShareDialog.vue'
 import { newUuid } from '@/runtime/api'
 import { RECORD_FILES, RECORD_UUID } from '@/runtime/context'
@@ -313,6 +314,7 @@ watch(
           <Button icon="pi pi-ellipsis-h" :label="t('act.run.more')" severity="secondary" outlined aria-haspopup="true" data-testid="record-actions-more" @click="(e: Event) => moreMenu?.toggle(e)" />
           <Menu ref="moreMenu" :model="moreItems" popup />
         </template>
+        <PinButton v-if="!deleted" :form="formUuid" :record="recordUuid" />
         <Button
           v-if="!deleted && session.capable('record_sharing')"
           icon="pi pi-share-alt"
