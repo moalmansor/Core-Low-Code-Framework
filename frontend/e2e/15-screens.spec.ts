@@ -44,8 +44,17 @@ const SIZES = [
   { name: 'phone', width: 390, height: 844 },
 ]
 
-test('every Phase 4 and Phase 5 screen reads in both directions without sideways scrolling, on a desktop and a phone', async ({ page }) => {
-  test.setTimeout(1_200_000)
+// One test per language and size: each has its own time budget, so adding screens never pushes one sweep past it.
+for (const code of ['en', 'ar'] as const) {
+  for (const size of SIZES) {
+    test(`every Phase 4 and Phase 5 screen reads without sideways scrolling (${code}, ${size.name})`, async ({ page }) => {
+      test.setTimeout(900_000)
+      await sweep(page, code, size)
+    })
+  }
+}
+
+async function sweep(page: Page, code: 'en' | 'ar', size: (typeof SIZES)[number]): Promise<void> {
   const problems = watchConsole(page)
   const forms = (await api(page, 'GET', '/forms?search=visit_requests')).data as { uuid: string; key: string }[]
   const form = forms.find((f) => f.key === 'visit_requests')!.uuid
@@ -113,9 +122,9 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
   const limit = ((await api(page, 'GET', '/settings/security')).data as { api_rate_limit_per_minute: number }).api_rate_limit_per_minute
   await api(page, 'PATCH', '/settings/security', { api_rate_limit_per_minute: 10_000 })
   try {
-    for (const code of ['en', 'ar'] as const) {
+    {
       await setLanguage(page, code)
-      for (const size of SIZES) {
+      {
         await page.setViewportSize({ width: size.width, height: size.height })
         for (const url of SCREENS) {
           const where = `${code} ${size.name} ${url}`
@@ -160,4 +169,4 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
     await anonymous.dispose()
   }
   expect(problems).toEqual([])
-})
+}
