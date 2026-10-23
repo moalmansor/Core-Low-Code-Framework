@@ -43,6 +43,12 @@ export const buildingRoutes: RouteRecordRaw[] = [
     meta: { anyOf: ['system.manage_branding'], title: 'admin.area.themes' },
   },
   {
+    path: 'admin/help',
+    name: 'admin.help_content',
+    component: () => import('@/views/help/HelpContentAdmin.vue'),
+    meta: { anyOf: ['system.manage_help_content'], title: 'admin.area.help_content' },
+  },
+  {
     path: 'admin/announcements',
     name: 'admin.announcements',
     component: () => import('@/views/experience/AnnouncementsAdmin.vue'),

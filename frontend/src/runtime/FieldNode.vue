@@ -6,6 +6,7 @@ import ExtensionField from './extensions/ExtensionField.vue'
 import { CLIENT_EXTENSIONS } from './extensions/frames'
 import { componentFor, DISPLAY_TYPES, INLINE_LABEL_TYPES, READ_ONLY_TYPES } from './fields'
 import ValueDisplay from './fields/ValueDisplay.vue'
+import { helpFor } from './help'
 import { labelOf, pickText } from './i18nText'
 import { fieldState, type RowRef } from './rules'
 import type { ClientField } from './types'
@@ -28,7 +29,9 @@ const locale = computed(() => ctx.locale.value)
 const label = computed(() => labelOf(props.field.i18n.label, locale.value, props.field.key))
 const help = computed(() => pickText(props.field.i18n.help, locale.value))
 const description = computed(() => pickText(props.field.i18n.description, locale.value))
-const tooltip = computed(() => pickText(props.field.i18n.tooltip, locale.value))
+// The field's own tooltip, then any tooltip help an administrator wrote for it (§4.37).
+const adminTip = computed(() => (ctx.formUuid.value ? helpFor('form', ctx.formUuid.value, locale.value)?.tooltips[props.field.uuid] : undefined))
+const tooltip = computed(() => [pickText(props.field.i18n.tooltip, locale.value), adminTip.value].filter(Boolean).join('\n') || null)
 const prefix = computed(() => pickText(props.field.i18n.prefix, locale.value))
 const suffix = computed(() => pickText(props.field.i18n.suffix, locale.value))
 const position = computed(() => (props.compact ? 'hidden' : (props.field.ui.labelPosition ?? 'top')))

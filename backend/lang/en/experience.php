@@ -61,4 +61,11 @@ return [
     'css_forbidden_selector' => 'Custom CSS cannot restyle the shell, banners, dialogs or messages: :selector',
     'css_bad_property' => 'This property cannot be set by custom CSS: :property',
     'css_bad_value' => 'The value of :property is not allowed (no !important, url() or special characters).',
+    'help' => 'Help',
+    'help_bad_target' => 'Choose what this help is about.',
+    'help_publish_first' => 'Publish the form first: help is attached to its published fields and groups.',
+    'help_bad_display' => 'Choose how the help is shown.',
+    'help_tooltip_fields' => 'A tooltip can only be shown beside a field or a group.',
+    'not_changelog' => 'Only a changelog page can be announced.',
+    'read_changelog' => 'Read what changed',
 ];

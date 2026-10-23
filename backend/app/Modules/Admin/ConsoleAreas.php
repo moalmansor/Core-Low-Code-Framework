@@ -34,6 +34,7 @@ final class ConsoleAreas
         'home_screens' => ['building', ['system.manage_pages_menus'], '/admin/home-screens'],
         'global_search' => ['building', ['system.manage_pages_menus'], '/admin/search'],
         'announcements' => ['building', ['system.publish_announcements'], '/admin/announcements'],
+        'help_content' => ['building', ['system.manage_help_content'], '/admin/help'],
         'extensions' => ['building', ['system.manage_code', 'system.approve_code'], '/admin/extensions'],
         'integrations' => ['configuration', ['system.manage_integrations'], '/admin/integrations'],
         'notification_channels' => ['configuration', ['system.manage_integrations'], '/admin/notification-channels'],

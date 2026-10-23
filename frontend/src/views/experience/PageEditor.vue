@@ -18,7 +18,7 @@ import { provideConfigScreen } from '@/components/config/configScreen'
 import RichTextInput from '@/runtime/fields/RichTextInput.vue'
 import { useSession } from '@/stores/session'
 import { errorText, fetchFormOptions, fieldErrors, type FormOption } from '../admin/building/shared'
-import { PAGE_TYPES, pagesApi, type PageDoc } from './api'
+import { PAGE_TYPES, pagesApi, WRITTEN_PAGES, type PageDoc } from './api'
 
 /**
  * The page editor (specification §4.29): what the page shows, its name and
@@ -119,6 +119,28 @@ function remove(): void {
     },
   })
 }
+/** A saved, published changelog can be announced to the application's people. */
+const canAnnounce = computed(() => !isNew.value && doc.value.type === 'changelog' && doc.value.published && !dirty.value && session.can('system.publish_announcements'))
+const announcing = ref(false)
+function announce(): void {
+  confirm.require({
+    header: t('xp.tell_users_title'),
+    message: t('xp.tell_users_text'),
+    acceptProps: { label: t('xp.tell_users') },
+    rejectProps: { label: t('xp.cancel'), text: true },
+    accept: async () => {
+      announcing.value = true
+      try {
+        await pagesApi.announce(doc.value.uuid!)
+        toast.add({ severity: 'success', summary: t('xp.told_users'), life: 4000 })
+      } catch (e) {
+        toast.add({ severity: 'error', summary: errorText(e, t('xp.save_failed')), life: 6000 })
+      } finally {
+        announcing.value = false
+      }
+    },
+  })
+}
 const contentOf = (code: string): string => doc.value.i18n.content[code] ?? ''
 function setContent(code: string, html: unknown): void {
   const next = { ...doc.value.i18n.content }
@@ -139,6 +161,7 @@ function setContent(code: string, html: unknown): void {
         <p class="m-0 text-sm text-muted-color">{{ t('xp.page_subtitle') }}</p>
       </div>
       <div class="flex items-center gap-2">
+        <Button v-if="canAnnounce" icon="pi pi-megaphone" :label="t('xp.tell_users')" size="small" severity="secondary" :loading="announcing" data-testid="page-announce" @click="announce" />
         <Button v-if="!isNew && doc.published" icon="pi pi-eye" :label="t('xp.open')" size="small" text @click="router.push({ name: 'pages.view', params: { page: doc.uuid } })" />
         <Button v-if="!isNew" icon="pi pi-trash" :label="t('xp.delete')" size="small" severity="danger" text data-testid="page-delete" @click="remove" />
       </div>
@@ -160,7 +183,8 @@ function setContent(code: string, html: unknown): void {
         <ConfigField :label="t('xp.shows')" for="page-type" width="md" :error="err('type')">
           <Select v-model="doc.type" input-id="page-type" :options="types" option-label="label" option-value="value" size="small" data-testid="page-type" />
         </ConfigField>
-        <template v-if="doc.type === 'content'">
+        <template v-if="WRITTEN_PAGES.includes(doc.type)">
+          <small v-if="doc.type !== 'content'" class="text-muted-color">{{ t(`xp.type_hint.${doc.type}`) }}</small>
           <div v-for="l in locales" :key="l.code" class="field" :data-testid="`page-content-${l.code}`">
             <label :for="`page-content-${l.code}`">{{ t('xp.content_in', { language: l.native_name }) }}</label>
             <RichTextInput :input-id="`page-content-${l.code}`" :model-value="contentOf(l.code)" :dir="l.direction" @update:model-value="setContent(l.code, $event)" />

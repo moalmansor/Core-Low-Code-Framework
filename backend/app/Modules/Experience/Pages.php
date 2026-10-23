@@ -9,6 +9,7 @@ use App\Modules\Access\AccessResolver;
 use App\Modules\Access\ObjectPermissions;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\I18n\Translator;
+use App\Modules\Experience\Models\Announcement;
 use App\Modules\Experience\Models\Page;
 use App\Modules\Forms\Models\Application;
 use App\Modules\Forms\Models\Form;
@@ -37,7 +38,10 @@ use Illuminate\Validation\ValidationException;
  */
 final class Pages
 {
-    public const TYPES = ['content', 'link', 'dashboard', 'report', 'form_host'];
+    public const TYPES = ['content', 'link', 'dashboard', 'report', 'form_host', 'knowledge', 'changelog'];
+
+    /** Pages whose body is written content: plain content, an application's knowledge page and its changelog (§4.37). */
+    public const WRITTEN = ['content', 'knowledge', 'changelog'];
 
     private const CONTENT_MAX = 60000;
 
@@ -114,7 +118,7 @@ final class Pages
         $content = [];
         $url = null;
         $dashboard = $report = $form = null;
-        if ($type === 'content') {
+        if (in_array($type, self::WRITTEN, true)) {
             foreach (self::i18n($d['i18n']['content'] ?? [], self::CONTENT_MAX + 1) as $locale => $html) {
                 if (mb_strlen($html) > self::CONTENT_MAX) {
                     $errors['i18n.content'][] = __('experience.content_too_long', ['max' => self::CONTENT_MAX]);
@@ -223,6 +227,29 @@ final class Pages
                 && $this->access->allows($user, 'form.'.strtolower((string) $form->uuid).'.view'),
             default => true,
         };
+    }
+
+    /**
+     * Tells the people of the page's application about a changelog: an
+     * announcement in their notification bell that links to the page
+     * (architecture §19.23, ADR-0064).
+     */
+    public function announce(Page $page, User $actor): Announcement
+    {
+        abort_unless($page->type === 'changelog', 422, __('experience.not_changelog'));
+        $announcements = app(Announcements::class);
+        $titles = $page->translationsFor('name');
+        // The link reads in each language the title is written in.
+        $bodies = [];
+        foreach (array_keys($titles) as $locale) {
+            $bodies[$locale] = '<p><a href="/pages/'.strtolower($page->uuid).'">'.e(__('experience.read_changelog', [], (string) $locale)).'</a></p>';
+        }
+
+        return $announcements->save(null, $announcements->check([
+            'application' => strtolower((string) Application::query()->whereKey($page->application_id)->value('uuid')),
+            'severity' => 'info', 'placement' => 'bell', 'roles' => [], 'dismissible' => true, 'published' => true,
+            'i18n' => ['title' => $titles, 'body' => $bodies],
+        ]), $actor);
     }
 
     /**

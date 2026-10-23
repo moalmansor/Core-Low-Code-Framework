@@ -532,5 +532,6 @@
   "users.two_factor_reset": "أُعيد ضبط المصادقة الثنائية؛ سيعيد المستخدم التفعيل عند الدخول التالي.",
   "users.unlock": "فك القفل",
   "users.unlocked": "تم فك قفل الحساب.",
-  "users.username": "اسم المستخدم"
+  "users.username": "اسم المستخدم",
+  "admin.area.help_content": "محتوى المساعدة"
 }

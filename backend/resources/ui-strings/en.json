@@ -532,5 +532,6 @@
   "users.two_factor_reset": "Two-factor reset; the user enrolls again at next sign-in.",
   "users.unlock": "Unlock",
   "users.unlocked": "Account unlocked.",
-  "users.username": "Username"
+  "users.username": "Username",
+  "admin.area.help_content": "Help content"
 }

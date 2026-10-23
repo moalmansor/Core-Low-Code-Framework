@@ -10,6 +10,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import AnnouncementBanners from './AnnouncementBanners.vue'
 import ImpersonationBanner from './ImpersonationBanner.vue'
 import GlobalSearchBox from './GlobalSearchBox.vue'
+import HelpButton from './HelpButton.vue'
 import NotificationsBell from './NotificationsBell.vue'
 import NavTree, { navPath, type NavItem } from '@/runtime/NavTree.vue'
 import { activeNavId, type NavCandidate } from './navActive'
@@ -128,6 +129,14 @@ const active = computed(() =>
     ...areas.value.map((a) => ({ id: `area-${a.key}`, path: a.route })),
   ]),
 )
+/** What the Help panel is about: the form, page, application home or admin area on screen (§4.37). */
+const helpContext = computed<{ type: 'form' | 'page' | 'application' | 'admin_area'; target: string } | null>(() => {
+  const p = route.params
+  if (typeof p.form === 'string' && route.path.startsWith('/app/')) return { type: 'form', target: p.form }
+  if (route.name === 'pages.view' && typeof p.page === 'string') return { type: 'page', target: p.page }
+  if (route.name === 'apps.home' && typeof p.application === 'string') return { type: 'application', target: p.application }
+  return active.value?.startsWith('area-') ? { type: 'admin_area', target: active.value.slice(5) } : null
+})
 // The application the user is working in wears its own theme; elsewhere the organization's applies.
 const holds = (items: NavItem[], id: string | null): boolean => items.some((i) => i.uuid === id || holds(i.children ?? [], id))
 const activeApp = computed(() => {
@@ -245,6 +254,7 @@ const userItems = computed(() => [
         <Button class="lg:hidden" icon="pi pi-bars" text rounded :aria-label="t('shell.menu')" @click="sidebarOpen = true" />
         <GlobalSearchBox v-if="session.capable('global_search')" />
         <div class="flex-1 max-sm:hidden" />
+        <HelpButton :context="helpContext" />
         <NotificationsBell />
         <LanguageSwitcher />
         <Button :label="session.me?.name" icon="pi pi-user" text aria-haspopup="true" data-testid="user-menu" @click="(e: Event) => userMenu?.toggle(e)" />
@@ -292,6 +302,9 @@ export const icons: Record<string, string> = {
   home_screens: 'pi-home',
   global_search: 'pi-search',
   announcements: 'pi-megaphone',
+  help_content: 'pi-question-circle',
+  access_policies: 'pi-lock',
+  feature_flags: 'pi-flag',
 }
 </script>
 

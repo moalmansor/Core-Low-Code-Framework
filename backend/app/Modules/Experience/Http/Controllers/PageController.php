@@ -79,6 +79,16 @@ final class PageController extends Controller
         return response()->json(null, 204);
     }
 
+    /** Tells the application's people about a changelog page (architecture §19.23). */
+    public function announce(string $page): JsonResponse
+    {
+        Gate::authorize('system.manage_pages_menus');
+        Gate::authorize('system.publish_announcements');
+        $a = $this->pages->announce($this->find($page), $this->user());
+
+        return response()->json(['data' => ['uuid' => strtolower($a->uuid)]], 201);
+    }
+
     /** The page for the person opening it. */
     public function view(string $page, Maintenance $maintenance): JsonResponse
     {

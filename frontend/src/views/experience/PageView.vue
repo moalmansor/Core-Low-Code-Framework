@@ -9,7 +9,7 @@ import RecordList from '@/views/records/RecordList.vue'
 import DashboardView from '@/views/reports/DashboardView.vue'
 import ReportView from '@/views/reports/ReportView.vue'
 import { errorText } from '../admin/building/shared'
-import { pagesApi, type PageView } from './api'
+import { pagesApi, WRITTEN_PAGES, type PageView } from './api'
 
 /**
  * A custom page as the person opening it sees it (specification §4.29): its
@@ -40,11 +40,11 @@ const isExternal = (url: string) => url.startsWith('https://')
   <div class="flex flex-col gap-4" data-testid="page-view">
     <Message v-if="failed" severity="warn" :closable="false" data-testid="page-failed">{{ failed }}</Message>
     <template v-else-if="page">
-      <template v-if="page.type === 'content' || page.type === 'link'">
+      <template v-if="WRITTEN_PAGES.includes(page.type) || page.type === 'link'">
         <header class="page-head">
           <h1 class="page-title !mb-0" dir="auto">{{ page.label }}</h1>
         </header>
-        <article v-if="page.type === 'content'" class="max-w-[60rem] rounded-xl border border-line bg-card p-6" data-testid="page-content">
+        <article v-if="WRITTEN_PAGES.includes(page.type)" class="max-w-[60rem] rounded-xl border border-line bg-card p-6" data-testid="page-content">
           <SafeHtml :html="page.content ?? ''" />
         </article>
         <div v-else-if="page.url && safeHref(page.url)" class="flex flex-col items-start gap-3 max-w-[40rem]">

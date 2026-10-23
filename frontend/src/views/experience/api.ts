@@ -3,8 +3,10 @@ import type { Ast } from '@/builder/types'
 
 /** Custom pages (specification §4.29, ADR-0054). */
 export type I18nMap = Record<string, string>
-export type PageType = 'content' | 'link' | 'dashboard' | 'report' | 'form_host'
-export const PAGE_TYPES: PageType[] = ['content', 'link', 'dashboard', 'report', 'form_host']
+export type PageType = 'content' | 'link' | 'dashboard' | 'report' | 'form_host' | 'knowledge' | 'changelog'
+export const PAGE_TYPES: PageType[] = ['content', 'knowledge', 'changelog', 'link', 'dashboard', 'report', 'form_host']
+/** Pages whose body is written content: plain content, an application's knowledge page and its changelog (§4.37). */
+export const WRITTEN_PAGES: PageType[] = ['content', 'knowledge', 'changelog']
 
 export interface PageDoc {
   uuid?: string
@@ -51,6 +53,8 @@ export const pagesApi = {
   save: (uuid: string, page: PageDoc, baseHash: string) => send<{ data: PageDoc }>('put', `/pages/${uuid}`, { page, base_hash: baseHash }).then((r) => r.data),
   remove: (uuid: string) => send('delete', `/pages/${uuid}`),
   view: (uuid: string) => get<{ data: PageView }>(`/pages/${uuid}/view`).then((r) => r.data),
+  /** Tells the application's people about a changelog, in their notification bell. */
+  announce: (uuid: string) => send('post', `/pages/${uuid}/announce`),
 }
 
 /** Home screens (specification §4.29, ADR-0054). */

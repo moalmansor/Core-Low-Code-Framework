@@ -88,6 +88,8 @@ export const platformRoutes: RouteRecordRaw[] = [
   { path: 'insights', name: 'insights', component: () => import('@/views/reports/InsightsView.vue'), meta: { title: 'rep.insights' } },
   { path: 'reports/:report', name: 'reports.view', component: () => import('@/views/reports/ReportView.vue'), meta: { title: 'rep.report' } },
   // Pages: the server decides per page and per what it shows.
+  // Help pages: the server shows one only to those who may open what it is about.
+  { path: 'help/:help', name: 'help.page', component: () => import('@/views/help/HelpPage.vue'), meta: { title: 'help.title' } },
   { path: 'pages/:page', name: 'pages.view', component: () => import('@/views/experience/PageView.vue'), meta: { title: 'xp.page' } },
   { path: 'dashboards/:dashboard', name: 'dashboards.view', component: () => import('@/views/reports/DashboardView.vue'), meta: { title: 'rep.dashboard' } },
 ]
