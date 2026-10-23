@@ -11,6 +11,8 @@ import AnnouncementBanners from './AnnouncementBanners.vue'
 import ImpersonationBanner from './ImpersonationBanner.vue'
 import GlobalSearchBox from './GlobalSearchBox.vue'
 import HelpButton from './HelpButton.vue'
+import TourRunner from './TourRunner.vue'
+import { loadTours, startTour, tours, type TourPlace } from '@/runtime/tours'
 import NotificationsBell from './NotificationsBell.vue'
 import NavTree, { navPath, type NavItem } from '@/runtime/NavTree.vue'
 import { activeNavId, type NavCandidate } from './navActive'
@@ -137,6 +139,24 @@ const helpContext = computed<{ type: 'form' | 'page' | 'application' | 'admin_ar
   if (route.name === 'apps.home' && typeof p.application === 'string') return { type: 'application', target: p.application }
   return active.value?.startsWith('area-') ? { type: 'admin_area', target: active.value.slice(5) } : null
 })
+/** Where tours run: the form on screen, or a place (§4.37); a first-use tour due here starts by itself. */
+const tourPlace = computed<TourPlace | null>(() => {
+  const h = helpContext.value
+  if (h?.type === 'form') return { form: h.target }
+  if (h?.type === 'admin_area') return { place: `area.${h.target}` }
+  return typeof route.name === 'string' && ['home', 'my_work', 'insights', 'profile'].includes(route.name) ? { place: route.name } : null
+})
+watch(
+  () => [JSON.stringify(tourPlace.value), session.locale],
+  async () => {
+    if (tours.running) tours.running = null
+    await loadTours(tourPlace.value)
+    const due = tours.here.find((t) => t.due)
+    // Give the screen a moment to render what the steps point at.
+    if (due) setTimeout(() => !tours.running && startTour(due.uuid), 600)
+  },
+  { immediate: true },
+)
 // The application the user is working in wears its own theme; elsewhere the organization's applies.
 const holds = (items: NavItem[], id: string | null): boolean => items.some((i) => i.uuid === id || holds(i.children ?? [], id))
 const activeApp = computed(() => {
@@ -186,7 +206,7 @@ const userItems = computed(() => [
       <div class="h-14 shrink-0 px-4 flex items-center border-b border-line">
         <RouterLink :to="{ name: 'home' }"><BrandMark /></RouterLink>
       </div>
-      <nav ref="nav" class="flex-1 min-h-0 p-3 flex flex-col gap-1 overflow-y-auto overscroll-contain" data-testid="sidebar">
+      <nav ref="nav" class="flex-1 min-h-0 p-3 flex flex-col gap-1 overflow-y-auto overscroll-contain" data-testid="sidebar" data-tour="navigation">
         <RouterLink :class="navClass('home')" :to="{ name: 'home' }" active-class="" exact-active-class="" :aria-current="current('home')"><i class="pi pi-home" />{{ t('shell.home') }}</RouterLink>
         <RouterLink :class="navClass('my_work')" :to="{ name: 'my_work' }" active-class="" exact-active-class="" :aria-current="current('my_work')" data-testid="nav-my-work"
           ><i class="pi pi-inbox" />{{ t('my_work.title') }}</RouterLink
@@ -257,11 +277,12 @@ const userItems = computed(() => [
         <HelpButton :context="helpContext" />
         <NotificationsBell />
         <LanguageSwitcher />
-        <Button :label="session.me?.name" icon="pi pi-user" text aria-haspopup="true" data-testid="user-menu" @click="(e: Event) => userMenu?.toggle(e)" />
+        <Button :label="session.me?.name" icon="pi pi-user" text aria-haspopup="true" data-testid="user-menu" data-tour="user_menu" @click="(e: Event) => userMenu?.toggle(e)" />
         <Menu ref="userMenu" :model="userItems" popup />
       </header>
       <ImpersonationBanner />
       <AnnouncementBanners />
+      <TourRunner />
       <main class="app-content flex-1 min-h-0 overflow-auto p-4 lg:p-6" data-testid="app-content">
         <RouterView />
       </main>

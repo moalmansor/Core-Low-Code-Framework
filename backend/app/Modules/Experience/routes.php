@@ -9,6 +9,7 @@ use App\Modules\Experience\Http\Controllers\MaintenanceController;
 use App\Modules\Experience\Http\Controllers\PageController;
 use App\Modules\Experience\Http\Controllers\SearchController;
 use App\Modules\Experience\Http\Controllers\ThemeController;
+use App\Modules\Experience\Http\Controllers\TourController;
 use Illuminate\Support\Facades\Route;
 
 // Pages, home screens, navigation extras, announcements, help, search and themes (specification §4.27–4.29, §4.37, ADR-0054, ADR-0064).
@@ -37,6 +38,16 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::delete('/help-content/{help}', [HelpContentController::class, 'destroy'])->whereUuid('help');
     Route::get('/help', [HelpContentController::class, 'context'])->middleware('throttle:120,1');
     Route::get('/help/{help}', [HelpContentController::class, 'page'])->whereUuid('help');
+
+    Route::get('/tours', [TourController::class, 'index']);
+    Route::post('/tours', [TourController::class, 'store']);
+    Route::get('/tours/mine', [TourController::class, 'mine'])->middleware('throttle:120,1');
+    Route::get('/tours/{tour}', [TourController::class, 'show'])->whereUuid('tour');
+    Route::put('/tours/{tour}', [TourController::class, 'update'])->whereUuid('tour');
+    Route::delete('/tours/{tour}', [TourController::class, 'destroy'])->whereUuid('tour');
+    Route::post('/tours/{tour}/reset', [TourController::class, 'reset'])->whereUuid('tour');
+    Route::post('/tours/{tour}/progress', [TourController::class, 'progress'])->whereUuid('tour')->middleware('throttle:60,1');
+    Route::delete('/me/tours', [TourController::class, 'resetMine']);
 
     Route::get('/search', [SearchController::class, 'search'])->middleware('throttle:60,1');
     Route::get('/search-configs', [SearchController::class, 'index']);

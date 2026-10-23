@@ -279,7 +279,7 @@ watch(
           <span v-if="record.system.version">{{ t('records.form_version') }} {{ record.system.version }}</span>
         </p>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2" data-tour="record_actions">
         <RouterLink v-if="perms.edit" v-slot="{ navigate }" :to="{ name: 'records.edit', params: { form: formUuid, record: recordUuid } }" custom>
           <Button icon="pi pi-pencil" :label="t('common.edit')" data-testid="record-edit" @click="navigate" />
         </RouterLink>

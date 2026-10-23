@@ -22,6 +22,7 @@ import { forgetHelp, HELP_TARGETS, helpAdminApi, type HelpDisplay, type HelpDoc,
 import { humanize } from '@/runtime/i18nText'
 import { useSession } from '@/stores/session'
 import { errorText, fieldErrors } from '../admin/building/shared'
+import HelpTabs from './HelpTabs.vue'
 
 /**
  * Help content (specification §4.37): help for a form, one of its fields or
@@ -194,6 +195,7 @@ function remove(h: HelpDoc): void {
       </div>
       <Button icon="pi pi-plus" :label="t('help.new')" size="small" data-testid="help-new" @click="create" />
     </header>
+    <HelpTabs current="help" />
     <EmptyState v-if="!loading && !list.length" icon="pi pi-question-circle" :title="t('help.empty_title')" :description="t('help.empty_text')" testid="help-empty">
       <Button icon="pi pi-plus" :label="t('help.new')" size="small" @click="create" />
     </EmptyState>

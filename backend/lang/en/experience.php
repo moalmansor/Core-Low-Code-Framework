@@ -68,4 +68,12 @@ return [
     'help_tooltip_fields' => 'A tooltip can only be shown beside a field or a group.',
     'not_changelog' => 'Only a changelog page can be announced.',
     'read_changelog' => 'Read what changed',
+    'tour' => 'Tour',
+    'tour_bad_form' => 'Choose a published form.',
+    'tour_bad_place' => 'Choose where the tour runs.',
+    'tour_bad_trigger' => 'Choose when the tour starts.',
+    'tour_steps_count' => 'A tour has between 1 and :max steps.',
+    'tour_bad_step_key' => 'Each step needs its own key: lowercase letters, digits and underscores, starting with a letter.',
+    'tour_bad_target' => 'Choose a field, group or part of the screen that exists here.',
+    'tour_step_text' => 'Write the step text in at least one language.',
 ];

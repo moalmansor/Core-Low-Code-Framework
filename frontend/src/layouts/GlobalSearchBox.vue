@@ -61,7 +61,7 @@ function open(hit: SearchHit): void {
 </script>
 
 <template>
-  <div ref="box" class="min-w-0 flex-1 max-w-md">
+  <div ref="box" class="min-w-0 flex-1 max-w-md" data-tour="search">
     <IconField>
       <InputIcon :class="searching ? 'pi pi-spin pi-spinner' : 'pi pi-search'" />
       <InputText v-model="term" type="search" :placeholder="t('xp.search_placeholder')" :aria-label="t('xp.search_label')" class="w-full" size="small" data-testid="global-search" />

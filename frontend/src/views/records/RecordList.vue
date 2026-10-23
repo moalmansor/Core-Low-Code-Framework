@@ -667,7 +667,7 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
           <Menu ref="savedMenu" :model="savedItems" popup />
         </template>
         <RouterLink v-if="canCreate && !state.trashed" v-slot="{ navigate }" :to="{ name: 'records.create', params: { form: formUuid } }" custom>
-          <Button icon="pi pi-plus" :label="t('records.new')" data-testid="records-new" @click="navigate" />
+          <Button icon="pi pi-plus" :label="t('records.new')" data-testid="records-new" data-tour="new_record" @click="navigate" />
         </RouterLink>
         <template v-if="!state.trashed && (downloads.length || canPersonalDownloads)">
           <Button :label="t('dl.download')" icon="pi pi-download" severity="secondary" outlined aria-haspopup="true" data-testid="records-download" @click="(e: Event) => downloadMenu?.toggle(e)" />

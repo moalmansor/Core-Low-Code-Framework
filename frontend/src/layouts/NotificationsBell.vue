@@ -82,7 +82,16 @@ onBeforeUnmount(() => timer && clearInterval(timer))
 
 <template>
   <span class="relative inline-flex">
-    <Button icon="pi pi-bell" text rounded :aria-label="unread ? t('inbox.open_unread', { n: n(unread) }) : t('inbox.open')" aria-haspopup="true" data-testid="notifications-bell" @click="open" />
+    <Button
+      icon="pi pi-bell"
+      text
+      rounded
+      :aria-label="unread ? t('inbox.open_unread', { n: n(unread) }) : t('inbox.open')"
+      aria-haspopup="true"
+      data-testid="notifications-bell"
+      data-tour="notifications"
+      @click="open"
+    />
     <Badge v-if="unread" :value="unread > 99 ? `${n(99)}+` : n(unread)" severity="danger" class="bell-badge" data-testid="notifications-unread" />
   </span>
   <Popover ref="panel">

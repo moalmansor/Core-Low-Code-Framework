@@ -23,6 +23,7 @@ import PasswordFields from '@/components/PasswordFields.vue'
 import ApiTokensPanel from './ApiTokensPanel.vue'
 import TrustedDevicesPanel from './TrustedDevicesPanel.vue'
 import type { NavItem } from '@/runtime/NavTree.vue'
+import { resetMyTours } from '@/runtime/tours'
 import { useSession, type Me } from '@/stores/session'
 
 interface SessionRow {
@@ -35,6 +36,15 @@ interface SessionRow {
 
 const { t } = useI18n()
 const toast = useToast()
+/** "Show tips again" (§4.37): every first-use tour starts again where it runs. */
+async function showTipsAgain(): Promise<void> {
+  try {
+    await resetMyTours()
+    toast.add({ severity: 'success', summary: t('tour.reset_done'), life: 4000 })
+  } catch {
+    toast.add({ severity: 'error', summary: t('tour.reset_failed'), life: 6000 })
+  }
+}
 const route = useRoute()
 const session = useSession()
 const tab = ref(String(route.query.tab ?? 'details'))
@@ -319,6 +329,10 @@ async function revokeOthers(): Promise<void> {
           </fieldset>
           <div class="flex items-end"><Button type="submit" :label="t('common.save')" data-testid="save-preferences" /></div>
         </form>
+        <div class="mt-6 flex flex-wrap items-center gap-3 max-w-2xl border-t border-line pt-4">
+          <p class="m-0 flex-1 text-sm text-muted-color">{{ t('tour.reset_hint') }}</p>
+          <Button icon="pi pi-replay" :label="t('tour.reset')" severity="secondary" outlined size="small" data-testid="tours-reset" @click="showTipsAgain" />
+        </div>
       </TabPanel>
       <TabPanel v-if="isLocal" value="password">
         <form class="flex flex-col gap-4 max-w-md" @submit.prevent="changePassword">

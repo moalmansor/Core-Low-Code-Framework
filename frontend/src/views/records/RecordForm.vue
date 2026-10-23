@@ -361,7 +361,7 @@ onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('records.leave_unsaved'
       </span>
       <span class="flex-1" />
       <Button type="button" :label="t('common.cancel')" severity="secondary" text @click="cancel" />
-      <Button type="submit" :label="submitLabel" icon="pi pi-check" :loading="saving" data-testid="record-save" />
+      <Button type="submit" :label="submitLabel" icon="pi pi-check" :loading="saving" data-testid="record-save" data-tour="save_record" />
     </div>
     <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
     <DuplicateDialog v-if="duplicate" :answer="duplicate" :form="formUuid" :busy="saving" @confirm="saveAnyway" @cancel="duplicate = null" />
