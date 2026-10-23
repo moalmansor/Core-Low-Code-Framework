@@ -13,6 +13,8 @@ use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Documents\GeneratedDocuments;
 use App\Modules\Downloads\DownloadJobs;
+use App\Modules\External\Signatures;
+use App\Modules\External\Throttles;
 use App\Modules\Monitoring\ErrorReporter;
 use App\Modules\Notifications\EmailQueue;
 use App\Modules\Notifications\Notifier;
@@ -53,6 +55,12 @@ Artisan::command('scheduler:run', function (ScheduledTasks $tasks): int {
 
     return 0;
 })->purpose('Run the scheduled tasks that are due (scheduled downloads, automations)');
+
+Artisan::command('external:maintain', function (Throttles $throttles, Signatures $signatures): int {
+    $this->info('Removed '.$throttles->prune().' submission window(s), expired '.$signatures->expire().' signature request(s).');
+
+    return 0;
+})->purpose('Remove old external form submission windows and expire signature requests past their date');
 
 Artisan::command('webhooks:purge', function (Webhooks $webhooks): int {
     $this->info('Removed '.$webhooks->purge().' webhook delivery log row(s).');
@@ -248,6 +256,7 @@ Schedule::command('documents:expire')->hourly()->onOneServer();
 Schedule::command('downloads:expire')->hourly()->onOneServer();
 Schedule::command('scheduler:run')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('automations:tick')->everyMinute()->withoutOverlapping()->onOneServer();
+Schedule::command('external:maintain')->hourly()->withoutOverlapping()->onOneServer();
 Schedule::command('webhooks:purge')->dailyAt('03:35')->withoutOverlapping()->onOneServer();
 Schedule::command('records:purge-recycle-bin')->dailyAt('03:25')->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();

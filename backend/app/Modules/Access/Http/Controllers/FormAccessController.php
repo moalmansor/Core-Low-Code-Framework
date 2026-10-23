@@ -59,7 +59,7 @@ final class FormAccessController extends Controller
         $page = $data['page'] ?? 1;
         $subjects = match ($type) {
             'everyone' => collect([['type' => 'everyone', 'id' => null, 'uuid' => null, 'name' => __('access.everyone')]]),
-            'role' => DB::table('roles')->where('organization_id', $form->organization_id)->when(isset($data['subjects']), fn ($q) => $q->whereIn('uuid', $data['subjects']))->orderBy('sort_order')->get(['id', 'uuid'])
+            'role' => DB::table('roles')->where('organization_id', $form->organization_id)->where('audience', 'internal')->when(isset($data['subjects']), fn ($q) => $q->whereIn('uuid', $data['subjects']))->orderBy('sort_order')->get(['id', 'uuid'])
                 ->map(fn ($r) => ['type' => 'role', 'id' => (int) $r->id, 'uuid' => strtolower((string) $r->uuid), 'name' => $this->translator->get('role', (int) $r->id, 'name') ?? '']),
             'department' => DB::table('departments')->whereNull('deleted_at')->when(isset($data['subjects']), fn ($q) => $q->whereIn('uuid', $data['subjects']))->orderBy('code')->get(['id', 'uuid', 'code'])
                 ->map(fn ($d) => ['type' => 'department', 'id' => (int) $d->id, 'uuid' => strtolower((string) $d->uuid), 'name' => $this->translator->get('department', (int) $d->id, 'name') ?? Translator::humanize((string) $d->code)]),

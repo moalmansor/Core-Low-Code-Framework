@@ -67,10 +67,11 @@ final class RecordPipeline
     /**
      * @param  array<string, mixed>  $input  values by field key (repeater keys hold row lists)
      * @param  array<string, mixed>  $params  URL parameters (defaults)
-     * @param  array<string, int>  $links  foreign-key columns outside the definition set at insert (inline sub-form parent)
+     * @param  array<string, int>  $links  foreign-key columns outside the definition set at insert (inline sub-form parent, external user)
+     * @param  int|null  $startStatus  a status of the form's workflow to start in instead of its initial one (external forms, ADR-0058)
      * @return array{id: int, uuid: string}
      */
-    public function create(FormRuntime $rt, User $user, array $input, array $params, string $key, string $source = 'ui', array $links = []): array
+    public function create(FormRuntime $rt, User $user, array $input, array $params, string $key, string $source = 'ui', array $links = [], ?int $startStatus = null): array
     {
         $onBehalf = $this->guardForm($rt, $user, 'create');
         $entry = $this->journal->open($key, $rt->form->id, $rt->versionId, 'create', $source, $user->id, $input, null, null);
@@ -104,10 +105,11 @@ final class RecordPipeline
 
                 return ['id' => $existing['id'], 'uuid' => $existing['uuid']];
             }
-            $id = DB::transaction(function () use ($rt, $user, $values, $entry, $links, $onBehalf, $result, $levels, $ctx): int {
+            $id = DB::transaction(function () use ($rt, $user, $values, $entry, $links, $onBehalf, $result, $levels, $ctx, $startStatus): int {
                 $values = $this->beforeSave($rt, $user, $values, null, null, $result['state'], $levels['fields'], $ctx);
                 $values = $this->assignNumbers($rt, $values);
                 $wf = WorkflowRuntime::for($rt);
+                $start = $startStatus !== null && $wf->status($startStatus) !== null ? $startStatus : $wf->initialId();
                 $now = SlaTimers::nowUtc()->format('Y-m-d H:i:s.u');
                 $system = [
                     'organization_id' => $rt->form->organization_id,
@@ -118,13 +120,13 @@ final class RecordPipeline
                     'created_by' => $user->id,
                     'updated_by' => $user->id,
                     'search_text' => $this->searchText($rt, $values),
-                    'status_id' => $wf->initialId(),
-                    'status_changed_at' => $wf->initialId() === null ? null : $now,
+                    'status_id' => $start,
+                    'status_changed_at' => $start === null ? null : $now,
                 ] + $links;
                 $id = $this->store->insert($rt, $entry['uuid'], $values, $system);
                 $this->attachFiles($rt, $id, $values, $user);
                 $this->audit->record('record.created', 'data', $this->diff($rt, [], $values), 'record', $id, ['form' => $rt->form->key, 'row_version' => 1], $user->id, null, $rt->form->id, $id, $onBehalf);
-                $this->workflow->enter($rt, $id, $values, $user->id, $onBehalf, $user->department_id === null ? null : (int) $user->department_id);
+                $this->workflow->enter($rt, $id, $values, $user->id, $onBehalf, $user->department_id === null ? null : (int) $user->department_id, $start);
                 $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $entry['uuid'], 'operation' => 'create', 'actor' => $user->id]
                     + $this->observers->payload($rt, null, $values, $user));
                 $none = [];

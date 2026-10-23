@@ -8,6 +8,7 @@ use App\Modules\Access\AccessResolver;
 use App\Modules\Assignment\ApprovalService;
 use App\Modules\Assignment\AssignmentService;
 use App\Modules\Audit\AuditWriter;
+use App\Modules\Core\Actors\ExternalActor;
 use App\Modules\Core\Correlation\CorrelationId;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Outbox\OutboxWriter;
@@ -197,14 +198,16 @@ final class WorkflowEngine
 
     /**
      * The first status of a new record: history entry, SLA timers and the
-     * "on create" assignment rules. Runs inside the create transaction.
+     * "on create" assignment rules. Runs inside the create transaction. The
+     * record starts in the workflow's initial status unless the caller chose
+     * another one (an external form's status on submission).
      *
      * @param  array<string, mixed>  $values
      */
-    public function enter(FormRuntime $rt, int $recordId, array $values, ?int $actor, ?int $onBehalfOf, ?int $ownerDepartmentId): void
+    public function enter(FormRuntime $rt, int $recordId, array $values, ?int $actor, ?int $onBehalfOf, ?int $ownerDepartmentId, ?int $status = null): void
     {
         $wf = WorkflowRuntime::for($rt);
-        $initial = $wf->initialId();
+        $initial = $status !== null && $wf->status($status) !== null ? $status : $wf->initialId();
         if ($initial !== null) {
             $now = SlaTimers::nowUtc();
             $historyId = $this->history($rt, $recordId, null, $initial, null, ['actor' => $actor, 'onBehalfOf' => $onBehalfOf, 'source' => 'user'], null, $ownerDepartmentId, $now);
@@ -298,7 +301,7 @@ final class WorkflowEngine
             'from_status_id' => $from, 'to_status_id' => $to, 'transition_id' => $transitionId, 'source' => $ctx['source'] ?? 'user',
             'comment' => ($c = trim((string) ($ctx['comment'] ?? ''))) === '' ? null : $c,
             'attachment_file_ids' => ($ctx['attachments'] ?? []) === [] ? null : json_encode(array_values($ctx['attachments'])),
-            'acted_by' => $ctx['actor'], 'on_behalf_of_user_id' => $ctx['onBehalfOf'] ?? null,
+            'acted_by' => $ctx['actor'], 'on_behalf_of_user_id' => $ctx['onBehalfOf'] ?? null, 'external_user_id' => app(ExternalActor::class)->id,
             'justification_id' => $ctx['justification'] ?? null, 'approval_request_id' => $ctx['approval'] ?? null,
             'seconds_in_previous' => $since === null ? null : max(0, $now->getTimestamp() - $since->getTimestamp()),
             'working_seconds_in_previous' => $since === null ? null : $this->sla->workingSeconds($rt, $ownerDepartmentId, $since, $now),

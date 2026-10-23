@@ -111,6 +111,12 @@ final class SettingsRegistry
         $d('downloads', 'max_rows', 100000, ['required', 'integer', 'between:100,1000000']);
         $d('downloads', 'email_attachment_mb', 10, ['required', 'integer', 'between:1,25']);
 
+        // External portal (§4.32, ADR-0058): whether people may register an external account, the external
+        // role a new account gets, and whether an administrator approves each account before it can sign in.
+        $d('external', 'registration_open', false, ['required', 'boolean']);
+        $d('external', 'registration_role', null, ['nullable', 'uuid']);
+        $d('external', 'registration_requires_approval', true, ['required', 'boolean']);
+
         // Reports (§4.18, ADR-0053): the most records one report reads; a report that stops there says so.
         $d('reports', 'max_records', 100000, ['required', 'integer', 'between:100,1000000']);
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Audit;
 
 use App\Infrastructure\Database\Contracts\DatabaseDriver;
+use App\Modules\Core\Actors\ExternalActor;
 use App\Modules\Core\Correlation\CorrelationId;
 use App\Modules\Core\Tenancy\TenantContext;
 use Illuminate\Http\Request;
@@ -63,7 +64,7 @@ final class AuditWriter
             'actor_user_id' => $actorUserId ?? Auth::id(),
             'subject_user_id' => $subjectUserId,
             'on_behalf_of_user_id' => $onBehalfOfUserId,
-            'external_user_id' => null,
+            'external_user_id' => app(ExternalActor::class)->id,
             'impersonation_session_id' => null,
             'justification_id' => $justificationId,
             'ip_address' => $request?->ip(),

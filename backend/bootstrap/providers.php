@@ -8,6 +8,7 @@ use App\Modules\Documents\DocumentsServiceProvider;
 use App\Modules\Downloads\DownloadsServiceProvider;
 use App\Modules\Experience\ExperienceServiceProvider;
 use App\Modules\Extensions\ExtensionsServiceProvider;
+use App\Modules\External\ExternalServiceProvider;
 use App\Modules\Forms\FormsServiceProvider;
 use App\Modules\Identity\IdentityServiceProvider;
 use App\Modules\Integrations\IntegrationsServiceProvider;
@@ -34,6 +35,7 @@ return [
     ExtensionsServiceProvider::class,
     ReportsServiceProvider::class,
     ExperienceServiceProvider::class,
+    ExternalServiceProvider::class,
     IntegrationsServiceProvider::class,
     ModulesServiceProvider::class,
 ];
