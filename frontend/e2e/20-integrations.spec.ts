@@ -30,7 +30,9 @@ test('a channel, a data source and a sync job are set up from their screens, kee
   const problems = watchConsole(page)
   await page.goto('/')
   const allowed = (await api(page, 'GET', '/egress-allowlist')).data as { uuid: string; host_pattern: string }[]
-  const entry = allowed.find((e) => e.host_pattern === 'integrations.e2e.example.com') ?? ((await api(page, 'POST', '/egress-allowlist', { host_pattern: 'integrations.e2e.example.com', ports: [443], allow_http: false, is_active: true })).data as { uuid: string })
+  const entry =
+    allowed.find((e) => e.host_pattern === 'integrations.e2e.example.com') ??
+    ((await api(page, 'POST', '/egress-allowlist', { host_pattern: 'integrations.e2e.example.com', ports: [443], allow_http: false, is_active: true })).data as { uuid: string })
 
   // An SMS channel through an HTTPS endpoint; its header value is kept and never shown again.
   await page.goto('/admin/notification-channels/new')
@@ -72,16 +74,25 @@ test('a channel, a data source and a sync job are set up from their screens, kee
   const me = (await api(page, 'GET', '/me')).data as { uuid: string }
   const job = (
     await api(page, 'POST', '/sync-jobs', {
-      job: { name: { en: 'Cities import' }, source, form: form.uuid, direction: 'import', run_as: me.uuid, fields: [{ field: 'visitor', from: 'label' }], match: ['visitor'], conflict_rule: 'skip', active: true, schedule: null },
+      job: {
+        name: { en: 'Cities import' },
+        source,
+        form: form.uuid,
+        direction: 'import',
+        run_as: me.uuid,
+        fields: [{ field: 'visitor', from: 'label' }],
+        match: ['visitor'],
+        conflict_rule: 'skip',
+        active: true,
+        schedule: null,
+      },
     })
   ).data as { uuid: string }
   await page.goto(`/admin/integrations/sync/${job.uuid}`)
   await expect(page.getByTestId('sync-editor')).toBeVisible()
   await expect(page.getByTestId('sync-field-visitor')).toBeVisible()
   await page.getByTestId('sync-dry-run').click()
-  await expect
-    .poll(async () => ((await api(page, 'GET', `/sync-jobs/${job.uuid}/runs`)).data as { status: string }[])[0]?.status, { timeout: 60_000, intervals: [2_000] })
-    .toBe('failed')
+  await expect.poll(async () => ((await api(page, 'GET', `/sync-jobs/${job.uuid}/runs`)).data as { status: string }[])[0]?.status, { timeout: 60_000, intervals: [2_000] }).toBe('failed')
   await page.reload()
   await expect(page.getByTestId('sync-runs')).toContainText('Failed')
 
