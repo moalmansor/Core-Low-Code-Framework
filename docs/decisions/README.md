@@ -63,3 +63,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0057](0057-data-sources-and-sync-jobs.md) | External data sources and sync jobs |
 | [0058](0058-external-access.md) | External access: external forms, portal accounts, record links and signatures |
 | [0059](0059-application-and-part-blueprints.md) | Blueprints of applications, workflows, notification rules, actions and dashboards; cloning applications |
+| [0060](0060-access-policies-and-trusted-devices.md) | Access policies per role and trusted devices |

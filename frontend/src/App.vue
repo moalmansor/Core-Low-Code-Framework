@@ -15,7 +15,8 @@ const { t } = useI18n()
 onApiError((e) => {
   if (e.status === 401 && session.me) {
     session.me = null
-    router.push({ name: 'login', query: e.code === 'session_expired' ? { expired: '1' } : {} })
+    const reason = (e.body as { reason?: string }).reason
+    router.push({ name: 'login', query: e.code === 'session_expired' ? { expired: '1' } : e.code === 'access_policy' && reason ? { denied: reason } : {} })
     return
   }
   if (e.status === 403 && (e.code === 'two_factor_enrollment_required' || e.code === 'password_expired')) {

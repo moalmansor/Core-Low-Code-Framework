@@ -21,6 +21,7 @@ final class ConsoleAreas
         'users' => ['people', ['system.manage_users'], '/admin/users'],
         'departments' => ['people', ['system.manage_users'], '/admin/departments'],
         'roles_permissions' => ['people', ['system.manage_permissions'], '/admin/roles'],
+        'access_policies' => ['people', ['system.manage_access_policies'], '/admin/access-policies'],
         'applications' => ['building', ['system.manage_applications'], '/admin/applications'],
         'forms' => ['building', ['system.manage_forms'], '/admin/forms'],
         'blueprints' => ['building', ['system.manage_blueprints'], '/admin/blueprints'],

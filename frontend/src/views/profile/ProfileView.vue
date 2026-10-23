@@ -21,6 +21,7 @@ import { useRoute } from 'vue-router'
 import { ApiError, get, send } from '@/api/http'
 import PasswordFields from '@/components/PasswordFields.vue'
 import ApiTokensPanel from './ApiTokensPanel.vue'
+import TrustedDevicesPanel from './TrustedDevicesPanel.vue'
 import { useSession, type Me } from '@/stores/session'
 
 interface SessionRow {
@@ -313,6 +314,7 @@ async function revokeOthers(): Promise<void> {
             </template>
           </Column>
         </DataTable>
+        <TrustedDevicesPanel v-if="tab === 'sessions'" />
       </TabPanel>
       <TabPanel value="tokens">
         <ApiTokensPanel v-if="tab === 'tokens'" />

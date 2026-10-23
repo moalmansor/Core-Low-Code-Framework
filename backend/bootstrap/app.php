@@ -9,6 +9,7 @@ use App\Http\Middleware\ThrottlePerRoute;
 use App\Modules\Core\Correlation\CorrelationId;
 use App\Modules\Core\Http\Middleware\AssignCorrelationId;
 use App\Modules\Experience\Http\Middleware\SystemMaintenance;
+use App\Modules\Identity\Http\Middleware\EnforceAccessPolicy;
 use App\Modules\Identity\Http\Middleware\EnforceSessionPolicy;
 use App\Modules\Identity\Http\Middleware\EnsureActiveUser;
 use App\Modules\Identity\Http\Middleware\EnsurePasswordNotExpired;
@@ -53,6 +54,7 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureActiveUser::class,
             SetTenantFromUser::class,
             EnforceSessionPolicy::class,
+            EnforceAccessPolicy::class,
             'throttle:api',
         ]);
         // Everything else additionally needs 2FA enrollment where the role

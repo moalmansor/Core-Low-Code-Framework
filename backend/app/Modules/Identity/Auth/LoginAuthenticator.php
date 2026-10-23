@@ -6,6 +6,7 @@ namespace App\Modules\Identity\Auth;
 
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Identity\Models\User;
+use App\Modules\Identity\Policies\AccessPolicies;
 use App\Modules\Identity\Security\LoginThrottle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -22,6 +23,7 @@ final class LoginAuthenticator
         private readonly LoginThrottle $throttle,
         private readonly LdapAuthenticator $ldap,
         private readonly SettingsService $settings,
+        private readonly AccessPolicies $policies,
     ) {}
 
     public function __invoke(Request $request): ?User
@@ -59,6 +61,12 @@ final class LoginAuthenticator
         if ($user->status !== 'active') {
             $this->throttle->failed($request, $identifier, $user, 'inactive');
             throw ValidationException::withMessages(['email' => __('ui.auth.inactive')]);
+        }
+        // Where and when the user's access policies allow them to work (§4.36); a device is verified after the second factor.
+        $why = $this->policies->denial($user, $request);
+        if ($why === 'ip' || $why === 'time') {
+            $this->throttle->failed($request, $identifier, $user, 'policy_'.$why);
+            throw ValidationException::withMessages(['email' => __("identity.denied_{$why}")]);
         }
         if ($user->password !== null && Hash::needsRehash($user->password)) {
             $user->forceFill(['password' => $password])->saveQuietly();

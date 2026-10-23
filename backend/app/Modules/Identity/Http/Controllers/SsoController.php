@@ -10,6 +10,8 @@ use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Identity\Auth\Oidc\OidcProvider;
 use App\Modules\Identity\Auth\Oidc\OidcProviderConfig;
 use App\Modules\Identity\Auth\UserProvisioner;
+use App\Modules\Identity\Policies\AccessPolicies;
+use App\Modules\Identity\Policies\TrustedDevices;
 use App\Modules\Identity\Security\LoginThrottle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -102,6 +104,10 @@ final class SsoController extends Controller
         }
         Auth::guard('web')->login($user);
         $request->session()->regenerate();
+        // The identity provider's multi-factor sign-in verifies the device like the system's own code.
+        if ($idpDidMfa && (app(AccessPolicies::class)->effective($user)['trusted_device'] ?? false)) {
+            app(TrustedDevices::class)->trust($user, $request);
+        }
 
         return redirect('/');
     }

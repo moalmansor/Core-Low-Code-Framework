@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Identity\Http\Controllers\AccessPolicyController;
 use App\Modules\Identity\Http\Controllers\MeController;
 use App\Modules\Identity\Http\Controllers\SsoController;
 use App\Modules\Identity\Http\Controllers\UserController;
@@ -17,6 +18,17 @@ Route::middleware(['auth:sanctum', 'lcf.session'])->prefix('me')->group(function
     Route::get('/sessions', [MeController::class, 'sessions']);
     Route::delete('/sessions/{handle}', [MeController::class, 'revokeSession'])->where('handle', '[a-f0-9]{64}');
     Route::delete('/sessions', [MeController::class, 'revokeOtherSessions']);
+    Route::get('/devices', [AccessPolicyController::class, 'devices']);
+    Route::delete('/devices/{device}', [AccessPolicyController::class, 'revokeDevice'])->whereNumber('device');
+});
+
+// Access policies per role (specification §4.36, ADR-0060).
+Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
+    Route::get('/access-policies', [AccessPolicyController::class, 'index']);
+    Route::post('/access-policies', [AccessPolicyController::class, 'store']);
+    Route::get('/access-policies/{policy}', [AccessPolicyController::class, 'show'])->whereUuid('policy');
+    Route::put('/access-policies/{policy}', [AccessPolicyController::class, 'update'])->whereUuid('policy');
+    Route::delete('/access-policies/{policy}', [AccessPolicyController::class, 'destroy'])->whereUuid('policy');
 });
 
 Route::middleware(['auth:sanctum', 'lcf.secure'])->prefix('users')->group(function (): void {

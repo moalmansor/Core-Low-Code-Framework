@@ -59,6 +59,7 @@
   "access.tier.role": "Role",
   "access.tier.user": "User",
   "access.view_as_hint": "See exactly what a user can do, and why.",
+  "admin.area.access_policies": "Access policies",
   "admin.area.announcements": "Announcements",
   "admin.area.appearance_branding": "Appearance & branding",
   "admin.area.applications": "Applications",
