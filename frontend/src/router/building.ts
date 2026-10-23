@@ -43,6 +43,12 @@ export const buildingRoutes: RouteRecordRaw[] = [
     meta: { anyOf: ['system.manage_branding'], title: 'admin.area.themes' },
   },
   {
+    path: 'admin/usage',
+    name: 'admin.usage_insight',
+    component: () => import('@/views/help/UsageInsightView.vue'),
+    meta: { anyOf: ['system.manage_forms'], title: 'admin.area.usage_insight' },
+  },
+  {
     path: 'admin/help',
     name: 'admin.help_content',
     component: () => import('@/views/help/HelpContentAdmin.vue'),

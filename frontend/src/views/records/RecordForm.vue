@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { flushUsage, track } from '@/runtime/usage'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
@@ -335,6 +336,31 @@ function cancel(): void {
 }
 
 onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('records.leave_unsaved')) : true))
+
+// Usage insight (§4.37): starting a new record, and leaving it without submitting.
+let started = false
+watch(dirty, (d) => {
+  if (d && mode.value === 'create' && !started) {
+    started = true
+    track('form_start', formUuid.value)
+  }
+})
+watch(saved, (s) => {
+  if (s) started = false
+})
+function abandon(): void {
+  if (started && !saved.value) track('form_abandon', formUuid.value)
+  started = false
+}
+const onPageHide = () => {
+  abandon()
+  flushUsage(true)
+}
+window.addEventListener('pagehide', onPageHide)
+onBeforeUnmount(() => {
+  window.removeEventListener('pagehide', onPageHide)
+  abandon()
+})
 </script>
 
 <template>

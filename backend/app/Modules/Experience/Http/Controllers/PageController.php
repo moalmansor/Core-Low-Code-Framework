@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Experience\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Adoption\UsageRecorder;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Experience\Maintenance;
 use App\Modules\Experience\Models\Page;
@@ -97,6 +98,7 @@ final class PageController extends Controller
         abort_unless($this->pages->viewable($p, $user), 404);
         $app = Application::query()->findOrFail($p->application_id);
         abort_if($maintenance->blocks($app, $user), 423, $this->translator->pick($app->translationsFor('maintenance_message')) ?? __('experience.maintenance'));
+        app(UsageRecorder::class)->count($user, 'page_view');
 
         return response()->json(['data' => $this->pages->view($p)]);
     }

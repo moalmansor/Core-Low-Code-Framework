@@ -9,6 +9,7 @@ use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\RecordScope;
+use App\Modules\Adoption\UsageRecorder;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\DataQuality\DuplicateGuard;
 use App\Modules\Extensions\HookRunner;
@@ -176,6 +177,8 @@ final class RecordController extends Controller
             $result = $this->pipeline->create($rt, $this->user(), $data['values'], $data['params'] ?? [], $this->key($request), self::source($request));
             $record = $this->store->findById($rt, $result['id']);
             $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'view');
+            // Usage insight (§4.37): a submission, and the fields left empty in it.
+            app(UsageRecorder::class)->submitted($this->user(), $rt, $record['values'], $levels['fields']);
 
             return response()->json(['data' => $this->presenter->present($rt, $record, $levels['fields'])], 201);
         });

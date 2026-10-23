@@ -48,6 +48,7 @@ const tabs = computed(() => {
       'clamav',
       'security',
       'self_service',
+      'adoption',
       'sso',
       'ldap',
       'monitoring',

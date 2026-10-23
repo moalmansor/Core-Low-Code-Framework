@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Adoption\UsageRecorder;
 use App\Modules\Assignment\Claims;
 use App\Modules\Assignment\Http\Controllers\DelegationController;
 use App\Modules\Audit\AuditWriter;
@@ -68,6 +69,12 @@ Artisan::command('notifications:digest', function (Digests $digests): int {
 
     return 0;
 })->purpose('E-mail the daily and weekly notification digests that are due');
+
+Artisan::command('usage:prune', function (UsageRecorder $usage): int {
+    $this->info('Removed '.$usage->prune().' usage count(s).');
+
+    return 0;
+})->purpose('Forget usage counts older than the retention in System Settings › Adoption');
 
 Artisan::command('webhooks:purge', function (Webhooks $webhooks): int {
     $this->info('Removed '.$webhooks->purge().' webhook delivery log row(s).');
@@ -264,6 +271,7 @@ Schedule::command('downloads:expire')->hourly()->onOneServer();
 Schedule::command('scheduler:run')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('automations:tick')->everyMinute()->withoutOverlapping()->onOneServer();
 Schedule::command('external:maintain')->hourly()->withoutOverlapping()->onOneServer();
+Schedule::command('usage:prune')->dailyAt('03:45')->withoutOverlapping()->onOneServer();
 Schedule::command('webhooks:purge')->dailyAt('03:35')->withoutOverlapping()->onOneServer();
 Schedule::command('records:purge-recycle-bin')->dailyAt('03:25')->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();

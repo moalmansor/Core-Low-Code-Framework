@@ -533,5 +533,12 @@
   "users.unlock": "فك القفل",
   "users.unlocked": "تم فك قفل الحساب.",
   "users.username": "اسم المستخدم",
-  "admin.area.help_content": "محتوى المساعدة"
+  "admin.area.help_content": "محتوى المساعدة",
+  "admin.area.usage_insight": "رؤى الاستخدام",
+  "settings.group.adoption": "التبنّي",
+  "settings.adoption.usage_tracking": "إحصاءات رؤى الاستخدام",
+  "settings.adoption.usage_retention_days": "مدة الاحتفاظ بإحصاءات الاستخدام (بالأيام)",
+  "settings.option.usage_tracking.people": "مع أسماء المستخدمين",
+  "settings.option.usage_tracking.anonymous": "دون أسماء",
+  "settings.option.usage_tracking.off": "دون إحصاء"
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { track } from '@/runtime/usage'
 import AutoComplete from 'primevue/autocomplete'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
@@ -121,6 +122,7 @@ async function loadDefinition(): Promise<void> {
   loadError.value = ''
   try {
     definition.value = (await get<{ data: ClientDefinition }>(`/r/${formUuid.value}/definition`, { mode: 'view' })).data
+    track('form_view', formUuid.value)
     document.title = [title.value, session.systemName].filter(Boolean).join(' · ')
   } catch (e) {
     loadError.value = e instanceof ApiError && e.status !== 0 ? e.message : t('records.load_failed')

@@ -324,6 +324,7 @@ export const icons: Record<string, string> = {
   global_search: 'pi-search',
   announcements: 'pi-megaphone',
   help_content: 'pi-question-circle',
+  usage_insight: 'pi-chart-line',
   access_policies: 'pi-lock',
   feature_flags: 'pi-flag',
 }

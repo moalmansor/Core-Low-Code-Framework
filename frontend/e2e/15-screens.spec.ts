@@ -103,6 +103,7 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
     '/admin/feature-flags',
     '/admin/help',
     '/admin/help/tours',
+    '/admin/usage',
     '/x/portal',
   ]
 

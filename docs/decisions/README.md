@@ -69,3 +69,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0063](0063-self-service.md) | Self-service preferences, pinned records, shortcuts and digests |
 | [0064](0064-help-content-knowledge-and-changelog.md) | Help content, knowledge pages and changelogs |
 | [0065](0065-guided-tours.md) | Guided tours and first-use hints |
+| [0066](0066-usage-insight.md) | Usage insight |

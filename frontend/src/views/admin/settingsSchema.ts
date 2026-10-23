@@ -57,6 +57,7 @@ export const settingsSchema: Record<string, FieldDef[]> = {
       options: ['locale', 'timezone', 'calendar', 'date_format', 'number_format', 'digits', 'theme_mode', 'density', 'notification_channels', 'digest_frequency', 'landing_page'],
     },
   ],
+  adoption: [{ key: 'usage_tracking', type: 'select', options: ['people', 'anonymous', 'off'] }, n('usage_retention_days', 30, 3650)],
   security: [
     n('password_min_length', 8, 128),
     b('password_require_uppercase'),

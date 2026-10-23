@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Experience\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Adoption\UsageRecorder;
 use App\Modules\Experience\GlobalSearch;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
@@ -44,6 +45,7 @@ final class SearchController extends Controller
         $data = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100']]);
         /** @var User $user */
         $user = Auth::user();
+        app(UsageRecorder::class)->count($user, 'search');
 
         return response()->json(['data' => $this->search->search($user, $data['q'])]);
     }

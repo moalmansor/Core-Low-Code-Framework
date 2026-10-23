@@ -533,5 +533,12 @@
   "users.unlock": "Unlock",
   "users.unlocked": "Account unlocked.",
   "users.username": "Username",
-  "admin.area.help_content": "Help content"
+  "admin.area.help_content": "Help content",
+  "admin.area.usage_insight": "Usage insight",
+  "settings.group.adoption": "Adoption",
+  "settings.adoption.usage_tracking": "Usage insight counts",
+  "settings.adoption.usage_retention_days": "Keep usage counts for (days)",
+  "settings.option.usage_tracking.people": "With the names of the people",
+  "settings.option.usage_tracking.anonymous": "Without names",
+  "settings.option.usage_tracking.off": "Do not count"
 }

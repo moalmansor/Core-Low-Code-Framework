@@ -171,6 +171,9 @@ final class SettingsRegistry
         $d('security', 'api_rate_limit_per_minute', 240, ['required', 'integer', 'between:30,10000']);
         // Self-service (§4.36, ADR-0063): the personal preferences people may change themselves.
         $d('self_service', 'editable_preferences', self::PREFERENCES, ['present', 'array', '*' => ['distinct', Rule::in(self::PREFERENCES)]]);
+        // Usage insight (§4.37, ADR-0066): whether people are named, counted anonymously or not counted, and for how long.
+        $d('adoption', 'usage_tracking', 'people', ['required', Rule::in(['people', 'anonymous', 'off'])]);
+        $d('adoption', 'usage_retention_days', 395, ['required', 'integer', 'between:30,3650']);
         // Impersonation (§4.36, ADR-0061): the longest one, and what is refused during it.
         $d('security', 'impersonation_max_minutes', 60, ['required', 'integer', 'between:5,480']);
         $d('security', 'impersonation_blocked_actions', ['delete_records', 'export_data', 'run_actions', 'change_access'], ['present', 'array', '*' => ['distinct', Rule::in(array_keys(Impersonation::BLOCKABLE))]]);
