@@ -469,6 +469,7 @@
   "translations.type.permission": "Permission labels",
   "translations.type.report": "Reports",
   "translations.type.role": "Role names",
+  "translations.type.sync_job": "Sync jobs",
   "translations.type.ui": "Interface",
   "translations.type.unit_of_measure": "Units of measure",
   "translations.type.webhook": "Webhooks",

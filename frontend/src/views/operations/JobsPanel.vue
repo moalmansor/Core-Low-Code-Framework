@@ -25,7 +25,7 @@ import { opsApi, type JobKind, type OpsJob } from './api'
  */
 const { t, n, locale } = useI18n()
 const toast = useToast()
-const KINDS: JobKind[] = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'webhook_delivery', 'channel_delivery', 'data_source', 'extension', 'queue_job']
+const KINDS: JobKind[] = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'webhook_delivery', 'channel_delivery', 'data_source', 'sync_run', 'extension', 'queue_job']
 const f = reactive({ kind: null as JobKind | null, page: 1 })
 const rows = ref<OpsJob[]>([])
 const total = ref(0)

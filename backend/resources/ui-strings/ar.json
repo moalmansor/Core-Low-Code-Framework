@@ -469,6 +469,7 @@
   "translations.type.permission": "تسميات الصلاحيات",
   "translations.type.report": "التقارير",
   "translations.type.role": "أسماء الأدوار",
+  "translations.type.sync_job": "مهام المزامنة",
   "translations.type.ui": "الواجهة",
   "translations.type.unit_of_measure": "وحدات القياس",
   "translations.type.webhook": "خطافات الويب",

@@ -411,26 +411,7 @@ final class ExternalSources
     {
         $c = (array) $s->rest_config;
         $params = ['q' => (string) ($filters['q'] ?? ''), 'depends' => (string) ($filters['depends'] ?? '')];
-        $headers = ['Accept' => 'application/json', 'User-Agent' => 'LowCodeFramework-DataSource/1'];
-        foreach ((array) $s->headers as $h) {
-            $headers[$h['name']] = $h['value'];
-        }
-        $creds = (array) $s->credentials;
-        $options = [];
-        switch ($s->auth_type) {
-            case 'api_key':
-                $headers[$creds['header']] = $creds['key'];
-                break;
-            case 'bearer':
-                $headers['Authorization'] = 'Bearer '.$creds['token'];
-                break;
-            case 'basic':
-                $options['auth'] = [$creds['username'], $creds['password']];
-                break;
-            case 'oauth2_client_credentials':
-                $headers['Authorization'] = 'Bearer '.$this->oauthToken($s);
-                break;
-        }
+        [$headers, $options] = $this->authenticated($s);
         $query = [];
         foreach ((array) ($c['query'] ?? []) as $p) {
             $query[$p['name']] = strtr((string) $p['value'], ['{q}' => $params['q'], '{depends}' => $params['depends']]);
@@ -451,6 +432,74 @@ final class ExternalSources
         }
 
         return $records;
+    }
+
+    /**
+     * The headers and options of a call to the source: its extra headers and
+     * its authentication.
+     *
+     * @return array{0: array<string, string>, 1: array<string, mixed>}
+     */
+    private function authenticated(ExternalDataSource $s): array
+    {
+        $headers = ['Accept' => 'application/json', 'User-Agent' => 'LowCodeFramework-DataSource/1'];
+        foreach ((array) $s->headers as $h) {
+            $headers[$h['name']] = $h['value'];
+        }
+        $creds = (array) $s->credentials;
+        $options = [];
+        switch ($s->auth_type) {
+            case 'api_key':
+                $headers[$creds['header']] = $creds['key'];
+                break;
+            case 'bearer':
+                $headers['Authorization'] = 'Bearer '.$creds['token'];
+                break;
+            case 'basic':
+                $options['auth'] = [$creds['username'], $creds['password']];
+                break;
+            case 'oauth2_client_credentials':
+                $headers['Authorization'] = 'Bearer '.$this->oauthToken($s);
+                break;
+        }
+
+        return [$headers, $options];
+    }
+
+    /**
+     * Sends one record to an address of the source's host (a sync job's
+     * export), with the source's authentication. Returns the HTTP status.
+     *
+     * @param  array<string, mixed>  $payload
+     *
+     * @throws SourceFailure
+     */
+    public function push(ExternalDataSource $s, string $url, string $method, array $payload): int
+    {
+        if (! $s->is_active || $s->type !== 'rest') {
+            throw new SourceFailure(__('integrations.inactive'));
+        }
+        [$headers, $options] = $this->authenticated($s);
+        $options['headers'] = $headers + ['Content-Type' => 'application/json'];
+        $options['body'] = (string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        try {
+            $response = $this->egress->request($method, $url, $options, 20, 1_048_576);
+        } catch (EgressViolation $e) {
+            throw $this->failed($s, $e->getMessage());
+        } catch (Throwable $e) {
+            throw $this->failed($s, __('integrations.unreachable', ['error' => mb_substr($e->getMessage(), 0, 300)]));
+        }
+        if ($response->getStatusCode() >= 300) {
+            throw new SourceFailure(__('integrations.refused', ['status' => $response->getStatusCode()]).' '.mb_substr((string) $response->getBody(), 0, 300));
+        }
+
+        return $response->getStatusCode();
+    }
+
+    /** Whether an address may be called (https and on the egress allowlist). */
+    public function allows(string $url): bool
+    {
+        return $this->allowedUrl($url);
     }
 
     private function oauthToken(ExternalDataSource $s): string

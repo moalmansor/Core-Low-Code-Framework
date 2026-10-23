@@ -13,6 +13,8 @@ use App\Modules\DataQuality\Jobs\RunDataRepair;
 use App\Modules\DataQuality\Jobs\RunDuplicateSweep;
 use App\Modules\Downloads\DownloadJobs;
 use App\Modules\Identity\Models\User;
+use App\Modules\Integrations\Models\SyncJob;
+use App\Modules\Integrations\SyncJobs;
 use App\Modules\Notifications\Channels\ChannelDeliveries;
 use App\Modules\Platform\Webhooks;
 use App\Modules\Records\Jobs\RunExportJob;
@@ -33,7 +35,7 @@ use Illuminate\Validation\ValidationException;
  */
 final class FailedJobs
 {
-    public const KINDS = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'webhook_delivery', 'channel_delivery', 'data_source', 'extension', 'queue_job'];
+    public const KINDS = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'webhook_delivery', 'channel_delivery', 'data_source', 'sync_run', 'extension', 'queue_job'];
 
     /** Failures older than this are not gathered (the scheduled clean-ups remove most of them). */
     private const LOOKBACK_DAYS = 30;
@@ -130,6 +132,13 @@ final class FailedJobs
                 break;
             case 'webhook_delivery':
                 app(Webhooks::class)->resend($id);
+                break;
+            case 'sync_run':
+                $jobId = DB::table('sync_runs')->where('id', $id)->value('sync_job_id');
+                $job = $jobId === null ? null : SyncJob::query()->find((int) $jobId);
+                if ($job !== null) {
+                    app(SyncJobs::class)->start($job, false, $operator->id);
+                }
                 break;
             case 'channel_delivery':
                 app(ChannelDeliveries::class)->retry($id);
@@ -248,6 +257,14 @@ final class FailedJobs
                 $meta = json_decode((string) $a->meta, true) ?: [];
                 $name = $a->object_id === null ? null : ($this->translator->many('external_data_source', [(int) $a->object_id], ['name'])[(int) $a->object_id]['name'] ?? null);
                 $rows[] = $this->row('data_source', (int) $a->id, null, null, $name ?? Translator::humanize((string) ($meta['key'] ?? '')), (string) ($meta['error'] ?? ''), $a->occurred_at, false, 1);
+            }
+        }
+        if ($want('sync_run')) {
+            $q = DB::table('sync_runs as r')->join('sync_jobs as j', 'j.id', '=', 'r.sync_job_id')->where('r.dry_run', false)
+                ->whereIn('r.status', ['failed', 'partially_failed'])->where('r.updated_at', '>=', $since)->orderByDesc('r.id')->limit(self::PER_KIND);
+            foreach ($q->get(['r.id', 'r.error', 'r.error_count', 'r.finished_at', 'r.updated_at', 'r.triggered_by', 'j.id as job_id', 'j.form_id']) as $r) {
+                $name = $this->translator->many('sync_job', [(int) $r->job_id], ['name'])[(int) $r->job_id]['name'] ?? null;
+                $rows[] = $this->row('sync_run', (int) $r->id, (int) $r->form_id, $r->triggered_by, $name, $r->error ?? __('operations.records_failed', ['n' => (int) $r->error_count]), $r->finished_at ?? $r->updated_at, true, 1);
             }
         }
         if ($want('extension')) {

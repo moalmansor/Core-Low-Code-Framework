@@ -64,6 +64,7 @@
   "ops.kind.import": "Import",
   "ops.kind.queue_job": "Queue job",
   "ops.kind.scheduled_task": "Scheduled task",
+  "ops.kind.sync_run": "Sync run",
   "ops.kind.webhook": "Webhook call",
   "ops.kind.webhook_delivery": "Webhook delivery",
   "ops.kind_label": "Kind",

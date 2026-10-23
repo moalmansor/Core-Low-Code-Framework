@@ -64,6 +64,7 @@
   "ops.kind.import": "استيراد",
   "ops.kind.queue_job": "مهمة في الطابور",
   "ops.kind.scheduled_task": "مهمة مجدولة",
+  "ops.kind.sync_run": "تشغيل مزامنة",
   "ops.kind.webhook": "استدعاء ويب هوك",
   "ops.kind.webhook_delivery": "تسليم خطاف ويب",
   "ops.kind_label": "النوع",
