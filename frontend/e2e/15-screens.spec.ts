@@ -161,6 +161,11 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
     const anonymous = await request.newContext({ baseURL: new URL(page.url()).origin })
     const status = async (ctx: typeof page.request) => (await ctx.get('/api/v1/me', { headers: { Accept: 'application/json' } })).status()
     await expect.poll(async () => [await status(page.request), await status(anonymous)].includes(429), { timeout: 90_000, intervals: [5_000] }).toBe(false)
+    // No longer refused is not the same as empty: on a fast runner the window that just opened can already be
+    // nearly full from the sweep's last requests. Wait out one whole window (60 seconds) so the next spec's
+    // sign-in starts from empty buckets, then check once more.
+    await page.waitForTimeout(61_000)
+    await expect.poll(async () => [await status(page.request), await status(anonymous)].includes(429), { timeout: 90_000, intervals: [5_000] }).toBe(false)
     await anonymous.dispose()
   }
   expect(problems).toEqual([])
