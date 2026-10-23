@@ -642,8 +642,26 @@ Done:
    - the library asks what to save; a blueprint page creates or applies by kind and lists what was made from it;
    - tests: `ApplicationBlueprintsTest` (2), `PartBlueprintsTest` (3), e2e `22-blueprints`.
 
+11. **Self-service, impersonation, access policies and feature flags** (done so far):
+   - access policies per role (ADR-0060):
+     - allowed networks, time windows, concurrent sessions, idle and lifetime limits, second factor and trusted devices, and an administrative policy;
+     - enforced at sign-in and on every request; saving one that would shut out the administrator is refused;
+     - trusted devices are listed in the profile;
+     - tests: `AccessPoliciesTest` (5);
+   - impersonation (ADR-0061):
+     - a reason and a time limit; no escalation;
+     - a persistent banner; account security and the chosen sensitive actions are refused;
+     - audited as the administrator with the user as subject;
+     - tests: `ImpersonationTest` (3);
+   - feature flags (ADR-0062): a form, action, page or capability released to roles, departments or people, or switched off; enforced on the server and left out of navigation, action lists, search and the screens; tests: `FeatureFlagsTest` (2);
+   - self-service (ADR-0063):
+     - preferences within what System Settings › Self-service allows;
+     - time zone, calendar, digits, date pattern, number separators and density applied to every date and number;
+     - a start page, pinned records, personal shortcuts, and daily or weekly digests;
+     - tests: `SelfServiceTest` (3).
+
 Next, in order:
-11. Self-service, impersonation, access policies, feature flags, help, tours and usage.
+11. The rest of item 11: help content (tooltips, side panels, help pages) with a knowledge page and changelog per application; guided tours and first-use hints; usage insight. Then an e2e spec for the item 11 screens and the screen sweep entries.
 12. Specification and architecture updates, the full test run on both engines, and the pull request.
 
 ## Resume point
