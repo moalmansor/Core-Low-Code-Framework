@@ -182,7 +182,14 @@ const userItems = computed(() => [
         <RouterLink :class="navClass('my_work')" :to="{ name: 'my_work' }" active-class="" exact-active-class="" :aria-current="current('my_work')" data-testid="nav-my-work"
           ><i class="pi pi-inbox" />{{ t('my_work.title') }}</RouterLink
         >
-        <RouterLink :class="navClass('insights')" :to="{ name: 'insights' }" active-class="" exact-active-class="" :aria-current="current('insights')" data-testid="nav-insights"
+        <RouterLink
+          v-if="session.capable('insights')"
+          :class="navClass('insights')"
+          :to="{ name: 'insights' }"
+          active-class=""
+          exact-active-class=""
+          :aria-current="current('insights')"
+          data-testid="nav-insights"
           ><i class="pi pi-chart-bar" />{{ t('rep.insights') }}</RouterLink
         >
         <section v-for="app in apps" :key="app.uuid" class="mt-3" :data-testid="`nav-app-${app.key}`">
@@ -236,7 +243,7 @@ const userItems = computed(() => [
     <div class="flex-1 min-w-0 min-h-0 flex flex-col">
       <header class="h-14 shrink-0 px-4 flex items-center gap-3 bg-card border-b border-line">
         <Button class="lg:hidden" icon="pi pi-bars" text rounded :aria-label="t('shell.menu')" @click="sidebarOpen = true" />
-        <GlobalSearchBox />
+        <GlobalSearchBox v-if="session.capable('global_search')" />
         <div class="flex-1 max-sm:hidden" />
         <NotificationsBell />
         <LanguageSwitcher />

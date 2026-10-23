@@ -65,3 +65,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0059](0059-application-and-part-blueprints.md) | Blueprints of applications, workflows, notification rules, actions and dashboards; cloning applications |
 | [0060](0060-access-policies-and-trusted-devices.md) | Access policies per role and trusted devices |
 | [0061](0061-impersonation.md) | Impersonation |
+| [0062](0062-feature-flags.md) | Feature flags |

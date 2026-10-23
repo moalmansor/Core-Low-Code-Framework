@@ -104,8 +104,8 @@ const canCreate = computed(() => definition.value?.access.modes.create === true 
 const canEdit = computed(() => definition.value?.access.modes.edit === true && definition.value.form.settings.modes?.edit !== false)
 const canDelete = computed(() => definition.value?.access.modes.delete === true)
 const canRestore = computed(() => can('restore'))
-const canExport = computed(() => can('export'))
-const canImport = computed(() => can('import'))
+const canExport = computed(() => can('export') && session.capable('record_export'))
+const canImport = computed(() => can('import') && session.capable('record_import'))
 
 const listable = (f: ClientField) => index.value !== null && index.value.isStored(f) && !index.value.fieldRepeater.has(f.uuid)
 const columns = computed(() => (definition.value?.fields ?? []).filter((f) => listable(f) && f.table?.visible === true).sort((a, b) => a.order - b.order))

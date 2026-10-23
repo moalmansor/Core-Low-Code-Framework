@@ -69,6 +69,7 @@
   "admin.area.error_monitoring": "Error monitoring",
   "admin.area.extensions": "Developer extensions",
   "admin.area.external_access": "External access",
+  "admin.area.feature_flags": "Feature flags",
   "admin.area.forms": "Forms & collections",
   "admin.area.global_search": "Global search",
   "admin.area.home_screens": "Home screens",

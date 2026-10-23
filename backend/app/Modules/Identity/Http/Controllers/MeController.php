@@ -6,6 +6,7 @@ namespace App\Modules\Identity\Http\Controllers;
 
 use App\Modules\Access\AccessResolver;
 use App\Modules\Audit\AuditWriter;
+use App\Modules\Core\Flags\FeatureFlags;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Identity\Impersonation\Impersonation;
 use App\Modules\Identity\Models\User;
@@ -47,6 +48,8 @@ final class MeController extends Controller
             'password_expired' => $policy->isExpired($user),
             'preferences' => $this->presentPreferences($user),
             'impersonation' => $this->impersonation(),
+            // Capabilities a feature flag has not released to this person yet, so screens leave them out.
+            'capabilities_off' => app(FeatureFlags::class)->capabilitiesOff($user),
         ]]);
     }
 

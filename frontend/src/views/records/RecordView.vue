@@ -313,7 +313,15 @@ watch(
           <Button icon="pi pi-ellipsis-h" :label="t('act.run.more')" severity="secondary" outlined aria-haspopup="true" data-testid="record-actions-more" @click="(e: Event) => moreMenu?.toggle(e)" />
           <Menu ref="moreMenu" :model="moreItems" popup />
         </template>
-        <Button v-if="!deleted" icon="pi pi-share-alt" :label="t('share.button')" severity="secondary" outlined data-testid="record-share" @click="sharing = true" />
+        <Button
+          v-if="!deleted && session.capable('record_sharing')"
+          icon="pi pi-share-alt"
+          :label="t('share.button')"
+          severity="secondary"
+          outlined
+          data-testid="record-share"
+          @click="sharing = true"
+        />
         <Button v-if="perms.restore" icon="pi pi-replay" :label="t('records.restore')" severity="secondary" outlined data-testid="record-restore" @click="restore" />
         <Button v-if="perms.delete" icon="pi pi-trash" :label="t('common.delete')" severity="danger" outlined data-testid="record-delete" @click="remove" />
       </div>

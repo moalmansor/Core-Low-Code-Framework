@@ -69,6 +69,7 @@
   "admin.area.error_monitoring": "مراقبة الأخطاء",
   "admin.area.extensions": "الامتدادات البرمجية",
   "admin.area.external_access": "الوصول الخارجي",
+  "admin.area.feature_flags": "مفاتيح الميزات",
   "admin.area.forms": "النماذج والمجموعات",
   "admin.area.global_search": "البحث الشامل",
   "admin.area.home_screens": "الشاشات الرئيسية",

@@ -7,6 +7,7 @@ use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\ThrottlePerRoute;
 use App\Modules\Core\Correlation\CorrelationId;
+use App\Modules\Core\Flags\EnforceFeatureFlags;
 use App\Modules\Core\Http\Middleware\AssignCorrelationId;
 use App\Modules\Experience\Http\Middleware\SystemMaintenance;
 use App\Modules\Identity\Http\Middleware\EnforceAccessPolicy;
@@ -66,6 +67,7 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureTwoFactorEnrolled::class,
             EnsurePasswordNotExpired::class,
             SystemMaintenance::class,
+            EnforceFeatureFlags::class,
         ]);
         $middleware->alias(['lcf.setup' => SetupOpen::class, 'throttle' => ThrottlePerRoute::class]);
         $middleware->redirectGuestsTo(static fn (Request $request): ?string => $request->expectsJson() ? null : '/login');

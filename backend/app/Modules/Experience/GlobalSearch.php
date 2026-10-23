@@ -10,6 +10,7 @@ use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\RecordScope;
 use App\Modules\Audit\AuditWriter;
+use App\Modules\Core\Flags\FeatureFlags;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
@@ -167,7 +168,8 @@ final class GlobalSearch
                 continue;
             }
             $form = Form::query()->find($c->form_id);
-            if ($form === null || $form->state !== 'published' || ! $this->access->allows($user, 'form.'.strtolower((string) $form->uuid).'.view')) {
+            if ($form === null || $form->state !== 'published' || ! $this->access->allows($user, 'form.'.strtolower((string) $form->uuid).'.view')
+                || ! app(FeatureFlags::class)->allows($user, 'form', (int) $form->id)) {
                 continue;
             }
             $rt = $this->runtimes->forForm($form);

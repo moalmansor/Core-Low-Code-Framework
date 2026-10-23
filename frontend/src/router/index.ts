@@ -44,6 +44,12 @@ const routes: RouteRecordRaw[] = [
       { path: 'admin/users', name: 'admin.users', component: () => import('@/views/admin/UsersView.vue'), meta: { anyOf: ['system.manage_users'], title: 'admin.area.users' } },
       { path: 'admin/departments', name: 'admin.departments', component: () => import('@/views/admin/DepartmentsView.vue'), meta: { anyOf: ['system.manage_users'], title: 'admin.area.departments' } },
       {
+        path: 'admin/feature-flags',
+        name: 'admin.feature_flags',
+        component: () => import('@/views/access/FeatureFlagsView.vue'),
+        meta: { anyOf: ['system.manage_feature_flags'], title: 'admin.area.feature_flags' },
+      },
+      {
         path: 'admin/access-policies',
         name: 'admin.access_policies',
         component: () => import('@/views/access/AccessPoliciesView.vue'),

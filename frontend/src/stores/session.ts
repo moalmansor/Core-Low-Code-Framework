@@ -33,6 +33,8 @@ export interface Me {
   password_expired: boolean
   /** Set while an administrator acts as this user (ADR-0061). */
   impersonation?: { by: string; reason: string; expires_at: string } | null
+  /** Capabilities a feature flag has not released to this person yet. */
+  capabilities_off?: string[]
   preferences: {
     locale: string | null
     theme_mode: string
@@ -62,6 +64,8 @@ export const useSession = defineStore('session', () => {
 
   const permissions = computed(() => new Set(me.value?.permissions ?? []))
   const can = (permission: string) => permissions.value.has(permission)
+  /** Whether a capability a feature flag gates has been released to this person (ADR-0062). */
+  const capable = (capability: string) => !(me.value?.capabilities_off ?? []).includes(capability)
   const direction = computed(() => boot.value?.locales.find((l) => l.code === locale.value)?.direction ?? 'ltr')
   const systemName = computed(() => {
     const names = boot.value?.system_name ?? {}
@@ -164,5 +168,22 @@ export const useSession = defineStore('session', () => {
     }
   }
 
-  return { boot, me, locale, direction, systemName, browserTitle, theme, useTheme, gate, can, loadBootstrap, loadMe, switchLocale, applyTheme, logout }
+  return {
+    capable,
+    boot,
+    me,
+    locale,
+    direction,
+    systemName,
+    browserTitle,
+    theme,
+    useTheme,
+    gate,
+    can,
+    loadBootstrap,
+    loadMe,
+    switchLocale,
+    applyTheme,
+    logout,
+  }
 })

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Actions\Http\Controllers;
 
 use App\Modules\Actions\ActionRunner;
+use App\Modules\Core\Flags\FeatureFlags;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Records\Http\Concerns\ResolvesRecords;
 use App\Modules\Records\Http\Controllers\RecordController;
@@ -32,7 +33,11 @@ final class ActionRunController extends Controller
         $data = $request->validate(['placement' => ['sometimes', 'nullable', Rule::in(['row', 'bulk', 'toolbar', 'view_page'])], 'record' => ['sometimes', 'nullable', 'uuid']]);
         $record = isset($data['record']) ? $this->recordFor($rt, $data['record']) : null;
 
-        return response()->json(['data' => $this->runner->available($rt, $this->currentUser(), $data['placement'] ?? null, $record)]);
+        // Actions released by a feature flag to others only are not offered (ADR-0062).
+        $flags = app(FeatureFlags::class);
+        $hidden = array_flip(DB::table('actions')->whereIn('id', $flags->hiddenIds($this->currentUser(), 'action') ?: [0])->pluck('uuid')->map(static fn ($u) => strtolower((string) $u))->all());
+
+        return response()->json(['data' => array_values(array_filter($this->runner->available($rt, $this->currentUser(), $data['placement'] ?? null, $record), static fn (array $a) => ! isset($hidden[$a['uuid']])))]);
     }
 
     public function prepare(Request $request, Form $form, string $action): JsonResponse

@@ -100,6 +100,7 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
     '/admin/external/accounts',
     '/admin/external/forms/new',
     '/admin/access-policies',
+    '/admin/feature-flags',
     '/x/portal',
   ]
 

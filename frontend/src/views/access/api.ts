@@ -55,3 +55,28 @@ export function timeZones(): string[] {
   const intl = Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
   return intl.supportedValuesOf?.('timeZone') ?? ['UTC']
 }
+
+export type FlagType = 'form' | 'action' | 'page' | 'capability'
+export interface FlagDoc {
+  uuid?: string
+  key: string
+  type: FlagType
+  target: string | null
+  enabled: boolean
+  application: string | null
+  audience: { roles: string[]; departments: string[]; users: string[] }
+  i18n: { description: Record<string, string> }
+  hash?: string
+  label?: string
+}
+export interface Capability {
+  key: string
+  label: string
+}
+
+export const flagsApi = {
+  list: () => get<{ data: FlagDoc[]; capabilities: Capability[] }>('/feature-flags'),
+  create: (flag: FlagDoc) => send<{ data: FlagDoc }>('post', '/feature-flags', { flag }).then((r) => r.data),
+  save: (uuid: string, flag: FlagDoc, baseHash: string) => send<{ data: FlagDoc }>('put', `/feature-flags/${uuid}`, { flag, base_hash: baseHash }).then((r) => r.data),
+  remove: (uuid: string) => send('delete', `/feature-flags/${uuid}`),
+}

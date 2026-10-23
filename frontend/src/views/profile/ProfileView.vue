@@ -176,7 +176,7 @@ async function revokeOthers(): Promise<void> {
       <Tab v-if="isLocal" value="password">{{ t('profile.password') }}</Tab>
       <Tab value="security">{{ t('profile.two_factor') }}</Tab>
       <Tab value="sessions">{{ t('profile.sessions') }}</Tab>
-      <Tab value="tokens" data-testid="profile-tab-tokens">{{ t('intg.my_tokens') }}</Tab>
+      <Tab v-if="session.capable('personal_api_tokens')" value="tokens" data-testid="profile-tab-tokens">{{ t('intg.my_tokens') }}</Tab>
     </TabList>
     <TabPanels>
       <TabPanel value="details">

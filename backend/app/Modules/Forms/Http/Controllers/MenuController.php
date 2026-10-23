@@ -9,6 +9,7 @@ use App\Modules\Access\AccessResolver;
 use App\Modules\Access\ObjectPermissions;
 use App\Modules\Access\RecordScope;
 use App\Modules\Assignment\MyWork;
+use App\Modules\Core\Flags\FeatureFlags;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Experience\Maintenance;
 use App\Modules\Experience\Models\HomeScreen;
@@ -153,7 +154,7 @@ final class MenuController extends Controller
     }
 
     /** The sidebar of the signed-in user: active applications they may use and the menu items they may see. */
-    public function navigation(AccessResolver $access, Pages $pages, Maintenance $maintenance, Themes $themes): JsonResponse
+    public function navigation(AccessResolver $access, Pages $pages, Maintenance $maintenance, Themes $themes, FeatureFlags $flags): JsonResponse
     {
         $user = $this->user();
         $apps = Application::query()->where('status', 'active')->orderBy('sort_order')->orderBy('key')->get()
@@ -165,12 +166,17 @@ final class MenuController extends Controller
             $items = MenuItem::query()->where('application_id', $app->id)->where('is_active', true)->orderBy('sort_order')->get();
             $targets = $this->targets($items);
             $asts = $this->conditions->many($items->pluck('visibility_condition_id')->all());
-            $visible = $items->filter(function (MenuItem $i) use ($access, $user, $targets, $pages, $asts): bool {
+            $visible = $items->filter(function (MenuItem $i) use ($access, $user, $targets, $pages, $asts, $flags): bool {
                 // A rule that has gone missing hides the item rather than showing it to everyone.
                 if ($i->visibility_condition_id !== null && ! $this->rules->passes($asts[(int) $i->visibility_condition_id] ?? ['k' => 'lit', 't' => 'boolean', 'v' => false], $user)) {
                     return false;
                 }
                 $target = $targets[$i->target_type.':'.$i->target_id] ?? null;
+
+                // Released by a feature flag to others only: not shown (ADR-0062).
+                if (in_array($i->type, ['form', 'collection', 'page'], true) && $target !== null && ! $flags->allows($user, $i->type === 'page' ? 'page' : 'form', (int) $i->target_id)) {
+                    return false;
+                }
 
                 return match ($i->type) {
                     'form', 'collection' => $target !== null && $target['state'] === 'published'
