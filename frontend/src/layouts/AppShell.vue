@@ -259,6 +259,7 @@ export const icons: Record<string, string> = {
   appearance_branding: 'pi-palette',
   themes: 'pi-sun',
   notification_channels: 'pi-send',
+  external_access: 'pi-globe',
   translations: 'pi-language',
   system_settings: 'pi-sliders-h',
   audit_log: 'pi-history',

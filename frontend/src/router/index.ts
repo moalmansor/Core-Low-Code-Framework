@@ -69,6 +69,18 @@ const routes: RouteRecordRaw[] = [
         meta: { anyOf: ['system.manage_forms', 'system.manage_delegation'], title: 'admin.area.assignment_queues' },
       },
       {
+        path: 'admin/external/:tab(forms|accounts)?',
+        name: 'admin.external',
+        component: () => import('@/views/external/ExternalAdmin.vue'),
+        meta: { anyOf: ['system.manage_external_access'], title: 'admin.area.external_access' },
+      },
+      {
+        path: 'admin/external/forms/:form',
+        name: 'admin.external.form',
+        component: () => import('@/views/external/ExternalFormEditor.vue'),
+        meta: { anyOf: ['system.manage_external_access'], title: 'admin.area.external_access' },
+      },
+      {
         path: 'admin/notification-channels',
         name: 'admin.notification_channels',
         component: () => import('@/views/admin/notifications/ChannelsView.vue'),
@@ -123,6 +135,18 @@ const routes: RouteRecordRaw[] = [
       // Shown while the system is offline for maintenance (a 503 with code "maintenance").
       { path: 'maintenance', name: 'maintenance', component: () => import('@/views/experience/MaintenanceView.vue'), meta: { public: true, title: 'xp.maintenance_title' } },
       { path: 'reset-password/:token', name: 'reset', component: () => import('@/views/auth/ResetPassword.vue'), meta: { guest: true, title: 'auth.reset_title' } },
+    ],
+  },
+  // External pages (specification §4.32, ADR-0058): no internal sign-in; the server decides what each one shows.
+  {
+    path: '/x',
+    component: () => import('@/layouts/ExternalLayout.vue'),
+    children: [
+      { path: 'f/:slug', name: 'x.form', component: () => import('@/views/external/public/FormPage.vue'), meta: { public: true, title: 'xp_form.title' } },
+      { path: 'portal', name: 'x.portal', component: () => import('@/views/external/public/PortalPage.vue'), meta: { public: true, title: 'xp_portal.portal' } },
+      { path: 'portal/records/:slug/:record', name: 'x.record', component: () => import('@/views/external/public/PortalRecord.vue'), meta: { public: true, title: 'xp_portal.record' } },
+      { path: 't/:token', name: 'x.link', component: () => import('@/views/external/public/LinkPage.vue'), meta: { public: true, title: 'xp_link.title' } },
+      { path: 's/:token', name: 'x.sign', component: () => import('@/views/external/public/SignPage.vue'), meta: { public: true, title: 'xp_sign.title' } },
     ],
   },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFound.vue'), meta: { public: true } },

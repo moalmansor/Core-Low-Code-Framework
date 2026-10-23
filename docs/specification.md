@@ -1067,6 +1067,16 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Tokenized single-record links**: send a reviewer or signer a secure expiring link to one record, with a scoped action such as approve, reject, complete a section, or sign, without an account.
 - **Signature requests**: send a record for signature, track status, and store the signed output with the audit trail.
 - Everything external is still governed by the permission, condition, justification, and audit rules of the rest of the system.
+- **As built (ADR-0058):**
+  - External forms show an allow-list of fields that need no internal data. Required fields without a default must be shown.
+  - Submissions run through the record pipeline as a chosen run-as user, starting in the chosen status. They are open to anyone, or only to approved portal users with chosen external roles.
+  - Protections:
+    - a self-hosted proof-of-work CAPTCHA;
+    - limits per visitor address per hour, opening and closing times, hours of the day, and a cap;
+    - an email or SMS one-time code and an optional password.
+  - Portal accounts register when registration is open, verify their email and wait for approval if asked. They get an external role that internal role screens never show, and see only the records they submitted.
+  - Record links show a record, approve or reject it through a chosen step, or complete one section. They act as their sender with every rule applied; they expire, allow a set number of uses, can be withdrawn, and only their hash is stored.
+  - Signature requests freeze the generated PDF. The signer draws a signature, which is stamped on a final page with the signer, time, address and the original's hash. The signed PDF and its hash are kept and audited.
 
 ### 4.33 Integrations & External Data Sources
 - **External data sources** defined in the UI: a REST endpoint or a database view registered as a source, with authentication, headers, a response mapping, and a cache policy. Once registered it can feed select options, lookups, validation, and read-only panels exactly like a collection.

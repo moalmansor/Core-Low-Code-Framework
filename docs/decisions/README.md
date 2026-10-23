@@ -61,3 +61,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0055](0055-themes.md) | Themes per organization and per application |
 | [0056](0056-notification-channels.md) | SMS and messaging notification channels |
 | [0057](0057-data-sources-and-sync-jobs.md) | External data sources and sync jobs |
+| [0058](0058-external-access.md) | External access: external forms, portal accounts, record links and signatures |

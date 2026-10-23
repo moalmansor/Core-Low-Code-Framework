@@ -612,8 +612,22 @@ Done:
    - sync jobs: import through the record pipeline as a run-as user with matching fields and four conflict rules, export of changed records, dry runs rolled back, CSV run logs, schedules, and failed runs in the Operations Center;
    - tests: `NotificationChannelsTest` (3), `DataSourcesTest` (3), `SyncJobsTest` (3), e2e `20-integrations` and the screen sweep.
 
+9. **External access** (ADR-0058):
+   - external forms at `/x/f/{slug}`:
+     - texts, theme and status on submission;
+     - an allow-list of safe fields, submitted through the pipeline as a run-as user;
+     - open to anyone or to portal users with chosen external roles;
+     - password, self-hosted proof-of-work CAPTCHA, per-address hourly limits, opening times, daily hours, a cap, and email/SMS one-time codes;
+   - the portal at `/x/portal`: registration (off until opened) with email verification and optional approval, sign-in with the lockout policy, the forms open to the user, and their own records with status. External roles are kept out of every internal role screen;
+   - record links from a record's Share dialog: view; approve or reject through a step; complete a section. They act as the sender with every rule applied, are hash-only, expire, have limited uses, can be withdrawn, and are audited;
+   - signature requests: the PDF is frozen when sent; the drawn signature is stamped on a final page with the signer, time, address and the original's hash; the signed PDF and its hash are kept;
+   - the external user is recorded on records, audit entries, the journal and the status history;
+   - fixed on the way:
+     - `throttle:N,M` limits now count per route — the shared per-user counter caused the full-run failures of e2e specs 12, 16 and 17;
+     - a record uuid was used as a label in sync logs;
+   - tests: `ExternalAccessTest` (6), `ThrottlePerRouteTest`, `pow.spec.ts`, e2e `21-external` and the screen sweep.
+
 Next, in order:
-9. External access.
 10. The blueprint library and application cloning.
 11. Self-service, impersonation, access policies, feature flags, help, tours and usage.
 12. Specification and architecture updates, the full test run on both engines, and the pull request.

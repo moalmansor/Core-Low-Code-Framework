@@ -96,10 +96,14 @@ test('every Phase 4 and Phase 5 screen reads in both directions without sideways
     '/admin/integrations/sources/new',
     '/admin/integrations/sync',
     '/admin/integrations/sync/new',
+    '/admin/external',
+    '/admin/external/accounts',
+    '/admin/external/forms/new',
+    '/x/portal',
   ]
 
   await page.goto('/admin')
-  // Opening 108 pages back to back is far above a person's pace: the sweep lifts the API rate limit (a System
+  // Opening 112 pages back to back is far above a person's pace: the sweep lifts the API rate limit (a System
   // Setting) while it runs and puts it back after, so it never measures the limiter instead of the screens.
   const limit = ((await api(page, 'GET', '/settings/security')).data as { api_rate_limit_per_minute: number }).api_rate_limit_per_minute
   await api(page, 'PATCH', '/settings/security', { api_rate_limit_per_minute: 10_000 })

@@ -36,6 +36,7 @@ final class ConsoleAreas
         'extensions' => ['building', ['system.manage_code', 'system.approve_code'], '/admin/extensions'],
         'integrations' => ['configuration', ['system.manage_integrations'], '/admin/integrations'],
         'notification_channels' => ['configuration', ['system.manage_integrations'], '/admin/notification-channels'],
+        'external_access' => ['configuration', ['system.manage_external_access'], '/admin/external'],
         'packages' => ['configuration', ['system.manage_packages'], '/admin/packages'],
         'appearance_branding' => ['configuration', ['system.manage_branding'], '/admin/settings/branding'],
         'themes' => ['configuration', ['system.manage_branding'], '/admin/themes'],

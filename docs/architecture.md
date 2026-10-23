@@ -557,6 +557,11 @@ resolves access only through the `external_forms` publication and the
 `access_tokens` scope (one record, one action, expiry, single use or N uses,
 revocable). See §19.12.
 
+As built (ADR-0058): the portal session is a key of its own (`external_user_id`)
+in the same session store rather than a second guard and cookie, which would
+clash with the single CSRF cookie; no internal guard or route sees it. Record
+links act as their sender, through the pipeline, at the moment of use.
+
 ### 7.7 Impersonation
 
 Requires `impersonate_users`; cannot target a user holding any permission the
@@ -7223,6 +7228,11 @@ At pipeline step 9 the `JustificationGate`:
   signature (signature_pad), server stamps signature + metadata into the generated
   PDF, stores `signed_file_id` + hash, audit entry.
 
+- As built (ADR-0058): `external_forms.audience`/`role_ids` limit a form to portal
+  users with external roles; `access_tokens.transition_id` is the step an approve or
+  reject link performs; signature pages are appended with mPDF/FPDI to the PDF frozen
+  when the request was sent; `external:maintain` prunes throttle windows and expires
+  requests hourly.
 ### 19.13 Developer extensions
 
 - Stored as modules on disk under `/extensions/{key}/v{n}/` (Git-friendly), with a
