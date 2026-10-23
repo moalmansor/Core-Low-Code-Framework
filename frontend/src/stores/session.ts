@@ -31,6 +31,8 @@ export interface Me {
   permissions: string[]
   two_factor: { enabled: boolean; required: boolean; pending_confirmation: boolean }
   password_expired: boolean
+  /** Set while an administrator acts as this user (ADR-0061). */
+  impersonation?: { by: string; reason: string; expires_at: string } | null
   preferences: {
     locale: string | null
     theme_mode: string

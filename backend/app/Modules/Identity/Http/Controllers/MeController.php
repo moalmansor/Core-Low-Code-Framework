@@ -7,12 +7,14 @@ namespace App\Modules\Identity\Http\Controllers;
 use App\Modules\Access\AccessResolver;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\I18n\Translator;
+use App\Modules\Identity\Impersonation\Impersonation;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Security\PasswordPolicy;
 use App\Modules\Identity\Sessions\SessionRevoker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
@@ -44,7 +46,20 @@ final class MeController extends Controller
             ],
             'password_expired' => $policy->isExpired($user),
             'preferences' => $this->presentPreferences($user),
+            'impersonation' => $this->impersonation(),
         ]]);
+    }
+
+    /** @return array{by: string, reason: string, expires_at: string}|null */
+    private function impersonation(): ?array
+    {
+        $s = app(Impersonation::class)->current(request());
+        if ($s === null) {
+            return null;
+        }
+
+        return ['by' => (string) User::query()->whereKey($s->impersonator_user_id)->value('name'), 'reason' => $s->reason,
+            'expires_at' => Carbon::parse($s->expires_at, 'UTC')->toIso8601ZuluString()];
     }
 
     /** Personal preferences: language (and so direction), time zone, calendar, theme. */

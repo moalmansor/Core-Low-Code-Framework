@@ -6,6 +6,7 @@ namespace App\Modules\Audit;
 
 use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Core\Actors\ExternalActor;
+use App\Modules\Core\Actors\ImpersonationContext;
 use App\Modules\Core\Correlation\CorrelationId;
 use App\Modules\Core\Tenancy\TenantContext;
 use Illuminate\Http\Request;
@@ -51,6 +52,7 @@ final class AuditWriter
         ?int $justificationId = null,
     ): int {
         $request = app()->bound('request') ? app(Request::class) : null;
+        $impersonation = app(ImpersonationContext::class);
         $entry = [
             'occurred_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u'),
             'organization_id' => $this->tenant->organizationId(),
@@ -61,11 +63,12 @@ final class AuditWriter
             'form_id' => $formId,
             'record_id' => $recordId,
             'changes' => $changes === null ? null : $this->mask($changes),
-            'actor_user_id' => $actorUserId ?? Auth::id(),
-            'subject_user_id' => $subjectUserId,
+            // During an impersonation the administrator is the actor and the user the subject (ADR-0061).
+            'actor_user_id' => $impersonation->active() ? $impersonation->impersonatorId : ($actorUserId ?? Auth::id()),
+            'subject_user_id' => $impersonation->active() ? ($subjectUserId ?? $impersonation->subjectId) : $subjectUserId,
             'on_behalf_of_user_id' => $onBehalfOfUserId,
             'external_user_id' => app(ExternalActor::class)->id,
-            'impersonation_session_id' => null,
+            'impersonation_session_id' => $impersonation->sessionId,
             'justification_id' => $justificationId,
             'ip_address' => $request?->ip(),
             'user_agent' => $request === null ? null : mb_substr((string) $request->userAgent(), 0, 512),

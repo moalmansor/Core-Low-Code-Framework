@@ -8,6 +8,7 @@ import { get } from '@/api/http'
 import BrandMark from '@/components/BrandMark.vue'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import AnnouncementBanners from './AnnouncementBanners.vue'
+import ImpersonationBanner from './ImpersonationBanner.vue'
 import GlobalSearchBox from './GlobalSearchBox.vue'
 import NotificationsBell from './NotificationsBell.vue'
 import NavTree, { navPath, type NavItem } from '@/runtime/NavTree.vue'
@@ -242,6 +243,7 @@ const userItems = computed(() => [
         <Button :label="session.me?.name" icon="pi pi-user" text aria-haspopup="true" data-testid="user-menu" @click="(e: Event) => userMenu?.toggle(e)" />
         <Menu ref="userMenu" :model="userItems" popup />
       </header>
+      <ImpersonationBanner />
       <AnnouncementBanners />
       <main class="app-content flex-1 min-h-0 overflow-auto p-4 lg:p-6" data-testid="app-content">
         <RouterView />

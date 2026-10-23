@@ -21,4 +21,12 @@ return [
     'denied_ip' => 'Your access policy does not allow sign-in from this network.',
     'denied_time' => 'Your access policy does not allow sign-in at this time.',
     'denied_device' => 'Your access policy allows only trusted devices. Sign in again and confirm with your second factor to trust this device.',
+    'already_impersonating' => 'Stop the current impersonation before starting another.',
+    'not_yourself' => 'You cannot impersonate yourself.',
+    'target_inactive' => 'Only active accounts can be impersonated.',
+    'target_super_admin' => 'Only a Super Admin can impersonate a Super Admin.',
+    'bad_minutes' => 'Choose between 5 and :max minutes.',
+    'impersonation_ended' => 'The impersonation has ended. You are signed in as yourself again.',
+    'impersonation_expired' => 'The impersonation reached its time limit and has ended. You are signed in as yourself again.',
+    'impersonation_blocked' => 'This is not allowed while impersonating someone.',
 ];

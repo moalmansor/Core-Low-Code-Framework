@@ -14,6 +14,7 @@ use App\Modules\Identity\Http\Middleware\EnforceSessionPolicy;
 use App\Modules\Identity\Http\Middleware\EnsureActiveUser;
 use App\Modules\Identity\Http\Middleware\EnsurePasswordNotExpired;
 use App\Modules\Identity\Http\Middleware\EnsureTwoFactorEnrolled;
+use App\Modules\Identity\Http\Middleware\GuardImpersonation;
 use App\Modules\Identity\Http\Middleware\SetTenantFromUser;
 use App\Modules\Monitoring\ErrorReporter;
 use App\Modules\Setup\Http\Middleware\SetupOpen;
@@ -53,6 +54,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->group('lcf.session', [
             EnsureActiveUser::class,
             SetTenantFromUser::class,
+            GuardImpersonation::class,
             EnforceSessionPolicy::class,
             EnforceAccessPolicy::class,
             'throttle:api',

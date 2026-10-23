@@ -24,6 +24,15 @@ onApiError((e) => {
     router.push({ name: 'profile', query: { tab: e.code === 'password_expired' ? 'password' : 'security' } })
     return
   }
+  if (e.status === 409 && e.code === 'impersonation_ended') {
+    toast.add({ severity: 'info', summary: e.message, life: 6000 })
+    void session.loadMe().then(() => router.push({ name: 'home' }))
+    return
+  }
+  if (e.status === 403 && e.code === 'impersonation_blocked') {
+    toast.add({ severity: 'warn', summary: e.message, life: 6000 })
+    return
+  }
   if (e.status === 503 && e.code === 'maintenance') {
     if (router.currentRoute.value.name !== 'maintenance') void router.push({ name: 'maintenance' })
     return

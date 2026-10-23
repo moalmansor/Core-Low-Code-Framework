@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Identity\Listeners;
 
 use App\Modules\Audit\AuditWriter;
+use App\Modules\Identity\Impersonation\Impersonation;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Policies\AccessPolicies;
 use App\Modules\Identity\Policies\TrustedDevices;
@@ -44,6 +45,9 @@ final class AuthEventSubscriber
 
     public function onLogout(Logout $event): void
     {
+        if (Session::isStarted() && Session::has(Impersonation::SESSION_KEY)) {
+            app(Impersonation::class)->ended(app(Request::class), 'logout');
+        }
         if ($event->user instanceof User) {
             $this->audit->record('auth.logout', 'auth', objectType: 'user', objectId: $event->user->id, actorUserId: $event->user->id);
         }

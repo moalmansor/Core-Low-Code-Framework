@@ -63,6 +63,8 @@ export const settingsSchema: Record<string, FieldDef[]> = {
     n('session_idle_minutes', 5, 1440),
     n('session_absolute_minutes', 15, 10080),
     n('api_rate_limit_per_minute', 30, 10000),
+    n('impersonation_max_minutes', 5, 480),
+    { key: 'impersonation_blocked_actions', type: 'multiselect', options: ['delete_records', 'export_data', 'run_actions', 'change_access'] },
   ],
   ldap: [
     b('enabled'),

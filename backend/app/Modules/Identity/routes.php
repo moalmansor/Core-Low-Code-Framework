@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Identity\Http\Controllers\AccessPolicyController;
+use App\Modules\Identity\Http\Controllers\ImpersonationController;
 use App\Modules\Identity\Http\Controllers\MeController;
 use App\Modules\Identity\Http\Controllers\SsoController;
 use App\Modules\Identity\Http\Controllers\UserController;
@@ -21,6 +22,9 @@ Route::middleware(['auth:sanctum', 'lcf.session'])->prefix('me')->group(function
     Route::get('/devices', [AccessPolicyController::class, 'devices']);
     Route::delete('/devices/{device}', [AccessPolicyController::class, 'revokeDevice'])->whereNumber('device');
 });
+
+// Ending an impersonation works whatever gates the impersonated account would meet (ADR-0061).
+Route::middleware(['auth:sanctum', 'lcf.session'])->post('/impersonation/stop', [ImpersonationController::class, 'stop']);
 
 // Access policies per role (specification §4.36, ADR-0060).
 Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
@@ -43,4 +47,5 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->prefix('users')->group(functi
     Route::post('/{user}/password-link', [UserController::class, 'sendPasswordLink']);
     Route::get('/{user}/sessions', [UserController::class, 'sessions']);
     Route::delete('/{user}/sessions', [UserController::class, 'revokeSessions']);
+    Route::post('/{user}/impersonate', [ImpersonationController::class, 'start'])->middleware('throttle:10,1');
 });

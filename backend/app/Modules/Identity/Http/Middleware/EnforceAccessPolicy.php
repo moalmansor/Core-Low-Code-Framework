@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Identity\Http\Middleware;
 
 use App\Modules\Audit\AuditWriter;
+use App\Modules\Core\Actors\ImpersonationContext;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Policies\AccessPolicies;
 use Closure;
@@ -28,7 +29,10 @@ final class EnforceAccessPolicy
         if (! $user instanceof User) {
             return $next($request);
         }
-        $why = $this->policies->denial($user, $request);
+        // During an impersonation, the policies of the administrator really working apply.
+        $context = app(ImpersonationContext::class);
+        $person = $context->active() ? (User::query()->find($context->impersonatorId) ?? $user) : $user;
+        $why = $this->policies->denial($person, $request);
         if ($why === null) {
             return $next($request);
         }

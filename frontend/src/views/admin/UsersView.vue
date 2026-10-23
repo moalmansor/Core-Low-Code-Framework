@@ -10,12 +10,16 @@ import Menu from 'primevue/menu'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
+import Textarea from 'primevue/textarea'
+import InputNumber from 'primevue/inputnumber'
 import TreeSelect from 'primevue/treeselect'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { ApiError, get, send } from '@/api/http'
+import { useSession } from '@/stores/session'
 import { withStepUp } from '@/api/stepup'
 import StepUpDialog from '@/components/StepUpDialog.vue'
 import { departmentNodes, type DepartmentNode } from '@/views/admin/departments'
@@ -46,6 +50,8 @@ interface CreatedUser {
 const { t } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
+const session = useSession()
+const router = useRouter()
 const stepUp = ref<InstanceType<typeof StepUpDialog> | null>(null)
 
 const rows = ref<UserRow[]>([])
@@ -137,6 +143,30 @@ async function act(fn: () => Promise<unknown>, message: string): Promise<void> {
   }
 }
 
+// Acting as this person (specification §4.36, ADR-0061).
+const canImpersonate = session.can('system.impersonate_users')
+const impersonating = ref<{ user: { uuid: string; name: string }; reason: string; minutes: number } | null>(null)
+const impersonateErrors = ref<Record<string, string>>({})
+function openImpersonate(u: { uuid: string; name: string }): void {
+  impersonateErrors.value = {}
+  impersonating.value = { user: u, reason: '', minutes: 30 }
+}
+async function startImpersonation(): Promise<void> {
+  const i = impersonating.value!
+  impersonateErrors.value = {}
+  try {
+    await send('post', `/users/${i.user.uuid}/impersonate`, { reason: i.reason.trim(), minutes: i.minutes })
+    impersonating.value = null
+    await session.loadMe()
+    await router.push({ name: 'home' })
+  } catch (err) {
+    if (err instanceof ApiError) {
+      impersonateErrors.value = err.fieldErrors
+      if (!Object.keys(err.fieldErrors).length) impersonateErrors.value = { reason: err.message }
+    }
+  }
+}
+
 const menuItems = computed(() => {
   const u = actionsFor.value
   if (!u) return []
@@ -160,6 +190,7 @@ const menuItems = computed(() => {
     },
     { label: t('users.reset_2fa'), icon: 'pi pi-shield', visible: u.two_factor_enabled, command: () => act(() => send('post', `/users/${u.uuid}/reset-2fa`), t('users.two_factor_reset')) },
     { label: t('users.revoke_sessions'), icon: 'pi pi-sign-out', command: () => act(() => send('delete', `/users/${u.uuid}/sessions`), t('users.sessions_revoked')) },
+    { label: t('imp.impersonate'), icon: 'pi pi-user-edit', visible: canImpersonate && u.status === 'active' && u.uuid !== session.me?.uuid, command: () => openImpersonate(u) },
     { separator: true },
     {
       label: t('common.delete'),
@@ -223,6 +254,32 @@ const statusSeverity = (s: string) => ({ active: 'success', suspended: 'warn', d
     </Column>
   </DataTable>
   <Menu ref="actionsMenu" :model="menuItems" popup />
+
+  <Dialog
+    :visible="!!impersonating"
+    modal
+    :header="impersonating ? t('imp.title', { name: impersonating.user.name }) : ''"
+    class="w-[32rem] max-w-[95vw]"
+    @update:visible="(v: boolean) => !v && (impersonating = null)"
+  >
+    <form v-if="impersonating" class="flex flex-col gap-3" data-testid="impersonate-form" @submit.prevent="startImpersonation">
+      <p class="m-0 text-sm text-muted-color">{{ t('imp.intro') }}</p>
+      <div class="field">
+        <label for="imp-reason">{{ t('imp.reason') }}</label>
+        <Textarea id="imp-reason" v-model="impersonating.reason" rows="3" auto-resize :invalid="!!impersonateErrors.reason" data-testid="impersonate-reason" />
+        <small v-if="impersonateErrors.reason" class="field-error">{{ impersonateErrors.reason }}</small>
+      </div>
+      <div class="field">
+        <label for="imp-minutes">{{ t('imp.minutes') }}</label>
+        <InputNumber v-model="impersonating.minutes" input-id="imp-minutes" :min="5" :max="480" :use-grouping="false" class="w-32" />
+        <small v-if="impersonateErrors.minutes" class="field-error">{{ impersonateErrors.minutes }}</small>
+      </div>
+      <div class="flex justify-end gap-2">
+        <Button type="button" severity="secondary" :label="t('common.cancel')" @click="impersonating = null" />
+        <Button type="submit" icon="pi pi-user-edit" :label="t('imp.start')" :disabled="impersonating.reason.trim().length < 10" data-testid="impersonate-start" />
+      </div>
+    </form>
+  </Dialog>
 
   <Dialog :visible="!!editing" modal :header="editing?.uuid ? t('users.edit') : t('users.new')" :style="{ width: '40rem' }" @update:visible="(v: boolean) => !v && (editing = null)">
     <form v-if="editing" class="form-grid" @submit.prevent="save">

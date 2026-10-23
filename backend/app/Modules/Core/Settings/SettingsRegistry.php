@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Core\Settings;
 
+use App\Modules\Identity\Impersonation\Impersonation;
 use App\Modules\Records\FileStore;
 use App\Support\Color\ReadableBrandColour;
 use Illuminate\Validation\Rule;
@@ -165,6 +166,9 @@ final class SettingsRegistry
         $d('security', 'session_idle_minutes', 30, ['required', 'integer', 'between:5,1440']);
         $d('security', 'session_absolute_minutes', 720, ['required', 'integer', 'between:15,10080']);
         $d('security', 'api_rate_limit_per_minute', 240, ['required', 'integer', 'between:30,10000']);
+        // Impersonation (§4.36, ADR-0061): the longest one, and what is refused during it.
+        $d('security', 'impersonation_max_minutes', 60, ['required', 'integer', 'between:5,480']);
+        $d('security', 'impersonation_blocked_actions', ['delete_records', 'export_data', 'run_actions', 'change_access'], ['present', 'array', '*' => ['distinct', Rule::in(array_keys(Impersonation::BLOCKABLE))]]);
 
         // Single sign-on (§5): OIDC providers; secrets are stored per provider key.
         $d('sso', 'providers', [], ['present', 'array', 'max:10',
