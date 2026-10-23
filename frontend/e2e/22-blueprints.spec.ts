@@ -116,7 +116,10 @@ test('an application is copied with its forms published, and a workflow blueprin
   await page.getByRole('option', { name: "A form's workflow" }).click()
   await page.locator('#bpn-source').fill(`bp_${id}_orders`)
   // The copy has the same name; the source sorts first by key.
-  await page.getByRole('option', { name: `Orders ${id}` }).first().click()
+  await page
+    .getByRole('option', { name: `Orders ${id}` })
+    .first()
+    .click()
   await page.getByTestId('bpn-name-en').fill(`Open and closed ${id}`)
   await page.getByTestId('bp-create').click()
   await expect(page.getByRole('heading', { name: `Open and closed ${id}` })).toBeVisible()

@@ -14,7 +14,7 @@ beforeEach(function () {
 });
 
 /** A published form with an "amount" field (and, unless told otherwise, a "notes" field). */
-function partForm($t, string $key, bool $notes = true): array
+function pbPartForm($t, string $key, bool $notes = true): array
 {
     [, $form] = createForm($t, $key);
     $amount = fieldDoc('amount', 'number');
@@ -24,7 +24,7 @@ function partForm($t, string $key, bool $notes = true): array
     return [$form, $amount];
 }
 
-function ruleDoc(string $key, ?string $field = null): array
+function pbRuleDoc(string $key, ?string $field = null): array
 {
     return [
         'uuid' => uid(), 'key' => $key, 'name' => ['en' => ucfirst($key)], 'trigger' => $field === null ? 'record_created' : 'field_changed',
@@ -34,20 +34,20 @@ function ruleDoc(string $key, ?string $field = null): array
     ];
 }
 
-function putRules($t, string $form, array $rules): void
+function pbPutRules($t, string $form, array $rules): void
 {
     $hash = $t->getJson("/api/v1/forms/{$form}/notification-rules")->assertOk()->json('data.hash');
     $t->putJson("/api/v1/forms/{$form}/notification-rules", ['base_hash' => $hash, 'rules' => $rules])->assertOk();
 }
 
 it('applies a workflow blueprint to a form without one, refuses a form that has one, and propagates a new status', function () {
-    [$source] = partForm($this, 'purchases');
+    [$source] = pbPartForm($this, 'purchases');
     $new = statusDoc('new', true);
     $done = statusDoc('done', false, true);
     saveWorkflow($this, $source, [$new, $done], [transitionDoc('finish', $new, $done)])->assertOk();
     $bp = $this->postJson('/api/v1/blueprints', ['source_type' => 'workflow', 'source' => $source, 'name' => ['en' => 'Two-step']])->assertCreated()->json('data.uuid');
 
-    [$target] = partForm($this, 'expenses');
+    [$target] = pbPartForm($this, 'expenses');
     $made = $this->postJson("/api/v1/blueprints/{$bp}/instantiate", ['form' => $target])->assertCreated()->json('data');
     expect($made['uuid'])->toBe($target);
     $statuses = $this->getJson("/api/v1/forms/{$target}/workflow")->json('data.document.statuses');
@@ -75,12 +75,12 @@ it('applies a workflow blueprint to a form without one, refuses a form that has 
 });
 
 it('adds notification rules from a blueprint, matches fields by key, reports missing ones and refuses taken keys', function () {
-    [$source, $amount] = partForm($this, 'invoices');
+    [$source, $amount] = pbPartForm($this, 'invoices');
     $notes = collect($this->getJson("/api/v1/forms/{$source}/draft")->json('data.document.fields'))->firstWhere('key', 'notes');
-    putRules($this, $source, [ruleDoc('created'), ruleDoc('amount_changed', $amount['uuid']), ruleDoc('notes_changed', $notes['uuid'])]);
+    pbPutRules($this, $source, [pbRuleDoc('created'), pbRuleDoc('amount_changed', $amount['uuid']), pbRuleDoc('notes_changed', $notes['uuid'])]);
     $bp = $this->postJson('/api/v1/blueprints', ['source_type' => 'notification', 'source' => $source, 'name' => ['en' => 'Invoice alerts']])->assertCreated()->json('data.uuid');
 
-    [$target, $targetAmount] = partForm($this, 'bills', false);
+    [$target, $targetAmount] = pbPartForm($this, 'bills', false);
     $made = $this->postJson("/api/v1/blueprints/{$bp}/instantiate", ['form' => $target])->assertCreated()->json('data');
     expect($made['notes'])->toHaveCount(1);
     expect($made['notes'][0])->toContain('notes');
@@ -100,7 +100,7 @@ it('adds notification rules from a blueprint, matches fields by key, reports mis
     $this->postJson("/api/v1/blueprints/{$other}/instantiate", ['form' => $target])->assertUnprocessable()->assertJsonValidationErrors('form');
     expect(DB::table('blueprint_instances')->where('object_type', 'notification')->count())->toBe(1);
     // An empty form cannot be captured.
-    [$empty] = partForm($this, 'empty_rules');
+    [$empty] = pbPartForm($this, 'empty_rules');
     $this->postJson('/api/v1/blueprints', ['source_type' => 'notification', 'source' => $empty, 'name' => ['en' => 'Nothing']])->assertUnprocessable()->assertJsonValidationErrors('source');
 });
 

@@ -18,6 +18,7 @@ const SETTINGS_ELSEWHERE = [
     'branding' => 'Appearance & Branding screen',
     'sso' => 'the SSO providers editor of System Settings',
     'maintenance' => 'the system maintenance dialog of Applications, with its translatable message',
+    'external' => 'portal registration settings of External access (ADR-0058)',
 ];
 
 it('has a System Settings field for every setting', function () {

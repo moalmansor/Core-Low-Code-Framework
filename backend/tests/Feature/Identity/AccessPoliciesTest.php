@@ -11,7 +11,7 @@ use Tests\TestCase;
 
 beforeEach(fn () => $this->completeSetup());
 
-function policyDoc(string $key, array $roles, array $extra = []): array
+function apPolicyDoc(string $key, array $roles, array $extra = []): array
 {
     return array_replace([
         'key' => $key, 'i18n' => ['name' => ['en' => ucfirst($key), 'ar' => $key]], 'ip_allowlist' => [], 'time_windows' => [],
@@ -20,13 +20,13 @@ function policyDoc(string $key, array $roles, array $extra = []): array
     ], $extra);
 }
 
-function roleUuid(string $key): string
+function apRoleUuid(string $key): string
 {
     return strtolower((string) DB::table('roles')->where('key', $key)->value('uuid'));
 }
 
 /** Creates a policy directly, leaving no one signed in. */
-function makePolicy($t, $admin, array $doc): array
+function apMakePolicy($t, $admin, array $doc): array
 {
     $policies = app(AccessPolicies::class);
 
@@ -35,19 +35,19 @@ function makePolicy($t, $admin, array $doc): array
 
 it('manages policies with validation, optimistic concurrency, and refuses one that would shut out the administrator saving it', function () {
     $this->actingAs($this->superAdmin(), 'web');
-    $this->postJson('/api/v1/access-policies', ['policy' => policyDoc('Bad Key', [], ['ip_allowlist' => ['10.0.0.0/33', 'nope'], 'session_idle_minutes' => 1,
+    $this->postJson('/api/v1/access-policies', ['policy' => apPolicyDoc('Bad Key', [], ['ip_allowlist' => ['10.0.0.0/33', 'nope'], 'session_idle_minutes' => 1,
         'time_windows' => [['days' => [8], 'from' => '18:00', 'to' => '18:00', 'timezone' => 'Mars/Base']]])])
         ->assertUnprocessable()->assertJsonValidationErrors(['key', 'ip_allowlist.0', 'ip_allowlist.1', 'session_idle_minutes', 'time_windows.0.days', 'time_windows.0.from', 'time_windows.0.timezone']);
 
     // Requests in tests come from 127.0.0.1: a policy on the administrator's own role that excludes it is refused.
-    $this->postJson('/api/v1/access-policies', ['policy' => policyDoc('office', [roleUuid('super_admin')], ['ip_allowlist' => ['10.0.0.0/8']])])
+    $this->postJson('/api/v1/access-policies', ['policy' => apPolicyDoc('office', [apRoleUuid('super_admin')], ['ip_allowlist' => ['10.0.0.0/8']])])
         ->assertUnprocessable()->assertJsonValidationErrors('policy');
     expect(DB::table('access_policies')->count())->toBe(0);
 
-    $made = $this->postJson('/api/v1/access-policies', ['policy' => policyDoc('office', [roleUuid('user')], ['ip_allowlist' => ['10.0.0.0/8', '2001:db8::/32']])])->assertCreated()->json('data');
-    expect($made['roles'])->toBe([roleUuid('user')]);
+    $made = $this->postJson('/api/v1/access-policies', ['policy' => apPolicyDoc('office', [apRoleUuid('user')], ['ip_allowlist' => ['10.0.0.0/8', '2001:db8::/32']])])->assertCreated()->json('data');
+    expect($made['roles'])->toBe([apRoleUuid('user')]);
     expect(DB::table('roles')->where('key', 'user')->value('access_policy_id'))->not->toBeNull();
-    $doc = policyDoc('office', [], ['ip_allowlist' => ['10.0.0.0/8']]);
+    $doc = apPolicyDoc('office', [], ['ip_allowlist' => ['10.0.0.0/8']]);
     $this->putJson("/api/v1/access-policies/{$made['uuid']}", ['policy' => $doc, 'base_hash' => str_repeat('0', 64)])->assertStatus(409);
     $this->putJson("/api/v1/access-policies/{$made['uuid']}", ['policy' => $doc, 'base_hash' => $made['hash']])->assertOk()->assertJsonPath('data.roles', []);
     expect(DB::table('roles')->where('key', 'user')->value('access_policy_id'))->toBeNull();
@@ -60,7 +60,7 @@ it('manages policies with validation, optimistic concurrency, and refuses one th
 });
 
 it('allows sign-in only from the allowed networks and ends a session that moves outside them', function () {
-    makePolicy($this, $this->superAdmin(), policyDoc('office', [roleUuid('user')], ['ip_allowlist' => ['10.0.0.0/8']]));
+    apMakePolicy($this, $this->superAdmin(), apPolicyDoc('office', [apRoleUuid('user')], ['ip_allowlist' => ['10.0.0.0/8']]));
     $user = $this->makeUser();
     $this->postJson('/api/v1/auth/login', ['email' => $user->email, 'password' => TestCase::PASSWORD])
         ->assertUnprocessable()->assertJsonPath('errors.email.0', __('identity.denied_ip'));
@@ -83,7 +83,7 @@ it('allows work only within the time windows, including windows past midnight', 
     expect(AccessPolicies::within($night, Carbon::parse('2026-10-23 03:00:00', 'UTC')))->toBeFalse(); // Friday early belongs to Thursday
 
     Carbon::setTestNow(Carbon::parse('2026-10-24 07:00:00', 'UTC'));
-    makePolicy($this, $this->superAdmin(), policyDoc('weekdays', [roleUuid('user')], ['time_windows' => $windows]));
+    apMakePolicy($this, $this->superAdmin(), apPolicyDoc('weekdays', [apRoleUuid('user')], ['time_windows' => $windows]));
     $user = $this->makeUser();
     $this->postJson('/api/v1/auth/login', ['email' => $user->email, 'password' => TestCase::PASSWORD])
         ->assertUnprocessable()->assertJsonPath('errors.email.0', __('identity.denied_time'));
@@ -96,7 +96,7 @@ it('tightens session lifetimes, limits concurrent sessions and requires a second
     app(SettingsService::class)->write('security', 'session_idle_minutes', 30);
     // Made before the policy, so no second factor is set up for them yet.
     $user = $this->makeUser(twoFactor: false);
-    makePolicy($this, $this->superAdmin(), policyDoc('strict', [roleUuid('user')], ['max_concurrent_sessions' => 2, 'session_idle_minutes' => 10, 'session_absolute_minutes' => 60, 'require_2fa' => true]));
+    apMakePolicy($this, $this->superAdmin(), apPolicyDoc('strict', [apRoleUuid('user')], ['max_concurrent_sessions' => 2, 'session_idle_minutes' => 10, 'session_absolute_minutes' => 60, 'require_2fa' => true]));
     foreach (['a', 'b', 'c'] as $i => $c) {
         DB::table('sessions')->insert([
             'id' => str_repeat($c, 40), 'user_id' => $user->id, 'guard' => 'web', 'ip_address' => '10.0.0.9', 'user_agent' => 'Other',
@@ -119,7 +119,7 @@ it('tightens session lifetimes, limits concurrent sessions and requires a second
 
 it('trusts a device once a second factor is verified on it, and only that device', function () {
     $admin = $this->superAdmin();
-    makePolicy($this, $admin, policyDoc('admins', [], ['is_admin_policy' => true, 'require_trusted_device' => true]));
+    apMakePolicy($this, $admin, apPolicyDoc('admins', [], ['is_admin_policy' => true, 'require_trusted_device' => true]));
 
     $this->postJson('/api/v1/auth/login', ['email' => $admin->email, 'password' => TestCase::PASSWORD])->assertOk()->assertJsonPath('two_factor', true);
     $challenge = $this->postJson('/api/v1/auth/two-factor-challenge', ['code' => $this->totp()])->assertNoContent();

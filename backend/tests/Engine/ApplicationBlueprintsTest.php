@@ -15,7 +15,7 @@ beforeEach(function () {
 });
 
 /** An application with customers and orders linking to them; orders have a workflow and a notification rule. */
-function salesApplication($t): array
+function abSalesApplication($t): array
 {
     $app = $t->postJson('/api/v1/applications', ['key' => 'sales', 'name' => ['en' => 'Sales', 'ar' => 'المبيعات']])->assertCreated()->json('data.uuid');
     $customers = $t->postJson('/api/v1/forms', ['kind' => 'form', 'key' => 'customers', 'application' => $app, 'name' => ['en' => 'Customers']])->assertCreated()->json('data.uuid');
@@ -44,7 +44,7 @@ function salesApplication($t): array
 }
 
 it('clones a whole application: forms published in link order, links pointing at the new forms, workflow, rules and permissions', function () {
-    $s = salesApplication($this);
+    $s = abSalesApplication($this);
     $this->postJson("/api/v1/applications/{$s['app']}/clone", ['key' => 'sales', 'name' => ['en' => 'Copy'], 'include_mode' => 'everything'])->assertUnprocessable()->assertJsonValidationErrors('key');
     $copy = $this->postJson("/api/v1/applications/{$s['app']}/clone", ['key' => 'sales_west', 'name' => ['en' => 'Sales west'], 'include_mode' => 'everything'])
         ->assertCreated()->json('data');
@@ -68,7 +68,7 @@ it('clones a whole application: forms published in link order, links pointing at
 });
 
 it('makes applications from an application blueprint and propagates a newer version into their drafts, keeping local changes', function () {
-    $s = salesApplication($this);
+    $s = abSalesApplication($this);
     $bp = $this->postJson('/api/v1/blueprints', ['source_type' => 'application', 'source' => $s['app'], 'include_mode' => 'structure', 'name' => ['en' => 'Sales starter'], 'category' => 'sales', 'is_library' => true])
         ->assertCreated()->json('data.uuid');
     $made = $this->postJson("/api/v1/blueprints/{$bp}/instantiate", ['key' => 'sales_north', 'name' => ['en' => 'Sales north']])->assertCreated()->json('data');

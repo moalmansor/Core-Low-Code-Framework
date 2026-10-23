@@ -12,7 +12,7 @@ require_once __DIR__.'/../../Engine/helpers.php';
 beforeEach(fn () => $this->completeSetup());
 
 /** Signs a Super Admin in for real (password and second factor), so the session can change hands. */
-function signInAdmin($t, $admin): void
+function impSignInAdmin($t, $admin): void
 {
     $t->postJson('/api/v1/auth/login', ['email' => $admin->email, 'password' => TestCase::PASSWORD])->assertOk();
     $t->postJson('/api/v1/auth/two-factor-challenge', ['code' => (new Google2FA)->getCurrentOtp(TestCase::TOTP_SECRET)])->assertNoContent();
@@ -21,7 +21,7 @@ function signInAdmin($t, $admin): void
 it('lets an administrator act as a user for a reason and a time, recorded as themselves, and stop', function () {
     $admin = $this->superAdmin();
     $user = $this->makeUser();
-    signInAdmin($this, $admin);
+    impSignInAdmin($this, $admin);
 
     $this->postJson("/api/v1/users/{$user->uuid}/impersonate", ['reason' => 'short', 'minutes' => 30])->assertUnprocessable()->assertJsonValidationErrors('reason');
     $this->postJson("/api/v1/users/{$user->uuid}/impersonate", ['reason' => 'Reproduce the missing button', 'minutes' => 600])->assertUnprocessable()->assertJsonValidationErrors('minutes');
@@ -72,7 +72,7 @@ it('ends at its time limit and refuses the actions the security settings block',
     app(SettingsService::class)->write('security', 'impersonation_blocked_actions', ['change_access']);
     $admin = $this->superAdmin();
     $user = $this->makeUser();
-    signInAdmin($this, $admin);
+    impSignInAdmin($this, $admin);
     $this->postJson("/api/v1/users/{$user->uuid}/impersonate", ['reason' => 'Reproduce the missing button', 'minutes' => 10])->assertCreated();
     $this->getJson('/api/v1/roles')->assertForbidden(); // the user's own lack of permission
     $this->postJson('/api/v1/roles', [])->assertForbidden()->assertJsonPath('action', 'change_access');
