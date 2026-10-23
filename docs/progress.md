@@ -642,7 +642,7 @@ Done:
    - the library asks what to save; a blueprint page creates or applies by kind and lists what was made from it;
    - tests: `ApplicationBlueprintsTest` (2), `PartBlueprintsTest` (3), e2e `22-blueprints`.
 
-11. **Self-service, impersonation, access policies and feature flags** (done so far):
+11. **Self-service, impersonation, access policies, feature flags, help, tours and usage insight:**
    - access policies per role (ADR-0060):
      - allowed networks, time windows, concurrent sessions, idle and lifetime limits, second factor and trusted devices, and an administrative policy;
      - enforced at sign-in and on every request; saving one that would shut out the administrator is refused;
@@ -658,11 +658,29 @@ Done:
      - preferences within what System Settings › Self-service allows;
      - time zone, calendar, digits, date pattern, number separators and density applied to every date and number;
      - a start page, pinned records, personal shortcuts, and daily or weekly digests;
-     - tests: `SelfServiceTest` (3).
+     - tests: `SelfServiceTest` (3);
+   - help content, knowledge pages and changelogs (ADR-0064):
+     - help for forms, fields, groups, pages, applications and admin areas;
+     - shown as tooltips, in the Help side panel, or as help pages, only to people who may open what it is about;
+     - knowledge and changelog page types, with "Tell users" for changelogs;
+     - fixes the HTML sanitizer failing on links inside the application;
+     - tests: `HelpContentTest` (3);
+   - guided tours (ADR-0065):
+     - on forms or places, for chosen roles;
+     - steps point at fields, groups or named parts of the screen;
+     - first-use tours start once per version and are offered again in the Help panel;
+     - "Show again" for administrators and "Show tips again" for people;
+     - tests: `ToursTest` (2);
+   - usage insight (ADR-0066):
+     - views, starts, submissions, abandons and empty fields per form, page views and searches, counted per day;
+     - named, anonymous or off, with a retention, in System Settings › Adoption;
+     - the Usage insight screen;
+     - tests: `UsageInsightTest` (2);
+   - e2e `23-adoption`, which passed locally on MySQL; the new screens are in the screen sweep.
 
-Next, in order:
-11. The rest of item 11: help content (tooltips, side panels, help pages) with a knowledge page and changelog per application; guided tours and first-use hints; usage insight. Then an e2e spec for the item 11 screens and the screen sweep entries.
-12. Specification and architecture updates, the full test run on both engines, and the pull request.
+12. **Documentation and delivery:** the specification (§4.36, §4.37 "As built") and architecture (§19.22, §19.23) are updated. Remaining:
+   - the full CI run on both engines on the head commit;
+   - the pull request phase-5-platform → main with "Closes #8" and the §8.2 report.
 
 ## Resume point
 

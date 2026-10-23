@@ -7398,6 +7398,12 @@ settings in `match_keys` (`fields`, `updated_from`); View Mode panels gain the t
 - Feature flags evaluated by `Features::enabled(key, user)` (Laravel Pennant-style
   resolver backed by `feature_flags`), used by menus, forms (publish to pilot
   group), actions, pages.
+- As built (ADR-0060 to ADR-0063):
+  - Flags are evaluated by `FeatureFlags` and enforced by `EnforceFeatureFlags`: 404 for a hidden form, action or page, 403 `feature_off` for a capability.
+  - Policies are enforced by `AccessPolicies` and `EnforceAccessPolicy`.
+  - Impersonation is handled by `Impersonation` and `GuardImpersonation`; the audit writes the impersonator as actor.
+  - Self-service limits come from `settings.self_service.editable_preferences`.
+  - Personal API tokens are released or held back by the `personal_api_tokens` capability flag (ADR-0062), not by a separate setting.
 
 ### 19.23 Help, tours, adoption
 
@@ -7407,6 +7413,23 @@ and changelog pages are `pages` of type `knowledge`/`changelog` with "publish to
 users" creating an announcement. Usage insight: the renderer emits batched
 beacon events (view, start, submit, abandon, empty fields on submit) to
 `/api/usage` → aggregated daily in `usage_metrics`; admin report per form.
+
+As built (ADR-0064 to ADR-0066):
+- `HelpContents` resolves help by target. Admin areas are keyed by `crc32('admin_area:'+key)`.
+  `GET /help?type=&target=` returns `{tooltips, panel}` only for what the person may open, and
+  `GET /help/{uuid}` serves help pages under the same check.
+- `Pages::announce` publishes a bell announcement for a `changelog` page.
+- `Tours`:
+  - step targets are restricted to `[data-field|data-group|data-tour="…"]`;
+  - `GET /tours/mine?form=|place=` returns the tours of a place with `due` for unseen first-use versions;
+  - `POST /tours/{uuid}/progress` records that a person completed or dismissed a tour;
+  - `POST /tours/{uuid}/reset` clears progress, for everyone or for some roles;
+  - `DELETE /me/tours` clears the person's own progress.
+- `UsageRecorder` (Adoption module):
+  - `POST /usage` accepts only `form_view`, `form_start` and `form_abandon`, for forms the person may view;
+  - submissions, empty fields, page views and searches are counted by the server;
+  - counting is set in `settings.adoption`, and `usage:prune` runs nightly;
+  - the report is `GET /usage/forms` and `GET /usage/forms/{uuid}`.
 
 ### 19.24 Localization runtime
 

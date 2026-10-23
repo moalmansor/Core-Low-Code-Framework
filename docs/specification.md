@@ -1155,12 +1155,34 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Impersonation:** an admin with the permission can act as another user to reproduce a problem. A persistent banner shows it, the session is time-limited, sensitive actions can be blocked during it, and every action is recorded as performed by the admin impersonating the user.
 - **Access policies per role:** IP allowlists, permitted time windows, maximum concurrent sessions, session lifetime, device trust, and a stricter policy for administrative roles.
 - **Feature flags** per application or role, so admins can release a new form or capability to a pilot group before everyone.
+- **As built (ADR-0060 to ADR-0063):**
+  - **Profile limits:** System Settings › Self-service lists the preferences people may change; the server refuses the rest. Time zone, calendar, digits, date pattern, number separators and density apply to every date and number shown. The start page is chosen from what the person can open. Daily or weekly digests of unread notifications are e-mailed at 07:00 in the person's time zone.
+  - **Pinned records and shortcuts** are kept per person and checked again on every request; a record that can no longer be seen drops out.
+  - **Access policies** belong to roles; a policy marked administrative also governs every administrative role. The strictest combination applies: every address list and time window must match, the smallest session limits win, and 2FA is required when any policy asks. They are enforced at sign-in and on every request. When there are too many sessions, the oldest other sessions end. A device is trusted for 90 days after a second factor on it. A policy that would lock out the administrator saving it is refused.
+  - **Impersonation** needs "Impersonate users", a reason and a duration (at most `security.impersonation_max_minutes`). It never targets someone holding a permission the administrator lacks, or a Super Admin unless the administrator is one. The person's account security is out of reach, and deleting, exporting, running actions and changing access are blocked by default. Every audit entry names the administrator as actor and the person as subject.
+  - **Feature flags** put a form, action, page or capability (global search, insights, personal tokens, import, export, sharing) behind an audience of roles, departments and people, or switch it off for everyone. A hidden target answers 404, a capability 403, and both are left out of navigation, action lists and search. Flags only narrow what access already allows.
 
 ### 4.37 Help, Guidance & Adoption
 - Admins author **help content** per form, per field, and per page, translatable, shown as tooltips, side panels, or a help page.
 - **Guided tours** and first-use hints per form or role, with a reset option.
 - An internal **knowledge page** per application, plus a changelog that admins publish to users when forms change.
 - Usage insight for admins: which forms are used, by whom, how often, where users abandon a form, and which fields are left empty, so the builder can be improved on evidence.
+- **As built (ADR-0064 to ADR-0066):**
+  - **Help content** ("Manage help content") is written for a form, one of its published fields or groups, a page, an application or an admin area.
+    - Tooltips are plain text beside a field or group label.
+    - Side-panel help shows in a Help panel opened from the top bar; the button appears only where there is help or a tour.
+    - Help pages open at `/help/{uuid}`.
+    - Help is served only to people who may open what it is about.
+  - **Knowledge and changelog pages** are page types with written content. A published changelog has "Tell users", which needs "Manage pages and menus" and "Publish announcements" and puts an announcement linking to it in the notifications of everyone with access to the application.
+  - **Guided tours** run on a form's record screens or in a place: home, My Work, Insights, the profile, or an admin area. They can be limited to roles.
+    - A step points at a field or group of the form, a named part of the screen, or nothing. Steps never take free selectors.
+    - First-use tours start once per version; changing the steps makes a new version.
+    - Administrators can show a tour again to everyone or to roles; people can choose "Show tips again" in their preferences.
+    - Every tour of the place is offered in the Help panel.
+  - **Usage insight** ("Manage forms", Admin Console › Usage insight) counts per day:
+    - views, starts and abandons, reported by the screens and accepted only for forms the person may open;
+    - submissions and fields left empty, counted by the server, as are page views and searches.
+    - System Settings › Adoption chooses named, anonymous or no counting, and how many days counts are kept (395 by default).
 
 ## 5. Security Requirements
 - **Standards:** full OWASP Top 10 compliance.
