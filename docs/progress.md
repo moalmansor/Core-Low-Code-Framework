@@ -698,6 +698,8 @@ The owner found eight System Settings tabs answering 404 and the Self-service ta
   4. A blocked action while impersonating: `ImpersonationTest`, extended. Blocked attempts were not audited; they are now audited as `impersonation.blocked`, with the administrator as actor.
   5. Locking out the last administrator: `AccessPoliciesTest`, new test. A policy officer who is not a Super Admin could lock out every Super Admin; this is now refused.
 
+- **Citation check (ADR-0068).** Pushes had cancelled every CI run before it reached `SettingsAndLocalizationTest`, while the report cited an older run. The new "Verification report" workflow fails unless the report cites, exactly once, a `ci.yml` run on the head commit that finished with every job passing. It runs on every push and description edit, and its rules are unit-tested. Cancellation stays on for pull requests and phase branches, and is now off for `main`. Making the check required on `main` is a branch-protection setting for the owner.
+
 ## Resume point
 
 Phase 4 is complete and merged (pull request

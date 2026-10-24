@@ -1313,6 +1313,7 @@ Before declaring a phase complete:
    - run all tests (Pest, Vitest, Playwright) on **both MySQL and SQL Server**;
    - report the results.
    - Any failure must be fixed before reporting.
+   - The report cites the CI run on the pull request's head commit, written as ``CI run [ID](link) on the head commit `SHA` ``. A required check ("Verification report") passes only when that run finished on the head commit with every job passing; a run on an earlier commit, a run still going, or a cancelled, skipped or failed job fails it. A push makes the citation stale until CI finishes on the new head and the report cites that run (ADR-0068).
 3. **Security check.** Verify for this phase's features:
    - authorization;
    - input validation;
