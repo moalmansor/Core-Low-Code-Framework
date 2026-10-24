@@ -531,6 +531,15 @@ the build, not by memory:
   fails when the page is not in the language's direction, when anything
   makes the page or its content area scroll sideways, or when a screen has
   no heading. A new screen is added to its list.
+- `frontend/e2e/24-routes.spec.ts` (end-to-end, both engines in CI) reads
+  every route the client registers under `/admin` from the running router,
+  opens each as the Super Admin and clicks every tab on it. It fails when an
+  API call the screen makes is refused or cannot be served (403, 404, 405 or
+  5xx, or 422 to a GET), when the page throws, or when it has no heading. A
+  new route is covered without being listed. `backend/tests/Unit/
+  SettingsScreenTest.php` checks the same wiring from the source on every run:
+  each System Settings tab is a group the API serves, each served group has a
+  tab, and each Admin Console area has a client route (ADR-0067).
 - The pull request template carries this checklist; the verification report
   states, per new screen, that both tests cover it.
 

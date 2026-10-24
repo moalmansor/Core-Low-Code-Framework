@@ -1,3 +1,4 @@
+import { formatDatetime } from '@/runtime/format'
 import { ApiError, get } from '@/api/http'
 
 /** First validation message of an API error, else its message. */
@@ -36,10 +37,11 @@ export function parseIsoDay(s: string | null | undefined): Date | null {
   return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null
 }
 
+/** A moment in the person's time zone, calendar and digits (ADR-0063). */
 export function formatDateTime(iso: string | null | undefined, locale: string): string {
   if (!iso) return '—'
   const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(locale)
+  return Number.isNaN(d.getTime()) ? iso : formatDatetime(iso, locale)
 }
 
 export function formatBytes(n: number): string {

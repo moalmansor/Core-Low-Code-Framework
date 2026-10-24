@@ -70,6 +70,21 @@ final class ObjectPermissions
         $this->register('download.'.strtolower($uuid).'.use', 'download_profile', $id, 'use', 'download', 'Use download profile', 'استخدام ملف التنزيل', false);
     }
 
+    public function registerReport(int $id, string $uuid): void
+    {
+        $this->register('report.'.strtolower($uuid).'.view', 'report', $id, 'view', 'report', 'View report', 'عرض التقرير', false);
+    }
+
+    public function registerDashboard(int $id, string $uuid): void
+    {
+        $this->register('dashboard.'.strtolower($uuid).'.view', 'dashboard', $id, 'view', 'dashboard', 'View dashboard', 'عرض لوحة المعلومات', false);
+    }
+
+    public function registerPage(int $id, string $uuid): void
+    {
+        $this->register('page.'.strtolower($uuid).'.view', 'page', $id, 'view', 'page', 'View page', 'عرض الصفحة', false);
+    }
+
     /** Seeing a sensitive field's value unmasked where values are otherwise masked (downloads, §4.23); granting it needs step-up. */
     public function registerSensitiveField(int $id, string $uuid): void
     {

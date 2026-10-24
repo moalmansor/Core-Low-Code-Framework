@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Identity\Http\Middleware;
 
+use App\Modules\Core\Actors\ImpersonationContext;
 use App\Modules\Identity\Models\User;
 use Closure;
 use Illuminate\Http\Request;
@@ -19,6 +20,10 @@ final class EnsureTwoFactorEnrolled
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
+        // The administrator acting is already verified; the impersonated account's own gates are not theirs to pass.
+        if (app(ImpersonationContext::class)->active()) {
+            return $next($request);
+        }
         if ($user instanceof User && ! $user->hasEnabledTwoFactorAuthentication() && $user->requiresTwoFactor()) {
             return response()->json(['message' => __('ui.auth.two_factor_required'), 'code' => 'two_factor_enrollment_required'], 403);
         }

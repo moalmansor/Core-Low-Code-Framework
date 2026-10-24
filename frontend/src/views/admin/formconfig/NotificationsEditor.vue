@@ -18,6 +18,7 @@ import ConfigSection from '@/components/config/ConfigSection.vue'
 import EmptyState from '@/components/config/EmptyState.vue'
 import SettingSwitch from '@/components/config/SettingSwitch.vue'
 import TabIntro from '@/components/config/TabIntro.vue'
+import { get } from '@/api/http'
 import { useSession } from '@/stores/session'
 import { joinList } from '@/runtime/lists'
 import { templatesApi, type TemplateSummary } from '../notifications/api'
@@ -46,7 +47,15 @@ const templates = ref<TemplateSummary[]>([])
 const templatesHidden = ref(false)
 const tree = ref<PathNode[]>([])
 const documents = ref<DocumentSummary[]>([])
+/** SMS and messaging channels set up by an integrations admin (ADR-0056). */
+const extraChannels = ref<{ key: string; type: 'sms' | 'messaging'; label: string }[]>([])
+const channelChoices = computed(() => [
+  { key: 'in_app', label: t('notif.channel.in_app') },
+  { key: 'email', label: t('notif.channel.email') },
+  ...extraChannels.value.map((c) => ({ key: c.key, label: `${c.label} · ${t(`notif.channel.${c.type}`)}` })),
+])
 onMounted(async () => {
+  extraChannels.value = (await get<{ data: { key: string; type: 'sms' | 'messaging'; label: string }[] }>('/notification-channels/options').catch(() => null))?.data ?? []
   // Attaching documents needs to see them ("Manage document templates"); attached ones are kept either way.
   documents.value = (await documentsApi.list(props.form).catch(() => null))?.rows.filter((d) => d.active) ?? []
   statuses.value = (await workflowApi.load(props.form).catch(() => null))?.document.statuses ?? []
@@ -114,7 +123,7 @@ function setTrigger(r: NotificationRuleDoc, v: NotificationTrigger): void {
   if (v !== 'field_changed') r.field = null
   r.schedule = v === 'scheduled_reminder' ? { dateField: dateFields.value[0]?.value ?? '', offsetMinutes: -1440 } : null
 }
-function toggleChannel(r: NotificationRuleDoc, c: 'email' | 'in_app', on: boolean): void {
+function toggleChannel(r: NotificationRuleDoc, c: string, on: boolean): void {
   r.channels = on ? [...new Set([...r.channels, c])] : r.channels.filter((x) => x !== c)
 }
 /** The reminder's offset as days before or after the date. */
@@ -254,9 +263,15 @@ function setDocumentTemplate(item: AttachedDocument, uuid: string): void {
         <ConfigSection id="nr-how" :title="t('notif.section.message')" :description="t('notif.section.message_desc')">
           <ConfigField :label="t('notif.channels')" width="md" :error="err(`rules.${i}.channels`)">
             <div class="flex flex-wrap gap-4" role="group" :aria-label="t('notif.channels')">
-              <label v-for="c in ['in_app', 'email'] as const" :key="c" class="flex items-center gap-2">
-                <Checkbox :model-value="r.channels.includes(c)" binary :input-id="`nr-ch-${c}-${i}`" @update:model-value="(v: boolean) => toggleChannel(r, c, v)" />
-                <span>{{ t(`notif.channel.${c}`) }}</span>
+              <label v-for="c in channelChoices" :key="c.key" class="flex items-center gap-2">
+                <Checkbox
+                  :model-value="r.channels.includes(c.key)"
+                  binary
+                  :input-id="`nr-ch-${c.key}-${i}`"
+                  :data-testid="`nr-ch-${c.key}-${i}`"
+                  @update:model-value="(v: boolean) => toggleChannel(r, c.key, v)"
+                />
+                <span dir="auto">{{ c.label }}</span>
               </label>
             </div>
           </ConfigField>

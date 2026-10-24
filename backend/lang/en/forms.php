@@ -15,6 +15,6 @@ return [
     'rollback_discards_draft' => 'The draft has unpublished changes that loading this version would replace.',
     'template_single_field' => 'A field template contains exactly one field.',
     'menu_target_missing' => 'A menu item points to a form or collection that does not exist.',
-    'menu_too_deep' => 'Menus can be nested at most five levels deep.',
+    'menu_too_deep' => 'Menus can be nested at most :max levels deep.',
     'locked' => 'Records of this form cannot be changed right now.',
 ];

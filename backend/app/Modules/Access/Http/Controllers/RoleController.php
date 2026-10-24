@@ -25,7 +25,7 @@ final class RoleController extends Controller
     public function index(): JsonResponse
     {
         Gate::authorize('system.manage_permissions');
-        $roles = Role::query()->withCount('users')->orderBy('sort_order')->orderBy('id')->get();
+        $roles = Role::query()->where('audience', 'internal')->withCount('users')->orderBy('sort_order')->orderBy('id')->get();
 
         return response()->json(['data' => $roles->map(fn (Role $r): array => $this->present($r))->values()]);
     }
@@ -33,8 +33,9 @@ final class RoleController extends Controller
     /** Role choices for user administration (holders of manage_users need them too). */
     public function options(): JsonResponse
     {
-        abort_unless(Gate::any(['system.manage_users', 'system.manage_permissions', 'system.manage_forms']), 403);
-        $roles = Role::query()->orderBy('sort_order')->orderBy('id')->get();
+        abort_unless(Gate::any(['system.manage_users', 'system.manage_permissions', 'system.manage_forms', 'system.manage_reports']), 403);
+        // External roles serve external users only (ADR-0058) and are managed under External access.
+        $roles = Role::query()->where('audience', 'internal')->orderBy('sort_order')->orderBy('id')->get();
 
         return response()->json(['data' => $roles->map(static fn (Role $r): array => [
             'uuid' => $r->uuid, 'key' => $r->key, 'name' => $r->translate('name') ?? Translator::humanize((string) $r->key), 'is_admin_role' => $r->is_admin_role,
@@ -43,6 +44,7 @@ final class RoleController extends Controller
 
     public function show(Role $role): JsonResponse
     {
+        abort_if($role->audience !== 'internal', 404);
         Gate::authorize('system.manage_permissions');
         $role->loadCount('users');
 
@@ -73,6 +75,7 @@ final class RoleController extends Controller
 
     public function update(Request $request, Role $role): JsonResponse
     {
+        abort_if($role->audience !== 'internal', 404);
         Gate::authorize('system.manage_permissions');
         $data = $this->validated($request, $role);
         $this->guard->guarded(function () use ($role, $data): void {
@@ -94,6 +97,7 @@ final class RoleController extends Controller
 
     public function destroy(Role $role): JsonResponse
     {
+        abort_if($role->audience !== 'internal', 404);
         Gate::authorize('system.manage_permissions');
         abort_if($role->is_system, 422, __('ui.access.system_role_protected'));
         $this->guard->guarded(function () use ($role): void {
@@ -108,9 +112,10 @@ final class RoleController extends Controller
     /** Copy every grant of one role onto another (replacing the target's grants). */
     public function copyPermissions(Request $request, Role $role): JsonResponse
     {
+        abort_if($role->audience !== 'internal', 404);
         Gate::authorize('system.manage_permissions');
         $data = $request->validate(['from_role' => ['required', 'uuid', Rule::exists(Role::class, 'uuid')]]);
-        $source = Role::query()->where('uuid', $data['from_role'])->firstOrFail();
+        $source = Role::query()->where('audience', 'internal')->where('uuid', $data['from_role'])->firstOrFail();
         abort_if($source->is($role), 422, __('ui.access.copy_same_role'));
         $this->guard->guarded(function () use ($source, $role): void {
             PermissionAssignment::query()->where('subject_type', 'role')->where('subject_id', $role->id)->delete();

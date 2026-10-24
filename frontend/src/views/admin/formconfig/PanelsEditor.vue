@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { sourcesApi, type SourceOption } from '@/views/integrations/api'
+import ExternalPanelConfig from './ExternalPanelConfig.vue'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
 import MultiSelect from 'primevue/multiselect'
@@ -41,7 +43,7 @@ const doc = useHashedDocument<PanelDoc[]>(
 const dl = computed(() => session.boot?.default_locale ?? 'en')
 const scope = computed(() => (builder.doc ? buildScope(builder.doc, builder.catalog.fields) : { fields: [], repeaters: [], rows: null }))
 const types = computed(() =>
-  (['tabs', 'tab', 'section', 'form_body', 'related_table', 'summary_widget', 'derived_fields', 'status_timeline', 'comments', 'attachments', 'html'] as const).map((v) => ({
+  (['tabs', 'tab', 'section', 'form_body', 'related_table', 'summary_widget', 'derived_fields', 'status_timeline', 'comments', 'attachments', 'html', 'external_table'] as const).map((v) => ({
     value: v,
     label: t(`panels.type.${v}`),
   })),
@@ -67,7 +69,7 @@ async function loadTree(source: string | null | undefined): Promise<void> {
   trees[source] = ((await viewsApi.load(source).catch(() => null))?.extra.fields as PathNode[] | undefined) ?? []
 }
 watch(
-  () => (doc.value.value ?? []).map((p) => p.config.source as string | undefined),
+  () => (doc.value.value ?? []).filter((p) => p.type === 'related_table' || p.type === 'summary_widget').map((p) => p.config.source as string | undefined),
   (sources) => sources.forEach((s) => void loadTree(s)),
   { immediate: true },
 )
@@ -97,11 +99,13 @@ function setType(p: PanelDoc, type: PanelDoc['type']): void {
         ? { source: null, via: null, columns: [], limit: 20 }
         : type === 'summary_widget'
           ? { source: null, via: null, aggregate: 'count', field: null }
-          : type === 'form_body'
-            ? { groups: [] }
-            : ['tabs', 'tab', 'section'].includes(type)
-              ? { columns: 1, collapsible: false }
-              : {}
+          : type === 'external_table'
+            ? { source: null, field: null, match: null, columns: [], limit: 20 }
+            : type === 'form_body'
+              ? { groups: [] }
+              : ['tabs', 'tab', 'section'].includes(type)
+                ? { columns: 1, collapsible: false }
+                : {}
 }
 function remove(i: number): void {
   const list = doc.value.value!
@@ -130,7 +134,17 @@ const subtitleOf = (p: PanelDoc) => {
   const parent = (doc.value.value ?? []).find((x) => x.uuid === p.parent)
   return [t(`panels.type.${p.type}`), parent ? t('panels.inside', { name: titleOf(parent) }) : null, p.visibility ? t('panels.conditional') : null].filter(Boolean).join(' · ')
 }
-const hasContent = (p: PanelDoc) => ['tabs', 'tab', 'section', 'form_body', 'derived_fields', 'related_table', 'summary_widget', 'html'].includes(p.type)
+const hasContent = (p: PanelDoc) => ['tabs', 'tab', 'section', 'form_body', 'derived_fields', 'related_table', 'summary_widget', 'html', 'external_table'].includes(p.type)
+/** External data sources for external table panels (ADR-0057). */
+const sources = ref<SourceOption[]>([])
+onMounted(async () => {
+  sources.value = await sourcesApi.options().catch(() => [])
+})
+const recordFields = computed(() =>
+  (builder.doc?.fields ?? [])
+    .filter((f) => !['heading', 'paragraph', 'divider', 'spacer', 'html', 'file', 'files', 'image', 'signature'].includes(f.type))
+    .map((f) => ({ value: f.key, label: labelOf(f.i18n?.label ?? {}, locale.value, f.key, dl.value) })),
+)
 </script>
 
 <template>
@@ -212,6 +226,8 @@ const hasContent = (p: PanelDoc) => ['tabs', 'tab', 'section', 'form_body', 'der
             </template>
             <small v-if="err(i, 'config.paths')" class="field-error">{{ err(i, 'config.paths') }}</small>
           </template>
+
+          <ExternalPanelConfig v-else-if="p.type === 'external_table'" v-model="p.config" :index="i" :sources="sources" :fields="recordFields" :errors="(path: string) => err(i, path)" />
 
           <template v-else-if="p.type === 'related_table' || p.type === 'summary_widget'">
             <div class="cfg-row">

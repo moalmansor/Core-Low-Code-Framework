@@ -423,7 +423,7 @@ Clicking any field shows a complete properties panel. It is organized in tabs an
   - run a custom action;
   - call a webhook;
   - show a notification.
-- Attach a developer hook (visible to the Manage Code permission only).
+- Attach a developer hook (visible to the Manage Code permission only): a text or long-text field can be shown with a custom field component, a deployed client extension (ADR-0051).
 
 **Table & Export Settings**
 - Visibility and behavior in lists:
@@ -513,6 +513,21 @@ Clicking any field shows a complete properties panel. It is organized in tabs an
   - *additive schema* (a field was added): reversible by archiving the new column;
   - *destructive or lossy* (a type narrowed, a field removed and its data archived, a status merged): not fully reversible. The system offers restore-from-snapshot instead, names the affected records, and requires explicit confirmation.
 - **Environment drift.** Because physical tables are generated from metadata, two environments can diverge. A **compare environments** tool diffs metadata and physical schema between any two environments and reports differences before a configuration package is imported. Importing a package refuses to proceed when the target's drift would make the result ambiguous, and says exactly which objects conflict.
+- **Configuration packages (ADR-0052).** A package is a JSON file (format `lcf-package/1`) with a SHA-256 checksum. It holds the chosen applications, forms and collections (published design, workflow, notification rules, field access rules and grants), email and document templates and shared download profiles. It also holds everything they depend on. Roles, departments and people travel by role key, department code and e-mail, and are matched by those keys on import. Only a form with no unpublished changes can be exported. Environments never call each other: the file is the channel, and "compare environments" compares this environment with a package or a full export from the other one.
+  - **Object states.** Comparing gives each object one of these states:
+    - new;
+    - key in use;
+    - same;
+    - changed;
+    - changed here since the last import;
+    - changed in both since the last import;
+    - unpublished here;
+    - tables differ from their design.
+  - **Refusal.** The last three make the import ambiguous, and it is refused until they are resolved here.
+  - **Choices.** Every other object is taken from the package, kept as it is here, or imported under another key. Another key is offered only for objects not here yet. An object here keeps its key, and a key chosen on import is remembered for the next one.
+  - **Applying.** Applying runs in the background in dependency order. Forms are published through the normal migration plan, with the same confirmations for warnings and destructive changes as in the builder. A failure stops the rest and leaves the failed form as it was.
+  - **Recording.** Each applied object's hash is recorded, which is how the next comparison tells which side changed. An export records the hashes of what it sent too, so a file exported here and imported back after a local change reads "changed here", not an ambiguous "changed" (ADR-0067). Every comparison is kept as a drift report.
+  - **Access and audit.** Everything needs "Manage configuration packages", and every step is audited.
 - Each record stores the form version it was submitted with.
 
 ### 4.11 Roles & Permissions (Unified Interface)
@@ -598,6 +613,7 @@ All access control lives in **one** interface.
   - allowed roles/users.
 - A menu editor provides drag-and-drop ordering and nesting.
 - Unpublish, archive, and republish without data loss.
+- **As built (ADR-0054):** menu items open forms, collections, pages, reports, dashboards or My Work, besides links, section headers and separators; menus nest up to 20 levels and 500 items. Items can show a live count (my work, my approvals, my overdue items, or the records of their form I can see). Visibility per role, department or condition is a rule on the person in the expression language; it narrows who sees an item and never grants access to what the item opens.
 
 ### 4.14 Records Table View, View Mode & Edit Mode
 
@@ -748,6 +764,16 @@ All access control lives in **one** interface.
   - drag-and-drop widget layout;
   - per-role visibility;
   - export to Excel/PDF.
+- **As built (ADR-0053):**
+  - **Paths.** Reports read through the same relation paths as download profiles: forward links, multi-links, reverse links and repeating sections.
+  - **Grouping and values.** Dates can be grouped by day, week, month, quarter or year. Values are worked out over the viewer's own records only, after the report's fixed filters. A report reads at most the "Reports › most records" setting and says when it stopped there.
+  - **Visibility.** A report that groups or adds up a field the viewer cannot see, or sees masked, is not shown to them.
+  - **Shapes.** Each visualization has a required shape: a pivot needs two groupings, a pie one grouping and one value, key figures one to four values. Every chart can be read as a table.
+  - **Charts.** Charts use a fixed, colour-vision-safe palette of eight hues in light and dark mode.
+  - **Dashboards.** Widgets (reports or notes) sit on a twelve-column grid, reordered by dragging or with buttons, and each can be limited to roles.
+  - **Permissions.** Viewing needs the per-object permissions "View report" and "View dashboard". Building needs "Manage reports and dashboards".
+  - **Export.** Exports go to Excel, CSV (reports) and PDF, with the chart drawn in the PDF.
+  - **Packages.** Reports and dashboards travel in configuration packages.
 
 ### 4.19 Developer Extensibility (Rare Cases Only)
 - Available only with the **Manage Code** permission.
@@ -768,6 +794,13 @@ All access control lives in **one** interface.
 - **Safety:**
   - hooks run inside DB transactions with timeouts and error isolation;
   - failures go to Error Monitoring and the Operations Center.
+- **How it is built (ADR-0051):**
+  - Versions are stored under `{key}/v{n}/` with their source, their build and a manifest. The build's checksum is checked every time it is loaded.
+  - Server code is one class with no imports, checked by a token guard that allows only the SDK, pure functions and value classes. It runs with a per-statement time limit and fails closed.
+  - Approval needs someone other than the author and the last editor. Deploying an earlier approved version is the rollback. A deployed extension is turned off, never deleted.
+  - Custom API endpoints answer `/api/v1/ext-api/{key}` for holders of a chosen permission and never write.
+  - Client code is TypeScript compiled by esbuild. It runs in a sandboxed frame with an opaque origin and no network, and talks to the page only by messages.
+  - A text field is shown with a field component through its developer hook (§4.6).
 
 ### 4.20 Audit Log
 - **What is logged:**
@@ -805,7 +838,15 @@ All access control lives in **one** interface.
   - scoped tokens;
   - OpenAPI documentation generated automatically;
   - rate limits.
+  - Tokens are personal. Each is shown once and stored only as a hash. Each grants read or read-and-write on chosen forms, never beyond its holder's own permissions, which are checked again on every call.
+  - Each token has a lifetime capped by a System Setting, an optional IP allow-list, and its own rate limit or the system default.
+  - Tokens reach only the data API (`/api/v1/data/{form}`), its OpenAPI document and API-kind inbound endpoints. Every other endpoint needs a signed-in session.
+  - The API can be switched off per organization. Holders of "Manage integrations" see and revoke every token. (ADR-0050)
 - Incoming and outgoing webhooks, with signing secrets and delivery logs.
+  - An outgoing webhook sends chosen record events (created, changed, deleted, status changed), of one form or every form, to an address on the egress allowlist.
+  - It is signed `X-LCF-Signature: sha256=HMAC(secret, timestamp.body)`. Failures are retried with backoff.
+  - The payload is the record as the webhook's owner may see it. A record the owner cannot see is logged as not sent.
+  - The delivery log masks signatures, custom header values and sensitive fields. It keeps rows for a period set in System Settings, and can send a delivery again. Failures appear in the Operations Center. (ADR-0050)
 - In-app notifications center (bell icon) in addition to email.
 - System settings: branding, languages, formats, calendar system, SMTP, file limits, security policies, SSO/LDAP configuration.
 
@@ -961,10 +1002,11 @@ A status alone does not say who is expected to act, so records carry assignment 
 - Admin-managed custom CSS, scoped and sanitized, applied after the theme so it cannot break layout primitives or hide security controls.
 - Theme import and export, preset themes, and reset to default. Accessibility contrast is checked and warned on before a theme is saved.
 - **Design tokens:** the interface uses semantic colour tokens defined in one place, with separately designed light and dark values. Every text and control pairing is tested against WCAG 2.1 AA in both modes; a build with a failing pairing or a colour written outside the theme does not pass (`docs/design-system.md`, ADR-0030).
-- **Screen checklist:** every screen meets the checklist of `docs/design-system.md` §5.7. The build checks each screen's source against the rules a source can show (title, one save bar, grouped settings, described switches, empty states, quiet help, empty values, lists and sides in the user's language), and an end-to-end test opens every screen in Arabic and English on a desktop and a phone and fails on the wrong direction or sideways scrolling. Screens built before the checklist are listed with the rules they do not meet yet, and that list may only shrink (ADR-0048).
+- **Screen checklist:** every screen meets the checklist of `docs/design-system.md` §5.7. The build checks each screen's source against the rules a source can show (title, one save bar, grouped settings, described switches, empty states, quiet help, empty values, lists and sides in the user's language), and an end-to-end test opens every screen in Arabic and English on a desktop and a phone and fails on the wrong direction or sideways scrolling. **Reachability:** an end-to-end test opens every route the client registers under `/admin`, clicks every tab on it, and fails when the API refuses or cannot serve what the screen asks for, when the page throws, or when it renders no heading; the fast suite also checks that every System Settings tab is served by the API, every served group has a tab, and every Admin Console area has a client route (ADR-0067). Screens built before the checklist are listed with the rules they do not meet yet, and that list may only shrink (ADR-0048).
 - **Primary colour:** set in Appearance & Branding, with an optional separate dark-mode value. A colour that is not readable as text (4.5:1) on the theme's surfaces is refused by the server and the editor, which offers the nearest readable shade. Hover and tint shades are derived from it.
 - **Fonts:** IBM Plex Sans and IBM Plex Sans Arabic, served by the application itself (no third-party font host).
 - **Option colours:** status pills use the colour the admin gives an option, with a white or dark label chosen for contrast; the options editor warns when the label would read below 4.5:1.
+- **As built (ADR-0055):** themes hold light and dark colours (primary, accent, success, warning, danger, page, surface, subtle, border), corners, density, shadows and a font per script (IBM Plex or the device's font), translatable sign-in texts and legal links, artwork, and custom CSS. One theme is the organization default and each application may wear its own; empty values keep the product's. Text colours below 4.5:1 in either mode are refused with the nearest readable shade offered; weak non-text contrasts are warnings the admin acknowledges. Custom CSS is limited to colour, text, border, spacing and shadow properties, scoped to the page content (never the menu, banners or dialogs), and served as its own stylesheet. Presets, reset, and JSON import and export (without artwork) are provided.
 
 ### 4.29 Pages, Home Screens & Navigation
 - **Custom pages** built by admins: rich content pages, link pages, dashboard pages, embedded report pages, and pages that host a form directly. Pages are placed in the menu like any form and carry their own permissions.
@@ -973,6 +1015,12 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Global search configuration:** which forms and fields are searchable, their weighting, result display, and per-role scope.
 - **Announcements and banners:** system-wide or per application, scheduled, dismissible, targeted by role, with severity styling.
 - **Maintenance mode:** admins take the system or a single application offline with a custom message, while retaining their own access.
+- **As built (ADR-0054):**
+  - **Pages** are content, a link, a dashboard, a report or a form's records list. Opening one needs its own permission and, for a dashboard, report or form, that object's permission too; content is sanitized when saved and when shown.
+  - **Home screens** follow the access precedence (a person's own, a role's, a department's including parent departments, then everyone's; the highest priority within a tier) for the main home or an application's home. Each widget can carry a rule on the person and loads its data through the ordinary permission-checked endpoints.
+  - **Announcements** are placed as a banner, on home screens or in the notification bell, between a start and an optional end, for some roles or everyone, system-wide or for one application; dismissible ones stay dismissed per person.
+  - **System maintenance** answers 503 to signed-in requests and API tokens, except for people who may switch it; the sign-in page shows its translatable message and those who keep working see a banner.
+  - **Global search** covers, per form, up to 10 text fields with weights, a field shown under each result and the roles allowed. It never searches sensitive or encrypted fields and only matches fields and records the person may see.
 
 ### 4.30 Blueprints, Cloning & the Template Library
 - Any form, collection, workflow, view, action, notification, dashboard, or whole application can be **saved as a blueprint** and reused.
@@ -981,6 +1029,16 @@ A status alone does not say who is expected to act, so records carry assignment 
 - Blueprints carry a version, and updating a blueprint offers to propagate changes to objects created from it, listing what would change before anything is applied. Elements changed locally in an object are kept and listed as conflicts; propagated changes land in the object's draft and take effect when it is published; an object can be detached to stop receiving updates.
 - Import and export of blueprints between environments and installations; each exported version carries a content hash that import verifies, and objects that the blueprint relates to must exist in the target before it can be used.
 - **Document templates** are blueprints too (Phase 4): a designed or Word template is saved as a `document_template` blueprint and new templates are made from it for any form, with its Word files carried inside and verified by the content hash (§4.17).
+- **As built (ADR-0059):**
+  - Everything a blueprint makes gets a uuid derived from the object it lands in, so later versions map onto it without a stored map. Links between an application's own forms point at the new forms; links outside the application must exist.
+  - Making an application from a blueprint, or **copying an application** from the Applications screen, creates its forms (keys prefixed with the new application's key) and publishes them in the order their links need. Notification rules and actions are added after publishing. Webhook secrets never travel, and records are never copied.
+  - A workflow, notification rules or actions are applied to another form, with fields, statuses and transitions matched by key.
+    - A workflow goes only to a form without one.
+    - Rules and actions whose keys the form already uses are refused.
+    - A rule or action that uses a field the form does not have is left out and reported.
+    - A form follows one blueprint of each kind; another is accepted once the first is detached.
+  - A dashboard blueprint makes a new dashboard; it needs Manage Reports.
+  - Propagation merges three ways for every kind. Local changes are kept as conflicts, form designs change in the draft, and rules, actions, workflows and dashboards change when propagation is confirmed after its preview.
 
 ### 4.31 Scheduler & Automation Rules
 - An admin-managed **automation builder** with no code: a trigger, optional conditions, and a sequence of steps reusing the action library of 4.15.
@@ -1010,7 +1068,7 @@ A status alone does not say who is expected to act, so records carry assignment 
   - Folders live under a root mounted by the operator (`WATCHED_FOLDERS_ROOT`), and admins name a folder inside it.
   - Each new file is checked like an upload and becomes a record, saved as the run-as user, with the file in a chosen file field and, optionally, its name in a text field.
   - Processed files move to `processed/`. Rejected ones move to `failed/` with a note saying why.
-- Inbound-webhook triggers arrive with inbound endpoints (Phase 5).
+- An inbound-webhook trigger names one inbound endpoint of the automation's form. It runs for the record that endpoint's call created or updated, as the automation's run-as user.
 
 ### 4.32 External Access & Public Portals
 - Any form can be published as an **external form** reachable without an internal account, with a dedicated URL, its own theme, and a defined status on submission.
@@ -1019,14 +1077,37 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Tokenized single-record links**: send a reviewer or signer a secure expiring link to one record, with a scoped action such as approve, reject, complete a section, or sign, without an account.
 - **Signature requests**: send a record for signature, track status, and store the signed output with the audit trail.
 - Everything external is still governed by the permission, condition, justification, and audit rules of the rest of the system.
+- **As built (ADR-0058):**
+  - External forms show an allow-list of fields that need no internal data. Required fields without a default must be shown.
+  - Submissions run through the record pipeline as a chosen run-as user, starting in the chosen status. They are open to anyone, or only to approved portal users with chosen external roles.
+  - Protections:
+    - a self-hosted proof-of-work CAPTCHA;
+    - limits per visitor address per hour, opening and closing times, hours of the day, and a cap;
+    - an email or SMS one-time code and an optional password.
+  - Portal accounts register when registration is open, verify their email and wait for approval if asked. They get an external role that internal role screens never show, and see only the records they submitted.
+  - Record links show a record, approve or reject it through a chosen step, or complete one section. They act as their sender with every rule applied; they expire, allow a set number of uses, can be withdrawn, and only their hash is stored.
+  - Signature requests freeze the generated PDF. The signer draws a signature, which is stamped on a final page with the signer, time, address and the original's hash. The signed PDF and its hash are kept and audited.
 
 ### 4.33 Integrations & External Data Sources
 - **External data sources** defined in the UI: a REST endpoint or a database view registered as a source, with authentication, headers, a response mapping, and a cache policy. Once registered it can feed select options, lookups, validation, and read-only panels exactly like a collection.
 - **Sync jobs:** scheduled import from, or export to, an external source, with field mapping, matching keys, conflict rules, dry run, and a run log.
 - **Inbound API endpoints per form**, with scoped tokens, schema documentation, validation, and the same permission and workflow enforcement as the UI.
 - **Incoming webhooks** that create or update records, with signature verification and a payload mapping screen.
+  - Both are configured as inbound endpoints at `/api/inbound/{slug}`, where the slug is unique across the installation. An endpoint creates, updates or upserts records of one form.
+  - An endpoint is authenticated by an HMAC signature, acting as a chosen user, or by a personal API token with write access, acting as the token's owner.
+  - Each field takes its value from a dot path in the JSON body. Updates find the record by a mapped single-value text or number field, against the version read on arrival.
+  - Created records start in the workflow's initial status. Every call is logged.
+  - Automations can be triggered by an inbound endpoint. (ADR-0050)
 - **Notification channels beyond email:** in-app, SMS, and messaging providers configured as channels, selectable per notification rule, with per-user channel preferences and the same template, placeholder, and logging treatment as email.
 - Every integration appears in the Operations Center with its failures, retries, and delivery history.
+- **As built (ADR-0056, ADR-0057):**
+  - REST sources are called through the egress gateway with API key, bearer, basic or OAuth 2.0 client-credentials authentication. Database views come from connections defined in the server environment, so no database credentials are stored.
+  - Sources feed choice fields ("external" option source, checked again on save), record labels and an "External data" panel, with no-cache, TTL or stale-while-revalidate caching.
+  - Sync jobs import through the record pipeline as a run-as user, with matching fields and source-wins, record-wins, newest-wins or skip rules. They also export changed records to an allowlisted address.
+  - Dry runs roll back. Every run keeps a CSV log. Jobs run on a schedule or on demand.
+  - SMS channels use Twilio or an HTTPS endpoint; messaging channels use Slack, Teams or an HTTPS endpoint. Provider secrets are write-only.
+  - SMS goes to each recipient's mobile number unless they turned it off; messaging posts once per notification. The text is the template's subject and preheader with the record link.
+  - Deliveries retry with backoff and respect a per-minute limit. Failures of channels, sources and sync runs appear in the Operations Center.
 
 ### 4.34 Reference Data, Calendars & Numbering
 - **Business calendars:** working days, working hours, public holidays per country or organization, and multiple calendars assignable per department or form. SLA timers, due dates, and reminders count working time, not wall-clock time, when the admin chooses.
@@ -1074,12 +1155,34 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Impersonation:** an admin with the permission can act as another user to reproduce a problem. A persistent banner shows it, the session is time-limited, sensitive actions can be blocked during it, and every action is recorded as performed by the admin impersonating the user.
 - **Access policies per role:** IP allowlists, permitted time windows, maximum concurrent sessions, session lifetime, device trust, and a stricter policy for administrative roles.
 - **Feature flags** per application or role, so admins can release a new form or capability to a pilot group before everyone.
+- **As built (ADR-0060 to ADR-0063):**
+  - **Profile limits:** System Settings › Self-service lists the preferences people may change; the server refuses the rest. Time zone, calendar, digits, date pattern, number separators and density apply to every date and number shown. The start page is chosen from what the person can open. Daily or weekly digests of unread notifications are e-mailed at 07:00 in the person's time zone.
+  - **Pinned records and shortcuts** are kept per person and checked again on every request; a record that can no longer be seen drops out.
+  - **Access policies** belong to roles; a policy marked administrative also governs every administrative role. The strictest combination applies: every address list and time window must match, the smallest session limits win, and 2FA is required when any policy asks. They are enforced at sign-in and on every request. When there are too many sessions, the oldest other sessions end. A device is trusted for 90 days after a second factor on it. A policy that would lock out the administrator saving it is refused, and so is one that would leave no active Super Admin able to sign in, whoever saves it (ADR-0067).
+  - **Impersonation** needs "Impersonate users", a reason and a duration (at most `security.impersonation_max_minutes`). It never targets someone holding a permission the administrator lacks, or a Super Admin unless the administrator is one. The person's account security is out of reach, and deleting, exporting, running actions and changing access are blocked by default. Every audit entry names the administrator as actor and the person as subject, including an attempt the block refused (`impersonation.blocked`, ADR-0067).
+  - **Feature flags** put a form, action, page or capability (global search, insights, personal tokens, import, export, sharing) behind an audience of roles, departments and people, or switch it off for everyone. A hidden target answers 404, a capability 403, and both are left out of navigation, action lists and search. Flags only narrow what access already allows.
 
 ### 4.37 Help, Guidance & Adoption
 - Admins author **help content** per form, per field, and per page, translatable, shown as tooltips, side panels, or a help page.
 - **Guided tours** and first-use hints per form or role, with a reset option.
 - An internal **knowledge page** per application, plus a changelog that admins publish to users when forms change.
 - Usage insight for admins: which forms are used, by whom, how often, where users abandon a form, and which fields are left empty, so the builder can be improved on evidence.
+- **As built (ADR-0064 to ADR-0066):**
+  - **Help content** ("Manage help content") is written for a form, one of its published fields or groups, a page, an application or an admin area.
+    - Tooltips are plain text beside a field or group label.
+    - Side-panel help shows in a Help panel opened from the top bar; the button appears only where there is help or a tour.
+    - Help pages open at `/help/{uuid}`.
+    - Help is served only to people who may open what it is about.
+  - **Knowledge and changelog pages** are page types with written content. A published changelog has "Tell users", which needs "Manage pages and menus" and "Publish announcements" and puts an announcement linking to it in the notifications of everyone with access to the application.
+  - **Guided tours** run on a form's record screens or in a place: home, My Work, Insights, the profile, or an admin area. They can be limited to roles.
+    - A step points at a field or group of the form, a named part of the screen, or nothing. Steps never take free selectors.
+    - First-use tours start once per version; changing the steps makes a new version.
+    - Administrators can show a tour again to everyone or to roles; people can choose "Show tips again" in their preferences.
+    - Every tour of the place is offered in the Help panel.
+  - **Usage insight** ("Manage forms", Admin Console › Usage insight) counts per day:
+    - views, starts and abandons, reported by the screens and accepted only for forms the person may open;
+    - submissions and fields left empty, counted by the server, as are page views and searches.
+    - System Settings › Adoption chooses named, anonymous or no counting, and how many days counts are kept (395 by default).
 
 ## 5. Security Requirements
 - **Standards:** full OWASP Top 10 compliance.
@@ -1210,6 +1313,7 @@ Before declaring a phase complete:
    - run all tests (Pest, Vitest, Playwright) on **both MySQL and SQL Server**;
    - report the results.
    - Any failure must be fixed before reporting.
+   - The report cites the CI run on the pull request's head commit, written as ``CI run [ID](link) on the head commit `SHA` ``. A required check ("Verification report") passes only when that run finished on the head commit with every job passing; a run on an earlier commit, a run still going, or a cancelled, skipped or failed job fails it. A push makes the citation stale until CI finishes on the new head and the report cites that run (ADR-0068).
 3. **Security check.** Verify for this phase's features:
    - authorization;
    - input validation;

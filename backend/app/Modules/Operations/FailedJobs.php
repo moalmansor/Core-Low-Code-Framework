@@ -13,6 +13,10 @@ use App\Modules\DataQuality\Jobs\RunDataRepair;
 use App\Modules\DataQuality\Jobs\RunDuplicateSweep;
 use App\Modules\Downloads\DownloadJobs;
 use App\Modules\Identity\Models\User;
+use App\Modules\Integrations\Models\SyncJob;
+use App\Modules\Integrations\SyncJobs;
+use App\Modules\Notifications\Channels\ChannelDeliveries;
+use App\Modules\Platform\Webhooks;
 use App\Modules\Records\Jobs\RunExportJob;
 use App\Modules\Records\Jobs\RunImportJob;
 use Illuminate\Support\Carbon;
@@ -24,13 +28,14 @@ use Illuminate\Validation\ValidationException;
  * Failed jobs (specification §4.2, ADR-0045), gathered from where each kind
  * of work keeps its own state: imports, exports, custom downloads, action
  * runs and data-quality scans (bulk operations), automation runs, scheduled
- * tasks, outbound webhook calls (whose retry is their run's) and the queue's
- * own failed jobs. Each can be inspected, retried where that is safe, or
+ * tasks, webhook calls made by actions and automations (whose retry is their
+ * run's), webhook deliveries (outgoing ones resent from the log, incoming
+ * calls shown for diagnosis) and the queue's own failed jobs. Each can be inspected, retried where that is safe, or
  * dismissed with a reason; the failed row itself is kept.
  */
 final class FailedJobs
 {
-    public const KINDS = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'queue_job'];
+    public const KINDS = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'webhook_delivery', 'channel_delivery', 'data_source', 'sync_run', 'extension', 'queue_job'];
 
     /** Failures older than this are not gathered (the scheduled clean-ups remove most of them). */
     private const LOOKBACK_DAYS = 30;
@@ -125,6 +130,19 @@ final class FailedJobs
             case 'scheduled_task':
                 DB::table('scheduled_tasks')->where('id', $id)->update(['next_run_at' => $now, 'updated_at' => $now]);
                 break;
+            case 'webhook_delivery':
+                app(Webhooks::class)->resend($id);
+                break;
+            case 'sync_run':
+                $jobId = DB::table('sync_runs')->where('id', $id)->value('sync_job_id');
+                $job = $jobId === null ? null : SyncJob::query()->find((int) $jobId);
+                if ($job !== null) {
+                    app(SyncJobs::class)->start($job, false, $operator->id);
+                }
+                break;
+            case 'channel_delivery':
+                app(ChannelDeliveries::class)->retry($id);
+                break;
             case 'queue_job':
                 $uuid = DB::table('failed_jobs')->where('id', $id)->value('uuid');
                 if ($uuid !== null) {
@@ -211,6 +229,52 @@ final class FailedJobs
                 $rows[] = $this->row('webhook', (int) $a->id, $a->form_id === null ? null : (int) $a->form_id, $a->actor_user_id, $subject, (string) ($meta['error'] ?? ''), $a->occurred_at, false, (int) ($meta['attempt'] ?? 1));
             }
         }
+        if ($want('webhook_delivery')) {
+            $q = DB::table('webhook_deliveries')->where('created_at', '>=', $since)->orderByDesc('id')->limit(self::PER_KIND)
+                ->where(static fn ($q) => $q->where(static fn ($q) => $q->where('direction', 'outgoing')->whereIn('status', ['failed', 'blocked']))
+                    ->orWhere(static fn ($q) => $q->where('direction', 'incoming')->whereIn('status', ['failed', 'signature_invalid'])));
+            foreach ($q->get(['id', 'direction', 'webhook_id', 'inbound_endpoint_id', 'method', 'url', 'error', 'updated_at', 'attempt', 'response_status']) as $d) {
+                $hook = $d->webhook_id === null ? null : DB::table('webhooks')->where('id', $d->webhook_id)->first(['form_id', 'created_by']);
+                $endpoint = $d->inbound_endpoint_id === null ? null : DB::table('inbound_endpoints')->where('id', $d->inbound_endpoint_id)->first(['form_id', 'slug']);
+                $subject = $d->direction === 'incoming' ? '← '.($endpoint->slug ?? parse_url((string) $d->url, PHP_URL_PATH)) : '→ '.$d->method.' '.parse_url((string) $d->url, PHP_URL_HOST);
+                $formId = $hook->form_id ?? $endpoint->form_id ?? null;
+                $rows[] = $this->row('webhook_delivery', (int) $d->id, $formId === null ? null : (int) $formId, null, $subject,
+                    $d->error ?? ($d->response_status === null ? null : 'HTTP '.$d->response_status), $d->updated_at, $d->direction === 'outgoing' && $d->webhook_id !== null, max(1, (int) $d->attempt));
+            }
+        }
+        if ($want('channel_delivery')) {
+            $q = DB::table('notification_deliveries as d')->join('notification_channels as c', 'c.id', '=', 'd.notification_channel_id')
+                ->where('d.status', 'failed')->where('d.updated_at', '>=', $since)->orderByDesc('d.id')->limit(self::PER_KIND);
+            foreach ($q->get(['d.id', 'd.user_id', 'd.error', 'd.updated_at', 'd.attempts', 'd.payload', 'c.id as channel_id', 'c.key']) as $d) {
+                $name = $this->translator->many('notification_channel', [(int) $d->channel_id], ['name'])[(int) $d->channel_id]['name'] ?? Translator::humanize((string) $d->key);
+                $formId = (json_decode((string) $d->payload, true) ?: [])['form_id'] ?? null;
+                $rows[] = $this->row('channel_delivery', (int) $d->id, is_int($formId) ? $formId : null, $d->user_id, $name, $d->error, $d->updated_at, true, max(1, (int) $d->attempts));
+            }
+        }
+        if ($want('data_source')) {
+            $q = DB::table('audit_logs')->where('event', 'integration.source_failed')->where('occurred_at', '>=', $since)->orderByDesc('occurred_at')->limit(self::PER_KIND);
+            foreach ($q->get(['id', 'meta', 'object_id', 'occurred_at']) as $a) {
+                $meta = json_decode((string) $a->meta, true) ?: [];
+                $name = $a->object_id === null ? null : ($this->translator->many('external_data_source', [(int) $a->object_id], ['name'])[(int) $a->object_id]['name'] ?? null);
+                $rows[] = $this->row('data_source', (int) $a->id, null, null, $name ?? Translator::humanize((string) ($meta['key'] ?? '')), (string) ($meta['error'] ?? ''), $a->occurred_at, false, 1);
+            }
+        }
+        if ($want('sync_run')) {
+            $q = DB::table('sync_runs as r')->join('sync_jobs as j', 'j.id', '=', 'r.sync_job_id')->where('r.dry_run', false)
+                ->whereIn('r.status', ['failed', 'partially_failed'])->where('r.updated_at', '>=', $since)->orderByDesc('r.id')->limit(self::PER_KIND);
+            foreach ($q->get(['r.id', 'r.error', 'r.error_count', 'r.finished_at', 'r.updated_at', 'r.triggered_by', 'j.id as job_id', 'j.form_id']) as $r) {
+                $name = $this->translator->many('sync_job', [(int) $r->job_id], ['name'])[(int) $r->job_id]['name'] ?? null;
+                $rows[] = $this->row('sync_run', (int) $r->id, (int) $r->form_id, $r->triggered_by, $name, $r->error ?? __('operations.records_failed', ['n' => (int) $r->error_count]), $r->finished_at ?? $r->updated_at, true, 1);
+            }
+        }
+        if ($want('extension')) {
+            $q = DB::table('audit_logs')->where('event', 'extension.failed')->where('occurred_at', '>=', $since)->orderByDesc('occurred_at')->limit(self::PER_KIND);
+            foreach ($q->get(['id', 'meta', 'form_id', 'actor_user_id', 'occurred_at']) as $a) {
+                $meta = json_decode((string) $a->meta, true) ?: [];
+                $subject = trim(($meta['key'] ?? '').' v'.($meta['version'] ?? '').' · '.($meta['point'] ?? ''));
+                $rows[] = $this->row('extension', (int) $a->id, $a->form_id === null ? null : (int) $a->form_id, $a->actor_user_id, $subject, (string) ($meta['error'] ?? ''), $a->occurred_at, false, 1);
+            }
+        }
         if ($want('queue_job')) {
             foreach (DB::table('failed_jobs')->where('failed_at', '>=', $since)->orderByDesc('id')->limit(self::PER_KIND)->get(['id', 'queue', 'payload', 'exception', 'failed_at']) as $f) {
                 $name = (string) (json_decode((string) $f->payload, true)['displayName'] ?? '');
@@ -255,6 +319,8 @@ final class FailedJobs
             'automation' => DB::table('automation_runs')->where('id', $id)->value('steps_log'),
             'action' => DB::table('bulk_operations')->where('id', $id)->value('result'),
             'scheduled_task' => DB::table('scheduled_tasks')->where('id', $id)->value('last_error'),
+            'webhook_delivery' => DB::table('webhook_deliveries')->where('id', $id)->value('response_body'),
+            'channel_delivery' => DB::table('notification_deliveries')->where('id', $id)->value('error'),
             default => null,
         };
 

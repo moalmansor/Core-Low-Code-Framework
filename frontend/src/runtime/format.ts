@@ -1,3 +1,4 @@
+import { displayPrefs, formatPattern, withDigits } from './displayPrefs'
 import type { FormIndex } from './formIndex'
 import { labelOf } from './i18nText'
 import type { ClientField, FileMeta, References } from './types'
@@ -51,39 +52,54 @@ export function formatDecimal(value: string, opts: { decimals?: number | null; t
       frac = frac.padEnd(opts.decimals, '0')
     }
   }
+  // The person's own separators when they chose some, else the language's.
+  const chosen = displayPrefs().number
   const parts = new Intl.NumberFormat(opts.locale).formatToParts(1234.5)
-  const group = parts.find((p) => p.type === 'group')?.value ?? ','
-  const decimal = parts.find((p) => p.type === 'decimal')?.value ?? '.'
+  const group = chosen ? (chosen.group ?? '') : (parts.find((p) => p.type === 'group')?.value ?? ',')
+  const decimal = chosen ? chosen.decimal : (parts.find((p) => p.type === 'decimal')?.value ?? '.')
   if (opts.thousands !== false) int = int.replace(/\B(?=(\d{3})+(?!\d))/g, group)
-  return (negative ? '-' : '') + int + (frac ? decimal + frac : '')
+  return withDigits((negative ? '-' : '') + int + (frac ? decimal + frac : ''))
 }
 
+/** The field's calendar, else the person's: Hijri, both (dual), or Gregorian (null). */
 function calendarFor(field: ClientField | null): string | null {
   const c = field?.behavior.date?.calendar
-  return c === 'hijri' || c === 'dual' ? c : null
+  if (c === 'hijri' || c === 'dual') return c
+  if (c) return null
+  const mine = displayPrefs().calendar
+  return mine === 'hijri' ? 'hijri' : mine === 'both' ? 'dual' : null
 }
 
 export function formatDate(iso: string, locale: string, field: ClientField | null = null): string {
   const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`)
   if (Number.isNaN(d.getTime())) return iso
   const opts: Intl.DateTimeFormatOptions = { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' }
-  const gregorian = new Intl.DateTimeFormat(`${locale}-u-ca-gregory`, opts).format(d)
+  const pattern = displayPrefs().dateFormat
+  const gregorian = pattern ? formatPattern(d, pattern.replace(/\s*[Hhmsa:]+.*$/, ''), 'UTC') : new Intl.DateTimeFormat(`${locale}-u-ca-gregory`, opts).format(d)
   const cal = calendarFor(field)
-  if (cal === null) return gregorian
+  if (cal === null) return withDigits(gregorian)
   const hijri = new Intl.DateTimeFormat(`${locale}-u-ca-islamic-umalqura`, opts).format(d)
-  return cal === 'hijri' ? hijri : `${gregorian} (${hijri})`
+  return withDigits(cal === 'hijri' ? hijri : `${gregorian} (${hijri})`)
 }
 
 export function formatDatetime(iso: string, locale: string, field: ClientField | null = null): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   const tz = field?.behavior.date?.timezone
-  const timeZone = tz === 'utc' ? 'UTC' : tz?.startsWith('fixed:') ? tz.slice(6) : undefined
+  // A field fixed to a zone shows it there; otherwise the person's own zone, else the browser's.
+  const timeZone = tz === 'utc' ? 'UTC' : tz?.startsWith('fixed:') ? tz.slice(6) : (displayPrefs().timeZone ?? undefined)
   const hour12 = field?.behavior.date?.hourCycle ? field.behavior.date.hourCycle === '12h' : undefined
+  const pattern = displayPrefs().dateFormat
   try {
-    return new Intl.DateTimeFormat(`${locale}-u-ca-${calendarFor(field) === 'hijri' ? 'islamic-umalqura' : 'gregory'}`, { dateStyle: 'medium', timeStyle: 'short', timeZone, hour12 }).format(d)
+    if (pattern && calendarFor(field) === null) {
+      const withTime = /[Hh]/.test(pattern) ? pattern : `${pattern} ${hour12 ? 'h:mm a' : 'HH:mm'}`
+      return withDigits(formatPattern(d, withTime, timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone))
+    }
+    return withDigits(
+      new Intl.DateTimeFormat(`${locale}-u-ca-${calendarFor(field) === 'hijri' ? 'islamic-umalqura' : 'gregory'}`, { dateStyle: 'medium', timeStyle: 'short', timeZone, hour12 }).format(d),
+    )
   } catch {
-    return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(d)
+    return withDigits(new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(d))
   }
 }
 

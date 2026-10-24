@@ -10,17 +10,19 @@
  *
  * The brand colour is an Appearance & Branding setting: the --brand-* custom
  * properties are set on the document root at runtime (src/theme/brand.ts) and
- * win over the defaults written here.
+ * win over the defaults written here. A theme (ADR-0055) sets --theme-*
+ * properties the same way (src/theme/theme.ts); a value it leaves empty keeps
+ * the default written here.
  *
  * .app-light and .app-dark also apply to a single element (the brand colour
  * previews show both modes side by side).
  */
 :root,
 .app-light {
-  --bg-page: #f4f6f9;
-  --bg-surface: #ffffff;
-  --bg-subtle: #f8fafc;
-  --border: #e3e8ef;
+  --bg-page: var(--theme-page, #f4f6f9);
+  --bg-surface: var(--theme-surface, #ffffff);
+  --bg-subtle: var(--theme-subtle, #f8fafc);
+  --border: var(--theme-border, #e3e8ef);
   --border-strong: #cbd5e1;
   /* Inputs: their outline is their only visible edge, so it needs 3:1 (WCAG 1.4.11). */
   --border-input: #7993b2;
@@ -37,11 +39,11 @@
   --on-primary-subtle: var(--brand-on-primary-subtle, #1559ae);
   /* Text on a workflow status badge (status colours are chosen for white text). */
   --on-status: #ffffff;
-  --link: #107c52;
-  --danger: #d92d20;
+  --link: var(--theme-accent, #107c52);
+  --danger: var(--theme-danger, #d92d20);
   --danger-subtle: #fdecea;
-  --warning: #b45309;
-  --success: #107c52;
+  --warning: var(--theme-warning, #b45309);
+  --success: var(--theme-success, #107c52);
   --neutral-pill: #3f4c5a;
   /* Labels on the theme's own pill colours (status and boolean pills). */
   --on-neutral-pill: #ffffff;
@@ -56,15 +58,15 @@
   --paper-ink: #0f1419;
   /* Behind photos and video. */
   --media-backdrop: #000000;
-  --shadow-color: rgb(15 20 25 / 0.08);
+  --shadow-color: var(--theme-shadow, rgb(15 20 25 / 0.08));
   color-scheme: light;
 }
 
 .app-dark {
-  --bg-page: #0f1419;
-  --bg-surface: #171e26;
-  --bg-subtle: #1e2733;
-  --border: #2a3441;
+  --bg-page: var(--theme-page-dark, #0f1419);
+  --bg-surface: var(--theme-surface-dark, #171e26);
+  --bg-subtle: var(--theme-subtle-dark, #1e2733);
+  --border: var(--theme-border-dark, #2a3441);
   --border-strong: #3c4858;
   --border-input: #5e718a;
   --text: #e6edf3;
@@ -76,17 +78,17 @@
   --primary-subtle: var(--brand-primary-subtle-dark, #162d48);
   --on-primary: var(--brand-on-primary-dark, #0f1419);
   --on-primary-subtle: var(--brand-on-primary-subtle-dark, #6ba9ee);
-  --link: #35a775;
-  --danger: #f2635c;
+  --link: var(--theme-accent-dark, #35a775);
+  --danger: var(--theme-danger-dark, #f2635c);
   --danger-subtle: #3a1f1e;
-  --warning: #d9941f;
-  --success: #35a775;
+  --warning: var(--theme-warning-dark, #d9941f);
+  --success: var(--theme-success-dark, #35a775);
   --neutral-pill: #46535f;
   --on-neutral-pill: #ffffff;
   --on-success: #0f1419;
   --on-danger: #0f1419;
   --overlay: rgb(0 0 0 / 0.6);
-  --shadow-color: rgb(0 0 0 / 0.4);
+  --shadow-color: var(--theme-shadow-dark, rgb(0 0 0 / 0.4));
   color-scheme: dark;
 }
 
@@ -98,8 +100,8 @@
   --success-subtle: color-mix(in srgb, var(--success) 12%, var(--bg-surface));
   --focus-ring: var(--primary);
 
-  --font-ui: 'IBM Plex Sans', 'IBM Plex Sans Arabic', system-ui, sans-serif;
-  --font-ui-arabic: 'IBM Plex Sans Arabic', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-ui: var(--theme-font-ui, 'IBM Plex Sans', 'IBM Plex Sans Arabic', system-ui, sans-serif);
+  --font-ui-arabic: var(--theme-font-ui-arabic, 'IBM Plex Sans Arabic', 'IBM Plex Sans', system-ui, sans-serif);
   --font-code: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   /* Type scale (px): 12 small/labels, 13 help, 14 body and controls, 16 section, 22 page title. */
@@ -112,9 +114,10 @@
   --table-header-size: 0.75rem;
   --table-header-size-arabic: 0.8125rem;
 
-  --radius-control: 6px;
-  --radius-card: 12px;
-  --control-height: 2.25rem;
+  --radius-control: var(--theme-radius-control, 6px);
+  --radius-card: var(--theme-radius-card, 12px);
+  /* The person's density (ADR-0063) wins over the theme's. */
+  --control-height: var(--user-control-height, var(--theme-control-height, 2.25rem));
   --control-height-compact: 2rem;
   /* Input widths on configuration screens (design system §5.5): sized to what they hold. */
   --field-xs: 7rem; /* numbers, minutes, counts */
@@ -123,4 +126,15 @@
   --field-lg: 32rem; /* longer text, paths */
   /* Reading width of help text. */
   --measure: 42rem;
+}
+
+/* Density chosen in the person's profile (specification §4.36, ADR-0063). */
+:root.density-compact {
+  --user-control-height: 2rem;
+}
+:root.density-normal {
+  --user-control-height: 2.25rem;
+}
+:root.density-comfortable {
+  --user-control-height: 2.5rem;
 }

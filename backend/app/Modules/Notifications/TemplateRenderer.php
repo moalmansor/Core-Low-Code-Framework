@@ -6,6 +6,7 @@ namespace App\Modules\Notifications;
 
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Settings\SettingsService;
+use App\Modules\Experience\Themes\Themes;
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Templating\RenderContext;
@@ -169,16 +170,22 @@ final class TemplateRenderer
         $rtl = in_array($locale, ['ar', 'fa', 'he', 'ur'], true);
         $dir = $rtl ? 'rtl' : 'ltr';
         $accent = $this->values->accent($design);
-        $logo = ($design['style']['logo'] ?? true) && $this->settings->get('branding', 'logo_file') !== null
-            ? '<img src="'.e(rtrim((string) config('app.url'), '/').'/api/v1/branding/logo').'" alt="" height="36" style="display:block;height:36px;border:0;margin-bottom:16px">'
-            : '';
+        // The default theme's email artwork (ADR-0055) replaces the logo at the top, and adds a footer image.
+        $theme = app(Themes::class)->organizationDefault();
+        $art = $theme === null ? [] : app(Themes::class)->assets($theme);
+        $logo = ! ($design['style']['logo'] ?? true) ? '' : (isset($art['email_header'])
+            ? '<img src="'.e((string) $art['email_header']).'" alt="" style="display:block;max-width:100%;height:auto;border:0;margin-bottom:16px">'
+            : ($this->settings->get('branding', 'logo_file') !== null
+                ? '<img src="'.e(rtrim((string) config('app.url'), '/').'/api/v1/branding/logo').'" alt="" height="36" style="display:block;height:36px;border:0;margin-bottom:16px">'
+                : ''));
+        $footer = isset($art['email_footer']) ? '<img src="'.e((string) $art['email_footer']).'" alt="" style="display:block;max-width:100%;height:auto;border:0;margin-top:16px">' : '';
         $hidden = $preheader === '' ? '' : '<div style="display:none;max-height:0;overflow:hidden;opacity:0">'.e($preheader).'</div>';
 
         return '<!doctype html><html lang="'.e($locale).'" dir="'.$dir.'"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>'.e($title).'</title></head>'
             .'<body style="margin:0;padding:0;background:#f4f5f7;font-family:Segoe UI,Tahoma,Arial,sans-serif">'.$hidden
             .'<table role="presentation" width="100%" style="border-collapse:collapse;background:#f4f5f7"><tr><td align="center" style="padding:24px 12px">'
             .'<table role="presentation" width="600" style="border-collapse:collapse;max-width:600px;width:100%;background:#ffffff;border-radius:8px;border-top:4px solid '.$accent.'" dir="'.$dir.'">'
-            .'<tr><td style="padding:28px 32px;text-align:'.($rtl ? 'right' : 'left').'">'.$logo.$body.'</td></tr></table>'
+            .'<tr><td style="padding:28px 32px;text-align:'.($rtl ? 'right' : 'left').'">'.$logo.$body.$footer.'</td></tr></table>'
             .'</td></tr></table></body></html>';
     }
 }

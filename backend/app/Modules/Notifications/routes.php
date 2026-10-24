@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Notifications\Http\Controllers\EmailTemplateController;
 use App\Modules\Notifications\Http\Controllers\InboxController;
+use App\Modules\Notifications\Http\Controllers\NotificationChannelController;
 use App\Modules\Notifications\Http\Controllers\NotificationRuleController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,4 +26,15 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::post('/notifications/templates/{template}/test', [EmailTemplateController::class, 'test'])->whereUuid('template')->middleware('throttle:10,1');
     Route::get('/forms/{form}/notification-rules', [NotificationRuleController::class, 'show']);
     Route::put('/forms/{form}/notification-rules', [NotificationRuleController::class, 'save']);
+
+    // SMS and messaging channels (§4.33, ADR-0056).
+    Route::get('/notification-channels', [NotificationChannelController::class, 'index']);
+    Route::get('/notification-channels/options', [NotificationChannelController::class, 'options']);
+    Route::post('/notification-channels', [NotificationChannelController::class, 'store']);
+    Route::get('/notification-channels/{channel}', [NotificationChannelController::class, 'show'])->whereUuid('channel');
+    Route::put('/notification-channels/{channel}', [NotificationChannelController::class, 'update'])->whereUuid('channel');
+    Route::delete('/notification-channels/{channel}', [NotificationChannelController::class, 'destroy'])->whereUuid('channel');
+    Route::post('/notification-channels/{channel}/test', [NotificationChannelController::class, 'test'])->whereUuid('channel')->middleware('throttle:10,1');
+    Route::get('/notification-channels/{channel}/deliveries', [NotificationChannelController::class, 'deliveries'])->whereUuid('channel');
+    Route::post('/notification-channels/{channel}/deliveries/{delivery}/retry', [NotificationChannelController::class, 'retryDelivery'])->whereUuid('channel')->whereNumber('delivery');
 });

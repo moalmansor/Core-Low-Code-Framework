@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Records\Runtime;
 
+use App\Expressions\Evaluation\Context;
 use App\Expressions\Text\Unicode;
 use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
@@ -15,6 +16,7 @@ use App\Modules\Assignment\DelegationResolver;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\DataQuality\DuplicateGuard;
+use App\Modules\Extensions\HookRunner;
 use App\Modules\Identity\Models\User;
 use App\Modules\Justification\JustificationGate;
 use App\Modules\Records\Models\StoredFile;
@@ -65,10 +67,11 @@ final class RecordPipeline
     /**
      * @param  array<string, mixed>  $input  values by field key (repeater keys hold row lists)
      * @param  array<string, mixed>  $params  URL parameters (defaults)
-     * @param  array<string, int>  $links  foreign-key columns outside the definition set at insert (inline sub-form parent)
+     * @param  array<string, int>  $links  foreign-key columns outside the definition set at insert (inline sub-form parent, external user)
+     * @param  int|null  $startStatus  a status of the form's workflow to start in instead of its initial one (external forms, ADR-0058)
      * @return array{id: int, uuid: string}
      */
-    public function create(FormRuntime $rt, User $user, array $input, array $params, string $key, string $source = 'ui', array $links = []): array
+    public function create(FormRuntime $rt, User $user, array $input, array $params, string $key, string $source = 'ui', array $links = [], ?int $startStatus = null): array
     {
         $onBehalf = $this->guardForm($rt, $user, 'create');
         $entry = $this->journal->open($key, $rt->form->id, $rt->versionId, 'create', $source, $user->id, $input, null, null);
@@ -80,6 +83,7 @@ final class RecordPipeline
             [$normalized, $errors] = $this->normalize($rt, $input);
             [$normalized, $rowErrors] = $this->guardRows($rt, $normalized, null, $levels['fields']);
             $errors += $rowErrors + $this->rowPermissions($rt, $normalized, null, $user);
+            $normalized = $this->hook('beforeValidate', $rt, $user, $normalized, null, null, $errors);
             $result = $this->rules->run($rt, $normalized, null, 'create', $user, true, $params);
             $blocked = $this->blocked($rt, $levels['fields'], $result['state']);
             if (array_intersect_key($normalized, $blocked) !== []) {
@@ -90,6 +94,7 @@ final class RecordPipeline
             $errors += $this->accessViolations($rt, $input, $values, null, $levels['fields'], $result['state']);
             $ctx = $this->rules->context($rt, 'create', $user, $params);
             $errors += $this->validator->validate($rt, $values, $result['state'], $levels['fields'], $ctx, null);
+            $this->hook('afterValidate', $rt, $user, $values, null, null, $errors);
             if ($errors !== []) {
                 throw new RecordException(422, 'invalid', __('records.invalid'), ['errors' => $errors]);
             }
@@ -100,9 +105,11 @@ final class RecordPipeline
 
                 return ['id' => $existing['id'], 'uuid' => $existing['uuid']];
             }
-            $id = DB::transaction(function () use ($rt, $user, $values, $entry, $links, $onBehalf): int {
+            $id = DB::transaction(function () use ($rt, $user, $values, $entry, $links, $onBehalf, $result, $levels, $ctx, $startStatus): int {
+                $values = $this->beforeSave($rt, $user, $values, null, null, $result['state'], $levels['fields'], $ctx);
                 $values = $this->assignNumbers($rt, $values);
                 $wf = WorkflowRuntime::for($rt);
+                $start = $startStatus !== null && $wf->status($startStatus) !== null ? $startStatus : $wf->initialId();
                 $now = SlaTimers::nowUtc()->format('Y-m-d H:i:s.u');
                 $system = [
                     'organization_id' => $rt->form->organization_id,
@@ -113,15 +120,17 @@ final class RecordPipeline
                     'created_by' => $user->id,
                     'updated_by' => $user->id,
                     'search_text' => $this->searchText($rt, $values),
-                    'status_id' => $wf->initialId(),
-                    'status_changed_at' => $wf->initialId() === null ? null : $now,
+                    'status_id' => $start,
+                    'status_changed_at' => $start === null ? null : $now,
                 ] + $links;
                 $id = $this->store->insert($rt, $entry['uuid'], $values, $system);
                 $this->attachFiles($rt, $id, $values, $user);
                 $this->audit->record('record.created', 'data', $this->diff($rt, [], $values), 'record', $id, ['form' => $rt->form->key, 'row_version' => 1], $user->id, null, $rt->form->id, $id, $onBehalf);
-                $this->workflow->enter($rt, $id, $values, $user->id, $onBehalf, $user->department_id === null ? null : (int) $user->department_id);
+                $this->workflow->enter($rt, $id, $values, $user->id, $onBehalf, $user->department_id === null ? null : (int) $user->department_id, $start);
                 $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $entry['uuid'], 'operation' => 'create', 'actor' => $user->id]
                     + $this->observers->payload($rt, null, $values, $user));
+                $none = [];
+                $this->hook('afterSave', $rt, $user, $values, null, $entry['uuid'], $none);
 
                 return $id;
             });
@@ -130,6 +139,7 @@ final class RecordPipeline
             return ['id' => $id, 'uuid' => $entry['uuid']];
         } catch (RecordException $e) {
             $this->journal->rejected($entry['id'], $e->reason);
+            app(HookRunner::class)->flush();
             throw $e;
         } catch (Throwable $e) {
             $this->journal->failed($entry['id'], $e);
@@ -160,7 +170,7 @@ final class RecordPipeline
             [$normalized, $errors] = $this->normalize($rt, $input);
             [$normalized, $rowErrors] = $this->guardRows($rt, $normalized, $current['values'], $levels['fields']);
             $errors += $rowErrors + $this->rowPermissions($rt, $normalized, $current['values'], $user);
-            $merged = array_replace($current['values'], $normalized);
+            $merged = $this->hook('beforeValidate', $rt, $user, array_replace($current['values'], $normalized), $current['values'], $current['uuid'], $errors);
             $result = $this->rules->run($rt, $merged, $current['values'], 'edit', $user, false);
             $blocked = $this->blocked($rt, $levels['fields'], $result['state']);
             if (array_intersect_key($normalized, $blocked) !== []) {
@@ -170,6 +180,7 @@ final class RecordPipeline
             $errors += $this->accessViolations($rt, $input, $values, $current['values'], $levels['fields'], $result['state']);
             $ctx = $this->rules->context($rt, 'edit', $user);
             $errors += $this->validator->validate($rt, $values, $result['state'], $levels['fields'], $ctx, $current['id']);
+            $this->hook('afterValidate', $rt, $user, $values, $current['values'], $current['uuid'], $errors);
             if ($errors !== []) {
                 throw new RecordException(422, 'invalid', __('records.invalid'), ['errors' => $errors]);
             }
@@ -187,7 +198,13 @@ final class RecordPipeline
                 'fields' => $changed, 'status' => $statusId, 'values' => $values, 'old' => $current['values'],
             ], $justification);
             if ($changed !== []) {
-                DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $input, $levels, $validated, $onBehalf, $justifiedBy): void {
+                DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $input, $levels, $validated, $onBehalf, $justifiedBy, $result, $ctx): void {
+                    $values = $this->beforeSave($rt, $user, $values, $current['values'], $current['uuid'], $result['state'], $levels['fields'], $ctx, $current['id']);
+                    foreach ($values as $k => $v) {
+                        if (! in_array((string) $k, $changed, true) && ! Canonical::same($v, $current['values'][$k] ?? null)) {
+                            $changed[] = (string) $k;
+                        }
+                    }
                     $values = $this->assignNumbers($rt, $values, $current['values']);
                     $diff = $this->diff($rt, $current['values'], $values);
                     $justificationId = $justifiedBy ?? ($validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'edit', $validated, $this->justified($diff), 1, $onBehalf));
@@ -201,6 +218,8 @@ final class RecordPipeline
                     $this->audit->record('record.updated', 'data', $diff, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $expectedVersion + 1], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
                     $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $current['uuid'], 'operation' => 'update', 'changed' => $changed, 'actor' => $user->id]
                         + $this->observers->payload($rt, $current['values'], $values, $user));
+                    $none = [];
+                    $this->hook('afterSave', $rt, $user, $values, $current['values'], $current['uuid'], $none);
                 });
             }
             $this->journal->processed($entry['id'], $current['id']);
@@ -208,6 +227,7 @@ final class RecordPipeline
             return ['id' => $current['id'], 'uuid' => $current['uuid'], 'changed' => $changed];
         } catch (RecordException $e) {
             $this->journal->rejected($entry['id'], $e->reason);
+            app(HookRunner::class)->flush();
             throw $e;
         } catch (Throwable $e) {
             $this->journal->failed($entry['id'], $e);
@@ -333,6 +353,7 @@ final class RecordPipeline
             return $result + ['status' => $this->workflow->statusPayload($wf, $status === null ? null : (int) $status)];
         } catch (RecordException $e) {
             $this->journal->rejected($entry['id'], $e->reason);
+            app(HookRunner::class)->flush();
             throw $e;
         } catch (Throwable $e) {
             $this->journal->failed($entry['id'], $e);
@@ -397,6 +418,8 @@ final class RecordPipeline
             $validated = $justifiedBy !== null ? null : $this->justifications->enforce($rt, $user, 'delete', ['status' => $current['system']['status_id'] ?? null, 'values' => $current['values'], 'old' => $current['values']], $justification);
             DB::transaction(function () use ($rt, $user, $current, $expectedVersion, $validated, $onBehalf, $context, $justifiedBy): void {
                 $justificationId = $justifiedBy ?? ($validated === null ? null : $this->justifications->record($rt, $current['id'], $user, $context, $validated, [], 1, $onBehalf));
+                $none = [];
+                $this->hook('beforeDelete', $rt, $user, $current['values'], $current['values'], $current['uuid'], $none);
                 $this->integrity->beforeDelete($rt, $current['id'], $user->id);
                 if (! $this->store->softDelete($rt, $current['id'], $expectedVersion, $user->id)) {
                     $levels = $this->fieldAccess->resolve($user, $rt->form->id, $rt->form->uuid, $rt->definition, 'edit');
@@ -410,10 +433,12 @@ final class RecordPipeline
                 $this->sla->complete($rt->form->id, $current['id'], SlaTimers::nowUtc(), 'cancelled');
                 $this->audit->record('record.deleted', 'data', null, 'record', $current['id'], ['form' => $rt->form->key, 'row_version' => $expectedVersion + 1], $user->id, null, $rt->form->id, $current['id'], $onBehalf, $justificationId);
                 $this->outbox->publish('record.deleted', ['form' => $rt->form->uuid, 'record' => $current['uuid'], 'actor' => $user->id]);
+                $this->hook('afterDelete', $rt, $user, $current['values'], $current['values'], $current['uuid'], $none);
             });
             $this->journal->processed($entry['id'], $current['id']);
         } catch (RecordException $e) {
             $this->journal->rejected($entry['id'], $e->reason);
+            app(HookRunner::class)->flush();
             throw $e;
         } catch (Throwable $e) {
             $this->journal->failed($entry['id'], $e);
@@ -445,6 +470,7 @@ final class RecordPipeline
             $this->journal->processed($entry['id'], $current['id']);
         } catch (RecordException $e) {
             $this->journal->rejected($entry['id'], $e->reason);
+            app(HookRunner::class)->flush();
             throw $e;
         }
     }
@@ -553,6 +579,63 @@ final class RecordPipeline
      * @param  array<string, mixed>  $input
      * @return array{0: array<string, mixed>, 1: array<string, list<string>>}
      */
+    /**
+     * Runs the form's deployed extensions at a hook point (ADR-0051). Values
+     * a hook set are normalized like submitted ones; its field errors are
+     * added to $errors.
+     *
+     * @param  array<string, mixed>  $values
+     * @param  array<string, mixed>|null  $old
+     * @param  array<string, list<string>>  $errors
+     * @param  array<string, mixed>  $extra
+     * @return array<string, mixed>
+     */
+    private function hook(string $point, FormRuntime $rt, User $user, array $values, ?array $old, ?string $uuid, array &$errors, array $extra = []): array
+    {
+        $hooks = app(HookRunner::class);
+        if (! $hooks->has($rt, $point)) {
+            return $values;
+        }
+        $result = $hooks->run($point, $rt, $user, $values, $old, $uuid, $extra);
+        foreach ($result['errors'] as $key => $messages) {
+            $errors[$key] = [...($errors[$key] ?? []), ...$messages];
+        }
+        $values = $result['values'];
+        if ($result['changed'] !== []) {
+            [$normalized, $invalid] = $this->normalize($rt, array_intersect_key($values, array_flip($result['changed'])));
+            $values = array_replace($values, $normalized);
+            foreach ($invalid as $key => $messages) {
+                $errors[(string) $key] = [...($errors[(string) $key] ?? []), ...array_values(array_map('strval', (array) $messages))];
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * beforeSave hooks, inside the save's transaction: values they change are
+     * validated again with the whole record before anything is written.
+     *
+     * @param  array<string, mixed>  $values
+     * @param  array<string, mixed>|null  $old
+     * @param  array<string, string>  $levels
+     * @return array<string, mixed>
+     */
+    private function beforeSave(FormRuntime $rt, User $user, array $values, ?array $old, ?string $uuid, RuleState $state, array $levels, Context $ctx, ?int $id = null): array
+    {
+        $errors = [];
+        $before = $values;
+        $values = $this->hook('beforeSave', $rt, $user, $values, $old, $uuid, $errors);
+        if ($values !== $before && $errors === []) {
+            $errors = $this->validator->validate($rt, $values, $state, $levels, $ctx, $id);
+        }
+        if ($errors !== []) {
+            throw new RecordException(422, 'invalid', __('records.invalid'), ['errors' => $errors]);
+        }
+
+        return $values;
+    }
+
     private function normalize(FormRuntime $rt, array $input): array
     {
         $out = [];

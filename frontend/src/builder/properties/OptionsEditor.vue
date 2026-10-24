@@ -8,6 +8,7 @@ import Select from 'primevue/select'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { get } from '@/api/http'
 import RuleBuilder from '../conditions/RuleBuilder.vue'
 import { pick, staticType, type ExpressionScope } from '../conditions/scope'
 import FieldSelect from '../FieldSelect.vue'
@@ -34,7 +35,21 @@ watch(
   { immediate: true },
 )
 const options = computed<OptionsDef>(() => field.value.options ?? { source: 'static', static: [] })
-const SOURCES: OptionSource[] = ['static', 'collection', 'form', 'query', 'users', 'roles', 'departments']
+const SOURCES: OptionSource[] = ['static', 'collection', 'form', 'query', 'users', 'roles', 'departments', 'external']
+/** External data sources (ADR-0057): listed for those who build forms; loaded once. */
+const externals = ref<{ uuid: string; label: string; cascades: boolean }[] | null>(null)
+async function loadExternals(): Promise<void> {
+  if (externals.value !== null) return
+  externals.value = (await get<{ data: { uuid: string; label: string; cascades: boolean }[] }>('/data-sources/options').catch(() => null))?.data ?? []
+}
+watch(
+  () => options.value.source,
+  (s) => {
+    if (s === 'external') void loadExternals()
+  },
+  { immediate: true },
+)
+const externalCascades = computed(() => externals.value?.find((x) => x.uuid === options.value.external)?.cascades ?? false)
 const sources = computed(() => SOURCES.map((s) => ({ value: s, label: t(`builder.options.source_${s}`) })))
 
 function setSource(source: OptionSource): void {
@@ -42,6 +57,7 @@ function setSource(source: OptionSource): void {
   o.source = source
   if (source === 'static') o.static = o.static ?? []
   if (source === 'query') o.query = o.query ?? null
+  if (source !== 'external') o.external = null
   if (source !== 'collection' && source !== 'form') o.collection = null
   else if (field.value.relation) o.collection = builder.doc?.relations.find((r) => r.uuid === field.value.relation)?.target ?? null
 }
@@ -289,6 +305,26 @@ const defaultsText = computed({
           /></label>
         </div>
       </template>
+    </div>
+
+    <!-- External data source -->
+    <div v-else-if="options.source === 'external'" class="flex flex-col gap-2" data-testid="options-external">
+      <label class="field"
+        ><span>{{ t('builder.options.external_source') }}</span>
+        <Select
+          :model-value="options.external ?? null"
+          :options="externals ?? []"
+          option-label="label"
+          option-value="uuid"
+          size="small"
+          :loading="externals === null"
+          :placeholder="t('builder.options.external_pick')"
+          data-testid="options-external-source"
+          @update:model-value="(v: string | null) => (options.external = v)"
+        />
+      </label>
+      <p v-if="externals !== null && !externals.length" class="text-xs text-muted-color">{{ t('builder.options.external_none') }}</p>
+      <p class="text-xs text-muted-color">{{ t(externalCascades ? 'builder.options.external_cascades' : 'builder.options.source_external_hint') }}</p>
     </div>
 
     <p v-else class="text-xs text-muted-color">{{ t(`builder.options.source_${options.source}_hint`) }}</p>

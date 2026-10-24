@@ -14,17 +14,8 @@ use Illuminate\Support\Facades\DB;
  * (ADR-0021) and must not exist yet.
  */
 
-const DEFERRED_COLUMNS = [
-    'organizations' => ['theme_id'],
-    'roles' => ['access_policy_id'],
-    'sessions' => ['external_user_id', 'trusted_device_id', 'impersonation_session_id'],
-    'files' => ['external_user_id'],
-    'applications' => ['theme_id', 'home_screen_id'],
-    'submission_journal' => ['external_user_id'],
-    'status_history' => ['external_user_id'],
-    'justifications' => ['external_user_id'],
-    'automation_triggers' => ['inbound_endpoint_id'],
-];
+/** Every deferred column has arrived (the last ones with Phase 5); a later phase adds its own here if it needs to. */
+const DEFERRED_COLUMNS = [];
 
 const FRAMEWORK_TABLES = ['migrations', 'cache', 'cache_locks', 'job_batches', 'failed_jobs'];
 

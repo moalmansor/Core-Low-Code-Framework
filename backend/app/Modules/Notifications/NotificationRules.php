@@ -14,6 +14,8 @@ use App\Modules\Forms\Definition\DefinitionCompiler;
 use App\Modules\Forms\Draft\DraftRepository;
 use App\Modules\Forms\Draft\DraftValidator;
 use App\Modules\Forms\Models\Form;
+use App\Modules\Notifications\Channels\ChannelProviders;
+use App\Modules\Notifications\Models\NotificationChannel;
 use App\Modules\Records\Runtime\FormRuntimes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -201,7 +203,8 @@ final class NotificationRules
                     $ids['schedule'] = ['dateField' => $dateField['uuid'], 'offsetMinutes' => max(-525600, min(525600, (int) ($s['offsetMinutes'] ?? 0)))];
                 }
             }
-            $channels = array_values(array_intersect((array) ($r['channels'] ?? []), self::CHANNELS));
+            $extra = NotificationChannel::query()->where('is_active', true)->whereIn('type', ChannelProviders::TYPES)->pluck('key')->map(static fn ($k) => (string) $k)->all();
+            $channels = array_values(array_intersect((array) ($r['channels'] ?? []), [...self::CHANNELS, ...$extra]));
             if ($channels === [] || count($channels) !== count((array) ($r['channels'] ?? []))) {
                 $errors["{$p}.channels"][] = __('notifications.channels_required');
             }

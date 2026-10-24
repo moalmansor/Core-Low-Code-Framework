@@ -49,7 +49,7 @@ final class FormService
     ) {}
 
     /**
-     * @param  array{kind: string, key: string, application: Application, name: array<string, string>, description?: array<string, string>, binding_mode?: string, bound_table?: string|null, collection_type?: string, icon?: string|null}  $data
+     * @param  array{kind: string, key: string, application: Application, name: array<string, string>, description?: array<string, string>, binding_mode?: string, bound_table?: string|null, collection_type?: string, icon?: string|null, uuid?: string}  $data
      */
     public function create(array $data): Form
     {
@@ -69,6 +69,10 @@ final class FormService
                 'table_name' => '',
             ]);
             $form->organization_id = app(TenantContext::class)->organizationId();
+            // A configuration package keeps the form's identity across environments (ADR-0052).
+            if (isset($data['uuid'])) {
+                $form->uuid = strtolower($data['uuid']);
+            }
             if ($form->binding_mode === 'bound') {
                 $table = (string) ($data['bound_table'] ?? '');
                 if (! in_array($table, $this->tables->bindableTables(), true)) {

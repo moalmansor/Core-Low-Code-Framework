@@ -1,15 +1,17 @@
 <script setup lang="ts">
+import { flushUsage, track } from '@/runtime/usage'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
 import { useToast } from 'primevue/usetoast'
-import { computed, nextTick, provide, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ApiError, ensureCsrf, get, http } from '@/api/http'
 import { newUuid } from '@/runtime/api'
 import { changedValues, conflictRows, isConflictPayload, mergeAfterResolution, resolvedSubmission, type Choice, type ConflictPayload } from '@/runtime/conflict'
 import { RECORD_FILES, RECORD_UUID } from '@/runtime/context'
+import { CLIENT_EXTENSIONS, FormExtensions, loadClientExtensions, type ClientExtension } from '@/runtime/extensions/frames'
 import FormRenderer from '@/runtime/FormRenderer.vue'
 import { pickText, humanize } from '@/runtime/i18nText'
 import { submissionValues } from '@/runtime/submission'
@@ -57,6 +59,42 @@ const saved = ref(false)
 const banner = ref('')
 const renderer = ref<InstanceType<typeof FormRenderer> | null>(null)
 const renderKey = ref(0)
+
+// Client extensions of the form (ADR-0051): validators and scripts in hidden sandboxed frames, field components in the renderer.
+const clientExtensions = ref<ClientExtension[]>([])
+provide(CLIENT_EXTENSIONS, clientExtensions)
+let formExtensions: FormExtensions | null = null
+const scriptMessages = ref<{ text: string; severity: string }[]>([])
+async function startExtensions(): Promise<void> {
+  formExtensions?.dispose()
+  formExtensions = null
+  clientExtensions.value = await loadClientExtensions(formUuid.value)
+  if (clientExtensions.value.some((e) => e.type !== 'client_field')) {
+    formExtensions = new FormExtensions(clientExtensions.value, locale.value, document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr')
+  }
+}
+watch(formUuid, startExtensions, { immediate: true })
+onBeforeUnmount(() => formExtensions?.dispose())
+let lastValues: Values = {}
+let scriptTimer: ReturnType<typeof setTimeout> | null = null
+watch(
+  values,
+  (now) => {
+    if (!formExtensions || formExtensions.empty) return
+    if (scriptTimer) clearTimeout(scriptTimer)
+    scriptTimer = setTimeout(async () => {
+      const changed = Object.keys(now).filter((k) => JSON.stringify(now[k]) !== JSON.stringify(lastValues[k]))
+      lastValues = JSON.parse(JSON.stringify(now)) as Values
+      if (!changed.length || !formExtensions) return
+      const out = await formExtensions.change(now, changed)
+      scriptMessages.value = out.messages
+      const keys = new Set((definition.value?.fields ?? []).filter((f) => f.access === 'editable' || f.access === 'required').map((f) => f.key))
+      const set = Object.entries(out.set).filter(([k, v]) => keys.has(k) && JSON.stringify(values.value[k]) !== JSON.stringify(v))
+      if (set.length) values.value = { ...values.value, ...Object.fromEntries(set) }
+    }, 300)
+  },
+  { deep: true },
+)
 
 const name = computed(() => (definition.value ? (pickText(definition.value.names, locale.value) ?? definition.value.name ?? humanize(definition.value.form.key)) : ''))
 const submitLabel = computed(() => pickText(definition.value?.form.i18n.submitButtonLabel, locale.value) ?? t('common.save'))
@@ -172,6 +210,15 @@ async function save(override?: Values): Promise<void> {
     banner.value = t('records.fix_errors')
     focusFirstError()
     return
+  }
+  if (formExtensions && !formExtensions.empty) {
+    const extensionErrors = await formExtensions.validate(renderer.value.values as Values)
+    if (Object.keys(extensionErrors).length) {
+      serverErrors.value = Object.fromEntries(Object.entries(extensionErrors).map(([k, m]) => [k, [m]]))
+      banner.value = t('records.fix_errors')
+      focusFirstError()
+      return
+    }
   }
   const current = renderer.value.values as Values
   const body: Record<string, unknown> =
@@ -289,6 +336,31 @@ function cancel(): void {
 }
 
 onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('records.leave_unsaved')) : true))
+
+// Usage insight (§4.37): starting a new record, and leaving it without submitting.
+let started = false
+watch(dirty, (d) => {
+  if (d && mode.value === 'create' && !started) {
+    started = true
+    track('form_start', formUuid.value)
+  }
+})
+watch(saved, (s) => {
+  if (s) started = false
+})
+function abandon(): void {
+  if (started && !saved.value) track('form_abandon', formUuid.value)
+  started = false
+}
+const onPageHide = () => {
+  abandon()
+  flushUsage(true)
+}
+window.addEventListener('pagehide', onPageHide)
+onBeforeUnmount(() => {
+  window.removeEventListener('pagehide', onPageHide)
+  abandon()
+})
 </script>
 
 <template>
@@ -302,6 +374,9 @@ onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('records.leave_unsaved'
       <h1 class="page-title !m-0" dir="auto">{{ heading }}</h1>
     </header>
     <Message v-if="banner" severity="error" data-testid="record-form-banner">{{ banner }}</Message>
+    <Message v-for="(m, i) in scriptMessages" :key="`sm-${i}`" :severity="m.severity === 'error' ? 'error' : m.severity === 'warn' ? 'warn' : 'secondary'" data-testid="record-form-script-message">
+      <span dir="auto">{{ m.text }}</span>
+    </Message>
     <div class="rounded-xl bg-card border border-line p-4 lg:p-6">
       <FormRenderer :key="renderKey" ref="renderer" v-model="values" :definition="definition" :mode="mode" :errors="serverErrors" :form-uuid="formUuid" :references="references" />
     </div>
@@ -312,7 +387,7 @@ onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('records.leave_unsaved'
       </span>
       <span class="flex-1" />
       <Button type="button" :label="t('common.cancel')" severity="secondary" text @click="cancel" />
-      <Button type="submit" :label="submitLabel" icon="pi pi-check" :loading="saving" data-testid="record-save" />
+      <Button type="submit" :label="submitLabel" icon="pi pi-check" :loading="saving" data-testid="record-save" data-tour="save_record" />
     </div>
     <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
     <DuplicateDialog v-if="duplicate" :answer="duplicate" :form="formUuid" :busy="saving" @confirm="saveAnyway" @cancel="duplicate = null" />

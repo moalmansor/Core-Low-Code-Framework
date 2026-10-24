@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Modules\Extensions\Http\Controllers\ExtensionFrame;
 use App\Modules\Records\Templating\HtmlPreviews;
 use Closure;
 use Illuminate\Http\Request;
@@ -29,14 +30,22 @@ final class SecurityHeaders
         $headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()');
         $headers->set('Cross-Origin-Opener-Policy', 'same-origin');
-        $headers->set('Cross-Origin-Resource-Policy', 'same-origin');
+        // Client-extension code is fetched by a sandboxed frame, whose origin is opaque: it says so itself.
+        if (! $headers->has('Cross-Origin-Resource-Policy')) {
+            $headers->set('Cross-Origin-Resource-Policy', 'same-origin');
+        }
         $headers->remove('X-Powered-By');
         if ($request->isSecure()) {
             $headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
         }
 
         $isHtml = str_contains((string) $headers->get('Content-Type'), 'text/html');
-        if ($headers->has(HtmlPreviews::HEADER)) {
+        if ($headers->has(ExtensionFrame::HEADER)) {
+            // A client extension's sandboxed frame: its own policy (scripts from /ext/ only, no network).
+            $headers->set('Content-Security-Policy', (string) $headers->get(ExtensionFrame::HEADER));
+            $headers->remove(ExtensionFrame::HEADER);
+            $headers->set('X-Frame-Options', 'SAMEORIGIN');
+        } elseif ($headers->has(HtmlPreviews::HEADER)) {
             // Rendered email shown in a sandboxed frame of this application: inline styles only, nothing that runs.
             $headers->remove(HtmlPreviews::HEADER);
             $headers->set('X-Frame-Options', 'SAMEORIGIN');
@@ -68,6 +77,9 @@ final class SecurityHeaders
             "default-src 'self'",
             'script-src '.implode(' ', $script),
             "style-src 'self' 'nonce-{$nonce}'",
+            // The extension code editor (Monaco) positions its lines with style attributes: only its pages allow
+            // them (attributes only, never style elements); the SPA loads those pages as documents of their own.
+            ...(preg_match('#^admin/extensions(/|$)#', $request->path()) === 1 ? ["style-src-attr 'unsafe-inline'"] : []),
             "img-src 'self' data: blob:",
             "font-src 'self' data:",
             'connect-src '.implode(' ', $connect),

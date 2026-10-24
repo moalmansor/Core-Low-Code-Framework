@@ -26,6 +26,7 @@ import { errorText } from '@/views/admin/building/shared'
 import { newUuid, workflowApi, type StatusDoc } from '@/views/admin/formconfig/api'
 import ErrorList from '@/views/admin/formconfig/ErrorList.vue'
 import StepListEditor from '@/views/admin/formconfig/StepListEditor.vue'
+import { inboundApi } from '@/views/integrations/api'
 import { automationsApi, EVENT_TRIGGERS, SET_TRIGGERS, type AutomationDoc, type Frequency, type RunDetail, type TriggerDoc, type TriggerType } from './api'
 import RunDetailView from './RunDetailView.vue'
 import RunHistory from './RunHistory.vue'
@@ -64,7 +65,19 @@ const scope = computed(() => (builder.doc ? buildScope(builder.doc, builder.cata
 const statuses = ref<StatusDoc[]>([])
 const runAsName = ref('')
 
-const TRIGGERS: TriggerType[] = ['record_created', 'record_updated', 'record_deleted', 'field_changed', 'status_changed', 'condition_true', 'schedule', 'date_reached', 'watched_folder', 'manual']
+const TRIGGERS: TriggerType[] = [
+  'record_created',
+  'record_updated',
+  'record_deleted',
+  'field_changed',
+  'status_changed',
+  'condition_true',
+  'schedule',
+  'date_reached',
+  'watched_folder',
+  'inbound_webhook',
+  'manual',
+]
 const triggerOptions = computed(() => TRIGGERS.map((v) => ({ value: v, label: t(`auto.trigger.${v}`) })))
 const newTrigger = ref<TriggerType>('record_created')
 const frequencies = computed(() => (['hourly', 'daily', 'weekly', 'monthly', 'cron'] as Frequency[]).map((v) => ({ value: v, label: t(`auto.freq.${v}`) })))
@@ -143,9 +156,13 @@ onMounted(async () => {
   await load()
   await builder.load().catch(() => undefined)
   statuses.value = (await workflowApi.load(form).catch(() => null))?.document.statuses ?? []
+  endpoints.value = (await inboundApi.list(form).catch(() => [])).map((e) => ({ value: e.uuid!, label: `/api/inbound/${e.slug}` }))
 })
 onBeforeUnmount(() => builder.cancelTimers())
 onBeforeRouteLeave(() => !dirty.value || window.confirm(t('records.leave_unsaved')))
+
+// The incoming webhooks of this form, for the inbound webhook trigger.
+const endpoints = ref<{ value: string; label: string }[]>([])
 
 function addTrigger(): void {
   const type = newTrigger.value
@@ -156,6 +173,7 @@ function addTrigger(): void {
   if (type === 'schedule') trigger.schedule = { frequency: 'daily', time: '07:00', weekday: 0, day: 1, minute: 0, cron: null, timezone: tz }
   if (type === 'date_reached') Object.assign(trigger, { dateField: dateFields.value[0]?.value ?? null, offsetMinutes: -1440 })
   if (type === 'watched_folder') Object.assign(trigger, { folder: '', fileField: fileFields.value[0]?.value ?? null, nameField: null })
+  if (type === 'inbound_webhook') trigger.inboundEndpoint = endpoints.value[0]?.value ?? null
   doc.value?.triggers.push(trigger)
   if (doc.value && !onlyEvents.value && doc.value.runAs === 'triggering_user') doc.value.runAs = 'specific_user'
 }
@@ -372,6 +390,21 @@ const name = computed(() => (doc.value ? labelOf(doc.value.i18n.name, locale.val
                   />
                 </ConfigField>
               </div>
+            </template>
+            <template v-else-if="trig.type === 'inbound_webhook'">
+              <ConfigField :label="t('auto.inbound_endpoint')" :for="`auto-ie-${i}`" width="md" :hint="t('auto.inbound_endpoint_hint')" :error="err(`triggers.${i}.inboundEndpoint`)">
+                <Select
+                  v-model="trig.inboundEndpoint"
+                  :input-id="`auto-ie-${i}`"
+                  :options="endpoints"
+                  option-label="label"
+                  option-value="value"
+                  size="small"
+                  class="ltr-value"
+                  :placeholder="t('auto.no_inbound_endpoints')"
+                  :data-testid="`auto-inbound-${i}`"
+                />
+              </ConfigField>
             </template>
             <template v-else-if="trig.type === 'watched_folder'">
               <ConfigField :label="t('auto.folder')" :for="`auto-wf-${i}`" width="md" :hint="t('auto.folder_hint')" :error="err(`triggers.${i}.folder`)">

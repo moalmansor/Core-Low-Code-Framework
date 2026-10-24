@@ -999,8 +999,12 @@
             "query",
             "users",
             "roles",
-            "departments"
+            "departments",
+            "external"
           ]
+        },
+        "external": {
+          "$ref": "#/$defs/uuidOrNull"
         },
         "static": {
           "type": "array",

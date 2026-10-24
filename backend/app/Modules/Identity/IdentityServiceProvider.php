@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Identity;
 
+use App\Modules\Core\Actors\ImpersonationContext;
 use App\Modules\Identity\Actions\DisableTwoFactorWhenAllowed;
 use App\Modules\Identity\Actions\ResetUserPassword;
 use App\Modules\Identity\Actions\UpdateUserPassword;
@@ -31,6 +32,7 @@ final class IdentityServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->scoped(ImpersonationContext::class);
         // A reset request for an unknown address gets the same answer as a
         // known one, so the form cannot be used to discover accounts.
         $this->app->bind(DisableTwoFactorAuthentication::class, DisableTwoFactorWhenAllowed::class);

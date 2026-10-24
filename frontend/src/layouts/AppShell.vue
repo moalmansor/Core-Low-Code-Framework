@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
 import Menu from 'primevue/menu'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { get } from '@/api/http'
 import BrandMark from '@/components/BrandMark.vue'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+import AnnouncementBanners from './AnnouncementBanners.vue'
+import ImpersonationBanner from './ImpersonationBanner.vue'
+import GlobalSearchBox from './GlobalSearchBox.vue'
+import HelpButton from './HelpButton.vue'
+import TourRunner from './TourRunner.vue'
+import { loadTours, startTour, tours, type TourPlace } from '@/runtime/tours'
 import NotificationsBell from './NotificationsBell.vue'
-import NavTree, { type NavItem } from '@/runtime/NavTree.vue'
+import NavTree, { navPath, type NavItem } from '@/runtime/NavTree.vue'
 import { activeNavId, type NavCandidate } from './navActive'
 import { useSession } from '@/stores/session'
+import type { ClientTheme } from '@/theme/theme'
 
 /** A published application with the menu items the user may see (GET /navigation). */
 interface NavApp {
@@ -20,6 +27,10 @@ interface NavApp {
   icon: string | null
   color: string | null
   maintenance: boolean
+  /** The application has a home screen of its own. */
+  home?: boolean
+  /** The application's own theme (ADR-0055), applied while the user works in it. */
+  theme?: ClientTheme | null
   items: NavItem[]
 }
 
@@ -62,19 +73,35 @@ async function loadNavigation(): Promise<void> {
     // As above: keep the applications already shown.
   }
 }
+/** Live counts for menu badges, refreshed every minute while the window is visible. */
+const badges = ref<Record<string, number>>({})
+const hasBadges = (items: NavItem[]): boolean => items.some((i) => i.badge || hasBadges(i.children ?? []))
+async function loadBadges(): Promise<void> {
+  if (session.gate !== 'none' || !apps.value.some((a) => hasBadges(a.items)) || document.visibilityState === 'hidden') return
+  try {
+    badges.value = (await get<{ data: Record<string, number> }>('/navigation/badges')).data
+  } catch {
+    // Counts are a convenience: a failed refresh keeps the last ones.
+  }
+}
+let badgeTimer: ReturnType<typeof setInterval> | undefined
 function loadSidebar(): void {
   void loadAreas()
-  void loadNavigation()
+  void loadNavigation().then(loadBadges)
 }
-onMounted(loadSidebar)
+onMounted(() => {
+  loadSidebar()
+  badgeTimer = setInterval(() => void loadBadges(), 60_000)
+})
+onBeforeUnmount(() => clearInterval(badgeTimer))
 watch(() => [session.gate, session.me?.permissions.length, session.locale], loadSidebar)
 watch(
-  () => route.fullPath,
+  () => [route.fullPath, session.browserTitle],
   () => {
     sidebarOpen.value = false
     // A long menu keeps the active item in view (instant: no motion).
     void nextTick(() => nav.value?.querySelector('.nav-active')?.scrollIntoView({ block: 'nearest' }))
-    document.title = [route.meta.title ? t(route.meta.title) : '', session.systemName].filter(Boolean).join(' · ')
+    document.title = [route.meta.title ? t(route.meta.title) : '', session.browserTitle].filter(Boolean).join(' · ')
   },
   { immediate: true },
 )
@@ -87,17 +114,61 @@ const sections = computed(() => {
 
 // Exactly one sidebar entry is active: the longest match, first in menu order on a tie.
 function appCandidates(items: NavItem[]): NavCandidate[] {
-  return items.flatMap((i) => [...((i.type === 'form' || i.type === 'collection') && i.target ? [{ id: i.uuid, path: `/app/${i.target}` }] : []), ...appCandidates(i.children ?? [])])
+  return items.flatMap((i) => {
+    const path = i.type === 'my_work' ? null : navPath(i)
+    return [...(path ? [{ id: i.uuid, path }] : []), ...appCandidates(i.children ?? [])]
+  })
 }
 const active = computed(() =>
   activeNavId(route.path, [
     { id: 'home', path: '/', exact: true },
     { id: 'my_work', path: '/my-work' },
-    ...apps.value.flatMap((a) => appCandidates(a.items)),
+    { id: 'insights', path: '/insights' },
+    { id: 'insights', path: '/reports' },
+    { id: 'insights', path: '/dashboards' },
+    ...apps.value.flatMap((a) => [...(a.home ? [{ id: `app-home-${a.uuid}`, path: `/a/${a.uuid}`, exact: true }] : []), ...appCandidates(a.items)]),
     { id: 'admin', path: '/admin', exact: true },
     ...areas.value.map((a) => ({ id: `area-${a.key}`, path: a.route })),
   ]),
 )
+/** What the Help panel is about: the form, page, application home or admin area on screen (§4.37). */
+const helpContext = computed<{ type: 'form' | 'page' | 'application' | 'admin_area'; target: string } | null>(() => {
+  const p = route.params
+  if (typeof p.form === 'string' && route.path.startsWith('/app/')) return { type: 'form', target: p.form }
+  if (route.name === 'pages.view' && typeof p.page === 'string') return { type: 'page', target: p.page }
+  if (route.name === 'apps.home' && typeof p.application === 'string') return { type: 'application', target: p.application }
+  return active.value?.startsWith('area-') ? { type: 'admin_area', target: active.value.slice(5) } : null
+})
+/** Where tours run: the form on screen, or a place (§4.37); a first-use tour due here starts by itself. */
+const tourPlace = computed<TourPlace | null>(() => {
+  const h = helpContext.value
+  if (h?.type === 'form') return { form: h.target }
+  if (h?.type === 'admin_area') return { place: `area.${h.target}` }
+  return typeof route.name === 'string' && ['home', 'my_work', 'insights', 'profile'].includes(route.name) ? { place: route.name } : null
+})
+watch(
+  () => [JSON.stringify(tourPlace.value), session.locale],
+  async () => {
+    if (tours.running) tours.running = null
+    await loadTours(tourPlace.value)
+    const due = tours.here.find((t) => t.due)
+    // Give the screen a moment to render what the steps point at.
+    if (due) setTimeout(() => !tours.running && startTour(due.uuid), 600)
+  },
+  { immediate: true },
+)
+// The application the user is working in wears its own theme; elsewhere the organization's applies.
+const holds = (items: NavItem[], id: string | null): boolean => items.some((i) => i.uuid === id || holds(i.children ?? [], id))
+const activeApp = computed(() => {
+  const param = route.params.application
+  return apps.value.find((a) => a.uuid === param || active.value === `app-home-${a.uuid}` || holds(a.items, active.value)) ?? null
+})
+watch(
+  () => activeApp.value?.theme ?? null,
+  (theme) => session.useTheme(theme),
+  { immediate: true },
+)
+onBeforeUnmount(() => session.useTheme(null))
 const navClass = (id: string) => ({ 'nav-link': true, 'nav-active': active.value === id })
 const current = (id: string) => (active.value === id ? 'page' : undefined)
 
@@ -135,10 +206,20 @@ const userItems = computed(() => [
       <div class="h-14 shrink-0 px-4 flex items-center border-b border-line">
         <RouterLink :to="{ name: 'home' }"><BrandMark /></RouterLink>
       </div>
-      <nav ref="nav" class="flex-1 min-h-0 p-3 flex flex-col gap-1 overflow-y-auto overscroll-contain" data-testid="sidebar">
+      <nav ref="nav" class="flex-1 min-h-0 p-3 flex flex-col gap-1 overflow-y-auto overscroll-contain" data-testid="sidebar" data-tour="navigation">
         <RouterLink :class="navClass('home')" :to="{ name: 'home' }" active-class="" exact-active-class="" :aria-current="current('home')"><i class="pi pi-home" />{{ t('shell.home') }}</RouterLink>
         <RouterLink :class="navClass('my_work')" :to="{ name: 'my_work' }" active-class="" exact-active-class="" :aria-current="current('my_work')" data-testid="nav-my-work"
           ><i class="pi pi-inbox" />{{ t('my_work.title') }}</RouterLink
+        >
+        <RouterLink
+          v-if="session.capable('insights')"
+          :class="navClass('insights')"
+          :to="{ name: 'insights' }"
+          active-class=""
+          exact-active-class=""
+          :aria-current="current('insights')"
+          data-testid="nav-insights"
+          ><i class="pi pi-chart-bar" />{{ t('rep.insights') }}</RouterLink
         >
         <section v-for="app in apps" :key="app.uuid" class="mt-3" :data-testid="`nav-app-${app.key}`">
           <button
@@ -152,7 +233,19 @@ const userItems = computed(() => [
             <i v-if="app.maintenance" v-tooltip="t('records.app_maintenance')" class="pi pi-wrench text-warning" />
             <i :class="collapsedApps[app.uuid] ? 'pi pi-chevron-right rtl:rotate-180' : 'pi pi-chevron-down'" class="text-[0.625rem]" />
           </button>
-          <NavTree v-if="!collapsedApps[app.uuid]" :items="app.items" :active="active" />
+          <template v-if="!collapsedApps[app.uuid]">
+            <RouterLink
+              v-if="app.home"
+              :class="navClass(`app-home-${app.uuid}`)"
+              :to="{ name: 'apps.home', params: { application: app.uuid } }"
+              active-class=""
+              exact-active-class=""
+              :aria-current="current(`app-home-${app.uuid}`)"
+              :data-testid="`nav-app-home-${app.key}`"
+              ><i class="pi pi-home" />{{ t('xp.app_home') }}</RouterLink
+            >
+            <NavTree :items="app.items" :active="active" :badges="badges" />
+          </template>
         </section>
         <div v-if="apps.length && areas.length" class="mt-3 border-t border-line" />
         <RouterLink v-if="areas.length" :class="navClass('admin')" :to="{ name: 'admin' }" active-class="" exact-active-class="" :aria-current="current('admin')"
@@ -179,13 +272,18 @@ const userItems = computed(() => [
     <div class="flex-1 min-w-0 min-h-0 flex flex-col">
       <header class="h-14 shrink-0 px-4 flex items-center gap-3 bg-card border-b border-line">
         <Button class="lg:hidden" icon="pi pi-bars" text rounded :aria-label="t('shell.menu')" @click="sidebarOpen = true" />
-        <div class="flex-1" />
+        <GlobalSearchBox v-if="session.capable('global_search')" />
+        <div class="flex-1 max-sm:hidden" />
+        <HelpButton :context="helpContext" />
         <NotificationsBell />
         <LanguageSwitcher />
-        <Button :label="session.me?.name" icon="pi pi-user" text aria-haspopup="true" data-testid="user-menu" @click="(e: Event) => userMenu?.toggle(e)" />
+        <Button :label="session.me?.name" icon="pi pi-user" text aria-haspopup="true" data-testid="user-menu" data-tour="user_menu" @click="(e: Event) => userMenu?.toggle(e)" />
         <Menu ref="userMenu" :model="userItems" popup />
       </header>
-      <main class="flex-1 min-h-0 overflow-auto p-4 lg:p-6" data-testid="app-content">
+      <ImpersonationBanner />
+      <AnnouncementBanners />
+      <TourRunner />
+      <main class="app-content flex-1 min-h-0 overflow-auto p-4 lg:p-6" data-testid="app-content">
         <RouterView />
       </main>
     </div>
@@ -199,6 +297,9 @@ export const icons: Record<string, string> = {
   departments: 'pi-sitemap',
   roles_permissions: 'pi-shield',
   appearance_branding: 'pi-palette',
+  themes: 'pi-sun',
+  notification_channels: 'pi-send',
+  external_access: 'pi-globe',
   translations: 'pi-language',
   system_settings: 'pi-sliders-h',
   audit_log: 'pi-history',
@@ -215,6 +316,17 @@ export const icons: Record<string, string> = {
   automations: 'pi-bolt',
   scheduled_tasks: 'pi-clock',
   operations_center: 'pi-server',
+  integrations: 'pi-link',
+  extensions: 'pi-code',
+  packages: 'pi-box',
+  reports: 'pi-chart-bar',
+  home_screens: 'pi-home',
+  global_search: 'pi-search',
+  announcements: 'pi-megaphone',
+  help_content: 'pi-question-circle',
+  usage_insight: 'pi-chart-line',
+  access_policies: 'pi-lock',
+  feature_flags: 'pi-flag',
 }
 </script>
 

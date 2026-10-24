@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Core\Settings;
 
+use App\Modules\Identity\Impersonation\Impersonation;
 use App\Modules\Records\FileStore;
 use App\Support\Color\ReadableBrandColour;
 use Illuminate\Validation\Rule;
@@ -15,6 +16,9 @@ use Illuminate\Validation\Rule;
  */
 final class SettingsRegistry
 {
+    /** Personal preferences an administrator can leave to people or keep for the organization. */
+    public const PREFERENCES = ['locale', 'timezone', 'calendar', 'date_format', 'number_format', 'digits', 'theme_mode', 'density', 'notification_channels', 'digest_frequency', 'landing_page'];
+
     /** @var array<string, array<string, SettingDefinition>> */
     private array $definitions = [];
 
@@ -63,6 +67,11 @@ final class SettingsRegistry
         $d('branding', 'primary_color', null, ['nullable', 'string', new ReadableBrandColour('light')]);
         $d('branding', 'primary_color_dark', null, ['nullable', 'string', new ReadableBrandColour('dark')]);
 
+        // System-wide maintenance mode (§4.29, ADR-0054): its message is the platform organization's
+        // translatable `maintenance_message`; people who may switch it keep working.
+        $d('maintenance', 'enabled', false, ['required', 'boolean']);
+        $d('maintenance', 'until', null, ['nullable', 'date']);
+
         // Schema changes (§4.9, architecture §12.3, §12.5, §12.6)
         $d('schema', 'snapshot_retention_days', 30, ['required', 'integer', 'between:1,3650']);
         $d('schema', 'blocking_confirmation_rows', 100000, ['required', 'integer', 'between:0,1000000000']);
@@ -89,6 +98,11 @@ final class SettingsRegistry
         $d('operations', 'stuck_email_minutes', 15, ['required', 'integer', 'between:1,1440']);
 
         // Actions (§4.15): the most records one run may touch, and above how many it runs in the background (each action may set its own).
+        // REST API and webhooks (§4.22, ADR-0050)
+        $d('api', 'enabled', true, ['required', 'boolean']);
+        $d('api', 'token_max_days', 365, ['required', 'integer', 'between:1,3650']);
+        $d('api', 'token_rate_limit_per_minute', 120, ['required', 'integer', 'between:10,10000']);
+        $d('api', 'webhook_delivery_days', 30, ['required', 'integer', 'between:1,365']);
         $d('actions', 'max_records', 500, ['required', 'integer', 'between:1,100000']);
         $d('actions', 'queue_threshold', 50, ['required', 'integer', 'between:1,10000']);
 
@@ -100,6 +114,15 @@ final class SettingsRegistry
         $d('downloads', 'sync_rows', 5000, ['required', 'integer', 'between:1,100000']);
         $d('downloads', 'max_rows', 100000, ['required', 'integer', 'between:100,1000000']);
         $d('downloads', 'email_attachment_mb', 10, ['required', 'integer', 'between:1,25']);
+
+        // External portal (§4.32, ADR-0058): whether people may register an external account, the external
+        // role a new account gets, and whether an administrator approves each account before it can sign in.
+        $d('external', 'registration_open', false, ['required', 'boolean']);
+        $d('external', 'registration_role', null, ['nullable', 'uuid']);
+        $d('external', 'registration_requires_approval', true, ['required', 'boolean']);
+
+        // Reports (§4.18, ADR-0053): the most records one report reads; a report that stops there says so.
+        $d('reports', 'max_records', 100000, ['required', 'integer', 'between:100,1000000']);
 
         // Document templates (§4.17): the size of an uploaded Word template, and how long one conversion to PDF may take.
         $d('documents', 'max_template_mb', 10, ['required', 'integer', 'between:1,50']);
@@ -146,6 +169,14 @@ final class SettingsRegistry
         $d('security', 'session_idle_minutes', 30, ['required', 'integer', 'between:5,1440']);
         $d('security', 'session_absolute_minutes', 720, ['required', 'integer', 'between:15,10080']);
         $d('security', 'api_rate_limit_per_minute', 240, ['required', 'integer', 'between:30,10000']);
+        // Self-service (§4.36, ADR-0063): the personal preferences people may change themselves.
+        $d('self_service', 'editable_preferences', self::PREFERENCES, ['present', 'array', '*' => ['distinct', Rule::in(self::PREFERENCES)]]);
+        // Usage insight (§4.37, ADR-0066): whether people are named, counted anonymously or not counted, and for how long.
+        $d('adoption', 'usage_tracking', 'people', ['required', Rule::in(['people', 'anonymous', 'off'])]);
+        $d('adoption', 'usage_retention_days', 395, ['required', 'integer', 'between:30,3650']);
+        // Impersonation (§4.36, ADR-0061): the longest one, and what is refused during it.
+        $d('security', 'impersonation_max_minutes', 60, ['required', 'integer', 'between:5,480']);
+        $d('security', 'impersonation_blocked_actions', ['delete_records', 'export_data', 'run_actions', 'change_access'], ['present', 'array', '*' => ['distinct', Rule::in(array_keys(Impersonation::BLOCKABLE))]]);
 
         // Single sign-on (§5): OIDC providers; secrets are stored per provider key.
         $d('sso', 'providers', [], ['present', 'array', 'max:10',

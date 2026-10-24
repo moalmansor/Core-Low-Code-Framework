@@ -269,7 +269,7 @@ module's models.
 | **Expressions** | — (pure) | `ExpressionService` | P2 |
 | **Records** | per-form tables, submission_journal, record_comments, files | `RecordPipeline`, `QueryPlanner`, `DynamicRecord` | P2 (P3 views) |
 | **Reference** | business_calendars, holidays, number_sequences, currencies, exchange_rates, units_of_measure | `WorkingTimeCalculator`, `NumberGenerator`, `FxConverter` | P2 |
-| **Blueprints** | blueprints, blueprint_versions, blueprint_instances | `BlueprintService` | P2 forms and collections; P3 views; library completed P5 |
+| **Blueprints** | blueprints, blueprint_versions, blueprint_instances | `BlueprintService`, `ApplicationBlueprints`, `PartBlueprints` | P2 forms and collections; P3 views; P4 document templates; P5 applications (and cloning), workflows, notification rules, actions, dashboards (ADR-0059) |
 | **Workflow** | statuses, transitions, status_history, status_mappings, sla_rules, sla_timers | `WorkflowEngine` | P3 |
 | **Views** | views, view_columns, filters, saved_views, saved_view_shares, view_panels, reference_previews, print_layouts | `ViewResolver` | P3 |
 | **Justification** | justification_rules, justifications, justification_reason_codes, justification_attachments | `JustificationGate` | P3 |
@@ -556,6 +556,11 @@ session cookie name. They have no implicit permissions: an external principal
 resolves access only through the `external_forms` publication and the
 `access_tokens` scope (one record, one action, expiry, single use or N uses,
 revocable). See §19.12.
+
+As built (ADR-0058): the portal session is a key of its own (`external_user_id`)
+in the same session store rather than a second guard and cookie, which would
+clash with the single CSRF cookie; no internal guard or route sees it. Record
+links act as their sender, through the pipeline, at the moment of use.
 
 ### 7.7 Impersonation
 
@@ -2742,7 +2747,7 @@ erDiagram
 | `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 | `form_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `forms.id` CASCADE |
 | `parent_panel_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `view_panels.id` NO ACTION (tabs/sections) |
-| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `tabs`, `tab`, `section`, `related_table`, `derived_fields`, `summary_widget`, `status_timeline`, `comments`, `attachments`, `form_body`, `html` |
+| `type` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `tabs`, `tab`, `section`, `related_table`, `derived_fields`, `summary_widget`, `status_timeline`, `comments`, `attachments`, `form_body`, `html`, `external_table` |
 | `relation_path` | JSON | NVARCHAR(MAX) | NULL | — | for related tables / derived fields |
 | `config` | JSON | NVARCHAR(MAX) | NOT NULL | — | columns, filters, actions, widget definition, derived field paths |
 | `visibility_condition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `conditions.id` NO ACTION (per role etc.) |
@@ -2762,7 +2767,7 @@ erDiagram
 - **Foreign key:** `fk_view_panels_form_id`: `form_id` → `forms`(`id`) ON DELETE CASCADE
 - **Foreign key:** `fk_view_panels_parent_panel_id`: `parent_panel_id` → `view_panels`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_view_panels_visibility_condition_id`: `visibility_condition_id` → `conditions`(`id`) ON DELETE NO ACTION
-- **Check:** `ck_view_panels_type`: `type IN ('tabs', 'tab', 'section', 'related_table', 'derived_fields', 'summary_widget', 'status_timeline', 'comments', 'attachments', 'form_body', 'html')` (both engines)
+- **Check:** `ck_view_panels_type`: `type IN ('tabs', 'tab', 'section', 'related_table', 'derived_fields', 'summary_widget', 'status_timeline', 'comments', 'attachments', 'form_body', 'html', 'external_table')` (both engines)
 - **Check (SQL Server):** `ck_view_panels_relation_path_json`: `ISJSON(relation_path) = 1`
 - **Check (SQL Server):** `ck_view_panels_config_json`: `ISJSON(config) = 1`
 - Translatable: `title`, `content` (html).
@@ -4730,6 +4735,8 @@ admin-created, never seeded.
 | `password_hash` | VARCHAR(255) | NVARCHAR(255) | NULL | — |  |
 | `run_as_user_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `users.id` NO ACTION (service principal recorded as creator) |
 | `is_active` | TINYINT(1) | BIT | NOT NULL | 1 |  |
+| `audience` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | 'public' | values: `public`, `accounts` — open to anyone, or only to signed-in external users (ADR-0058) |
+| `role_ids` | JSON | NVARCHAR(MAX) | NULL | — | external roles allowed when `audience = accounts`; NULL = every external user |
 
 - **Primary key:** `pk_external_forms` (`id`); SQL Server clustered.
 - **Unique:** `uq_external_forms_uuid` (`uuid`)
@@ -4749,6 +4756,8 @@ admin-created, never seeded.
 - **Foreign key:** `fk_external_forms_initial_status_id`: `initial_status_id` → `statuses`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_external_forms_run_as_user_id`: `run_as_user_id` → `users`(`id`) ON DELETE NO ACTION
 - **Check:** `ck_external_forms_verification`: `verification IN ('none', 'email', 'sms')` (both engines)
+- **Check:** `ck_external_forms_audience`: `audience IN ('public', 'accounts')` (both engines)
+- **Check (SQL Server):** `ck_external_forms_role_ids_json`: `ISJSON(role_ids) = 1`
 - **Check (SQL Server):** `ck_external_forms_exposed_fields_json`: `ISJSON(exposed_fields) = 1`
 - **Check (SQL Server):** `ck_external_forms_daily_window_json`: `ISJSON(daily_window) = 1`
 - Translatable: `title`, `intro`, `success_message`.
@@ -4824,6 +4833,7 @@ admin-created, never seeded.
 | `revoked_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 | `last_used_at` | DATETIME(6) | DATETIME2(6) | NULL | — |  |
 | `last_used_ip` | VARCHAR(45) | NVARCHAR(45) | NULL | — |  |
+| `transition_id` | BIGINT UNSIGNED | BIGINT | NULL | — | → `transitions.id` NO ACTION — the transition an `approve` or `reject` link performs (ADR-0058) |
 
 - **Primary key:** `pk_access_tokens` (`id`); SQL Server clustered.
 - **Unique:** `uq_access_tokens_token_hash` (`token_hash`)
@@ -4838,6 +4848,8 @@ admin-created, never seeded.
 - **Foreign key:** `fk_access_tokens_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_access_tokens_form_id`: `form_id` → `forms`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_access_tokens_revoked_by`: `revoked_by` → `users`(`id`) ON DELETE NO ACTION
+- **Index:** `ix_access_tokens_transition_id` (`transition_id`) — supports FK
+- **Foreign key:** `fk_access_tokens_transition_id`: `transition_id` → `transitions`(`id`) ON DELETE NO ACTION
 - **Check:** `ck_access_tokens_purpose`: `purpose IN ('record_action', 'signature', 'external_resume', 'email_verification')` (both engines)
 - **Check:** `ck_access_tokens_action`: `action IN ('view', 'approve', 'reject', 'complete_section', 'sign')` (both engines)
 
@@ -5940,6 +5952,7 @@ Laravel's `failed_jobs` and `job_batches` tables are used unchanged (plus our tr
 | `landing_page` | JSON | NVARCHAR(MAX) | NULL | — |  |
 | `pinned_records` | JSON | NVARCHAR(MAX) | NULL | — | `[{form_uuid, record_id}]` (max 50) |
 | `shortcuts` | JSON | NVARCHAR(MAX) | NULL | — |  |
+| `digest_sent_at` | DATETIME(6) | DATETIME2(6) | NULL | — | last notification digest (ADR-0063) |
 
 - **Primary key:** `pk_user_preferences` (`id`); SQL Server clustered.
 - **Unique:** `uq_user_preferences_user_id` (`user_id`)
@@ -7216,6 +7229,11 @@ At pipeline step 9 the `JustificationGate`:
   signature (signature_pad), server stamps signature + metadata into the generated
   PDF, stores `signed_file_id` + hash, audit entry.
 
+- As built (ADR-0058): `external_forms.audience`/`role_ids` limit a form to portal
+  users with external roles; `access_tokens.transition_id` is the step an approve or
+  reject link performs; signature pages are appended with mPDF/FPDI to the PDF frozen
+  when the request was sent; `external:maintain` prunes throttle windows and expires
+  requests hourly.
 ### 19.13 Developer extensions
 
 - Stored as modules on disk under `/extensions/{key}/v{n}/` (Git-friendly), with a
@@ -7362,6 +7380,12 @@ workflow, and permissions of the bound principal. Channels: provider drivers (SM
 messaging) registered in `NotificationChannelRegistry`, HTTP through the egress
 gateway.
 
+As built (ADR-0056, ADR-0057): database views are read from connections named in
+`LCF_EXTERNAL_DB_CONNECTIONS` (`external_<name>`, configured by `LCF_EXT_<NAME>_*`);
+sync jobs keep their export target in `field_mapping.export` and their matching
+settings in `match_keys` (`fields`, `updated_from`); View Mode panels gain the type
+`external_table`.
+
 ### 19.22 Self-service, impersonation, access policies, feature flags
 
 - Profile preferences constrained by `settings.self_service` limits.
@@ -7374,6 +7398,12 @@ gateway.
 - Feature flags evaluated by `Features::enabled(key, user)` (Laravel Pennant-style
   resolver backed by `feature_flags`), used by menus, forms (publish to pilot
   group), actions, pages.
+- As built (ADR-0060 to ADR-0063):
+  - Flags are evaluated by `FeatureFlags` and enforced by `EnforceFeatureFlags`: 404 for a hidden form, action or page, 403 `feature_off` for a capability.
+  - Policies are enforced by `AccessPolicies` and `EnforceAccessPolicy`.
+  - Impersonation is handled by `Impersonation` and `GuardImpersonation`; the audit writes the impersonator as actor.
+  - Self-service limits come from `settings.self_service.editable_preferences`.
+  - Personal API tokens are released or held back by the `personal_api_tokens` capability flag (ADR-0062), not by a separate setting.
 
 ### 19.23 Help, tours, adoption
 
@@ -7383,6 +7413,23 @@ and changelog pages are `pages` of type `knowledge`/`changelog` with "publish to
 users" creating an announcement. Usage insight: the renderer emits batched
 beacon events (view, start, submit, abandon, empty fields on submit) to
 `/api/usage` → aggregated daily in `usage_metrics`; admin report per form.
+
+As built (ADR-0064 to ADR-0066):
+- `HelpContents` resolves help by target. Admin areas are keyed by `crc32('admin_area:'+key)`.
+  `GET /help?type=&target=` returns `{tooltips, panel}` only for what the person may open, and
+  `GET /help/{uuid}` serves help pages under the same check.
+- `Pages::announce` publishes a bell announcement for a `changelog` page.
+- `Tours`:
+  - step targets are restricted to `[data-field|data-group|data-tour="…"]`;
+  - `GET /tours/mine?form=|place=` returns the tours of a place with `due` for unseen first-use versions;
+  - `POST /tours/{uuid}/progress` records that a person completed or dismissed a tour;
+  - `POST /tours/{uuid}/reset` clears progress, for everyone or for some roles;
+  - `DELETE /me/tours` clears the person's own progress.
+- `UsageRecorder` (Adoption module):
+  - `POST /usage` accepts only `form_view`, `form_start` and `form_abandon`, for forms the person may view;
+  - submissions, empty fields, page views and searches are counted by the server;
+  - counting is set in `settings.adoption`, and `usage:prune` runs nightly;
+  - the report is `GET /usage/forms` and `GET /usage/forms/{uuid}`.
 
 ### 19.24 Localization runtime
 
@@ -7444,7 +7491,8 @@ Conventions: base `/api/v1`, JSON, Sanctum cookie (SPA) or bearer token,
 writes, `If-Match: <row_version>` (or body `row_version`) on record updates.
 Errors: 401/403/404 (out-of-scope = 404), 409 conflict, 422 validation (+
 `justification_required`), 423 locked (claim / schema inconsistent / publish lock),
-429 rate limit; body `{message, code, reference, errors?}`. Lists support
+429 rate limit (a `throttle:N,M` limit counts per person or address and per route, so one
+action's limit is never used up by others); body `{message, code, reference, errors?}`. Lists support
 `page`, `per_page` (≤ 100), `sort`, `filter[...]`, `search`. Permission keys:
 `system.*` from §21.1, `form.{uuid}.{ability}`, etc. (§10.4 `permissions.key`).
 

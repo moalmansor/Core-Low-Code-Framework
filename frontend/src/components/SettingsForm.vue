@@ -62,7 +62,14 @@ const label = (key: string) => t(`settings.${props.group}.${key}`)
         option-value="v"
       />
       <Select v-else-if="f.type === 'timezone'" v-model="values[f.key]" :input-id="`${group}-${f.key}`" :options="timezones" filter />
-      <MultiSelect v-else-if="f.type === 'multiselect'" v-model="values[f.key] as string[]" :input-id="`${group}-${f.key}`" :options="f.options" display="chip" />
+      <MultiSelect
+        v-else-if="f.type === 'multiselect'"
+        v-model="values[f.key] as string[]"
+        :input-id="`${group}-${f.key}`"
+        :options="f.options"
+        :option-label="(o: string | number) => optionLabel(f.key, o)"
+        display="chip"
+      />
       <template v-else-if="f.type === 'secret'">
         <Password
           v-model="values[f.key] as string"

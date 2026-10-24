@@ -130,12 +130,14 @@ export interface StaticOption {
   i18n?: { label?: I18nText }
 }
 
-export type OptionSource = 'static' | 'collection' | 'form' | 'query' | 'users' | 'roles' | 'departments'
+export type OptionSource = 'static' | 'collection' | 'form' | 'query' | 'users' | 'roles' | 'departments' | 'external'
 
 export interface OptionsDef {
   source: OptionSource
   static?: StaticOption[]
   collection?: string | null
+  /** An external data source (ADR-0057) when the source is `external`. */
+  external?: string | null
   valuePath?: string[] | null
   labelPath?: string[] | null
   query?: { from: string; where?: Ast | null; sort?: { path: string[]; dir?: 'asc' | 'desc' }[]; limit?: number } | null

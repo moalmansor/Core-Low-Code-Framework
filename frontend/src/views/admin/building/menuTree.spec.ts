@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blankNode, countNodes, findNode, fromApi, indent, moveBy, outdent, removeNode, toPayload, treeDepth, validateTree, type MenuItemApi } from './menuTree'
+import { MAX_MENU_LEVELS, blankNode, countNodes, findNode, fromApi, indent, moveBy, outdent, removeNode, toPayload, treeDepth, validateTree, type MenuItemApi } from './menuTree'
 
 const ids = () => {
   let i = 0
@@ -89,13 +89,39 @@ describe('menu tree conversion', () => {
     let root = blankNode('header', make)
     root.labels = { en: 'level' }
     const top = root
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < MAX_MENU_LEVELS; i++) {
       const child = blankNode('header', make)
       child.labels = { en: 'level' }
       root.children.push(child)
       root = child
     }
     expect(validateTree([top], 'en').map((p) => p.code)).toEqual(['too_deep'])
+  })
+
+  it('checks targets, badges and visibility rules of pages, reports, dashboards and My Work', () => {
+    const make = ids()
+    const page = blankNode('page', make)
+    page.labels = { en: 'Guide' }
+    const work = blankNode('my_work', make)
+    work.labels = { en: 'Work' }
+    work.badge = 'records'
+    expect(validateTree([page, work], 'en').map((p) => p.code)).toEqual(['target_missing', 'badge_invalid'])
+
+    page.target = '66666666-6666-4666-8666-666666666666'
+    work.badge = 'approvals'
+    const rule = { k: 'call', fn: 'has_role', args: [{ k: 'lit', t: 'text', v: 'manager' }] }
+    work.condition = rule as never
+    expect(validateTree([page, work], 'en')).toEqual([])
+    const [p, w] = toPayload([page, work])
+    expect(p).toMatchObject({ type: 'page', target: '66666666-6666-4666-8666-666666666666' })
+    expect(p).not.toHaveProperty('badge')
+    expect(w).toMatchObject({ type: 'my_work', badge: { kind: 'approvals' }, condition: rule })
+    expect(w).not.toHaveProperty('target')
+
+    // Read back from the server, badges and rules survive the round trip.
+    const back = fromApi([{ uuid: '77777777-7777-4777-8777-777777777777', type: 'my_work', labels: { en: 'Work' }, badge: { kind: 'approvals' }, condition: rule as never, children: [] }], make)
+    expect(back[0]!.badge).toBe('approvals')
+    expect(back[0]!.condition).toEqual(rule)
   })
 
   it('reorders, indents and outdents without drag and drop', () => {

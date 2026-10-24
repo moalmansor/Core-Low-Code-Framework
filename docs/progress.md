@@ -11,8 +11,8 @@ Project memory file (specification §8.1). Updated at the end of every run.
 | 2 — Form Builder, Collections & Data Engine | `phase-2-form-builder` | **Complete. Merged.** (plus the interface pull request) | [moalmansor/Core-Low-Code-Framework#11](https://github.com/moalmansor/Core-Low-Code-Framework/pull/11), [#12](https://github.com/moalmansor/Core-Low-Code-Framework/pull/12) |
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | **Complete.** Owner confirmed 2026-10-09; no findings, no code changes (`docs/pilot-findings.md`) | — (issue #5 closed) |
 | 3 — Workflow, Records & Views | `phase-3-workflow` | **Complete. Merged.** Owner re-tested after merge. | [moalmansor/Core-Low-Code-Framework#13](https://github.com/moalmansor/Core-Low-Code-Framework/pull/13) |
-| 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | **In progress** (issue #7) | — |
-| 5 — Platform & Extensibility | `phase-5-platform` | Not started | — |
+| 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | **Complete. Merged.** Owner verified 2026-10-16. | [moalmansor/Core-Low-Code-Framework#14](https://github.com/moalmansor/Core-Low-Code-Framework/pull/14) |
+| 5 — Platform & Extensibility | `phase-5-platform` | **Complete. Awaiting review.** (issue #8) | [moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmansor/Core-Low-Code-Framework/pull/15) |
 | 6 — Hardening & Final Delivery | `phase-6-hardening` | Not started | — |
 
 ## Phase 0: completed deliverables
@@ -379,7 +379,7 @@ Decided by the owner:
   endpoints, checks strip (client and server: unreachable, dead end, no
   entry), outline, no keys on nodes. Spec §4.12, design system §5.6a.
 
-## Phase 4: progress (branch `phase-4-actions`, issue #7)
+## Phase 4: completed deliverables (branch `phase-4-actions`, issue #7)
 
 - **Before Phase 4 — identifier guard (owner request).** The designer's
   warnings named statuses by key although the browser guard existed, because
@@ -548,21 +548,179 @@ Decided by the owner:
      - the sidebar emptying itself after a refused request.
      A pull-request template carries the checklist.
 
+## Phase 5: progress (branch `phase-5-platform`, issue #8)
+
+Done:
+1. **Schema.** Every Phase 5 table of the ERD exists, together with the columns that earlier phases deferred to it. Schema conformance passes; `DEFERRED_COLUMNS` is now empty. Phase 6 tables are not created.
+2. **Settings fix.** Eight System Settings tabs (Records, Schema, Data quality, Actions, Downloads, Notifications, Documents and Operations) answered 404 and now load and save. The new "API and webhooks" settings group is added. A regression test covers every group that has a screen.
+3. **REST API and webhooks** (ADR-0050):
+   - personal API tokens, with a token-only guard, per-token rate limits and IP allow-lists;
+   - the `/api/v1/data/{form}` API through the record pipeline, with OpenAPI 3.1;
+   - signed outgoing webhooks with retries, a masked delivery log, resend, purge and Operations Center entries;
+   - inbound endpoints (`/api/inbound/{slug}`, signed webhook or API token) that create, update or upsert records through the pipeline;
+   - the inbound webhook automation trigger;
+   - the screens: Admin › Integrations (outgoing webhooks, incoming endpoints, API tokens), the webhook and endpoint editors with their logs, Profile › API tokens, and the trigger in the automation editor.
+   Fixed on the way: a bearer header on a session endpoint answered 500 (Sanctum looked up a table that does not exist). It now answers 401.
+
+4. **Developer extensions** (ADR-0051):
+   - server hooks at all nine points and custom API endpoints, checked by a token guard and run with a per-statement time limit, failing closed;
+   - client validators, field components and form scripts compiled by esbuild, running in sandboxed opaque-origin frames;
+   - the Monaco editor, sandbox test runs, approval by a second person, deployment, version history, rollback and turning off;
+   - failures in Error Monitoring and the Operations Center;
+   - the screens Admin › Developer extensions and the field-component picker in the builder;
+   - an end-to-end test of a client validator from the editor to the record form.
+
+5. **Configuration packages and the drift report** (ADR-0052):
+   - export of applications, forms (with workflow, notification rules, access), email and document templates and download profiles, with dependencies, a checksum, and roles, departments and people by key;
+   - a drift report against this environment: new, key in use, same, changed, changed here, changed in both, unpublished here, tables differ;
+   - refusal while ambiguous, and per-object take, keep or import under another key;
+   - applying in the background in dependency order through the normal publish, restoring a form that fails;
+   - remembered hashes and keys for the next import;
+   - the screens Admin › Configuration packages (packages, export picker, import with choices and outcome, drift reports);
+   - tests: `PackagesTest` (6) and e2e `17-packages`.
+
+6. **Reports and dashboards** (ADR-0053):
+   - a report engine over relation paths, with date buckets, count/sum/average/min/max, detail lists, per-viewer scope and field access, a record cap and caching;
+   - the report builder with live preview;
+   - ECharts charts with a validated palette and a table view, pivot tables and key figures;
+   - dashboards on a twelve-column grid with drag-and-drop and role-limited widgets;
+   - Excel/CSV/PDF export with chart images;
+   - the Reports page for viewers;
+   - reports and dashboards in configuration packages;
+   - tests: `ReportsTest` (4), a package round trip, and e2e `18-reports`.
+
+7. **Pages, navigation, home screens, announcements, maintenance mode and global search** (ADR-0054):
+   - custom pages (content, link, dashboard, report, a form's records) with their own permission and the permission of what they show;
+   - the navigation builder with page, report, dashboard and My Work items, live badges, rules on the person and 20 levels;
+   - home screens per person, role, department or everyone, for the main home and each application, built from widgets;
+   - announcements as banners, on home screens or in the bell; system-wide maintenance mode; global search configured per form;
+   - fixed on the way: My Work titles now respect field access; the e2e screen sweep waits out the rate-limit minute it used (the cause of the SQL Server sign-in failures in specs 16 and 17);
+   - tests: `PagesNavigationTest` (2), `HomeScreensTest` (2), `AnnouncementsSearchMaintenanceTest` (3), e2e `19-experience`.
+
+7b. **Themes per organization and per application** (ADR-0055):
+   - light and dark colours, corners, density, shadows and a font per script, applied as `--theme-*` properties over the product tokens;
+   - contrast checked on the server in both modes (text below 4.5:1 refused with the nearest readable shade; weak non-text contrasts acknowledged), live in the editor with a two-mode preview;
+   - presets, reset, JSON import and export; artwork for the sign-in page, favicon and emails; translatable sign-in welcome, support contact, browser title and legal links;
+   - custom CSS limited to safe properties, scoped to `.app-content` and served as its own stylesheet;
+   - the organization default reaches the sign-in page; an application's theme applies while the user works in it;
+   - tests: `ThemesTest` (4), `theme.spec.ts`, e2e `19-experience` (theme flow) and the screen sweep.
+
+8. **Notification channels, external data sources and sync jobs** (ADR-0056, ADR-0057):
+   - SMS (Twilio, HTTPS) and messaging (Slack, Teams, HTTPS) channels chosen per notification rule, with encrypted write-only provider settings, a test message, a per-minute limit, a delivery log with retries, an SMS preference per person, and failures in the Operations Center;
+   - REST data sources through the egress gateway (API key, bearer, basic, OAuth 2.0 client credentials) and views of environment-defined database connections, mapped to value, label, parent and columns, cached per policy, with a live test;
+   - an "external" option source for choice fields (checked again on save, labels on records) and an "External data" panel in View Mode;
+   - sync jobs: import through the record pipeline as a run-as user with matching fields and four conflict rules, export of changed records, dry runs rolled back, CSV run logs, schedules, and failed runs in the Operations Center;
+   - tests: `NotificationChannelsTest` (3), `DataSourcesTest` (3), `SyncJobsTest` (3), e2e `20-integrations` and the screen sweep.
+
+9. **External access** (ADR-0058):
+   - external forms at `/x/f/{slug}`:
+     - texts, theme and status on submission;
+     - an allow-list of safe fields, submitted through the pipeline as a run-as user;
+     - open to anyone or to portal users with chosen external roles;
+     - password, self-hosted proof-of-work CAPTCHA, per-address hourly limits, opening times, daily hours, a cap, and email/SMS one-time codes;
+   - the portal at `/x/portal`: registration (off until opened) with email verification and optional approval, sign-in with the lockout policy, the forms open to the user, and their own records with status. External roles are kept out of every internal role screen;
+   - record links from a record's Share dialog: view; approve or reject through a step; complete a section. They act as the sender with every rule applied, are hash-only, expire, have limited uses, can be withdrawn, and are audited;
+   - signature requests: the PDF is frozen when sent; the drawn signature is stamped on a final page with the signer, time, address and the original's hash; the signed PDF and its hash are kept;
+   - the external user is recorded on records, audit entries, the journal and the status history;
+   - fixed on the way:
+     - `throttle:N,M` limits now count per route — the shared per-user counter caused the full-run failures of e2e specs 12, 16 and 17;
+     - a record uuid was used as a label in sync logs;
+   - tests: `ExternalAccessTest` (6), `ThrottlePerRouteTest`, `pow.spec.ts`, e2e `21-external` and the screen sweep.
+
+10. **Blueprint library and application cloning** (ADR-0059):
+   - blueprints of a whole application: every form and collection with its design and workflow, plus permissions and notification rules and actions by the chosen level;
+   - making an application from one, and "Make a copy" on the Applications screen:
+     - forms are created with derived uuids and links remapped to the copies, and published in link order;
+     - rules and actions are added after publishing; webhook secrets never travel;
+   - blueprints of a form's workflow, notification rules or actions, applied to another form with fields, statuses and transitions matched by key:
+     - a workflow only goes to a form without one;
+     - taken keys are refused;
+     - rules that use missing fields are left out and reported;
+     - one blueprint per kind per form;
+   - dashboard blueprints that make new dashboards;
+   - three-way propagation for every kind, keeping local changes as conflicts and creating forms an application blueprint gained as drafts;
+   - the library asks what to save; a blueprint page creates or applies by kind and lists what was made from it;
+   - tests: `ApplicationBlueprintsTest` (2), `PartBlueprintsTest` (3), e2e `22-blueprints`.
+
+11. **Self-service, impersonation, access policies, feature flags, help, tours and usage insight:**
+   - access policies per role (ADR-0060):
+     - allowed networks, time windows, concurrent sessions, idle and lifetime limits, second factor and trusted devices, and an administrative policy;
+     - enforced at sign-in and on every request; saving one that would shut out the administrator is refused;
+     - trusted devices are listed in the profile;
+     - tests: `AccessPoliciesTest` (5);
+   - impersonation (ADR-0061):
+     - a reason and a time limit; no escalation;
+     - a persistent banner; account security and the chosen sensitive actions are refused;
+     - audited as the administrator with the user as subject;
+     - tests: `ImpersonationTest` (3);
+   - feature flags (ADR-0062): a form, action, page or capability released to roles, departments or people, or switched off; enforced on the server and left out of navigation, action lists, search and the screens; tests: `FeatureFlagsTest` (2);
+   - self-service (ADR-0063):
+     - preferences within what System Settings › Self-service allows;
+     - time zone, calendar, digits, date pattern, number separators and density applied to every date and number;
+     - a start page, pinned records, personal shortcuts, and daily or weekly digests;
+     - tests: `SelfServiceTest` (3);
+   - help content, knowledge pages and changelogs (ADR-0064):
+     - help for forms, fields, groups, pages, applications and admin areas;
+     - shown as tooltips, in the Help side panel, or as help pages, only to people who may open what it is about;
+     - knowledge and changelog page types, with "Tell users" for changelogs;
+     - fixes the HTML sanitizer failing on links inside the application;
+     - tests: `HelpContentTest` (3);
+   - guided tours (ADR-0065):
+     - on forms or places, for chosen roles;
+     - steps point at fields, groups or named parts of the screen;
+     - first-use tours start once per version and are offered again in the Help panel;
+     - "Show again" for administrators and "Show tips again" for people;
+     - tests: `ToursTest` (2);
+   - usage insight (ADR-0066):
+     - views, starts, submissions, abandons and empty fields per form, page views and searches, counted per day;
+     - named, anonymous or off, with a retention, in System Settings › Adoption;
+     - the Usage insight screen;
+     - tests: `UsageInsightTest` (2);
+   - e2e `23-adoption`, which passed locally on MySQL; the new screens are in the screen sweep.
+
+12. **Documentation and delivery:**
+   - the specification (§4.36, §4.37 "As built") and architecture (§19.22, §19.23) are updated;
+   - the Self-service and Adoption settings tabs are served;
+   - the screen sweep switches language from inside the application and waits out a whole rate-limit window afterwards;
+   - every CI job passes on both engines;
+   - pull request [moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmansor/Core-Low-Code-Framework/pull/15) carries the §8.2 report and cites the CI run on its head commit.
+
+## Phase 5 review follow-up (2026-10-24)
+
+The owner found eight System Settings tabs answering 404 and the Self-service tab unserved while CI was green, and asked for an unreachable-screen check and five behaviours verified by tests (ADR-0067).
+
+- **Why nothing caught it.** No test compared the tabs with the groups the API serves. The screen sweep opens a fixed list of pages and never clicks a tab. `SettingsAndLocalizationTest` would have caught Self-service, but each push cancelled the previous CI run, so no run finished in between.
+- **Guard.** `e2e/24-routes.spec.ts` opens every `/admin` route from the running router and clicks every tab. It fails on an API 403, 404, 405 or 5xx, a 422 to a GET, a page error, or a missing heading. Taking the Self-service group off the served list makes it fail with `GET /api/v1/settings/self_service → 404`. `SettingsScreenTest` checks tabs against served groups, and console areas against client routes, in the fast suite. The rate-limit handling of the sweeps is shared in `e2e/support.ts`.
+- **Five verifications:**
+  1. Package round trip with keep, take and rename: `PackagesTest`, new test. It found that an export recorded no baseline, so the import read "changed" instead of "changed here" (fixed). It also found a stale form runtime cache after a republish in the same process (fixed).
+  2. A throwing server hook fails closed: `ExtensionsTest`, new test. The record is unchanged, no audit entry is written, the failure appears in Error Monitoring, and the next save succeeds.
+  3. Approving your own extension is refused: already covered by `ExtensionsTest`, so no duplicate was written.
+  4. A blocked action while impersonating: `ImpersonationTest`, extended. Blocked attempts were not audited; they are now audited as `impersonation.blocked`, with the administrator as actor.
+  5. Locking out the last administrator: `AccessPoliciesTest`, new test. A policy officer who is not a Super Admin could lock out every Super Admin; this is now refused.
+
+- **Citation check (ADR-0068).** Pushes had cancelled every CI run before it reached `SettingsAndLocalizationTest`, while the report cited an older run. The new "Verification report" workflow fails unless the report cites, exactly once, a `ci.yml` run on the head commit that finished with every job passing. It runs on every push and description edit, and its rules are unit-tested. Cancellation stays on for pull requests and phase branches, and is now off for `main`. Making the check required on `main` is a branch-protection setting for the owner.
+
 ## Resume point
 
-Phase 3 is complete and merged (pull request
-[moalmansor/Core-Low-Code-Framework#13](https://github.com/moalmansor/Core-Low-Code-Framework/pull/13),
-merge commit `e4c89ad`). The owner re-tested the workflow designer,
-transitions with required fields, removing a status that has records, and
-field access by status, and all behaved correctly.
+Phase 4 is complete and merged (pull request
+[moalmansor/Core-Low-Code-Framework#14](https://github.com/moalmansor/Core-Low-Code-Framework/pull/14),
+merge commit `06008cc`). The owner verified it on 2026-10-16: custom
+downloads with a restricted user across linked forms, the bulk approve
+action, notifications to a user from a linked form's field, document
+generation as PDF and Word, and the Phase 4 screens in Arabic at narrow
+widths all behaved correctly.
 
-Phase 4 is built on branch `phase-4-actions`
-([moalmansor/Core-Low-Code-Framework#7](https://github.com/moalmansor/Core-Low-Code-Framework/issues/7))
-and its pull request to `main` is open for the owner's review. The owner's
-four-item review of 2026-10-14 is addressed (see Phase 4 above); resume by
-checking CI on the head commit, updating the report, and addressing any new
-review comments on that pull request (push to the same branch, re-run CI,
-update the report). Phase 5 starts only after it is merged.
+Phase 5 is complete on branch `phase-5-platform`
+([moalmansor/Core-Low-Code-Framework#8](https://github.com/moalmansor/Core-Low-Code-Framework/issues/8)).
+Pull request [moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmansor/Core-Low-Code-Framework/pull/15)
+is open for the owner's review and carries the full §8.2 report.
+
+Resume point:
+- The review follow-up above is pushed; wait for the owner's review of #15.
+- Address review comments on #15 by pushing to `phase-5-platform`.
+- After each push, re-run CI on the head commit and update the report.
+- Do not merge.
+- Phase 6 starts only after #15 is merged.
 
 ### Local development notes
 

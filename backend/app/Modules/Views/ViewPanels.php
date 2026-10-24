@@ -16,6 +16,9 @@ use App\Modules\Forms\Draft\DraftRepository;
 use App\Modules\Forms\Draft\DraftValidator;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
+use App\Modules\Integrations\ExternalSources;
+use App\Modules\Integrations\Models\ExternalDataSource;
+use App\Modules\Integrations\SourceFailure;
 use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RecordPresenter;
@@ -38,7 +41,7 @@ use Illuminate\Validation\ValidationException;
  */
 final class ViewPanels
 {
-    public const TYPES = ['tabs', 'tab', 'section', 'related_table', 'derived_fields', 'summary_widget', 'status_timeline', 'comments', 'attachments', 'form_body', 'html'];
+    public const TYPES = ['tabs', 'tab', 'section', 'related_table', 'derived_fields', 'summary_widget', 'status_timeline', 'comments', 'attachments', 'form_body', 'html', 'external_table'];
 
     private const CONTAINERS = ['tabs', 'tab', 'section'];
 
@@ -232,6 +235,27 @@ final class ViewPanels
                     ], $records, $presented),
                     'can_create' => $this->access->allows($user, "form.{$source->form->uuid}.create"),
                 ];
+            case 'external_table':
+                // Rows of an external data source matching a value of this record (ADR-0057). The value is
+                // read with the viewer's field access: a field they cannot see shows nothing.
+                $source = ExternalDataSource::query()->where('uuid', (string) ($config['source'] ?? ''))->first();
+                $key = (string) ($config['field'] ?? '');
+                $value = $source === null || $this->paths->resolve($rt, [$key], $user) === null ? null : ($record['values'][$key] ?? null);
+                if ($source === null || $value === null || $value === '' || is_array($value)) {
+                    return ['columns' => [], 'rows' => [], 'error' => null];
+                }
+                $columns = array_values(array_filter($source->response_mapping['columns'] ?? [], static fn ($c) => in_array($c['key'], (array) ($config['columns'] ?? []), true)));
+                try {
+                    $rows = app(ExternalSources::class)->rows($source, ['match' => [(string) $config['match'] => (string) $value]], min(100, max(1, (int) ($config['limit'] ?? 20))));
+                } catch (SourceFailure $e) {
+                    return ['columns' => [], 'rows' => [], 'error' => $e->getMessage()];
+                }
+
+                return [
+                    'columns' => [['key' => 'label', 'label' => null], ...array_map(fn ($c) => ['key' => $c['key'], 'label' => $this->pick((array) $c['label'])], $columns)],
+                    'rows' => array_map(static fn ($r) => ['label' => $r['label']] + array_intersect_key($r['cells'], array_flip(array_column($columns, 'key'))), $rows),
+                    'error' => null,
+                ];
             default:
                 return null;
         }
@@ -320,6 +344,23 @@ final class ViewPanels
                 case 'tab':
                 case 'section':
                     $config = ['collapsible' => (bool) ($config['collapsible'] ?? false), 'columns' => in_array($config['columns'] ?? 1, [1, 2, 3], true) ? ($config['columns'] ?? 1) : 1];
+                    break;
+                case 'external_table':
+                    $src = is_string($config['source'] ?? null) ? ExternalDataSource::query()->where('uuid', strtolower($config['source']))->first() : null;
+                    $cols = array_column($src?->response_mapping['columns'] ?? [], 'key');
+                    $field = $rt->fields[$rt->keys[$config['field'] ?? ''] ?? ''] ?? null;
+                    if ($src === null) {
+                        $errors["{$pp}.config.source"][] = __('panels.unknown_source');
+                        break;
+                    }
+                    if ($field === null || $rt->isMultiReference($field) || in_array($rt->type($field)?->storage, ['none', 'file', 'files', 'multi_choice'], true)) {
+                        $errors["{$pp}.config.field"][] = __('panels.bad_match_field');
+                    }
+                    if (! in_array($config['match'] ?? null, ['value', ...$cols], true)) {
+                        $errors["{$pp}.config.match"][] = __('panels.bad_match_column');
+                    }
+                    $config = ['source' => strtolower($config['source']), 'field' => $config['field'] ?? null, 'match' => $config['match'] ?? null,
+                        'columns' => array_values(array_intersect((array) ($config['columns'] ?? []), $cols)), 'limit' => min(100, max(1, (int) ($config['limit'] ?? 20)))];
                     break;
                 case 'form_body':
                     $groups = array_values(array_filter((array) ($config['groups'] ?? []), 'is_string'));

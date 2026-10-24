@@ -3,14 +3,14 @@ import Button from 'primevue/button'
 import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { cleanHtml, safeHref } from '../SafeHtml'
-import type { InputProps } from './props'
 
 /**
  * Rich text editor on a content-editable area. Whatever is typed or pasted
  * is rebuilt from the same tag allowlist SafeHtml renders, so the stored HTML
  * never carries scripts, styles or event handlers.
  */
-const props = defineProps<InputProps>()
+// The field props of InputProps, with `field` and `row` optional so pages can use the editor outside a form.
+const props = defineProps<{ modelValue: unknown; inputId: string; disabled?: boolean; required?: boolean; invalid?: boolean; field?: unknown; row?: unknown; size?: 'small' | 'large' }>()
 const emit = defineEmits<{ 'update:modelValue': [value: unknown]; focus: []; blur: [] }>()
 const { t } = useI18n()
 const editor = ref<HTMLDivElement | null>(null)

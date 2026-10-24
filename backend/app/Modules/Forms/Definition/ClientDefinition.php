@@ -71,6 +71,8 @@ final class ClientDefinition
                 'validation' => $f['validation'] ?? [],
                 'behavior' => $behavior,
                 'ui' => $f['ui'] ?? [],
+                // Only the custom field component a field is shown with (ADR-0051); other hook data stays on the server.
+                'component' => ($f['hook']['hook'] ?? null) === 'component' ? strtolower((string) $f['hook']['extension']) : null,
                 'table' => $f['table'] ?? [],
                 'events' => array_values(array_filter($f['events'] ?? [], static fn (array $e) => ! $readsHidden($e['when'] ?? null))),
                 'flags' => ['sensitive' => (bool) ($f['flags']['sensitive'] ?? false)],

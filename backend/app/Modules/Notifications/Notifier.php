@@ -11,8 +11,11 @@ use App\Modules\Documents\GeneratedDocuments;
 use App\Modules\Documents\Models\DocumentTemplate;
 use App\Modules\Forms\Conditions\OwnedConditions;
 use App\Modules\Identity\Models\User;
+use App\Modules\Notifications\Channels\ChannelDeliveries;
+use App\Modules\Notifications\Channels\ChannelProviders;
 use App\Modules\Notifications\Jobs\FireNotificationRule;
 use App\Modules\Notifications\Models\EmailTemplate;
+use App\Modules\Notifications\Models\NotificationChannel;
 use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RecordStore;
@@ -46,6 +49,7 @@ final class Notifier
         private readonly DocumentRenderer $documents,
         private readonly GeneratedDocuments $generated,
         private readonly Recipients $recipientList,
+        private readonly ChannelDeliveries $deliveries,
     ) {}
 
     /**
@@ -177,6 +181,56 @@ final class Notifier
         }
         if (in_array('email', $channels, true) && $template !== null) {
             $this->email($rule, $template, $rt, $recordId, $who, $respect, $context);
+        }
+        $others = array_values(array_diff($channels, NotificationRules::CHANNELS));
+        if ($others !== []) {
+            $this->channels($others, $rule, $template, $rt, $recordId, $record, $who, $respect, $context, $link);
+        }
+    }
+
+    /**
+     * SMS and messaging channels (ADR-0056). SMS goes to the mobile number of
+     * each user recipient who has one (and has not turned SMS off, unless the
+     * rule is mandatory), rendered in their language with their access. A
+     * messaging channel posts once to its conversation, rendered in the
+     * default language with the rule author's access, like a message to an
+     * outside address. The text is the template's subject and preheader with
+     * the record link; without a template, the rule's default title.
+     *
+     * @param  list<string>  $keys
+     * @param  array<string, mixed>  $record
+     * @param  array{to: list<int>, cc: list<int>, bcc: list<int>, static: array{to: list<string>, cc: list<string>, bcc: list<string>}}  $who
+     * @param  array{form_id: int, record_id: int, rule_id: int|null, source: string, title?: string}  $context
+     */
+    private function channels(array $keys, object $rule, ?EmailTemplate $template, FormRuntime $rt, int $recordId, array $record, array $who, bool $respect, array $context, string $link): void
+    {
+        $url = rtrim((string) config('app.url'), '/').$link;
+        $render = function (array $viewers, string $locale) use ($template, $rt, $recordId, $rule, $record, $context): array {
+            if ($template !== null && $viewers !== []) {
+                [$title, $body] = $this->titleAndBody($template, $rt, $recordId, $viewers, $locale);
+
+                return [$title, (string) $body];
+            }
+
+            return [$context['title'] ?? $this->defaultTitle($rule, $rt, $record, $locale), ''];
+        };
+        foreach (NotificationChannel::query()->whereIn('key', $keys)->where('is_active', true)->get() as $channel) {
+            if (ChannelProviders::isPerRecipient($channel->type)) {
+                foreach (array_unique([...$who['to'], ...$who['cc'], ...$who['bcc']]) as $userId) {
+                    $user = User::query()->find($userId);
+                    $phone = $user === null ? '' : preg_replace('/[^0-9+]/', '', (string) $user->phone);
+                    if ($user === null || preg_match('/^\+[1-9][0-9]{6,14}$/', (string) $phone) !== 1 || ($respect && ! $this->wants($userId, 'sms'))) {
+                        continue;
+                    }
+                    [$title, $text] = $render([$user], $this->localeOf($userId));
+                    $this->deliveries->queue($channel, $userId, ['to' => (string) $phone, 'title' => $title, 'text' => $text, 'link' => $url], $context);
+                }
+
+                continue;
+            }
+            $author = $rule->created_by === null ? null : User::query()->find($rule->created_by);
+            [$title, $text] = $render($author === null ? [] : [$author], $this->translator->defaultLocale());
+            $this->deliveries->queue($channel, null, ['to' => (string) (((array) $channel->config)['to'] ?? $channel->key), 'title' => $title, 'text' => $text, 'link' => $url], $context);
         }
     }
 
@@ -427,7 +481,10 @@ final class Notifier
             foreach ($rows as $row) {
                 $moment = Carbon::parse((string) $row->due, 'UTC')->addMinutes($offset)->format('Y-m-d H:i:s.u');
                 $done = DB::table('email_queue')->where('notification_rule_id', $rule->id)->where('record_id', $row->id)->where('created_at', '>=', $moment)->exists()
-                    || DB::table('in_app_notifications')->where('notification_rule_id', $rule->id)->where('record_id', $row->id)->where('created_at', '>=', $moment)->exists();
+                    || DB::table('in_app_notifications')->where('notification_rule_id', $rule->id)->where('record_id', $row->id)->where('created_at', '>=', $moment)->exists()
+                    // The channel log keeps the record in its payload as its last key (MySQL's JSON type writes a space after the colon).
+                    || DB::table('notification_deliveries')->where('notification_rule_id', $rule->id)->where('created_at', '>=', $moment)
+                        ->where(static fn ($q) => $q->where('payload', 'like', '%"record_id":'.(int) $row->id.'}')->orWhere('payload', 'like', '%"record_id": '.(int) $row->id.'}'))->exists();
                 if (! $done) {
                     $this->deliver($rule, $rt, (int) $row->id);
                     $sent++;

@@ -17,6 +17,7 @@ use App\Modules\Forms\Models\Form;
 use App\Modules\Monitoring\ErrorReporter;
 use App\Support\Json\InvalidDocument;
 use App\Support\Json\SchemaValidator;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Checks a draft document (architecture §14.1) beyond its JSON schema.
@@ -332,6 +333,17 @@ final class DraftValidator
                 if ($opts['source'] === 'query' && empty($opts['query'])) {
                     $this->problem("{$path}.options.query", 'options_source_missing', 'Build the options query.');
                 }
+                if ($opts['source'] === 'external') {
+                    // An external data source (ADR-0057) feeds plain choice values, never a reference.
+                    $source = is_string($opts['external'] ?? null) ? DB::table('external_data_sources')->where('uuid', strtolower($opts['external']))->first(['is_active', 'response_mapping']) : null;
+                    if ($source === null) {
+                        $this->problem("{$path}.options.external", 'options_source_missing', 'Choose the external data source.');
+                    } elseif (! in_array($storageKind, ['choice', 'multi_choice'], true) || ($f['relation'] ?? null) !== null) {
+                        $this->problem("{$path}.options.external", 'external_not_choice', 'Only a choice field can take its options from an external data source.');
+                    } elseif (($opts['dependsOn'] ?? null) !== null && (json_decode((string) $source->response_mapping, true)['parent'] ?? null) === null) {
+                        $this->problem("{$path}.options.dependsOn", 'external_no_parent', 'The data source has no parent column to cascade by.');
+                    }
+                }
             }
             $v = $f['validation'] ?? [];
             foreach (array_keys($v) as $rule) {
@@ -357,6 +369,16 @@ final class DraftValidator
             }
             if (($f['behavior']['default']['field'] ?? null) !== null && ! isset($this->fields[$f['behavior']['default']['field']])) {
                 $this->error("{$path}.behavior.default.field", 'unknown_field', 'The default value references an unknown field.');
+            }
+            // A developer hook on a field shows it with a custom field component (a client extension, ADR-0051).
+            if (($f['hook'] ?? null) !== null) {
+                if (($f['hook']['hook'] ?? null) !== 'component') {
+                    $this->problem("{$path}.hook.hook", 'unknown_hook', 'A field hook can only be "component": the field is shown by a custom field component.');
+                } elseif (! DB::table('extensions')->where('uuid', strtolower((string) $f['hook']['extension']))->where('type', 'client_field')->exists()) {
+                    $this->problem("{$path}.hook.extension", 'unknown_extension', 'The field hook names no custom field component.');
+                } elseif (! in_array($f['type'], ['text', 'textarea'], true)) {
+                    $this->problem("{$path}.hook", 'hook_type', 'Only text and long text fields can be shown by a custom field component.');
+                }
             }
             foreach ($f['events'] ?? [] as $j => $e) {
                 foreach ($e['do'] as $k => $d) {

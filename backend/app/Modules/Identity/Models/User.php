@@ -6,6 +6,7 @@ namespace App\Modules\Identity\Models;
 
 use App\Modules\Access\Models\Role;
 use App\Modules\Audit\Auditable;
+use App\Modules\Identity\Policies\AccessPolicies;
 use App\Modules\Organization\Models\Department;
 use App\Support\Models\BelongsToOrganization;
 use App\Support\Models\HasStableUuid;
@@ -116,10 +117,10 @@ final class User extends Authenticatable
         return $this->activeRoles()->pluck('key')->all();
     }
 
-    /** Whether any active role requires two-factor authentication (§2, §5). */
+    /** Whether any active role, or an access policy governing the user, requires two-factor authentication (§2, §5, §4.36). */
     public function requiresTwoFactor(): bool
     {
-        return $this->activeRoles()->where('requires_2fa', true)->exists();
+        return $this->activeRoles()->where('requires_2fa', true)->exists() || (app(AccessPolicies::class)->effective($this)['two_factor'] ?? false);
     }
 
     public function isLocked(): bool
