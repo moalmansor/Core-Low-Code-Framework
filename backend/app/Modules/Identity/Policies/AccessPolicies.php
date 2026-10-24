@@ -174,12 +174,38 @@ final class AccessPolicies
             if ($why === 'ip' || $why === 'time') {
                 throw ValidationException::withMessages(['policy' => __('identity.locks_you_out', ['reason' => __("identity.denied_{$why}")])]);
             }
+            if (! $this->anAdministratorCanSignIn($actor)) {
+                throw ValidationException::withMessages(['policy' => __('identity.locks_out_administrators')]);
+            }
             $this->audit->record($existing === null ? 'access_policy.created' : 'access_policy.updated', 'security', null, 'access_policy', $policy->id,
                 ['key' => $policy->key, 'roles' => count($p['roles'])], $actor->id);
             $this->cache->bump();
 
             return $policy->refresh();
         });
+    }
+
+    /**
+     * Someone must still be able to administer the system. When every active
+     * Super Admin is held to addresses or hours, the person saving must be one
+     * of them and be inside those limits now (checked just before): nobody
+     * else can show that an administrator can still sign in.
+     */
+    private function anAdministratorCanSignIn(User $actor): bool
+    {
+        $role = Role::query()->where('key', 'super_admin')->value('id');
+        if ($role === null) {
+            return true;
+        }
+        $admins = User::query()->where('status', 'active')->whereHas('activeRoles', static fn ($q) => $q->where('roles.id', $role))->get();
+        foreach ($admins as $admin) {
+            $e = $this->effective($admin);
+            if ($e === null || ($e['ip_lists'] === [] && $e['window_sets'] === [])) {
+                return true;
+            }
+        }
+
+        return $admins->contains('id', $actor->id);
     }
 
     public function delete(AccessPolicy $p, User $actor): void

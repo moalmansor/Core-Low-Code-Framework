@@ -9,6 +9,8 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
+require_once __DIR__.'/../../Engine/helpers.php';
+
 beforeEach(fn () => $this->completeSetup());
 
 function apPolicyDoc(string $key, array $roles, array $extra = []): array
@@ -57,6 +59,31 @@ it('manages policies with validation, optimistic concurrency, and refuses one th
     // Only with "Manage access policies".
     $this->flushSession();
     $this->actingAs($this->makeUser(), 'web')->getJson('/api/v1/access-policies')->assertForbidden();
+});
+
+it('refuses a policy that would leave no administrator able to sign in, whoever saves it', function () {
+    $super = $this->superAdmin();
+    // Someone who manages access policies but holds no administrative role, so no policy check touches them.
+    $officer = $this->makeUser();
+    grantPermission($officer->id, 'system.manage_access_policies');
+    $this->actingAs($officer, 'web');
+
+    // An administrative policy that keeps every Super Admin to one network: nobody can show an administrator still gets in.
+    $this->postJson('/api/v1/access-policies', ['policy' => apPolicyDoc('admins_office', [], ['is_admin_policy' => true, 'ip_allowlist' => ['10.0.0.0/8']])])
+        ->assertUnprocessable()->assertJsonPath('errors.policy.0', __('identity.locks_out_administrators'));
+    // The same through the Super Admin role, and the same with hours instead of addresses.
+    $this->postJson('/api/v1/access-policies', ['policy' => apPolicyDoc('supers', [apRoleUuid('super_admin')], ['ip_allowlist' => ['127.0.0.0/8']])])
+        ->assertUnprocessable()->assertJsonPath('errors.policy.0', __('identity.locks_out_administrators'));
+    $this->postJson('/api/v1/access-policies', ['policy' => apPolicyDoc('supers', [apRoleUuid('super_admin')], ['time_windows' => [['days' => [1, 2, 3, 4, 5, 6, 7], 'from' => '00:00', 'to' => '23:59', 'timezone' => 'UTC']]])])
+        ->assertUnprocessable();
+    expect(DB::table('access_policies')->count())->toBe(0);
+    // Policies that leave an administrator free are fine.
+    $this->postJson('/api/v1/access-policies', ['policy' => apPolicyDoc('developers', [apRoleUuid('developer')], ['ip_allowlist' => ['10.0.0.0/8']])])->assertCreated();
+
+    // A Super Admin it governs, saving it from inside its limits, shows an administrator can still sign in.
+    $this->flushSession();
+    $this->actingAs($super, 'web');
+    $this->postJson('/api/v1/access-policies', ['policy' => apPolicyDoc('supers', [apRoleUuid('super_admin')], ['ip_allowlist' => ['127.0.0.0/8']])])->assertCreated();
 });
 
 it('allows sign-in only from the allowed networks and ends a session that moves outside them', function () {

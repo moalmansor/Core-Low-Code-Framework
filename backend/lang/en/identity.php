@@ -17,6 +17,7 @@ return [
     'bad_idle' => 'End idle sessions after 5 to 1,440 minutes.',
     'bad_absolute' => 'End every session after 15 to 43,200 minutes, and no sooner than the idle limit.',
     'changed_meanwhile' => 'Someone else changed this policy meanwhile. Reload it and make your change again.',
+    'locks_out_administrators' => 'This would leave no administrator able to sign in: every Super Admin would be limited to these addresses or hours. Ask a Super Admin the policy governs to save it from inside those limits.',
     'locks_you_out' => 'This would sign you out: :reason Adjust the policy so it still allows you.',
     'denied_ip' => 'Your access policy does not allow sign-in from this network.',
     'denied_time' => 'Your access policy does not allow sign-in at this time.',
