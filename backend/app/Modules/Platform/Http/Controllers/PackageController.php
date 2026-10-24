@@ -63,6 +63,12 @@ final class PackageController extends Controller
         $file = $files->storeGenerated((string) $tmp, Str::slug($data['name']) ?: 'package', 'json', 'application/json', 'config_package', ['user_id' => $user->id]);
         @unlink((string) $tmp);
         $id = $this->insert('export', $data['name'], $this->summaryManifest($package), $file->id, $package['checksum'], 'validated', $user);
+        // What was exported is what this environment had: the baseline a later import of the same package compares with.
+        DB::table('config_packages')->where('id', $id)->update([
+            'resolution' => json_encode(['applied' => collect($package['objects'])->mapWithKeys(static fn ($o) => [$o['uuid'] => $o['hash']])->all(),
+                'keys' => collect($package['objects'])->mapWithKeys(static fn ($o) => [$o['uuid'] => $o['key']])->all()], JSON_UNESCAPED_UNICODE),
+            'applied_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u'),
+        ]);
         $this->audit->record('package.exported', 'config', null, 'config_package', $id, ['name' => $data['name'], 'objects' => count($package['objects'])], $user->id);
 
         return response()->json(['data' => $this->detail(DB::table('config_packages')->where('id', $id)->first())], 201);

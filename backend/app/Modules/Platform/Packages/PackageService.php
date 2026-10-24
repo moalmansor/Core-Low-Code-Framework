@@ -414,13 +414,17 @@ final class PackageService
     }
 
     /**
-     * The hash an object had when it was last imported here, and the key it was imported under.
+     * The hash an object had when it was last imported here or exported from here, and the key it carried then.
      *
      * @return array{0: string|null, 1: string|null}
      */
     private function lastImported(string $uuid): array
     {
-        $rows = DB::table('config_packages')->where('direction', 'import')->where('status', 'applied')->orderByDesc('applied_at')->orderByDesc('id')->limit(200)->pluck('resolution');
+        // The last time this environment and a package agreed on the object: an applied import, or an export from here.
+        $rows = DB::table('config_packages')
+            ->where(static fn ($q) => $q->where(static fn ($w) => $w->where('direction', 'import')->where('status', 'applied'))
+                ->orWhere(static fn ($w) => $w->where('direction', 'export')->whereNotNull('resolution')))
+            ->orderByDesc('applied_at')->orderByDesc('id')->limit(200)->pluck('resolution');
         foreach ($rows as $json) {
             $resolution = json_decode((string) $json, true) ?: [];
             if (isset($resolution['applied'][$uuid])) {

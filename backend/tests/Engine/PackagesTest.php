@@ -296,3 +296,53 @@ it('carries reports and dashboards with the forms they read', function () {
     $data = $this->getJson("/api/v1/reports/{$byType['report']['uuid']}/data")->assertOk()->json('data');
     expect($data['result']['totals'])->toBe([0]);
 });
+
+it('re-imports an application after its form changed here without losing anything silently: keep, take and rename', function () {
+    $s = packagedSetup($this);
+    $package = exportPackage($this, [['type' => 'application', 'uuid' => $s['app']], ['type' => 'form', 'uuid' => $s['form']]]);
+    $before = $this->postJson("/api/v1/r/{$s['form']}", ['values' => ['subject' => 'Before the change', 'reason' => 'kept']])->assertCreated()->json('data.uuid');
+
+    // Here the form gains a "notes" field, which a record fills in.
+    $draft = $this->getJson("/api/v1/forms/{$s['form']}/draft")->assertOk()->json('data.document');
+    saveDraft($this, $s['form'], $draft['groups'], [...$draft['fields'], fieldDoc('notes', 'text')])->assertOk();
+    expect(publish($this, $s['form'])['status'])->toBe('applied');
+    $after = $this->postJson("/api/v1/r/{$s['form']}", ['values' => ['subject' => 'After the change', 'notes' => 'Written here']])->assertCreated()->json('data.uuid');
+    $table = (string) DB::table('forms')->where('uuid', $s['form'])->value('table_name');
+    $formId = (int) DB::table('forms')->where('uuid', $s['form'])->value('id');
+    $notesHere = static fn () => DB::table('fields')->where('form_id', $formId)->where('key', 'notes')->exists();
+
+    $imported = uploadPackage($this, $package)->assertCreated()->json('data');
+    $rows = collect($imported['report']['objects'])->keyBy('uuid');
+    expect($rows[$s['form']]['state'])->toBe('changed_here')
+        ->and($rows[$s['form']]['differences'])->toContain('fields-notes')
+        ->and($rows[$s['app']]['state'])->toBe('same');
+
+    // Rename: an object that already exists here keeps its identity, so it cannot take another key.
+    $errors = $this->postJson("/api/v1/packages/{$imported['uuid']}/apply", ['choices' => [$s['form'] => ['action' => 'rename', 'key' => 'leave_copy']]])
+        ->assertStatus(422)->json('errors');
+    expect($errors["choices.{$s['form']}"][0])->toBe(__('packages.rename_new_only', ['name' => $rows[$s['form']]['label']]));
+
+    // Keep (the default for "changed here"): nothing here changes.
+    $this->postJson("/api/v1/packages/{$imported['uuid']}/apply", [])->assertStatus(202);
+    expect(waitApplied($this, $imported['uuid'])['status'])->toBe('applied')
+        ->and($notesHere())->toBeTrue()
+        ->and($this->getJson("/api/v1/r/{$s['form']}/{$after}")->assertOk()->json('data.values.notes'))->toBe('Written here');
+
+    // Take: the package's version would drop "notes" and the data in it, so it is refused without the destructive confirmation ...
+    $again = uploadPackage($this, $package)->assertCreated()->json('data');
+    $take = [$s['form'] => ['action' => 'take'], $s['app'] => ['action' => 'keep']];
+    $this->postJson("/api/v1/packages/{$again['uuid']}/apply", ['choices' => $take])->assertStatus(202);
+    $refused = waitApplied($this, $again['uuid']);
+    expect($refused['status'])->toBe('failed')
+        ->and(collect($refused['results'])->firstWhere('uuid', $s['form'])['outcome'])->toBe('failed')
+        ->and($notesHere())->toBeTrue()
+        ->and($this->getJson("/api/v1/r/{$s['form']}/{$after}")->assertOk()->json('data.values.notes'))->toBe('Written here');
+
+    // ... and with it, applied: the field goes, as confirmed, and every record stays.
+    $this->postJson("/api/v1/packages/{$again['uuid']}/apply", ['choices' => $take, 'confirm_destructive' => true])->assertStatus(202);
+    expect(waitApplied($this, $again['uuid'])['status'])->toBe('applied')
+        ->and($notesHere())->toBeFalse()
+        ->and(DB::table($table)->count())->toBe(2)
+        ->and($this->getJson("/api/v1/r/{$s['form']}/{$before}")->assertOk()->json('data.values.reason'))->toBe('kept')
+        ->and($this->getJson("/api/v1/r/{$s['form']}/{$after}")->assertOk()->json('data.values.subject'))->toBe('After the change');
+});
