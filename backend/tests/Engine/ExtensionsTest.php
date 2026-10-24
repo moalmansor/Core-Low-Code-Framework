@@ -236,3 +236,26 @@ it('compiles client extensions from TypeScript and serves them only to the sandb
         ->and($frame->getContent())->toContain('integrity="sha256-'.base64_encode(hash('sha256', (string) $js->getContent(), true)).'"');
     $this->get('/ext/runtime.js')->assertOk()->assertHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 });
+
+it('leaves an existing record exactly as it was when a hook throws during an update, and shows the failure in Error Monitoring', function () {
+    $w = extensionForm($this);
+    shipExtension($this, ['key' => 'guard_update', 'type' => 'server_hook', 'hook_point' => 'afterSave', 'form' => $w['form'], 'timeout_ms' => 500,
+        'source' => 'final class Hook implements ServerHook { public function handle(HookContext $ctx): void { if ($ctx->get("subject") === "boom") { throw new RuntimeException("printer table melted"); } } }']);
+    $record = $this->postJson("/api/v1/r/{$w['form']}", ['values' => ['subject' => 'Printer', 'code' => 'P-1']])->assertCreated()->json('data');
+    $table = (string) DB::table('forms')->where('uuid', $w['form'])->value('table_name');
+    $before = (array) DB::table($table)->where('uuid', $record['uuid'])->first();
+    $audits = DB::table('audit_logs')->where('event', 'like', 'record.%')->count();
+
+    // The hook runs after the row was written; its failure rolls the whole update back.
+    $this->patchJson("/api/v1/r/{$w['form']}/{$record['uuid']}", ['values' => ['subject' => 'boom', 'code' => 'P-2'], 'row_version' => $record['row_version']])
+        ->assertStatus(422)->assertJsonPath('code', 'extension_failed');
+    expect((array) DB::table($table)->where('uuid', $record['uuid'])->first())->toBe($before)
+        ->and(DB::table('audit_logs')->where('event', 'like', 'record.%')->count())->toBe($audits);
+    $shown = $this->getJson("/api/v1/r/{$w['form']}/{$record['uuid']}")->assertOk()->json('data');
+    expect($shown['values']['subject'])->toBe('Printer')->and($shown['values']['code'])->toBe('P-1')->and($shown['row_version'])->toBe($record['row_version']);
+
+    // Error Monitoring lists it, and the record can still be saved with the version it had.
+    $groups = $this->getJson('/api/v1/errors/groups?search='.urlencode('printer table melted'))->assertOk()->json('data');
+    expect($groups)->not->toBeEmpty();
+    $this->patchJson("/api/v1/r/{$w['form']}/{$record['uuid']}", ['values' => ['subject' => 'Printer 2'], 'row_version' => $record['row_version']])->assertOk();
+});
