@@ -685,6 +685,19 @@ Done:
    - every CI job passes on both engines;
    - pull request [moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmansor/Core-Low-Code-Framework/pull/15) carries the §8.2 report and cites the CI run on its head commit.
 
+## Phase 5 review follow-up (2026-10-24)
+
+The owner found eight System Settings tabs answering 404 and the Self-service tab unserved while CI was green, and asked for an unreachable-screen check and five behaviours verified by tests (ADR-0067).
+
+- **Why nothing caught it.** No test compared the tabs with the groups the API serves. The screen sweep opens a fixed list of pages and never clicks a tab. `SettingsAndLocalizationTest` would have caught Self-service, but each push cancelled the previous CI run, so no run finished in between.
+- **Guard.** `e2e/24-routes.spec.ts` opens every `/admin` route from the running router and clicks every tab. It fails on an API 403, 404, 405 or 5xx, a 422 to a GET, a page error, or a missing heading. Taking the Self-service group off the served list makes it fail with `GET /api/v1/settings/self_service → 404`. `SettingsScreenTest` checks tabs against served groups, and console areas against client routes, in the fast suite. The rate-limit handling of the sweeps is shared in `e2e/support.ts`.
+- **Five verifications:**
+  1. Package round trip with keep, take and rename: `PackagesTest`, new test. It found that an export recorded no baseline, so the import read "changed" instead of "changed here" (fixed). It also found a stale form runtime cache after a republish in the same process (fixed).
+  2. A throwing server hook fails closed: `ExtensionsTest`, new test. The record is unchanged, no audit entry is written, the failure appears in Error Monitoring, and the next save succeeds.
+  3. Approving your own extension is refused: already covered by `ExtensionsTest`, so no duplicate was written.
+  4. A blocked action while impersonating: `ImpersonationTest`, extended. Blocked attempts were not audited; they are now audited as `impersonation.blocked`, with the administrator as actor.
+  5. Locking out the last administrator: `AccessPoliciesTest`, new test. A policy officer who is not a Super Admin could lock out every Super Admin; this is now refused.
+
 ## Resume point
 
 Phase 4 is complete and merged (pull request
@@ -701,6 +714,7 @@ Pull request [moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmans
 is open for the owner's review and carries the full §8.2 report.
 
 Resume point:
+- The review follow-up above is pushed; wait for the owner's review of #15.
 - Address review comments on #15 by pushing to `phase-5-platform`.
 - After each push, re-run CI on the head commit and update the report.
 - Do not merge.
