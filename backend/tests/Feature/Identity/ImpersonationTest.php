@@ -76,6 +76,12 @@ it('ends at its time limit and refuses the actions the security settings block',
     $this->postJson("/api/v1/users/{$user->uuid}/impersonate", ['reason' => 'Reproduce the missing button', 'minutes' => 10])->assertCreated();
     $this->getJson('/api/v1/roles')->assertForbidden(); // the user's own lack of permission
     $this->postJson('/api/v1/roles', [])->assertForbidden()->assertJsonPath('action', 'change_access');
+    // The refused attempt is audited as the administrator's, with the user as subject.
+    $attempt = DB::table('audit_logs')->where('event', 'impersonation.blocked')->orderByDesc('id')->first();
+    expect((int) $attempt->actor_user_id)->toBe($admin->id)
+        ->and((int) $attempt->subject_user_id)->toBe($user->id)
+        ->and((int) $attempt->impersonation_session_id)->toBe((int) DB::table('impersonation_sessions')->value('id'))
+        ->and(json_decode((string) $attempt->meta, true))->toMatchArray(['action' => 'change_access', 'method' => 'POST', 'path' => '/api/v1/roles']);
 
     $this->travel(11)->minutes();
     $this->getJson('/api/v1/me')->assertStatus(409)->assertJsonPath('code', 'impersonation_ended');
