@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createHmac } from 'node:crypto'
-import { expect, type Page, type Response } from '@playwright/test'
+import { expect, request, type Page, type Response } from '@playwright/test'
 
 export const backendDir = process.env.LCF_BACKEND_DIR ?? '../backend'
 export const admin = { name: 'E2E Root', email: 'root@e2e.test', password: 'Vq7!mR2#tL9$wZ4p-Xk' }
@@ -97,5 +97,44 @@ export async function signIn(page: Page, secret: string): Promise<void> {
     throw new Error(`${(e as Error).message}\nServer responses while signing in:\n${(await Promise.all(refused)).join('\n')}`, { cause: e })
   } finally {
     page.off('response', watch)
+  }
+}
+
+/** A same-site API call, as the app sends it (the API accepts the session only from its own pages). */
+export async function sameSite(page: Page, method: 'GET' | 'PATCH', path: string, data?: unknown): Promise<Record<string, unknown>> {
+  const xsrf = decodeURIComponent((await page.context().cookies()).find((c) => c.name === 'XSRF-TOKEN')!.value)
+  const res = await page.request.fetch(`/api/v1${path}`, {
+    method,
+    data,
+    headers: { 'X-XSRF-TOKEN': xsrf, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', Origin: new URL(page.url()).origin, Referer: page.url() },
+  })
+  expect(res.status(), `${method} ${path}`).toBeLessThan(300)
+  return (await res.json()) as Record<string, unknown>
+}
+
+/**
+ * Runs a sweep that opens pages far above a person's pace: lifts the API rate limit (a System Setting) while
+ * it runs and puts it back after, so the sweep never measures the limiter instead of the screens.
+ */
+export async function withRateLimitLifted(page: Page, run: () => Promise<void>): Promise<void> {
+  const limit = ((await sameSite(page, 'GET', '/settings/security')).data as { api_rate_limit_per_minute: number }).api_rate_limit_per_minute
+  await sameSite(page, 'PATCH', '/settings/security', { api_rate_limit_per_minute: 10_000 })
+  try {
+    await run()
+  } finally {
+    await sameSite(page, 'PATCH', '/settings/security', { api_rate_limit_per_minute: limit })
+    // The sweep's requests still count in the limiter's current minute: once the ordinary limit is back,
+    // wait that minute out, so the next spec's sign-in is not refused with 429 (which reads as signed out).
+    // Both buckets: the signed-in one (per user) and the anonymous one (per address), which the sign-in
+    // and public pages of the sweep used and which the next spec's sign-in page uses first.
+    const anonymous = await request.newContext({ baseURL: new URL(page.url()).origin })
+    const status = async (ctx: typeof page.request) => (await ctx.get('/api/v1/me', { headers: { Accept: 'application/json' } })).status()
+    await expect.poll(async () => [await status(page.request), await status(anonymous)].includes(429), { timeout: 90_000, intervals: [5_000] }).toBe(false)
+    // No longer refused is not the same as empty: on a fast runner the window that just opened can already be
+    // nearly full from the sweep's last requests. Wait out one whole window (60 seconds) so the next spec's
+    // sign-in starts from empty buckets, then check once more.
+    await page.waitForTimeout(61_000)
+    await expect.poll(async () => [await status(page.request), await status(anonymous)].includes(429), { timeout: 90_000, intervals: [5_000] }).toBe(false)
+    await anonymous.dispose()
   }
 }
