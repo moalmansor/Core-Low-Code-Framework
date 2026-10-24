@@ -8,9 +8,12 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request or phase branch cancels the older run of that branch: what is merged is the
+# head, which always gets its own complete run, and the verification report may only cite that run
+# (report.yml, ADR-0068). Runs on main are never cancelled, so every merge into it is tested to the end.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   PHP_VERSION: '8.3'
