@@ -109,6 +109,12 @@ export const ProductPreset = definePreset(Aura, {
       outlined: { danger: { hoverBackground: 'var(--danger-subtle)', activeBackground: 'var(--danger-subtle)', borderColor: 'var(--danger)', color: 'var(--danger)' } },
       text: { danger: { hoverBackground: 'var(--danger-subtle)', activeBackground: 'var(--danger-subtle)', color: 'var(--danger)' } },
     },
+    // Badges (unread counts) in the product's tones: Aura's red badge is 3.76:1 with white text.
+    badge: {
+      primary: { background: 'var(--primary)', color: 'var(--on-primary)' },
+      success: { background: 'var(--success)', color: 'var(--on-success)' },
+      danger: { background: 'var(--danger)', color: 'var(--on-danger)' },
+    },
     message: { info: severity('primary'), success: severity('success'), warn: severity('warning'), error: severity('danger'), secondary: severity('primary'), contrast: severity('primary') },
     toast: {
       info: { ...severity('primary'), detailColor: 'var(--text)' },

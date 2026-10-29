@@ -123,7 +123,8 @@ final class RecordStore
         $row += $this->columns($rt, $rt->mainFields(), $values);
         $id = (int) DB::table($rt->table)->insertGetId($row);
         $this->writePivots($rt, $rt->mainFields(), $id, $values, $system['created_by'] ?? null);
-        $this->writeChildren($rt, $id, $values, $system['organization_id'], $system['created_by'] ?? null);
+        // A new record has no repeater rows yet: nothing to look up or remove.
+        $this->writeChildren($rt, $id, $values, $system['organization_id'], $system['created_by'] ?? null, true);
 
         return $id;
     }
@@ -193,7 +194,7 @@ final class RecordStore
     }
 
     /** @param  array<string, mixed>  $values */
-    private function writeChildren(FormRuntime $rt, int $parentId, array $values, int $organizationId, ?int $userId): void
+    private function writeChildren(FormRuntime $rt, int $parentId, array $values, int $organizationId, ?int $userId, bool $new = false): void
     {
         $now = Carbon::now('UTC')->format('Y-m-d H:i:s.u');
         foreach ($rt->repeaters as $repUuid => $rep) {
@@ -203,7 +204,7 @@ final class RecordStore
             }
             $rows = is_array($values[$key]) ? array_values($values[$key]) : [];
             $fields = $rt->rowFields($repUuid);
-            $existing = DB::table($rep['table'])->where('parent_id', $parentId)->pluck('id', 'uuid')
+            $existing = $new ? [] : DB::table($rep['table'])->where('parent_id', $parentId)->pluck('id', 'uuid')
                 ->mapWithKeys(static fn ($id, $u) => [strtolower((string) $u) => (int) $id])->all();
             $kept = [];
             foreach ($rows as $order => $row) {

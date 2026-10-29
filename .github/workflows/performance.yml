@@ -74,12 +74,12 @@ jobs:
         run: |
           docker compose exec -T -e LCF_PERFORMANCE=1 app php tests/Performance/bench.php dataset --admin=perf-admin@perf.test --scale=$SCALE --out=storage/app/perf-targets.json
           docker compose cp app:/var/www/backend/storage/app/perf-targets.json perf-targets.json
-          docker compose exec -T app php artisan tinker --no-ansi --execute='foreach (app(App\Infrastructure\Database\Contracts\DatabaseDriver::class)->tableSizes() as $t => $bytes) { if ($bytes > 50e6) echo $t, " ", round($bytes / 1e6), " MB", PHP_EOL; }' || true
+          docker compose exec -T -e HOME=/tmp app php artisan tinker --no-ansi --execute='foreach (app(App\Infrastructure\Database\Contracts\DatabaseDriver::class)->tableSizes() as $t => $bytes) { if ($bytes > 50e6) echo $t, " ", round($bytes / 1e6), " MB", PHP_EOL; }' || true
           df -h /
       - name: Load test (k6)
         run: |
-          docker run --rm --network host -v "$PWD:/w" -w /w grafana/k6:0.54.0 run \
-            -e LCF_URL=http://localhost:8080 -e LCF_TARGETS=perf-targets.json -e LCF_K6_OUT=k6-summary.json perf/k6/load.js || echo "k6 thresholds failed; the comparison below decides"
+          docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD:/w" -w /w grafana/k6:0.54.0 run \
+            -e LCF_URL=http://localhost:8080 -e LCF_TARGETS=/w/perf-targets.json -e LCF_K6_OUT=/w/k6-summary.json perf/k6/load.js || echo "k6 thresholds failed; the comparison below decides"
       - name: Job budgets (permissions, formulas, import, download, publish)
         run: |
           docker compose exec -T -e LCF_PERFORMANCE=1 app php tests/Performance/bench.php measure --targets=storage/app/perf-targets.json --out=storage/app/perf-measure.json
@@ -103,7 +103,7 @@ jobs:
         if: failure()
         run: |
           docker compose --profile sqlsrv logs --no-color | grep -v 'ErrorAlertMail' | tail -n 300
-          docker compose exec -T app php artisan tinker --no-ansi --execute='foreach (DB::table("error_logs")->orderByDesc("id")->limit(20)->get(["occurred_at", "exception_class", "message", "file", "line"]) as $e) { echo $e->occurred_at, " ", $e->exception_class, " ", substr((string) $e->message, 0, 400), " @ ", $e->file, ":", $e->line, PHP_EOL; }' || true
+          docker compose exec -T -e HOME=/tmp app php artisan tinker --no-ansi --execute='foreach (DB::table("error_logs")->orderByDesc("id")->limit(20)->get(["occurred_at", "exception_class", "message", "file", "line"]) as $e) { echo $e->occurred_at, " ", $e->exception_class, " ", substr((string) $e->message, 0, 400), " @ ", $e->file, ":", $e->line, PHP_EOL; }' || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:

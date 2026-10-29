@@ -39,7 +39,7 @@ test('a policy runs, a legal hold blocks a delete until lifted, a personal data 
   await expect(page.getByTestId('ret-run')).toBeVisible()
   await page.getByTestId('ret-run').click()
   await page.goto('/admin/retention')
-  await expect(page.getByTestId('ret-runs').getByText('Succeeded')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('ret-runs').getByText('Succeeded').first()).toBeVisible({ timeout: 30_000 })
 
   // A legal hold on a pilot record.
   const form = ((await api(page, 'GET', '/forms?search=visit_requests')).body.data as { uuid: string; key: string }[]).find((f) => f.key === 'visit_requests')!.uuid
@@ -72,7 +72,8 @@ test('a policy runs, a legal hold blocks a delete until lifted, a personal data 
   await expect(page.getByRole('heading', { name: 'Log growth by month' })).toBeVisible()
   await expect(page.getByText(/monthly partitions in place/).first()).toBeVisible()
   await page.getByTestId('st-add-quota').click()
-  await page.getByRole('combobox').first().click()
+  // The new quota's "For" field (the first choice inside the storage panel, not the language switcher).
+  await page.getByTestId('ret-storage').getByRole('combobox').first().click()
   await page.getByRole('option', { name: 'The whole organization' }).click()
   await page.getByTestId('st-quotas-save').click()
   await expect(page.getByText('Within limits')).toBeVisible()

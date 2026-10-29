@@ -24,6 +24,10 @@ final class RunRetentionPolicy implements ShouldQueue
     public function __construct(public readonly int $policyId, public readonly ?int $userId)
     {
         $this->onQueue('heavy');
+        // The heavy workers listen on their own connection (config/horizon.php); on the default one nothing runs it.
+        if (config('queue.default') === 'redis') {
+            $this->onConnection('redis_heavy');
+        }
     }
 
     public function handle(RetentionEngine $engine, TenantContext $tenant): void

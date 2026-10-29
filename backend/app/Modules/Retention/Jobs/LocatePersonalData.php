@@ -24,6 +24,10 @@ final class LocatePersonalData implements ShouldQueue
     public function __construct(public readonly int $requestId)
     {
         $this->onQueue('heavy');
+        // The heavy workers listen on their own connection (config/horizon.php); on the default one nothing runs it.
+        if (config('queue.default') === 'redis') {
+            $this->onConnection('redis_heavy');
+        }
     }
 
     public function handle(PersonalData $personal, TenantContext $tenant): void

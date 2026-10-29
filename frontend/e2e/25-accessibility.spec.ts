@@ -55,7 +55,12 @@ test('every screen meets WCAG 2.1 AA in English and in Arabic', async ({ page })
         await page.waitForLoadState('networkidle')
         const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
         for (const v of result.violations) {
-          violations.push(`[${lang}] ${url}: ${v.id} (${v.impact}) — ${v.nodes.slice(0, 3).map((n) => `${n.target.join(' ')} [${(n.failureSummary ?? '').replace(/\s+/g, ' ').slice(0, 160)}]`).join(' | ')}`)
+          violations.push(
+            `[${lang}] ${url}: ${v.id} (${v.impact}) — ${v.nodes
+              .slice(0, 3)
+              .map((n) => `${n.target.join(' ')} [${(n.failureSummary ?? '').replace(/\s+/g, ' ').slice(0, 160)}]`)
+              .join(' | ')}`,
+          )
         }
       }
     }

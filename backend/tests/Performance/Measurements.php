@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Writer\XLSX\Writer as XlsxWriter;
 use RuntimeException;
+use Throwable;
 
 /**
  * The budgets of architecture §20.2 that are not one HTTP request, timed in
@@ -37,12 +38,23 @@ final class Measurements
     /** @return array<string, array{value: float, unit: string, detail?: array<string, mixed>}> */
     public function run(): array
     {
+        // Each budget on its own: one that fails is reported (no value, its error) and the others are still measured.
         $out = [];
-        $out += $this->permissions();
-        $out += $this->formulas();
-        $out['import_100k'] = $this->import();
-        $out['download_3_level_xlsx'] = $this->download();
-        $out['publish_additive'] = $this->publish();
+        $steps = [
+            'permission_cached' => fn () => $this->permissions(),
+            'expression_server' => fn () => $this->formulas(),
+            'import_100k' => fn () => ['import_100k' => $this->import()],
+            'download_3_level_xlsx' => fn () => ['download_3_level_xlsx' => $this->download()],
+            'publish_additive' => fn () => ['publish_additive' => $this->publish()],
+        ];
+        foreach ($steps as $key => $step) {
+            try {
+                $out += $step();
+            } catch (Throwable $e) {
+                ($this->log)("  {$key} failed: ".$e->getMessage());
+                $out[$key] = ['value' => null, 'unit' => '', 'error' => mb_substr($e->getMessage(), 0, 1000)];
+            }
+        }
 
         return $out;
     }

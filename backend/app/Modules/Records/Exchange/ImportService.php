@@ -490,6 +490,22 @@ final class ImportService
         $this->finishIfDone($jobId);
     }
 
+    /** A parallel import's counters, as the sums of its batches; $final also writes after the import finished. */
+    private function writeTotals(int $jobId, bool $final): void
+    {
+        $sum = DB::table('import_job_batches')->where('import_job_id', $jobId)
+            ->selectRaw('sum(processed_rows) as processed, sum(created_count) as created, sum(updated_count) as updated, sum(error_count) as errors, count(*) as batches')->first();
+        $q = DB::table('import_jobs')->where('id', $jobId);
+        if (! $final) {
+            $q->whereNull('finished_at');
+        }
+        $q->update([
+            'processed_rows' => (int) $sum->processed, 'created_count' => (int) $sum->created, 'updated_count' => (int) $sum->updated,
+            'error_count' => (int) $sum->errors, 'last_committed_batch' => (int) $sum->batches,
+            'updated_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u'),
+        ]);
+    }
+
     /** Finishes a parallel import once every batch has run, exactly once. */
     private function finishIfDone(int $jobId): void
     {
@@ -508,12 +524,7 @@ final class ImportService
                 return;
             }
             $outcomes = DB::table('import_job_batches')->where('import_job_id', $jobId)->pluck('outcome')->all();
-            $sum = DB::table('import_job_batches')->where('import_job_id', $jobId)
-                ->selectRaw('sum(processed_rows) as processed, sum(created_count) as created, sum(updated_count) as updated, sum(error_count) as errors, count(*) as batches')->first();
-            DB::table('import_jobs')->where('id', $jobId)->update([
-                'processed_rows' => (int) $sum->processed, 'created_count' => (int) $sum->created, 'updated_count' => (int) $sum->updated,
-                'error_count' => (int) $sum->errors, 'last_committed_batch' => (int) $sum->batches,
-            ]);
+            $this->writeTotals($jobId, true);
             $stopped = in_array('cancelled', $outcomes, true) ? 'cancelled' : (in_array('time_limit', $outcomes, true) ? 'time_limit' : null);
             $user = User::query()->findOrFail($job->user_id);
             $rt = $this->runtimes->forUuid((string) DB::table('forms')->where('id', $job->form_id)->value('uuid'));
@@ -525,6 +536,8 @@ final class ImportService
             $keyUuid = $job->key_field_id === null ? null : DB::table('fields')->where('id', $job->key_field_id)->value('uuid');
             $mapping = ['columns' => json_decode((string) $job->mapping, true), 'key' => $keyUuid === null ? null : ($rt->fields[strtolower((string) $keyUuid)] ?? null)];
             $this->finish($jobId, $rt, $user, $mapping, "imports/{$job->uuid}", $stopped);
+            // Again after finishing: a batch's progress write that slipped in before the import was marked finished.
+            $this->writeTotals($jobId, true);
             Storage::disk(FileStore::DISK)->delete(array_map(static fn (int $n) => "imports/{$job->uuid}/rows-{$n}.bin", range(1, max(1, $expected))));
         } finally {
             $this->driver->releaseNamedLock($lock);
@@ -609,14 +622,9 @@ final class ImportService
         // A parallel batch that deadlocks with another is run again (it changed nothing: its transaction rolled back).
         app(BatchMemo::class)->within(fn () => $this->audit->onChain($batchNo, fn () => DB::transaction($work, $parallel ? 3 : 1)));
         if ($parallel) {
-            // Progress for the screens; the totals are recomputed from the batches when the import finishes.
-            DB::table('import_jobs')->where('id', $job->id)->update([
-                'processed_rows' => DB::raw('processed_rows + '.$counts['processed']),
-                'created_count' => DB::raw('created_count + '.$counts['created']),
-                'updated_count' => DB::raw('updated_count + '.$counts['updated']),
-                'error_count' => DB::raw('error_count + '.$counts['errors']),
-                'updated_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u'),
-            ]);
+            // Progress for the screens: the sums of the batches committed so far, written only while the import
+            // runs, so a batch that reports after the import finished never changes its totals.
+            $this->writeTotals((int) $job->id, false);
         }
 
         return null;

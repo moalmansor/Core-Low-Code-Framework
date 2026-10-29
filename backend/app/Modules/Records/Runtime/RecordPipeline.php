@@ -102,8 +102,9 @@ final class RecordPipeline
                 throw new RecordException(422, 'invalid', __('records.invalid'), ['errors' => $errors]);
             }
             app(DuplicateGuard::class)->check($rt, $user, $values, null, 'create', $source);
-            // A crash between commit and journal update: the record exists under the journal's uuid.
-            if (($existing = $this->store->find($rt, $entry['uuid'], true)) !== null) {
+            // A crash between commit and journal update: the record exists under the journal's uuid. A journal
+            // entry opened just now ('new') has had no earlier attempt, so there is nothing to find.
+            if ($entry['state'] !== 'new' && ($existing = $this->store->find($rt, $entry['uuid'], true)) !== null) {
                 $this->journal->processed($entry['id'], $existing['id']);
 
                 return ['id' => $existing['id'], 'uuid' => $existing['uuid']];

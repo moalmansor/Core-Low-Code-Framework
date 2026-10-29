@@ -264,7 +264,15 @@ async function explain(key: string): Promise<void> {
                 /></label>
               </div>
               <div v-if="subjectType === 'role'" class="flex flex-wrap items-center gap-2 mb-3">
-                <Select v-model="copyFrom" :aria-label="t('access.copy_from')" :options="roles.filter((r) => r.uuid !== selectedRole?.uuid)" option-label="name" option-value="uuid" :placeholder="t('access.copy_from')" show-clear />
+                <Select
+                  v-model="copyFrom"
+                  :aria-label="t('access.copy_from')"
+                  :options="roles.filter((r) => r.uuid !== selectedRole?.uuid)"
+                  option-label="name"
+                  option-value="uuid"
+                  :placeholder="t('access.copy_from')"
+                  show-clear
+                />
                 <Button severity="secondary" :label="t('access.copy')" :disabled="!copyFrom" @click="copyPermissions" />
               </div>
               <div v-for="[category, perms] in grouped" :key="category" class="mb-4">

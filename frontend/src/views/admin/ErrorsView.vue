@@ -92,7 +92,16 @@ const sev = (s: string) => ({ warning: 'warn', error: 'danger', critical: 'dange
   <form class="flex flex-wrap items-end gap-2 mb-3" @submit.prevent="((f.page = 1), load())">
     <div class="field">
       <label id="es-label" for="es">{{ t('users.status_label') }}</label
-      ><Select v-model="f.status" input-id="es" aria-labelledby="es-label" :options="statuses.map((s) => ({ v: s, l: t(`errors_ui.status.${s}`) }))" option-label="l" option-value="v" show-clear @change="load" />
+      ><Select
+        v-model="f.status"
+        input-id="es"
+        aria-labelledby="es-label"
+        :options="statuses.map((s) => ({ v: s, l: t(`errors_ui.status.${s}`) }))"
+        option-label="l"
+        option-value="v"
+        show-clear
+        @change="load"
+      />
     </div>
     <div class="field">
       <label id="ev-label" for="ev">{{ t('errors_ui.severity') }}</label

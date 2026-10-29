@@ -33,9 +33,22 @@ The Phase 6 performance work measured the import budget of architecture §20.2 (
    - Update and upsert imports stay in order, because a later row may depend on an earlier one.
    - The heavy worker count is `HORIZON_HEAVY_PROCESSES` (default 4: the reference worker's CPUs).
 
+7. **Fewer round trips per record.** A save made 14.5 queries per row; it now makes about 10.5. Each saving is safe by construction:
+   - A new record's repeating sections are not looked up (it has none yet).
+   - A journal entry opened just now skips the crash-recovery lookup (there was no earlier attempt).
+   - The outbox marks a relay pass's events dispatched in one statement.
+   - The audit chain head is still locked, read and updated per entry. Keeping it in memory for a batch would break the chain when a record's save rolls back after its audit entry.
+8. **Exact totals.**
+   - While the import runs, a batch's progress write sets the import's counters to the sums of its committed batches.
+   - Writes are refused once the import is finished.
+   - The finisher writes the final sums again after finishing, so a late write never inflates the totals. The first full-scale run reported 100,500 rows for 100,000 before this.
+9. **Every heavy job on the heavy workers' connection.** The retention run and the personal-data search named the `heavy` queue on the default connection, which no worker reads, so on the Docker stack they never ran. Both now use `redis_heavy`, and a test (`tests/Unit/QueueRoutingTest.php`) keeps every heavy job on it.
+
 ## Consequences
 
-- Locally (4 shared vCPU) the import went from 25 to about 180 rows a second. That is about 9 minutes for 100 000 rows. The performance workflow measures it on both engines against the full dataset (docs/performance.md).
+- Locally (4 shared vCPU) the import went from 25 to about 180 rows a second.
+- In the first full-scale CI run (before the changes in 7 and 8), 100 000 rows took about 7 minutes on MySQL and 12.6 minutes on SQL Server. Each SQL Server round trip costs more (ODBC), which is why 7 matters most there.
+- The performance workflow measures the import on both engines against the full dataset (docs/performance.md).
 - Rows of a parallel import are not created in file order. Record numbers, ids and creation times interleave between batches. The error report is still in row order.
 - Duplicate rules compare against committed records. Two rows in different batches that duplicate each other can both be saved, as with two people saving at the same moment.
 - A notification, automation or webhook created while a record event is being relayed applies to the next event.

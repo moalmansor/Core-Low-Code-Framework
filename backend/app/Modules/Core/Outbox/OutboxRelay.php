@@ -48,12 +48,13 @@ final class OutboxRelay
         $count = 0;
         DB::transaction(function () use ($query, &$count): void {
             $ids = $this->driver->skipLocked($query)->pluck('id')->all();
+            $dispatched = [];
             foreach (OutboxEvent::query()->whereIn('id', $ids)->orderBy('id')->get() as $event) {
                 try {
                     foreach ($this->handlers[$event->event_type] ?? [] as $handler) {
                         $handler($event);
                     }
-                    $event->forceFill(['dispatched_at' => now(), 'attempts' => $event->attempts + 1, 'last_error' => null])->save();
+                    $dispatched[] = (int) $event->id;
                     $count++;
                 } catch (Throwable $e) {
                     $event->forceFill([
@@ -63,6 +64,10 @@ final class OutboxRelay
                     ])->save();
                     report($e);
                 }
+            }
+            // The dispatched events marked in one statement (an import batch relays hundreds).
+            foreach (array_chunk($dispatched, 500) as $chunk) {
+                OutboxEvent::query()->whereIn('id', $chunk)->update(['dispatched_at' => now(), 'attempts' => DB::raw('attempts + 1'), 'last_error' => null]);
             }
         });
 
