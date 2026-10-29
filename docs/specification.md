@@ -1249,10 +1249,17 @@ A status alone does not say who is expected to act, so records carry assignment 
   - background jobs for heavy work.
 - **Data integrity:** transactions, constraints, idempotent retries, and optimistic concurrency on every record write (4.9).
 - **Performance budgets**, verified by load tests in Phase 6: a form renders and a record list returns within a defined target at a stated record count; permission resolution is cached; a defined number of concurrent users is supported. The targets are written into `docs/architecture.md` in Phase 0 and tested against, not left implicit.
+  - *As built (Phase 6):*
+    - The budgets of architecture §20.2 are checked by the `performance.yml` workflow on both engines, against the §20.1 reference dataset.
+    - The tools: `backend/tests/Performance`, `perf/k6/load.js`, `frontend/e2e-perf`, and `perf/compare.mjs` with `perf/budgets.json`.
+    - A result over budget, or more than 20 % slower than the engine's baseline (`perf/baseline`), fails the run.
+    - The results are in `docs/performance.md`.
+    - Insert imports run their batches in parallel on the heavy workers (ADR-0072); their number is `HORIZON_HEAVY_PROCESSES`.
 - **UI:** fully responsive, accessible (WCAG 2.1 AA), and consistent in design across RTL and LTR.
   - The application frame fills the window at every size and zoom level; the menu and the content scroll separately, never the page.
   - A visible focus ring on every focusable element; motion is removed when the operating system asks for reduced motion.
   - Table headers are at least 12px (13px for Arabic text).
+  - *As built (Phase 6):* `frontend/e2e/25-accessibility.spec.ts` runs axe-core's WCAG 2.0/2.1 A and AA rules on every screen without a parameter, the home screen, My Work, the profile, and a form's list, new-record form and record page, in English and in Arabic. Any violation fails the end-to-end suite on both engines. The colour tokens are checked separately by `src/theme/contrast.spec.ts`.
 - **Code quality:**
   - modular, strictly typed, documented;
   - automated tests covering every module on both database engines.
