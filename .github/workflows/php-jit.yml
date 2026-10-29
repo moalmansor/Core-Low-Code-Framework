@@ -72,7 +72,9 @@ jobs:
         working-directory: backend
         run: |
           touch .env
-          # On a crash gdb prints the C backtrace (PHP's debug symbols name each engine function) and the
-          # step fails with the crash's exit code; on success it exits with Pest's.
-          gdb -batch -return-child-result -ex 'set pagination off' -ex run -ex 'bt 40' -ex 'info registers rip' \
-            --args php vendor/bin/pest tests/Engine --colors=never
+          # gdb runs the suite; on a crash it prints the C backtrace (PHP's debug symbols name each engine
+          # function). The step passes only when PHP exited normally, i.e. without a signal and with Pest green.
+          set +e
+          gdb -batch -ex 'set pagination off' -ex run -ex 'bt 40' --args php vendor/bin/pest tests/Engine --colors=never 2>&1 | tee ../gdb.log
+          if grep -q 'received signal SIG' ../gdb.log; then echo "::error::PHP crashed under the ${{ matrix.jit }} JIT (backtrace above)"; exit 1; fi
+          grep -q 'exited normally' ../gdb.log || { echo "::error::the engine suite failed under the ${{ matrix.jit }} JIT"; exit 1; }

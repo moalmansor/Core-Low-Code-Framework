@@ -198,8 +198,8 @@ jobs:
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-writer-nogui fonts-dejavu-core fonts-noto-core
           soffice --version
-      # PHP's built-in server runs with OPcache; keep the JIT off as the production image does
-      # (setup-php enables it, and PHP 8.3.35's JIT segfaults on the publish analysis).
+      # PHP's built-in server runs with OPcache; keep the JIT off as the production image does (setup-php
+      # enables it). PHP 8.3.35 segfaulted inside the engine with it on; php-jit.yml tracks it (ADR-0069).
       - uses: shivammathur/setup-php@v2
         with: { php-version: '${{ env.PHP_VERSION }}', extensions: '${{ env.PHP_EXTENSIONS }}', coverage: none, tools: composer:v2, ini-values: 'opcache.jit=disable, opcache.jit_buffer_size=0' }
       - uses: actions/setup-node@v4
