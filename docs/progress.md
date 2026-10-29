@@ -12,8 +12,8 @@ Project memory file (specification §8.1). Updated at the end of every run.
 | 2.5 — Pilot & Validation | `phase-2-5-pilot` (ADR-0016) | **Complete.** Owner confirmed 2026-10-09; no findings, no code changes (`docs/pilot-findings.md`) | — (issue #5 closed) |
 | 3 — Workflow, Records & Views | `phase-3-workflow` | **Complete. Merged.** Owner re-tested after merge. | [moalmansor/Core-Low-Code-Framework#13](https://github.com/moalmansor/Core-Low-Code-Framework/pull/13) |
 | 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | **Complete. Merged.** Owner verified 2026-10-16. | [moalmansor/Core-Low-Code-Framework#14](https://github.com/moalmansor/Core-Low-Code-Framework/pull/14) |
-| 5 — Platform & Extensibility | `phase-5-platform` | **Complete. Awaiting review.** (issue #8) | [moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmansor/Core-Low-Code-Framework/pull/15) |
-| 6 — Hardening & Final Delivery | `phase-6-hardening` | Not started | — |
+| 5 — Platform & Extensibility | `phase-5-platform` | **Complete. Merged.** Owner verified 2026-10-29. | [moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmansor/Core-Low-Code-Framework/pull/15) |
+| 6 — Hardening & Final Delivery | `phase-6-hardening` | In progress (issue #9) | — |
 
 ## Phase 0: completed deliverables
 
@@ -702,25 +702,18 @@ The owner found eight System Settings tabs answering 404 and the Self-service ta
 
 ## Resume point
 
-Phase 4 is complete and merged (pull request
-[moalmansor/Core-Low-Code-Framework#14](https://github.com/moalmansor/Core-Low-Code-Framework/pull/14),
-merge commit `06008cc`). The owner verified it on 2026-10-16: custom
-downloads with a restricted user across linked forms, the bulk approve
-action, notifications to a user from a linked form's field, document
-generation as PDF and Word, and the Phase 4 screens in Arabic at narrow
-widths all behaved correctly.
+Phase 5 is complete and merged (pull request
+[moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmansor/Core-Low-Code-Framework/pull/15),
+merge commit `55eea22`). The owner verified it on 2026-10-29 by clicking
+through every Phase 5 screen and every System Settings tab in Arabic and
+English, with no findings. The "Verification report" status check is now
+required on `main`.
 
-Phase 5 is complete on branch `phase-5-platform`
-([moalmansor/Core-Low-Code-Framework#8](https://github.com/moalmansor/Core-Low-Code-Framework/issues/8)).
-Pull request [moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmansor/Core-Low-Code-Framework/pull/15)
-is open for the owner's review and carries the full §8.2 report.
-
-Resume point:
-- The review follow-up above is pushed; wait for the owner's review of #15.
-- Address review comments on #15 by pushing to `phase-5-platform`.
-- After each push, re-run CI on the head commit and update the report.
-- Do not merge.
-- Phase 6 starts only after #15 is merged.
+Phase 6 is in progress on branch `phase-6-hardening`
+([moalmansor/Core-Low-Code-Framework#9](https://github.com/moalmansor/Core-Low-Code-Framework/issues/9)).
+It includes two items carried forward from earlier phases:
+- the PHP JIT segfault in the form publish analysis (the JIT is off in CI and the image);
+- the SQL Server data-repair scan that timed out in Docker run 152.
 
 ### Local development notes
 
