@@ -11,9 +11,18 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
+/**
+ * An error alert. A few attempts, spaced out: a mail server that refuses it now
+ * is asked again in a minute and in five, never in a loop (ADR-0069).
+ */
 final class ErrorAlertMail extends Mailable
 {
     use Queueable, SerializesModels;
+
+    public int $tries = 3;
+
+    /** @var list<int> */
+    public array $backoff = [60, 300];
 
     public function __construct(public readonly int $groupId, public readonly string $reference)
     {

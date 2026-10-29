@@ -223,7 +223,8 @@ return [
             'timeout' => 7200,
             'nice' => 0,
         ],
-        // Outgoing e-mail from the e-mail queue and error alerts.
+        // Outgoing e-mail from the e-mail queue and error alerts. A job that sets no attempts of its own gets one:
+        // unlimited attempts with no backoff turned a failing alert into a loop of retries (ADR-0069).
         'mail-1' => [
             'connection' => 'redis',
             'queue' => ['mail'],
@@ -232,7 +233,7 @@ return [
             'maxTime' => 0,
             'maxJobs' => 0,
             'memory' => 128,
-            'tries' => 0,
+            'tries' => 1,
             'timeout' => 150,
             'nice' => 0,
         ],
