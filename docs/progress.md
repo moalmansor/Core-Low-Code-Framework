@@ -727,12 +727,23 @@ Done on the branch so far (2026-10-29):
   - Personal-data values are sealed in audit `changes`, justifications and merge snapshots with per-record subject keys, and shredded on anonymization (ADR-0014). The chain still verifies.
   - The Admin Console area "Retention and personal data" (`/admin/retention`), in Arabic and English, with Pest tests on both engines and the e2e test `23-retention.spec.ts`.
 
+- **Retention docs.** Spec §4.26 "As built", architecture §19.16 notes, ADR-0070 (the audit archive-only conflict goes in the PR).
+- **Security review (§5), `docs/security-review.md`:**
+  - PDF rendering now reaches images only through the egress gateway (`PdfFactory`).
+  - Image and zip bombs are refused before parsing.
+  - The 46 public routes are pinned by a test.
+  - CI verifies the audit chain after the e2e suite.
+  - Patched `symfony/mime`, vue-i18n and echarts.
+  - Per-organization data keys with `keys:rotate` and `keys:rewrap` (ADR-0071; the `encryption_keys` table of the ERD had never been created).
+- **Performance (§20), in progress:**
+  - Harness in `backend/tests/Performance` (reference dataset and job measurements), k6 script `perf/k6/load.js`, browser budgets `frontend/e2e-perf`.
+  - Budgets in `perf/budgets.json`, compared by `perf/compare.mjs`; the workflow is `performance.yml` on both engines.
+  - Tuning so far (ADR-0072): each import row is validated once; `BatchMemo`; observer and relay guards; one outbox relay per transaction; one audit chain per batch; parallel insert-import batches (`import_job_batches`). Import went from 25 to about 180 rows/s locally.
+
 Next, in order:
-1. Phase 6 docs for retention: a spec "As built" note under §4.26; architecture §19.16 notes covering the audit-archive-only decision (raise in the PR the conflict between the architecture's "switch out" and CLAUDE.md's immutability rule) and the archive disk; an ADR.
-2. Security review against §5, with fixes, an SSRF and file-parsing review, and an audit-chain verification run.
-3. Performance tuning and load tests against the architecture §20 budgets.
-4. WCAG 2.1 AA and RTL/LTR pass; the complete e2e suite on both engines.
-5. Guides (admin, developer extensions, deployment/backup/restore), final verification of §2–§7, and the PR closing #9 with the §8.2 report citing the head CI run.
+1. Read the first full-scale `performance.yml` run on both engines. Tune whatever misses a budget, then commit `perf/baseline/{mysql,sqlsrv}.json` from a green run and write `docs/performance.md` (results, reference environment versus CI runner, how to run it).
+2. WCAG 2.1 AA and RTL/LTR pass; the complete e2e suite on both engines.
+3. Guides (admin, developer extensions, deployment/backup/restore, including key rotation and the archive volume), CHANGELOG, final verification of §2–§7, and the PR closing #9 with the §8.2 report citing the head CI run.
 
 ### Local development notes
 
