@@ -72,7 +72,7 @@ final class BulkRows
             $size = min(self::BATCH, $count - $done);
             $blocks = (int) ceil($size / 1000);
             $sql = "insert into {$this->wrap($table)} ({$names}) select {$exprs} from ("
-                ."select {$done} + (a.n - 1) * 1000 + b.n as n from perf_numbers a cross join perf_numbers b where a.n <= {$blocks}"
+                ."select {$this->big("{$done} + (a.n - 1) * 1000 + b.n")} as n from perf_numbers a cross join perf_numbers b where a.n <= {$blocks}"
                 .') s where s.n <= '.($done + $size);
             $this->run($table, $sql, $explicitIds);
             $done += $size;
@@ -84,6 +84,12 @@ final class BulkRows
 
     // SQL helpers, one spelling per engine.
 
+    /** The row number as a 64-bit integer: n × a prime overflows SQL Server's int at a million rows. */
+    private function big(string $expr): string
+    {
+        return $this->driver === 'mysql' ? "({$expr})" : "cast({$expr} as bigint)";
+    }
+
     public function idiv(string $a, int $b): string
     {
         return $this->driver === 'mysql' ? "(({$a}) div {$b})" : "(({$a}) / {$b})";
@@ -94,7 +100,7 @@ final class BulkRows
     {
         return $this->driver === 'mysql'
             ? "timestamp('{$reference}') - interval ({$secondsExpr}) second"
-            : "dateadd(second, -({$secondsExpr}), cast('{$reference}' as datetime2(6)))";
+            : "dateadd(second, -cast({$secondsExpr} as int), cast('{$reference}' as datetime2(6)))";
     }
 
     public function dateOf(string $expr): string
@@ -104,7 +110,7 @@ final class BulkRows
 
     public function timeOf(string $secondsExpr): string
     {
-        return $this->driver === 'mysql' ? "sec_to_time({$secondsExpr})" : "cast(dateadd(second, {$secondsExpr}, 0) as time)";
+        return $this->driver === 'mysql' ? "sec_to_time({$secondsExpr})" : "cast(dateadd(second, cast({$secondsExpr} as int), 0) as time)";
     }
 
     public function uuid(): string
