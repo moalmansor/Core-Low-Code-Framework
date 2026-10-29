@@ -262,7 +262,9 @@ const mergeLink = (group: { uuid: string }[]) => ({
         </template>
       </ConfigSection>
     </div>
-    <RepairPanel v-if="session.can('system.repair_data') && published" :form="form" />
+    <!-- Shown once the tab knows the form is published, like the checks above: a scan started earlier could be
+         dropped when the state arrived (the run 152 investigation, ADR-0069). -->
+    <RepairPanel v-if="session.can('system.repair_data') && published && doc.value.value" :form="form" />
 
     <ErrorList :errors="doc.errors.value" />
     <ConfigSaveBar :dirty="doc.dirty.value" :saving="doc.saving.value" testid="dq" @save="doc.save()" @discard="doc.discard()" />
