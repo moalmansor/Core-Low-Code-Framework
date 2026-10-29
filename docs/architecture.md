@@ -2599,6 +2599,7 @@ erDiagram
   forms ||--o{ actions : has
   actions ||--o{ action_steps : chain
   forms ||--o{ import_jobs : imports
+  import_jobs ||--o{ import_job_batches : batches
 ```
 
 **`views`** (table configuration per form, per role)
@@ -3002,6 +3003,26 @@ erDiagram
 - **Check:** `ck_import_jobs_mode`: `mode IN ('insert', 'update', 'upsert')` (both engines)
 - **Check:** `ck_import_jobs_status`: `status IN ('queued', 'validating', 'running', 'completed', 'completed_with_errors', 'failed', 'cancelled')` (both engines)
 - **Check (SQL Server):** `ck_import_jobs_mapping_json`: `ISJSON(mapping) = 1`
+
+**`import_job_batches`** (supporting — parallel imports, ADR-0072)
+
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `import_job_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `import_jobs.id` CASCADE |
+| `batch_no` | INT | INT | NOT NULL | — | 500-row batch, from 1 |
+| `outcome` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `committed`, `cancelled`, `time_limit` |
+| `processed_rows` | INT | INT | NOT NULL | 0 |  |
+| `created_count` | INT | INT | NOT NULL | 0 |  |
+| `updated_count` | INT | INT | NOT NULL | 0 |  |
+| `error_count` | INT | INT | NOT NULL | 0 |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+
+- **Primary key:** `pk_import_job_batches` (`id`); SQL Server clustered.
+- **Unique:** `uq_import_job_batches_import_job_id_batch_no` (`import_job_id`, `batch_no`)
+- **Foreign key:** `fk_import_job_batches_import_job_id`: `import_job_id` → `import_jobs`(`id`) ON DELETE CASCADE
+- **Check:** `ck_import_job_batches_outcome` (`outcome` in the values above)
+- An insert-mode import runs each batch as its own queued job; the batch's row is written first in the batch's transaction, so a batch delivered twice stops at the unique key, and the import's totals are the sums of its batches.
 
 **`export_jobs`** (supporting — built-in exports)
 

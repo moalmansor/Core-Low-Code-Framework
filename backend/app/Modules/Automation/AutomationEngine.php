@@ -24,7 +24,9 @@ use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RecordException;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\RuleRuntime;
+use App\Support\BatchMemo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -127,10 +129,7 @@ final class AutomationEngine
     public function conditionsMet(FormRuntime $rt, ?array $old, array $new): array
     {
         $met = [];
-        $rows = DB::table('automations')->join('automation_triggers', 'automation_triggers.automation_id', '=', 'automations.id')
-            ->where('automations.form_id', $rt->form->id)->where('automations.is_enabled', true)->where('automation_triggers.type', 'condition_true')
-            ->whereNotNull('automations.condition_id')->distinct()->get(['automations.uuid', 'automations.condition_id']);
-        foreach ($rows as $a) {
+        foreach (self::conditionAutomations($rt->form->id) as $a) {
             $ast = $this->conditions->ast((int) $a->condition_id);
             if ($ast !== null && $this->rules->holds($rt, $ast, $new, null, 'view') && ($old === null || ! $this->rules->holds($rt, $ast, $old, null, 'view'))) {
                 $met[] = strtolower((string) $a->uuid);
@@ -138,6 +137,27 @@ final class AutomationEngine
         }
 
         return $met === [] ? [] : ['automation_conditions' => $met];
+    }
+
+    /**
+     * The enabled automations of a form started by "condition became true".
+     *
+     * @return Collection<int, \stdClass>
+     */
+    public static function conditionAutomations(int $formId): Collection
+    {
+        return app(BatchMemo::class)->remember('automations.condition_true.'.$formId, static fn () => DB::table('automations')
+            ->join('automation_triggers', 'automation_triggers.automation_id', '=', 'automations.id')
+            ->where('automations.form_id', $formId)->where('automations.is_enabled', true)->where('automation_triggers.type', 'condition_true')
+            ->whereNotNull('automations.condition_id')->distinct()->get(['automations.uuid', 'automations.condition_id']));
+    }
+
+    /** Whether any enabled automation of the form could start from a record event (so the event is worth queueing). */
+    public static function formListens(string $formUuid): bool
+    {
+        return app(BatchMemo::class)->remember('automations.listens.'.strtolower($formUuid), static fn () => DB::table('automations')
+            ->join('forms', 'forms.id', '=', 'automations.form_id')->where('forms.uuid', strtolower($formUuid))
+            ->where('automations.is_enabled', true)->exists());
     }
 
     /** The scheduler's handler for a schedule trigger: one run over the records that meet the condition. */

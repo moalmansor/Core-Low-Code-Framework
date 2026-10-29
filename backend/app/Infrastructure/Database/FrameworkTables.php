@@ -82,7 +82,7 @@ final class FrameworkTables
         'holidays',
         'home_screens',
         'impersonation_sessions',
-        'import_jobs',
+        'import_job_batches', 'import_jobs',
         'import_mappings',
         'in_app_notifications',
         'inbound_endpoints',

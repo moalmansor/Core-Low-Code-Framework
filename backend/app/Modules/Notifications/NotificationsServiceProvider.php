@@ -34,9 +34,14 @@ final class NotificationsServiceProvider extends ServiceProvider
         $relay = $this->app->make(OutboxRelay::class);
         foreach (self::EVENTS as $type) {
             $relay->on($type, static function (OutboxEvent $e): void {
-                HandleNotificationEvent::dispatch($e->event_type, $e->payload, $e->organization_id);
+                // Record events of a form without notification rules are not queued (an import publishes one per row).
+                if (! in_array($e->event_type, ['record.saved', 'record.transitioned'], true) || ! is_string($e->payload['form'] ?? null)
+                    || Notifier::formHasRules($e->payload['form'])) {
+                    HandleNotificationEvent::dispatch($e->event_type, $e->payload, $e->organization_id);
+                }
             });
         }
-        $this->app->make(RecordObservers::class)->observe(static fn ($rt, ?array $old, array $new) => app(Notifier::class)->conditionsMet($rt, $old, $new));
+        $this->app->make(RecordObservers::class)->observe(static fn ($rt, ?array $old, array $new) => Notifier::conditionRules($rt->form->id)->isEmpty()
+            ? [] : app(Notifier::class)->conditionsMet($rt, $old, $new));
     }
 }

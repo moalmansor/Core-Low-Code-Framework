@@ -14,6 +14,7 @@ use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RuleRuntime;
 use App\Modules\Reference\Models\BusinessCalendar;
 use App\Modules\Reference\WorkingCalendars;
+use App\Support\BatchMemo;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Support\Carbon;
@@ -240,7 +241,8 @@ final class SlaTimers
         }
         $id ??= $rt->form->business_calendar_id;
         $id ??= $departmentId === null ? null : DB::table('departments')->where('id', $departmentId)->value('business_calendar_id');
-        $id ??= DB::table('business_calendars')->where('organization_id', $rt->form->organization_id)->where('is_default', true)->value('id');
+        $id ??= app(BatchMemo::class)->remember('default_calendar.'.$rt->form->organization_id, static fn () => DB::table('business_calendars')
+            ->where('organization_id', $rt->form->organization_id)->where('is_default', true)->value('id'));
 
         return $id === null ? null : BusinessCalendar::query()->find($id);
     }

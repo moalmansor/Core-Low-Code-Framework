@@ -23,6 +23,9 @@ final class AuditWriter
 {
     public const CHAINS = 16;
 
+    // Static: the writer is resolved afresh by each service that records, and the pin holds for all of them.
+    private static ?int $pinned = null;
+
     /** Attribute names whose values are always masked in audit entries. */
     /** Field names (last path segment) whose values are never stored in clear. */
     private const SENSITIVE = '/(^|_)(password|passwd|secret|token|api_?key|private_key|recovery_codes?|credentials?|encrypted_value)s?(_hash)?$/';
@@ -146,8 +149,33 @@ final class AuditWriter
         }, $changes);
     }
 
+    /**
+     * Runs $fn with every entry it writes on one chain. A long transaction
+     * that writes many entries (an import batch) then holds one chain head
+     * instead of all sixteen, so other writers and parallel batches are not
+     * blocked by it and two batches can never wait on each other's heads.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $fn
+     * @return T
+     */
+    public function onChain(int $chain, callable $fn): mixed
+    {
+        $previous = self::$pinned;
+        self::$pinned = $chain % self::CHAINS;
+        try {
+            return $fn();
+        } finally {
+            self::$pinned = $previous;
+        }
+    }
+
     private function chainFor(?string $objectType, ?int $objectId): int
     {
+        if (self::$pinned !== null) {
+            return self::$pinned;
+        }
         $key = $objectType !== null && $objectId !== null ? $objectType.':'.$objectId : $this->correlation->get();
 
         return (int) (crc32($key) % self::CHAINS);

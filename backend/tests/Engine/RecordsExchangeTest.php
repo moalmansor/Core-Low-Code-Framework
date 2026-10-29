@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Records\Exchange\ImportService;
+use App\Modules\Records\Jobs\RunImportBatchJob;
+use App\Modules\Records\Models\StoredFile;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Reader\XLSX\Reader as XlsxReader;
 use OpenSpout\Writer\XLSX\Writer as XlsxWriter;
@@ -254,4 +257,34 @@ it('requires the export and import permissions', function () {
     $this->actingAs($user, 'web');
     $this->postJson("/api/v1/r/{$col}/exports", ['format' => 'csv'])->assertNotFound();
     $this->post("/api/v1/r/{$col}/imports/inspect", ['file' => xlsxUpload([['code'], ['X']])], ['Accept' => 'application/json'])->assertNotFound();
+});
+
+it('runs a large insert import as parallel batches, each committed once, with one error report', function () {
+    [$col] = buildCatalog($this);
+    // 1 201 rows: three batches. Row 700 repeats a code (unique) and row 1 100 has no code (required).
+    $rows = [['Code', 'Name', 'Rating']];
+    for ($i = 1; $i <= 1201; $i++) {
+        $rows[] = [match ($i) {
+            700 => 'S-1', 1100 => '', default => "S-{$i}"
+        }, "Supplier {$i}", ($i % 50) / 10];
+    }
+    [, $job] = importFile($this, $col, xlsxUpload($rows));
+    expect($job['status'])->toBe('completed_with_errors')
+        ->and($job['total_rows'])->toBe(1201)->and($job['created'])->toBe(1199)->and($job['errors'])->toBe(2)->and($job['has_report'])->toBeTrue();
+    $id = (int) DB::table('import_jobs')->where('uuid', $job['uuid'])->value('id');
+    expect(DB::table('import_job_batches')->where('import_job_id', $id)->orderBy('batch_no')->pluck('outcome', 'batch_no')->all())
+        ->toBe([1 => 'committed', 2 => 'committed', 3 => 'committed']);
+    $table = (string) DB::table('forms')->where('uuid', $col)->value('table_name');
+    expect(DB::table($table)->count())->toBe(1199);
+
+    // A batch delivered again changes nothing.
+    (new RunImportBatchJob($id, 2))->handle(app(ImportService::class));
+    expect(DB::table($table)->count())->toBe(1199)
+        ->and(DB::table('import_jobs')->where('id', $id)->value('created_count'))->toEqual(1199);
+
+    // The error report lists both failed rows, from different batches, in row order.
+    $report = DB::table('import_jobs')->where('id', $id)->value('error_report_file_id');
+    $file = StoredFile::query()->withoutGlobalScopes()->findOrFail($report);
+    $lines = readXlsx((string) Storage::disk($file->disk)->get($file->path));
+    expect(array_column(array_slice($lines, 1), 0))->toEqual([701, 1101]);
 });

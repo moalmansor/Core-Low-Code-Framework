@@ -28,9 +28,12 @@ final class OutboxRelay
         $this->handlers[$eventType][] = $handler;
     }
 
-    public function relayOne(int $id): void
+    /** @param  list<int>  $ids */
+    public function relayMany(array $ids): void
     {
-        $this->relay(DB::table('outbox_events')->where('id', $id)->whereNull('dispatched_at'));
+        foreach (array_chunk($ids, 500) as $chunk) {
+            $this->relay(DB::table('outbox_events')->whereIn('id', $chunk)->whereNull('dispatched_at')->orderBy('id'));
+        }
     }
 
     public function relayPending(int $limit = 200): int

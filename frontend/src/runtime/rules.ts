@@ -288,6 +288,7 @@ function conditions(index: FormIndex, values: Values, ctx: Context, state: RuleS
  * repeating until they settle. Never mutates the input.
  */
 export function runRules(index: FormIndex, input: Values, old: Values | null, env: RuleEnv, applyDefaultsFirst = false): { values: Values; state: RuleState } {
+  const started = performance.now()
   const refs = env.references ?? {}
   const ctx = baseContext(index, env)
   let values = applyDefaultsFirst ? applyDefaults(index, input, env) : clone(input)
@@ -299,6 +300,9 @@ export function runRules(index: FormIndex, input: Values, old: Values | null, en
     values = conditions(index, values, withRecord(index, ctx, values, old, refs), state)
     if (JSON.stringify(values) === before) break
   }
+  // Client formula budget (architecture §20.2); only the latest run is kept.
+  performance.clearMeasures('lcf:rules')
+  performance.measure('lcf:rules', { start: started, end: performance.now() })
   return { values, state }
 }
 

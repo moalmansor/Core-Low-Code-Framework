@@ -12,6 +12,7 @@ use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\RuleRuntime;
 use App\Modules\Reference\Models\BusinessCalendar;
 use App\Modules\Reference\WorkingCalendars;
+use App\Support\BatchMemo;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Support\Carbon;
@@ -58,9 +59,12 @@ final class AssignmentService
         if ($transition !== null && ($transition['id'] ?? null) === null) {
             return; // a rejection move has no transition and no rules
         }
-        $q = DB::table('assignment_rules')->where('form_id', $rt->form->id)->orderBy('sort_order')->orderBy('id');
-        $transition === null ? $q->whereNull('transition_id') : $q->where('transition_id', $transition['id']);
-        foreach ($q->get() as $rule) {
+        $rules = app(BatchMemo::class)->remember('assignment_rules.'.$rt->form->id.'.'.($transition['id'] ?? 'start'), static function () use ($rt, $transition) {
+            $q = DB::table('assignment_rules')->where('form_id', $rt->form->id)->orderBy('sort_order')->orderBy('id');
+
+            return ($transition === null ? $q->whereNull('transition_id') : $q->where('transition_id', $transition['id']))->get();
+        });
+        foreach ($rules as $rule) {
             $ast = $this->conditions->ast($rule->condition_id === null ? null : (int) $rule->condition_id);
             if ($ast !== null && ! $this->rules->holds($rt, $ast, $values)) {
                 continue;
@@ -256,7 +260,8 @@ final class AssignmentService
             $department = DB::table($rt->table)->where('id', $recordId)->value('owner_department_id');
             $id = $rt->form->business_calendar_id
                 ?? ($department === null ? null : DB::table('departments')->where('id', $department)->value('business_calendar_id'))
-                ?? DB::table('business_calendars')->where('organization_id', $rt->form->organization_id)->where('is_default', true)->value('id');
+                ?? app(BatchMemo::class)->remember('default_calendar.'.$rt->form->organization_id, static fn () => DB::table('business_calendars')
+                    ->where('organization_id', $rt->form->organization_id)->where('is_default', true)->value('id'));
             $calendar = $id === null ? null : BusinessCalendar::query()->find($id);
             if ($calendar !== null) {
                 return $this->calendars->addWorkingMinutes($calendar, $now, $minutes)->format('Y-m-d H:i:s.u');

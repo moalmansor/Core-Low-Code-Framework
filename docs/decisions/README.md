@@ -75,3 +75,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0069](0069-carried-forward-jit-crash-and-repair-scan.md) | The two items carried into Phase 6: the PHP JIT crash and the run 152 repair scan |
 | [0070](0070-retention-legal-holds-personal-data.md) | Retention, legal holds, storage quotas and personal data as built |
 | [0071](0071-data-keys-and-rotation.md) | Per-organization data keys and the key rotation procedure |
+| [0072](0072-bulk-work-throughput.md) | Bulk-work throughput: parallel import batches, batch memo, one audit chain per batch |

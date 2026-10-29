@@ -54,7 +54,10 @@ final class PlatformServiceProvider extends ServiceProvider
         $relay = $this->app->make(OutboxRelay::class);
         foreach (self::EVENTS as $type) {
             $relay->on($type, static function (OutboxEvent $e): void {
-                QueueWebhookEvent::dispatch($e->event_type, $e->payload, (int) $e->organization_id);
+                // Without an active webhook in the organization there is nothing to fan out to.
+                if (Webhooks::anyActive((int) $e->organization_id)) {
+                    QueueWebhookEvent::dispatch($e->event_type, $e->payload, (int) $e->organization_id);
+                }
             });
         }
 

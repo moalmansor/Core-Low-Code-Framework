@@ -258,8 +258,9 @@ return [
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
+            // A large insert import spreads its batches over these processes (ADR-0072); size it to the worker's CPUs.
             'heavy-1' => [
-                'maxProcesses' => 2,
+                'maxProcesses' => (int) env('HORIZON_HEAVY_PROCESSES', 4),
             ],
             'mail-1' => [
                 'maxProcesses' => 2,
@@ -269,6 +270,9 @@ return [
         'local' => [
             'supervisor-1' => [
                 'maxProcesses' => 3,
+            ],
+            'heavy-1' => [
+                'maxProcesses' => (int) env('HORIZON_HEAVY_PROCESSES', 2),
             ],
         ],
     ],

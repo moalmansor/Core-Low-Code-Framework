@@ -28,10 +28,14 @@ final class AutomationServiceProvider extends ServiceProvider
         $relay = $this->app->make(OutboxRelay::class);
         foreach (self::EVENTS as $type) {
             $relay->on($type, static function (OutboxEvent $e): void {
-                HandleAutomationEvent::dispatch($e->event_type, $e->payload, $e->organization_id);
+                // Events of a form without enabled automations are not queued (an import publishes one per row).
+                if (! is_string($e->payload['form'] ?? null) || AutomationEngine::formListens($e->payload['form'])) {
+                    HandleAutomationEvent::dispatch($e->event_type, $e->payload, $e->organization_id);
+                }
             });
         }
-        $this->app->make(RecordObservers::class)->observe(static fn ($rt, ?array $old, array $new) => app(AutomationEngine::class)->conditionsMet($rt, $old, $new));
+        $this->app->make(RecordObservers::class)->observe(static fn ($rt, ?array $old, array $new) => AutomationEngine::conditionAutomations($rt->form->id)->isEmpty()
+            ? [] : app(AutomationEngine::class)->conditionsMet($rt, $old, $new));
         $this->app->make(ScheduledTasks::class)->handle('automation', static fn (object $task) => app(AutomationEngine::class)->scheduled($task));
     }
 }

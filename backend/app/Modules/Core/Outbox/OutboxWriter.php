@@ -18,6 +18,9 @@ final class OutboxWriter
     /** @var list<array<string, mixed>> context added to events published inside within() */
     private array $context = [];
 
+    /** @var list<int> events published since the last relay */
+    private array $pending = [];
+
     public function __construct(
         private readonly TenantContext $tenant,
         private readonly CorrelationId $correlation,
@@ -41,8 +44,16 @@ final class OutboxWriter
             'available_at' => now(),
             'attempts' => 0,
         ]);
-        // Relay right after commit; the scheduled relay is the safety net.
-        DB::afterCommit(fn () => $this->relay->relayOne((int) $event->id));
+        // Relay right after commit, all of a transaction's events at once (an import batch publishes hundreds);
+        // the scheduled relay is the safety net. Ids of a transaction that rolled back match no row.
+        // The first callback to run relays everything pending; the others find nothing left.
+        $this->pending[] = (int) $event->id;
+        DB::afterCommit(function (): void {
+            [$ids, $this->pending] = [$this->pending, []];
+            if ($ids !== []) {
+                $this->relay->relayMany($ids);
+            }
+        });
 
         return $event;
     }

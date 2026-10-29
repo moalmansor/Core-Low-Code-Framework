@@ -109,6 +109,9 @@ async function load(): Promise<void> {
   try {
     // Field access depends on the status of the record being edited.
     const def = (await get<{ data: ClientDefinition }>(`/r/${formUuid.value}/definition`, { mode: mode.value, ...(recordUuid.value ? { record: recordUuid.value } : {}) })).data
+    // Render budget (architecture §20.2): from the definition received to the form ready for input.
+    performance.clearMarks('lcf:definition-received')
+    performance.mark('lcf:definition-received')
     if (mode.value === 'edit') {
       const rec = (await get<{ data: RecordPayload }>(`/r/${formUuid.value}/${recordUuid.value}`)).data
       if (rec.permissions && !rec.permissions.edit) {
@@ -126,6 +129,12 @@ async function load(): Promise<void> {
     definition.value = def
     renderKey.value++
     markRequired()
+    void nextTick(() =>
+      requestAnimationFrame(() => {
+        performance.clearMeasures('lcf:form-render')
+        performance.measure('lcf:form-render', 'lcf:definition-received')
+      }),
+    )
     document.title = [heading.value, session.systemName].filter(Boolean).join(' · ')
   } catch (e) {
     loadError.value = e instanceof ApiError && e.status !== 0 ? e.message : t('records.load_failed')
