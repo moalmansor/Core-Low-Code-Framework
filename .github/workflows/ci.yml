@@ -221,6 +221,11 @@ jobs:
       - name: Playwright on ${{ matrix.db }}
         working-directory: frontend
         run: npx playwright test
+      # Every audit entry the whole end-to-end run wrote is re-hashed and its chain walked (§4.20, §5);
+      # personal-data anonymization in 23-retention.spec.ts must leave every chain intact.
+      - name: Audit chain verification on ${{ matrix.db }}
+        working-directory: backend
+        run: php artisan audit:verify --full
       - name: Server logs (on failure)
         if: failure()
         run: |

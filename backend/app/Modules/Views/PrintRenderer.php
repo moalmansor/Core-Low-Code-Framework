@@ -12,6 +12,7 @@ use App\Modules\Records\Models\StoredFile;
 use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\RecordPresenter;
 use App\Modules\Workflow\Runtime\WorkflowRuntime;
+use App\Support\Pdf\PdfFactory;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -86,7 +87,7 @@ final class PrintRenderer
             mkdir($dir, 0775, true);
         }
         $format = strtoupper((string) ($layout['paper'] ?? 'a4'));
-        $mpdf = new Mpdf([
+        $mpdf = app(PdfFactory::class)->make([
             'mode' => 'utf-8',
             'format' => $format === 'LETTER' ? 'Letter' : ($format === 'LEGAL' ? 'Legal' : $format),
             'orientation' => ($layout['orientation'] ?? 'portrait') === 'landscape' ? 'L' : 'P',

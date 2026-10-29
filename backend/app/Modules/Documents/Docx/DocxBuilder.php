@@ -201,7 +201,8 @@ final class DocxBuilder
             'image/jpeg' => 'jpeg', 'image/gif' => 'gif', default => 'png',
         };
         if (! in_array($logo['mime'], ['image/png', 'image/jpeg', 'image/gif'], true)) {
-            $im = @imagecreatefromstring($bytes);
+            $head = @getimagesizefromstring($bytes);
+            $im = $head === false || $head[0] > 4096 || $head[1] > 4096 ? false : @imagecreatefromstring($bytes);
             if ($im === false) {
                 return '';
             }

@@ -24,6 +24,7 @@ use App\Modules\Records\Runtime\RecordPipeline;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\SubmissionJournal;
 use App\Modules\Records\Runtime\ValueCodec;
+use App\Support\Files\ZipGuard;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -752,6 +753,9 @@ final class ImportService
     private function reader(string $path, string $format): ReaderInterface
     {
         if ($format === 'xlsx') {
+            if (! ZipGuard::safe($path)) {
+                throw new RecordException(422, 'import_unreadable', __('records.import.unreadable'));
+            }
             $options = new XlsxReaderOptions;
             $options->SHOULD_FORMAT_DATES = false;
 
