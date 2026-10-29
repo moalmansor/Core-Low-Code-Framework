@@ -40,7 +40,7 @@
   /* Text on a workflow status badge (status colours are chosen for white text). */
   --on-status: #ffffff;
   --link: var(--theme-accent, #107c52);
-  --danger: var(--theme-danger, #d92d20);
+  --danger: var(--theme-danger, #d0291d);
   --danger-subtle: #fdecea;
   --warning: var(--theme-warning, #b45309);
   --success: var(--theme-success, #107c52);

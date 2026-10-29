@@ -63,7 +63,7 @@ not inverted.
 | `--on-primary` | Label on primary | `#ffffff` | `#0f1419` |
 | `--on-primary-subtle` | Primary-coloured text on `--primary-subtle` | `#1559ae` | `#6ba9ee` |
 | `--link` | Links, linked records | `#107c52` | `#35a775` |
-| `--danger` / `--danger-subtle` | Errors, destructive actions | `#d92d20` / `#fdecea` | `#f2635c` / `#3a1f1e` |
+| `--danger` / `--danger-subtle` | Errors, destructive actions | `#d0291d` / `#fdecea` | `#f2635c` / `#3a1f1e` |
 | `--warning` | Warnings | `#b45309` | `#d9941f` |
 | `--success` | Success | `#107c52` | `#35a775` |
 | `--neutral-pill` | Status pills without an admin colour | `#3f4c5a` | `#46535f` |

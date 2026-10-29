@@ -79,20 +79,20 @@ const fmt = (v: unknown) => (v === null || v === undefined ? '—' : typeof v ==
   }}</Message>
   <form class="flex flex-wrap items-end gap-2 mb-3" @submit.prevent="((f.page = 1), load())">
     <div class="field">
-      <label>{{ t('audit.from') }}</label
-      ><DatePicker v-model="f.from" show-button-bar />
+      <label for="afrom">{{ t('audit.from') }}</label
+      ><DatePicker v-model="f.from" input-id="afrom" show-button-bar />
     </div>
     <div class="field">
-      <label>{{ t('audit.to') }}</label
-      ><DatePicker v-model="f.to" show-button-bar />
+      <label for="ato">{{ t('audit.to') }}</label
+      ><DatePicker v-model="f.to" input-id="ato" show-button-bar />
     </div>
     <div class="field">
       <label for="ae">{{ t('audit.event') }}</label
       ><InputText id="ae" v-model="f.event" class="ltr-value" />
     </div>
     <div class="field">
-      <label for="ac">{{ t('audit.category') }}</label
-      ><Select v-model="f.category" input-id="ac" :options="categories.map((c) => ({ v: c, l: t(`audit.cat.${c}`) }))" option-label="l" option-value="v" show-clear />
+      <label id="ac-label" for="ac">{{ t('audit.category') }}</label
+      ><Select v-model="f.category" input-id="ac" aria-labelledby="ac-label" :options="categories.map((c) => ({ v: c, l: t(`audit.cat.${c}`) }))" option-label="l" option-value="v" show-clear />
     </div>
     <div class="field">
       <label for="ao">{{ t('audit.object_type') }}</label

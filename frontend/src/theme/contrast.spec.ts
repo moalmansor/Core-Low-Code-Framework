@@ -33,7 +33,7 @@ const pairs: [string, string, string[], number][] = [
   ['primary as text', 'primary', ['bg-page', 'bg-surface', 'bg-subtle'], AA_TEXT],
   ['text on primary-subtle (badges, selected tab)', 'on-primary-subtle', ['primary-subtle'], AA_TEXT],
   ['button labels', 'on-primary', ['primary', 'primary-hover'], AA_TEXT],
-  ['danger text', 'danger', ['bg-surface', 'bg-subtle'], AA_TEXT],
+  ['danger text (incl. text and outlined danger buttons)', 'danger', ['bg-page', 'bg-surface', 'bg-subtle', 'danger-subtle'], AA_TEXT],
   ['warning text', 'warning', ['bg-surface', 'bg-subtle'], AA_TEXT],
   ['success text', 'success', ['bg-surface', 'bg-subtle'], AA_TEXT],
   ['pill labels', 'on-neutral-pill', ['neutral-pill'], AA_TEXT],
@@ -60,7 +60,7 @@ describe('theme contrast (WCAG 2.1 AA)', () => {
   }
 
   it('keeps the owner palette values that are not contrast fixes', () => {
-    expect([light['bg-page'], light['bg-surface'], light['text'], light['link'], light['danger']]).toEqual(['#f4f6f9', '#ffffff', '#1f2937', '#107c52', '#d92d20'])
+    expect([light['bg-page'], light['bg-surface'], light['text'], light['link'], light['danger']]).toEqual(['#f4f6f9', '#ffffff', '#1f2937', '#107c52', '#d0291d'])
     expect([dark['bg-page'], dark['bg-surface'], dark['text'], dark['primary'], dark['danger']]).toEqual(['#0f1419', '#171e26', '#e6edf3', '#4d96e8', '#f2635c'])
   })
 })
