@@ -72,3 +72,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0066](0066-usage-insight.md) | Usage insight |
 | [0067](0067-review-safeguards.md) | Unreachable-screen guard and four safeguards found in review |
 | [0068](0068-report-cites-a-finished-run.md) | The verification report can only cite a finished run on the head commit |
+| [0069](0069-carried-forward-jit-crash-and-repair-scan.md) | The two items carried into Phase 6: the PHP JIT crash and the run 152 repair scan |
