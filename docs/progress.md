@@ -715,6 +715,25 @@ It includes two items carried forward from earlier phases:
 - the PHP JIT segfault in the form publish analysis (the JIT is off in CI and the image);
 - the SQL Server data-repair scan that timed out in Docker run 152.
 
+Done on the branch so far (2026-10-29):
+- **Both carried items explained (ADR-0069).** The JIT crash is a PHP 8.3.35 engine defect; the "PHP JIT" workflow (`php-jit.yml`) runs the engine suite under both JIT modes in gdb. Run 152's scan was queued and the page never polled; the repair panel now waits for its tab to load, and an `ErrorAlertMail` retry storm found in the same log is fixed.
+- **Schema.** All seven Phase 6 tables of the ERD (§10.25). `audit_logs` and `error_logs` are partitioned by month on both engines, with twelve months ahead kept by `partitions:maintain` (daily). Conformance passes on both engines.
+- **Retention (§4.26):**
+  - `RetentionEngine` covers all nine data classes. It can archive (JSON to the `archive` disk plus `archived_records`, and restore under the original id), export then delete, or delete. Every run is in `retention_runs` and audited. Audit logs are archive-only: a verified monthly copy with a chain proof, and entries are never removed.
+  - Legal holds on one record or on a condition, recomputed nightly (`retention:maintain`), and respected by deletes, the recycle bin, retention and personal data.
+  - Storage quotas, enforced at upload and at attach, with a usage report by form and by user.
+  - Table-growth alert measure `largest_table_mb`.
+  - Personal data requests (locate, export, anonymize, delete) with review, a justification and two-factor step-up.
+  - Personal-data values are sealed in audit `changes`, justifications and merge snapshots with per-record subject keys, and shredded on anonymization (ADR-0014). The chain still verifies.
+  - The Admin Console area "Retention and personal data" (`/admin/retention`), in Arabic and English, with Pest tests on both engines and the e2e test `23-retention.spec.ts`.
+
+Next, in order:
+1. Phase 6 docs for retention: a spec "As built" note under §4.26; architecture §19.16 notes covering the audit-archive-only decision (raise in the PR the conflict between the architecture's "switch out" and CLAUDE.md's immutability rule) and the archive disk; an ADR.
+2. Security review against §5, with fixes, an SSRF and file-parsing review, and an audit-chain verification run.
+3. Performance tuning and load tests against the architecture §20 budgets.
+4. WCAG 2.1 AA and RTL/LTR pass; the complete e2e suite on both engines.
+5. Guides (admin, developer extensions, deployment/backup/restore), final verification of §2–§7, and the PR closing #9 with the §8.2 report citing the head CI run.
+
 ### Local development notes
 
 - Local e2e: after `migrate:fresh` of `lcf_e2e`, also run `CACHE_STORE=file php artisan cache:clear`; the file cache outlives the database and can serve a published definition from the previous run. Run Playwright with `DB_DATABASE=lcf_e2e` so `setup:token` reaches the e2e database.
