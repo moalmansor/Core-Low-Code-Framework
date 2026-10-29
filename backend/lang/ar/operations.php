@@ -31,6 +31,7 @@ return [
         'queue_size' => 'المهام المنتظرة',
         'error_rate' => 'الأخطاء',
         'storage_usage' => 'التخزين المستخدم (%)',
+        'largest_table_mb' => 'أكبر جدول (ميغابايت)',
         'scheduler_lag' => 'الدقائق منذ آخر تشغيل للمجدول',
     ],
     'operation' => [

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Operations;
 
+use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Tenancy\TenantContext;
@@ -25,10 +26,10 @@ use Illuminate\Validation\ValidationException;
 final class AlertRules
 {
     /** Measures that can be watched today; `failed_integrations` comes with the integrations of Phase 5. */
-    public const METRICS = ['failed_submissions', 'failed_jobs', 'failed_emails', 'stuck_emails', 'failed_webhooks', 'queue_size', 'error_rate', 'storage_usage', 'scheduler_lag'];
+    public const METRICS = ['failed_submissions', 'failed_jobs', 'failed_emails', 'stuck_emails', 'failed_webhooks', 'queue_size', 'error_rate', 'storage_usage', 'largest_table_mb', 'scheduler_lag'];
 
     /** Measures of the current state; the others count events inside the window. */
-    public const INSTANT = ['stuck_emails', 'queue_size', 'storage_usage', 'scheduler_lag'];
+    public const INSTANT = ['stuck_emails', 'queue_size', 'storage_usage', 'largest_table_mb', 'scheduler_lag'];
 
     private const MAX_RULES = 50;
 
@@ -39,6 +40,7 @@ final class AlertRules
         private readonly Translator $translator,
         private readonly AuditWriter $audit,
         private readonly TenantContext $tenant,
+        private readonly DatabaseDriver $driver,
     ) {}
 
     /** @return list<array<string, mixed>> */
@@ -103,9 +105,25 @@ final class AlertRules
             'queue_size' => array_sum(array_map('intval', $this->health->queueSizes())),
             'error_rate' => DB::table('error_logs')->where('occurred_at', '>=', $since)->count(),
             'storage_usage' => (int) ($this->health->storage()['used_percent'] ?? 0),
+            // Table growth (§4.26): the largest table of the database, in MB; the alert names it.
+            'largest_table_mb' => intdiv($this->largestTable()[1], 1048576),
             'scheduler_lag' => ($last = $this->health->schedulerLastRun()) === null ? 0 : (int) $last->diffInMinutes(Carbon::now('UTC')),
             default => 0,
         };
+    }
+
+    /**
+     * The largest table and its size in bytes.
+     *
+     * @return array{0: string, 1: int}
+     */
+    public function largestTable(): array
+    {
+        $sizes = $this->driver->tableSizes();
+        arsort($sizes);
+        $table = (string) array_key_first($sizes);
+
+        return [$table, (int) ($sizes[$table] ?? 0)];
     }
 
     /** Checks every active rule and alerts the roles of those that reached their threshold. Returns how many alerted. */
@@ -128,6 +146,9 @@ final class AlertRules
             $byLocale = $recipients->groupBy(fn (User $u) => in_array($locales[$u->id] ?? null, $enabled, true) ? (string) $locales[$u->id] : $this->translator->defaultLocale());
             foreach ($byLocale as $locale => $group) {
                 $vars = ['measure' => __('operations.metric.'.$rule->metric, [], (string) $locale), 'value' => $value, 'threshold' => (int) $rule->threshold, 'window' => (int) $rule->window_minutes];
+                if ($rule->metric === 'largest_table_mb') {
+                    $vars['measure'] .= ' ('.$this->largestTable()[0].')';
+                }
                 $this->queue->enqueue([
                     'source' => 'alert', 'locale' => (string) $locale, 'to' => $group->pluck('email')->filter()->values()->all(),
                     'subject' => __('operations.alert.subject', $vars, (string) $locale),

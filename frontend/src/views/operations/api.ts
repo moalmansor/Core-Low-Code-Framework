@@ -74,7 +74,7 @@ export interface OpsJob {
   detail?: string | null
 }
 
-export type Metric = 'failed_submissions' | 'failed_jobs' | 'failed_emails' | 'stuck_emails' | 'failed_webhooks' | 'queue_size' | 'error_rate' | 'storage_usage' | 'scheduler_lag'
+export type Metric = 'failed_submissions' | 'failed_jobs' | 'failed_emails' | 'stuck_emails' | 'failed_webhooks' | 'queue_size' | 'error_rate' | 'storage_usage' | 'largest_table_mb' | 'scheduler_lag'
 export interface AlertRuleDoc {
   uuid: string
   metric: Metric

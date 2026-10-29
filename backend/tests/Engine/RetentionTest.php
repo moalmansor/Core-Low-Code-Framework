@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Audit\ChainVerifier;
+use App\Modules\Operations\AlertRules;
 use App\Modules\Retention\Partitions;
 use App\Modules\Retention\RetentionEngine;
 use App\Modules\Retention\SubjectKeys;
@@ -74,14 +75,22 @@ function savePolicy(TestCase $t, array $policy): array
 it('partitions the audit and error logs by month and keeps twelve months ahead', function () {
     $partitions = app(Partitions::class);
     $driver = app(DatabaseDriver::class);
+    // The database may keep partitions from earlier runs (DDL survives truncation): count from what is there.
+    $lasts = [];
     foreach (Partitions::TABLES as $table) {
-        expect($driver->timePartitionBounds($table))->toHaveCount(13);
+        $bounds = $driver->timePartitionBounds($table);
+        expect(count($bounds))->toBeGreaterThanOrEqual(13)
+            ->and(end($bounds) >= Carbon::now('UTC')->startOfMonth()->addMonths(13)->toDateString())->toBeTrue();
+        $lasts[$table] = Carbon::parse(end($bounds), 'UTC');
     }
-    Carbon::setTestNow(Carbon::now('UTC')->startOfMonth()->addMonths(2)->addDays(3));
-    expect($partitions->maintain())->toBe(['audit_logs' => 2, 'error_logs' => 2])
+    // Two months past the furthest bound: each table needs its gap plus the twelve months ahead.
+    Carbon::setTestNow(max($lasts)->copy()->addMonths(2)->addDays(3));
+    $want = Carbon::now('UTC')->startOfMonth()->addMonths(13);
+    $expected = array_map(static fn (Carbon $last) => (int) round($last->diffInMonths($want)), $lasts);
+    expect($partitions->maintain())->toBe($expected)
         ->and($partitions->maintain())->toBe(['audit_logs' => 0, 'error_logs' => 0]);
     $bounds = $driver->timePartitionBounds('audit_logs');
-    expect(end($bounds))->toBe(Carbon::now('UTC')->startOfMonth()->addMonths(13)->toDateString());
+    expect(end($bounds))->toBe($want->toDateString());
     Carbon::setTestNow();
     app(AuditWriter::class)->record('test.partitioned', 'operations');
     expect(array_sum(array_column($partitions->describe('audit_logs'), 'rows')))->toBe(DB::table('audit_logs')->count());
@@ -280,4 +289,12 @@ it('lets nobody without the compliance permissions near retention, holds or pers
 it('lists the data classes and actions a policy may use', function () {
     $opts = $this->getJson('/api/v1/retention/options')->assertOk()->json('data');
     expect($opts['data_classes'])->toBe(RetentionEngine::DATA_CLASSES)->and($opts['archive_disks'])->toBe(['archive']);
+});
+
+it('lets an alert rule watch the largest table, naming it', function () {
+    [$table, $bytes] = app(AlertRules::class)->largestTable();
+    expect($table)->not->toBe('')->and($bytes)->toBeGreaterThan(0)
+        ->and(app(AlertRules::class)->measure('largest_table_mb', 60))->toBe(intdiv($bytes, 1048576));
+    $doc = $this->getJson('/api/v1/ops/alert-rules')->assertOk()->json('data');
+    expect($doc['extra']['metrics'] ?? $doc['metrics'] ?? [])->toContain('largest_table_mb');
 });

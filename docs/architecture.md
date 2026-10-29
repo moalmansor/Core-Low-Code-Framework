@@ -5280,7 +5280,7 @@ admin-created, never seeded.
 | `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
 | `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 | `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
-| `metric` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `failed_submissions`, `failed_jobs`, `failed_emails`, `stuck_emails`, `failed_webhooks`, `failed_integrations`, `queue_size`, `error_rate`, `storage_usage`, `scheduler_lag` |
+| `metric` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `failed_submissions`, `failed_jobs`, `failed_emails`, `stuck_emails`, `failed_webhooks`, `failed_integrations`, `queue_size`, `error_rate`, `storage_usage`, `largest_table_mb`, `scheduler_lag` |
 | `threshold` | INT | INT | NOT NULL | — |  |
 | `window_minutes` | INT | INT | NOT NULL | — |  |
 | `recipient_role_ids` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
@@ -5296,7 +5296,7 @@ admin-created, never seeded.
 - **Foreign key:** `fk_operations_alert_rules_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_operations_alert_rules_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_operations_alert_rules_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
-- **Check:** `ck_operations_alert_rules_metric`: `metric IN ('failed_submissions', 'failed_jobs', 'failed_emails', 'stuck_emails', 'failed_webhooks', 'failed_integrations', 'queue_size', 'error_rate', 'storage_usage', 'scheduler_lag')` (both engines)
+- **Check:** `ck_operations_alert_rules_metric`: `metric IN ('failed_submissions', 'failed_jobs', 'failed_emails', 'stuck_emails', 'failed_webhooks', 'failed_integrations', 'queue_size', 'error_rate', 'storage_usage', 'largest_table_mb', 'scheduler_lag')` (both engines)
 - **Check (SQL Server):** `ck_operations_alert_rules_recipient_role_ids_json`: `ISJSON(recipient_role_ids) = 1`
 
 **`operations_dismissals`** (supporting — §4.2 failed jobs dismissed with a reason, ADR-0045)

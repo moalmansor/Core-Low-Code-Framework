@@ -31,6 +31,7 @@ return [
         'queue_size' => 'Waiting jobs',
         'error_rate' => 'Errors',
         'storage_usage' => 'Storage used (%)',
+        'largest_table_mb' => 'Largest table (MB)',
         'scheduler_lag' => 'Minutes since the scheduler last ran',
     ],
     'operation' => [
