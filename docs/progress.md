@@ -740,10 +740,17 @@ Done on the branch so far (2026-10-29):
   - Budgets in `perf/budgets.json`, compared by `perf/compare.mjs`; the workflow is `performance.yml` on both engines.
   - Tuning so far (ADR-0072): each import row is validated once; `BatchMemo`; observer and relay guards; one outbox relay per transaction; one audit chain per batch; parallel insert-import batches (`import_job_batches`). Import went from 25 to about 180 rows/s locally.
 
+- **Accessibility.** `e2e/25-accessibility.spec.ts` runs axe (WCAG 2.1 A/AA) on every screen in both languages and passes locally after the fixes:
+  - labelled filters;
+  - the listbox focus traps;
+  - `--danger` at #d0291d, with danger buttons on the token.
+- **Guides** (`docs/guides`) and the CHANGELOG entry.
+- **The SQL Server dataset failed** in the first full-scale run (int overflow). Fixed in `dff3314` and checked on SQL Server.
+
 Next, in order:
-1. Read the first full-scale `performance.yml` run on both engines. Tune whatever misses a budget, then commit `perf/baseline/{mysql,sqlsrv}.json` from a green run and write `docs/performance.md` (results, reference environment versus CI runner, how to run it).
-2. WCAG 2.1 AA and RTL/LTR pass; the complete e2e suite on both engines.
-3. Guides (admin, developer extensions, deployment/backup/restore, including key rotation and the archive volume), CHANGELOG, final verification of §2–§7, and the PR closing #9 with the §8.2 report citing the head CI run.
+1. Push, then read the full-scale `performance.yml` run on both engines. Tune whatever misses a budget, commit `perf/baseline/{mysql,sqlsrv}.json` from a green run, and write `docs/performance.md`.
+2. Confirm that CI (all jobs, including e2e with the axe sweep on both engines) is green on the head commit.
+3. Final verification of §2–§7 and the PR closing #9, with the §8.2 report citing the head CI run. Raise in it the audit-archive conflict (ADR-0070).
 
 ### Local development notes
 
