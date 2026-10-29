@@ -987,6 +987,16 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Storage quotas** per form and per application, with a warning threshold and a hard limit, and a report of storage used by form and by user.
 - **Personal data handling:** an admin can locate every record and log entry relating to a given person, export them, and action a deletion or anonymization request. Anonymization preserves the audit trail's integrity by replacing identifying values while keeping the sequence of events intact. Fields are markable as personal data in the field properties, which is what drives this search.
 - Legal hold: a record or a set of records can be exempted from deletion until the hold is lifted, with the reason recorded.
+- **As built (ADR-0070):**
+  - **Policies.** Each policy covers one data class (records, audit log, error log, e-mail log, notifications, submission journal, download files, uploaded files, recycle bin), optionally one application or form. It runs on its own schedule and is audited per run and per record.
+  - **End actions.** Archive writes a hashed JSON copy to a separate cold-storage volume, from which a record can be restored under its own identity with its rows, links and files. Export then delete keeps one file per run.
+  - **Audit log entries are never deleted.** Their policy only makes a verified monthly copy with the chain proof.
+  - **Partitions.** Audit and error logs are partitioned by month with twelve months prepared ahead.
+  - **Growth warnings.** Table and volume growth are Operations Center alert measures.
+  - **Storage quotas.** Quotas apply to the organization, an application or a form. The hard limit is checked at upload and attach.
+  - **Legal holds.** A hold covers one record or the records matching a condition, and is respected by every deletion path.
+  - **Personal data requests** locate, export, anonymize or delete. They are approved with a justification, plus a two-factor code for anonymize and delete.
+  - **Audit trail values.** Personal-data values in the audit trail, justifications and merge snapshots are sealed with a per-record key. Anonymization destroys the key, so the values become unreadable while every entry and hash stays in place.
 
 ### 4.27 Applications, Workspaces & Tenancy
 - One installation hosts many **applications** (HR, Procurement, Support), each with its own menus, forms, collections, permissions, branding, and settings, built by admins without code.

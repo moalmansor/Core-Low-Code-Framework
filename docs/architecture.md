@@ -7306,6 +7306,14 @@ At pipeline step 9 the `JustificationGate`:
   that anonymization destroys — crypto-shredding: the ciphertext and therefore the
   chain hashes are untouched, but the values become unrecoverable, ADR-0014).
 - Storage quotas measured nightly; warnings at threshold; uploads blocked at hard limit.
+- **As built (ADR-0070):**
+  - **Audit logs are archived, never removed or switched out.** CLAUDE.md makes audit entries immutable; the conflict with "switched out to an archive table" above is raised in the Phase 6 pull request. An audit-log policy writes a verified monthly copy (JSON Lines plus a chain proof) to the `archive` disk once.
+  - **Error logs and the other logs** are deleted in partition-local chunks, never by partition DDL.
+  - **Record archives and restores.** Record archives are full snapshots (repeater rows, links, file contents) restored under their original id through `DatabaseDriver::insertKeepingIds`.
+  - **Partition maintenance.** `partitions:maintain` runs daily.
+  - **Nightly upkeep.** `retention:maintain` runs nightly before the recycle-bin purge: it recomputes legal-hold flags and measures quotas.
+  - **Quota enforcement.** Quotas are also checked live at upload and attach.
+  - **Sealing.** Values are sealed with libsodium secretbox. Subject keys are wrapped with the application key.
 
 ### 19.17 Applications & tenancy
 
