@@ -26,6 +26,7 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::get('/retention/usage', [RetentionController::class, 'usage']);
 
     Route::get('/legal-holds', [LegalHoldController::class, 'index']);
+    Route::get('/legal-holds/forms', [LegalHoldController::class, 'forms']);
     Route::post('/legal-holds', [LegalHoldController::class, 'store']);
     Route::post('/legal-holds/{hold}/lift', [LegalHoldController::class, 'lift'])->whereUuid('hold');
 

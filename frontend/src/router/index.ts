@@ -37,6 +37,24 @@ const routes: RouteRecordRaw[] = [
         meta: { anyOf: ['system.view_errors', 'system.manage_operations'], title: 'admin.area.system_health' },
       },
       {
+        path: 'admin/retention/:tab(policies|archive|holds|personal|storage)?',
+        name: 'admin.retention',
+        component: () => import('@/views/retention/RetentionView.vue'),
+        meta: { anyOf: ['system.manage_retention', 'system.apply_legal_hold', 'system.manage_personal_data_requests'], title: 'admin.area.retention' },
+      },
+      {
+        path: 'admin/retention/policies/:policy',
+        name: 'admin.retention.policy',
+        component: () => import('@/views/retention/PolicyEditor.vue'),
+        meta: { anyOf: ['system.manage_retention'], title: 'admin.area.retention' },
+      },
+      {
+        path: 'admin/retention/requests/:request',
+        name: 'admin.retention.request',
+        component: () => import('@/views/retention/PersonalRequestView.vue'),
+        meta: { anyOf: ['system.manage_personal_data_requests'], title: 'admin.area.retention' },
+      },
+      {
         path: 'admin/operations/:tab?',
         name: 'admin.operations',
         component: () => import('@/views/operations/OperationsCenter.vue'),

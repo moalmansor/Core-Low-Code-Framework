@@ -61,6 +61,15 @@ final class LegalHoldController extends Controller
         })->values()->all()]);
     }
 
+    /** The published forms a hold can be placed on. */
+    public function forms(): JsonResponse
+    {
+        Gate::authorize('system.apply_legal_hold');
+
+        return response()->json(['data' => Form::query()->whereNotNull('current_version_id')->orderBy('key')->get()
+            ->map(static fn (Form $f) => ['uuid' => strtolower($f->uuid), 'label' => $f->translate('name') ?? Translator::humanize($f->key)])->values()->all()]);
+    }
+
     public function store(Request $request, DraftRepository $drafts): JsonResponse
     {
         Gate::authorize('system.apply_legal_hold');
