@@ -162,6 +162,35 @@ final class SqlServerDriver extends AbstractDriver
         ];
     }
 
+    public function timePartitionBounds(string $table): array
+    {
+        $this->assertIdentifier($table);
+        $rows = $this->connection->select(
+            'select convert(varchar(10), cast(v.value as datetime2(6)), 23) as bound from sys.partition_range_values v
+             join sys.partition_functions f on f.function_id = v.function_id where f.name = ? order by v.boundary_id',
+            ['pf_'.$table.'_monthly'],
+        );
+
+        return array_map(static fn ($r): string => (string) $r->bound, $rows);
+    }
+
+    public function addTimePartitions(string $table, array $bounds): array
+    {
+        $this->assertIdentifier($table);
+        $function = $this->wrap('pf_'.$table.'_monthly');
+        $scheme = $this->wrap('ps_'.$table.'_monthly');
+        $out = [];
+        foreach ($bounds as $bound) {
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $bound) !== 1) {
+                throw new InvalidArgumentException("Invalid partition bound [{$bound}].");
+            }
+            $out[] = "alter partition scheme {$scheme} next used [primary]";
+            $out[] = "alter partition function {$function}() split range ('{$bound}')";
+        }
+
+        return $out;
+    }
+
     public function maxIdentifierLength(): int
     {
         return 60; // engine limit is 128; generated names are capped at 60 for MySQL parity

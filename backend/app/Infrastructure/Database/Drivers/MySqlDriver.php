@@ -142,6 +142,40 @@ final class MySqlDriver extends AbstractDriver
         return [sprintf('alter table %s partition by range columns(%s) (%s)', $this->wrap($table), $this->wrap($column), implode(', ', $parts))];
     }
 
+    public function timePartitionBounds(string $table): array
+    {
+        $this->assertIdentifier($table);
+        $rows = $this->connection->select(
+            'select partition_description as bound from information_schema.partitions
+             where table_schema = database() and table_name = ? and partition_name is not null order by partition_ordinal_position',
+            [$table],
+        );
+        $bounds = [];
+        foreach ($rows as $row) {
+            if (preg_match('/(\d{4}-\d{2}-\d{2})/', (string) $row->bound, $m) === 1) {
+                $bounds[] = $m[1];
+            }
+        }
+
+        return $bounds;
+    }
+
+    public function addTimePartitions(string $table, array $bounds): array
+    {
+        $this->assertIdentifier($table);
+        if ($bounds === []) {
+            return [];
+        }
+        $parts = [];
+        foreach ($bounds as $bound) {
+            $date = $this->assertDate($bound);
+            $parts[] = sprintf("partition p%s values less than ('%s')", str_replace('-', '', $date), $date);
+        }
+        $parts[] = 'partition pmax values less than (maxvalue)';
+
+        return [sprintf('alter table %s reorganize partition pmax into (%s)', $this->wrap($table), implode(', ', $parts))];
+    }
+
     public function maxIndexKeyBytes(): int
     {
         return 3072;

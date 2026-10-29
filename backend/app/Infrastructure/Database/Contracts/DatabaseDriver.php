@@ -113,6 +113,23 @@ interface DatabaseDriver
     public function createTimePartitions(string $table, string $column, array $bounds): array;
 
     /**
+     * The upper bounds (ISO dates) of a table's time partitions, oldest first;
+     * empty when the table is not partitioned.
+     *
+     * @return list<string>
+     */
+    public function timePartitionBounds(string $table): array;
+
+    /**
+     * Statements that add monthly partitions with the given upper bounds after
+     * the last one (the months ahead, kept by partitions:maintain).
+     *
+     * @param  list<string>  $bounds  ISO dates, later than every existing bound
+     * @return list<string>
+     */
+    public function addTimePartitions(string $table, array $bounds): array;
+
+    /**
      * Chunked, engine-neutral export of rows (JSON Lines + schema) to private
      * storage; restorable to either engine.
      *

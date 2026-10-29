@@ -25,6 +25,7 @@ use App\Modules\Platform\Webhooks;
 use App\Modules\Records\Exchange\ExportService;
 use App\Modules\Records\FileStore;
 use App\Modules\Records\Runtime\RecycleBin;
+use App\Modules\Retention\Partitions;
 use App\Modules\Scheduling\ScheduledTasks;
 use App\Modules\Schema\Execution\SchemaReconciler;
 use App\Modules\Schema\Execution\Snapshots;
@@ -87,6 +88,14 @@ Artisan::command('records:purge-recycle-bin', function (RecycleBin $bin): int {
 
     return 0;
 })->purpose('Remove deleted records whose recycle bin retention has passed');
+
+Artisan::command('partitions:maintain', function (Partitions $partitions): int {
+    foreach ($partitions->maintain() as $table => $added) {
+        $this->info("{$table}: {$added} monthly partition(s) added.");
+    }
+
+    return 0;
+})->purpose('Keep the next twelve monthly partitions of the audit and error logs in place');
 
 Artisan::command('automations:tick', function (AutomationEngine $engine, WatchedFolders $folders): int {
     $resumed = $engine->resumeDue();
@@ -273,6 +282,7 @@ Schedule::command('automations:tick')->everyMinute()->withoutOverlapping()->onOn
 Schedule::command('external:maintain')->hourly()->withoutOverlapping()->onOneServer();
 Schedule::command('usage:prune')->dailyAt('03:45')->withoutOverlapping()->onOneServer();
 Schedule::command('webhooks:purge')->dailyAt('03:35')->withoutOverlapping()->onOneServer();
+Schedule::command('partitions:maintain')->dailyAt('00:20')->withoutOverlapping()->onOneServer();
 Schedule::command('records:purge-recycle-bin')->dailyAt('03:25')->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:digest')->hourlyAt(5)->withoutOverlapping()->onOneServer();
