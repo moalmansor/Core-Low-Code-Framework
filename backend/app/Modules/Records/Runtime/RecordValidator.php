@@ -391,7 +391,7 @@ final class RecordValidator
         $col = $rt->column($f['uuid']);
         if ($col === null || is_array($v) || ($col['encrypted'] ?? false)) {
             if (($col['encrypted'] ?? false) && ($bidx = $rt->column($f['uuid'], 'bidx')) !== null) {
-                $q = DB::table($rt->table)->where($bidx['name'], ValueCodec::blindIndex($v));
+                $q = DB::table($rt->table)->where($bidx['name'], ValueCodec::blindIndex($v, $rt->form->organization_id));
             } else {
                 return;
             }

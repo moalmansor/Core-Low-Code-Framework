@@ -250,7 +250,7 @@ final class PersonalData
 
                     continue;
                 }
-                $q->whereIn($bidx['name'], array_map(static fn ($t) => ValueCodec::blindIndex($t), $terms));
+                $q->whereIn($bidx['name'], array_map(static fn ($t) => ValueCodec::blindIndex($t, $rt->form->organization_id), $terms));
             } elseif (in_array($main['type'] ?? '', ['string', 'text'], true)) {
                 $q->where(function ($w) use ($main, $terms): void {
                     foreach ($terms as $t) {

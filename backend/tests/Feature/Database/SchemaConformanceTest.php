@@ -138,6 +138,12 @@ it('lists every ERD table in the framework table registry', function () {
     expect(FrameworkTables::ERD)->toEqualCanonicalizing(array_keys(erdTables()));
 });
 
+it('creates every table the ERD defines, now that every phase has shipped', function () {
+    $live = DB::connection()->getSchemaBuilder()->getTables();
+    $names = array_map(static fn ($t) => is_array($t) ? $t['name'] : $t->name, $live);
+    expect(array_values(array_diff(FrameworkTables::ERD, $names)))->toBe([]);
+});
+
 it('creates only tables that the ERD defines', function () {
     $erd = erdTables();
     $live = metadataTables();

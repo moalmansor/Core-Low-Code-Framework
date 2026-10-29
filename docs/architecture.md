@@ -547,6 +547,11 @@ outbound HTTP (enforced by arch test banning `Http::`, Guzzle, `curl_*`,
   "searchable encrypted" on the field.
 - Logs: `Masker` removes values of fields flagged sensitive/encrypted, passwords,
   tokens, and configured header names before writing to any sink.
+- **As built (ADR-0071):**
+  - **Data keys.** `DataKeys` implements the envelope scheme for the `fields` and `blind_index` purposes. Keys are created on first use. Values written before data keys existed still open.
+  - **`keys:rotate`** moves an organization's encrypted values or blind indexes to a new key, using compare-and-swap updates.
+  - **`keys:rewrap`** re-seals everything sealed with `APP_KEY` after a master-key change, and clears the settings cache.
+  - **Purposes not used yet.** `files` and `secrets` keys are reserved: file contents rely on disk encryption, and secrets are sealed with `APP_KEY` and re-sealed by `keys:rewrap`.
 
 ### 7.6 External surfaces
 

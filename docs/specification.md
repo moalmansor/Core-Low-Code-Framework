@@ -1223,6 +1223,13 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Impersonation** cannot be used to escalate privilege, is always visible in the interface, is time-limited, and is audited as the acting admin.
 - **Data protection:** encryption of sensitive fields; secrets only in environment config; per-tenant and per-field key management with a documented key rotation procedure.
 - **Operations:** scheduled backups with a documented restore procedure; dependency vulnerability scanning (composer audit, npm audit).
+- **As built (ADR-0071, Phase 6 security review in `docs/security-review.md`):**
+  - **Data keys.** Encrypted field values use per-organization data keys with key ids in the ciphertext.
+  - **Rotation.** `keys:rotate` and `keys:rewrap` implement the rotation procedure in the deployment guide.
+  - **PDF rendering** reaches images only through the egress gateway, and never reads local files.
+  - **Image and zip uploads** are checked for decompression bombs before parsing.
+  - **Route test.** Every API route outside a fixed public list requires sign-in, enforced by a test.
+  - **Audit-chain verification** runs over the whole end-to-end suite in CI.
 - No sensitive data in logs or in user-facing errors.
 - **Additional safeguards (added in Phase 1):**
   - two-factor authentication cannot be switched off by holders of a role that requires it; an administrator can reset it, which forces re-enrollment at the next sign-in;
