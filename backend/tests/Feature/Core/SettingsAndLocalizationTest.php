@@ -7,6 +7,7 @@ use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Mail\TestMail;
 use App\Modules\Core\Models\Setting;
+use App\Modules\Core\Settings\SettingsRegistry;
 use App\Modules\Core\Settings\SettingsService;
 use App\Support\Color\Contrast;
 use Illuminate\Support\Facades\Cache;
@@ -179,4 +180,19 @@ it('never returns a raw key as a label: a missing label becomes a readable phras
         ->and($translator->labelOf([], 'visit_date'))->toBe('Visit date')
         ->and($translator->labelOf(null, 'contact-email'))->toBe('Contact email')
         ->and(Translator::humanize('VAT_no'))->toBe('VAT no');
+});
+
+it('serves every settings group that has a screen, so each tab can be read and saved', function () {
+    // Regression: groups added after Phase 1 (records, actions, downloads, …) answered 404, so their tabs could neither load nor save.
+    foreach (app(SettingsRegistry::class)->groups() as $group) {
+        // Maintenance mode has its own endpoint (/maintenance), which also holds its translatable message;
+        // the external portal's registration is set under External access (/external-settings).
+        if (in_array($group, ['setup', 'tenancy', 'maintenance', 'external'], true)) {
+            $this->getJson("/api/v1/settings/{$group}")->assertNotFound();
+
+            continue;
+        }
+        $this->getJson("/api/v1/settings/{$group}")->assertOk();
+    }
+    $this->patchJson('/api/v1/settings/actions', ['max_records' => 600])->assertOk()->assertJsonPath('data.max_records', 600);
 });

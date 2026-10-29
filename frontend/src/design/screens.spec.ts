@@ -131,7 +131,6 @@ const BEFORE_CHECKLIST: Record<string, string[]> = {
   'views/admin/UsersView.vue': ['empty-value'],
   'views/admin/WorkAdminView.vue': ['list-join'],
   'views/admin/building/BlueprintDetail.vue': ['empty-value', 'list-join'],
-  'views/admin/building/BlueprintsView.vue': ['quiet-help'],
   'views/admin/building/FormAccessView.vue': ['empty-value', 'quiet-help'],
   'views/admin/building/FormsView.vue': ['empty-value'],
   'views/admin/building/MigrationPlans.vue': ['empty-value', 'quiet-help'],

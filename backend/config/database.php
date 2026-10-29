@@ -117,6 +117,24 @@ return [
             'options' => extension_loaded('pdo_sqlsrv') ? [PDO::SQLSRV_ATTR_FETCHES_NUMERIC_TYPE => true] : [],
         ],
 
+        // External databases whose views can be registered as data sources (ADR-0057): each name in
+        // LCF_EXTERNAL_DB_CONNECTIONS becomes the connection "external_<name>", configured by
+        // LCF_EXT_<NAME>_DRIVER, _HOST, _PORT, _DATABASE, _USERNAME and _PASSWORD. Credentials stay in the
+        // environment, never in the database; use an account that may only read the views it needs.
+        ...collect(array_filter(array_map('trim', explode(',', (string) env('LCF_EXTERNAL_DB_CONNECTIONS', '')))))
+            ->filter(static fn (string $n) => preg_match('/^[a-z][a-z0-9_]{0,30}$/', $n) === 1)
+            ->mapWithKeys(static function (string $n): array {
+                $e = static fn (string $k, mixed $d = null) => env('LCF_EXT_'.strtoupper($n).'_'.$k, $d);
+
+                return ['external_'.$n => [
+                    'driver' => in_array($e('DRIVER'), ['mysql', 'sqlsrv', 'pgsql'], true) ? $e('DRIVER') : 'mysql',
+                    'host' => $e('HOST', '127.0.0.1'), 'port' => $e('PORT'), 'database' => $e('DATABASE'),
+                    'username' => $e('USERNAME'), 'password' => $e('PASSWORD', ''),
+                    'charset' => $e('DRIVER') === 'sqlsrv' ? 'utf8' : 'utf8mb4', 'prefix' => '',
+                    'trust_server_certificate' => $e('TRUST_SERVER_CERTIFICATE', 'false'),
+                ]];
+            })->all(),
+
     ],
 
     /*

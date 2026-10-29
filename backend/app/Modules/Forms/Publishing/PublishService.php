@@ -144,6 +144,24 @@ final class PublishService
     }
 
     /**
+     * Publishes a form that holds no records at once, as a person would from
+     * the publish dialog without destructive steps: used when a form is made
+     * from an application blueprint (ADR-0059). Throws PublishBlocked when the
+     * plan needs a decision, RuntimeException when it does not apply.
+     */
+    public function publishNow(Form $form, int $userId, string $note): void
+    {
+        $prepared = $this->prepare($form);
+        $plan = $this->start($form, $userId, [
+            'impact_hash' => $prepared['hash'], 'purpose' => 'publish', 'change_note' => $note,
+            'confirm_blocking' => false, 'confirm_destructive' => false, 'typed_confirmation' => null,
+        ]);
+        if ($this->execute($plan) !== 'applied' || $plan->refresh()->status !== 'applied') {
+            throw new \RuntimeException(__('blueprints.publish_failed'));
+        }
+    }
+
+    /**
      * Runs a persisted plan (queued job). Returns `waiting` when another publish
      * holds a related form; the job retries later.
      */

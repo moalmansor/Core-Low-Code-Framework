@@ -36,6 +36,8 @@ final class RecordQuery
             // Selected records (export selected): narrows the result, never widens it.
             'uuids' => ['sometimes', 'array', 'max:1000'],
             'uuids.*' => ['uuid'],
+            // Records the person created (home screen "my records"): narrows the result, never widens it.
+            'mine' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -55,6 +57,9 @@ final class RecordQuery
         }
         if (isset($data['uuids'])) {
             $q->whereIn('uuid', array_map('strtolower', $data['uuids']));
+        }
+        if (filter_var($data['mine'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            $q->where('created_by', $user->id);
         }
         if (! empty($data['search'])) {
             $term = mb_strtolower(Unicode::normalizeArabic(trim((string) $data['search'])));

@@ -256,7 +256,7 @@ final class UserController extends Controller
     /** @param list<string> $roleUuids */
     private function syncRoles(Request $request, User $user, array $roleUuids, bool $isNew = false): void
     {
-        $ids = Role::query()->whereIn('uuid', $roleUuids)->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+        $ids = Role::query()->where('audience', 'internal')->whereIn('uuid', $roleUuids)->pluck('id')->map(static fn ($id): int => (int) $id)->all();
         $current = $user->roles()->pluck('roles.id')->map(static fn ($id): int => (int) $id)->all();
         $this->escalation->assertCanChangeRoles($request, $this->actor(), $isNew ? null : $user, array_values(array_diff($ids, $current)), array_values(array_diff($current, $ids)));
         $now = now()->format('Y-m-d H:i:s.u');

@@ -18,6 +18,8 @@ import { ApiError, ensureCsrf, get, http, send } from '@/api/http'
 import ActionRunDialog from '@/runtime/actions/ActionRunDialog.vue'
 import { actionsRuntimeApi, type AvailableAction } from '@/runtime/actions/api'
 import DownloadDialog from '@/runtime/downloads/DownloadDialog.vue'
+import PinButton from './PinButton.vue'
+import ShareDialog from './ShareDialog.vue'
 import { newUuid } from '@/runtime/api'
 import { RECORD_FILES, RECORD_UUID } from '@/runtime/context'
 import { FormIndex } from '@/runtime/formIndex'
@@ -79,6 +81,7 @@ const index = computed(() => (definition.value ? new FormIndex(definition.value)
 const name = computed(() => (definition.value ? (pickText(definition.value.names, locale.value) ?? definition.value.name ?? humanize(definition.value.form.key)) : ''))
 const perms = computed(() => record.value?.permissions ?? { edit: false, delete: false, restore: false, print: false, view_log: false })
 const deleted = computed(() => !!record.value?.system.deleted_at)
+const sharing = ref(false)
 const allowComments = computed(() => definition.value?.form.settings.allowComments !== false && !deleted.value)
 
 async function load(): Promise<void> {
@@ -276,7 +279,7 @@ watch(
           <span v-if="record.system.version">{{ t('records.form_version') }} {{ record.system.version }}</span>
         </p>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2" data-tour="record_actions">
         <RouterLink v-if="perms.edit" v-slot="{ navigate }" :to="{ name: 'records.edit', params: { form: formUuid, record: recordUuid } }" custom>
           <Button icon="pi pi-pencil" :label="t('common.edit')" data-testid="record-edit" @click="navigate" />
         </RouterLink>
@@ -311,6 +314,16 @@ watch(
           <Button icon="pi pi-ellipsis-h" :label="t('act.run.more')" severity="secondary" outlined aria-haspopup="true" data-testid="record-actions-more" @click="(e: Event) => moreMenu?.toggle(e)" />
           <Menu ref="moreMenu" :model="moreItems" popup />
         </template>
+        <PinButton v-if="!deleted" :form="formUuid" :record="recordUuid" />
+        <Button
+          v-if="!deleted && session.capable('record_sharing')"
+          icon="pi pi-share-alt"
+          :label="t('share.button')"
+          severity="secondary"
+          outlined
+          data-testid="record-share"
+          @click="sharing = true"
+        />
         <Button v-if="perms.restore" icon="pi pi-replay" :label="t('records.restore')" severity="secondary" outlined data-testid="record-restore" @click="restore" />
         <Button v-if="perms.delete" icon="pi pi-trash" :label="t('common.delete')" severity="danger" outlined data-testid="record-delete" @click="remove" />
       </div>
@@ -395,6 +408,7 @@ watch(
     <JustificationDialog :prompt="justification.prompt.value" :errors="justification.errors.value" :busy="justification.busy.value" @submit="justification.submit" @cancel="justification.cancel" />
     <ActionRunDialog ref="runner" @done="load" />
     <DownloadDialog ref="downloader" />
+    <ShareDialog v-if="record" v-model:visible="sharing" :form="formUuid" :record="recordUuid" />
   </div>
 </template>
 

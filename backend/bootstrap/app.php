@@ -5,12 +5,17 @@ declare(strict_types=1);
 use App\Http\Middleware\NormalizeDocumentInput;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\ThrottlePerRoute;
 use App\Modules\Core\Correlation\CorrelationId;
+use App\Modules\Core\Flags\EnforceFeatureFlags;
 use App\Modules\Core\Http\Middleware\AssignCorrelationId;
+use App\Modules\Experience\Http\Middleware\SystemMaintenance;
+use App\Modules\Identity\Http\Middleware\EnforceAccessPolicy;
 use App\Modules\Identity\Http\Middleware\EnforceSessionPolicy;
 use App\Modules\Identity\Http\Middleware\EnsureActiveUser;
 use App\Modules\Identity\Http\Middleware\EnsurePasswordNotExpired;
 use App\Modules\Identity\Http\Middleware\EnsureTwoFactorEnrolled;
+use App\Modules\Identity\Http\Middleware\GuardImpersonation;
 use App\Modules\Identity\Http\Middleware\SetTenantFromUser;
 use App\Modules\Monitoring\ErrorReporter;
 use App\Modules\Setup\Http\Middleware\SetupOpen;
@@ -50,7 +55,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->group('lcf.session', [
             EnsureActiveUser::class,
             SetTenantFromUser::class,
+            GuardImpersonation::class,
             EnforceSessionPolicy::class,
+            EnforceAccessPolicy::class,
             'throttle:api',
         ]);
         // Everything else additionally needs 2FA enrollment where the role
@@ -59,8 +66,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'lcf.session',
             EnsureTwoFactorEnrolled::class,
             EnsurePasswordNotExpired::class,
+            SystemMaintenance::class,
+            EnforceFeatureFlags::class,
         ]);
-        $middleware->alias(['lcf.setup' => SetupOpen::class]);
+        $middleware->alias(['lcf.setup' => SetupOpen::class, 'throttle' => ThrottlePerRoute::class]);
         $middleware->redirectGuestsTo(static fn (Request $request): ?string => $request->expectsJson() ? null : '/login');
     })
     ->withExceptions(function (Exceptions $exceptions): void {

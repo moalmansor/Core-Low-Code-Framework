@@ -23,7 +23,7 @@ final class Organization extends BaseModel
     use HasStableUuid, HasTranslations, TracksActor;
 
     /** @var list<string> */
-    public array $translatable = ['name'];
+    public array $translatable = ['name', 'maintenance_message'];
 
     protected $fillable = ['parent_id', 'key', 'is_platform', 'status', 'default_locale', 'timezone', 'settings_overrides'];
 

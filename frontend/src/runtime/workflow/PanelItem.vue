@@ -26,6 +26,8 @@ const items = computed(() => (props.panel.data as { label: string; value: unknow
 const summary = computed(() => (props.panel.data as { value: unknown } | null)?.value ?? null)
 const grid = computed(() => ({ 2: 'md:grid-cols-2', 3: 'md:grid-cols-3' })[props.panel.config.columns as 2 | 3] ?? '')
 const cell = (v: unknown) => formatLoose(v) || '—'
+/** Rows of an external data source matching this record (ADR-0057). */
+const external = computed(() => props.panel.data as { columns: { key: string; label: string | null }[]; rows: Record<string, unknown>[]; error: string | null } | null)
 </script>
 
 <template>
@@ -77,6 +79,27 @@ const cell = (v: unknown) => formatLoose(v) || '—'
       </dl>
 
       <div v-else-if="panel.type === 'summary_widget'" class="text-2xl font-semibold ltr-value">{{ summary === null ? '—' : cell(summary) }}</div>
+
+      <template v-else-if="panel.type === 'external_table'">
+        <p v-if="external?.error" class="text-sm text-danger" :data-testid="`external-error-${panel.uuid}`">{{ external.error }}</p>
+        <div v-else-if="external" class="overflow-x-auto">
+          <table class="w-full text-sm" :data-testid="`external-table-${panel.uuid}`">
+            <thead>
+              <tr class="text-start border-b border-line">
+                <th v-for="c in external.columns" :key="c.key" class="p-2 text-start">{{ c.label ?? t('panels_run.name') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(r, k) in external.rows" :key="k" class="border-b border-line">
+                <td v-for="c in external.columns" :key="c.key" class="p-2" dir="auto">{{ cell(r[c.key]) }}</td>
+              </tr>
+              <tr v-if="!external.rows.length">
+                <td :colspan="external.columns.length || 1" class="p-2 text-muted-color">{{ t('panels_run.none') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
 
       <template v-else-if="panel.type === 'related_table'">
         <p v-if="!related" class="text-sm text-muted-color">{{ t('panels_run.no_access') }}</p>

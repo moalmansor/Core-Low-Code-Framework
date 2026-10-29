@@ -4,7 +4,7 @@ import Divider from 'primevue/divider'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import Password from 'primevue/password'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError, get, send } from '@/api/http'
@@ -13,6 +13,8 @@ import { useSession } from '@/stores/session'
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+/** Why an access policy ended the last session: one of the known reasons only. */
+const deniedReason = computed(() => (['ip', 'time', 'device'] as const).find((r) => r === route.query.denied) ?? null)
 const session = useSession()
 
 const email = ref('')
@@ -48,7 +50,13 @@ async function submit(): Promise<void> {
 
 <template>
   <h1 class="page-title">{{ t('auth.sign_in') }}</h1>
+  <p v-if="session.theme?.login.welcome" class="mb-4 text-muted-color" dir="auto" data-testid="login-welcome">{{ session.theme.login.welcome }}</p>
   <Message v-if="route.query.expired" severity="info" class="mb-4">{{ t('auth.session_expired') }}</Message>
+  <!-- Only known reasons are shown, never text from the address. -->
+  <Message v-if="deniedReason" severity="warn" class="mb-4" data-testid="login-denied">{{ t(`pa.denied.${deniedReason}`) }}</Message>
+  <Message v-if="session.boot?.maintenance?.active" severity="warn" class="mb-4" data-testid="login-maintenance">
+    <span dir="auto">{{ session.boot.maintenance.message }}</span>
+  </Message>
   <Message v-if="route.query.reset" severity="success" class="mb-4">{{ t('auth.password_reset_done') }}</Message>
   <Message v-if="error" severity="error" class="mb-4" data-testid="login-error">{{ error }}</Message>
   <form class="flex flex-col gap-4" @submit.prevent="submit">

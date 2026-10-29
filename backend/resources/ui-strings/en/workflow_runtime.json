@@ -26,6 +26,7 @@
   "panels_run.add": "Add",
   "panels_run.collapse": "Collapse",
   "panels_run.expand": "Expand",
+  "panels_run.name": "Name",
   "panels_run.no_access": "You do not have access to these records.",
   "panels_run.none": "No records.",
   "panels_run.record": "Record",

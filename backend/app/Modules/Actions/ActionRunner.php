@@ -11,6 +11,7 @@ use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\Correlation\CorrelationId;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Settings\SettingsService;
+use App\Modules\Extensions\HookRunner;
 use App\Modules\Forms\Conditions\OwnedConditions;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
@@ -335,6 +336,7 @@ final class ActionRunner
                     $outputs = $action->kind === 'custom'
                         ? $this->steps->runAll($steps, $stepAsts, $rt, $user, $target, $key, (int) $op->justification_id ?: null, strtolower((string) $action->uuid), $label)
                         : $this->builtin($action, $rt, $user, $target, $inputs, $key, $op->justification_id === null ? null : (int) $op->justification_id);
+                    $this->onAction($rt, $user, $target['uuid'], (string) $action->key);
                     $result['records'][] = ['uuid' => $target['uuid'], 'ok' => true, 'error' => null];
                     $result['outputs'] = array_slice([...$result['outputs'], ...$outputs], 0, 20);
                     $affected++;
@@ -430,6 +432,24 @@ final class ActionRunner
                 return $this->duplicate($rt, $user, $found, $key);
             default:
                 throw new StepFailed(__('actions.not_runnable'));
+        }
+    }
+
+    /** Developer extensions at onAction (ADR-0051): after the action's work on one record, in a transaction of their own. */
+    private function onAction(FormRuntime $rt, User $user, string $uuid, string $key): void
+    {
+        $hooks = app(HookRunner::class);
+        if (! $hooks->has($rt, 'onAction')) {
+            return;
+        }
+        $record = $this->store->find($rt, $uuid);
+        if ($record === null) {
+            return;
+        }
+        try {
+            DB::transaction(static fn () => $hooks->run('onAction', $rt, $user, $record['values'], null, $uuid, ['action' => $key]));
+        } finally {
+            $hooks->flush();
         }
     }
 

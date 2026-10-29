@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Records\Runtime;
 
+use App\Modules\Core\Actors\ExternalActor;
 use App\Modules\Core\Correlation\CorrelationId;
 use App\Modules\Core\Tenancy\TenantContext;
 use Illuminate\Support\Carbon;
@@ -77,7 +78,7 @@ final class SubmissionJournal
                 'idempotency_key' => $key, 'form_id' => $formId, 'form_version_id' => $versionId, 'record_id' => $recordId,
                 'operation' => $operation, 'source' => $source, 'user_id' => $userId, 'payload' => $this->seal($payload),
                 'expected_row_version' => $expectedRowVersion, 'status' => 'processing', 'attempts' => 1,
-                'correlation_id' => $this->correlation->get(), 'import_job_id' => $this->importJobId,
+                'correlation_id' => $this->correlation->get(), 'import_job_id' => $this->importJobId, 'external_user_id' => app(ExternalActor::class)->id,
             ]);
 
             return ['id' => $id, 'uuid' => $uuid, 'state' => 'new', 'record_id' => $recordId];

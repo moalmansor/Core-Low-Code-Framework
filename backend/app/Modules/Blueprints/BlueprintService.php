@@ -262,7 +262,7 @@ final class BlueprintService
      * @param  array{rules: list<array<string, mixed>>, grants: list<array<string, mixed>>}  $access
      * @return list<string> descriptions of rules and grants whose subject does not exist here
      */
-    private function applyAccess(Form $form, array $access, string $formUuid): array
+    public function applyAccess(Form $form, array $access, string $formUuid): array
     {
         $groupIds = DB::table('field_groups')->where('form_id', $form->id)->pluck('id', 'uuid')->mapWithKeys(static fn ($id, $u) => [strtolower((string) $u) => (int) $id])->all();
         $fieldIds = DB::table('fields')->where('form_id', $form->id)->pluck('id', 'uuid')->mapWithKeys(static fn ($id, $u) => [strtolower((string) $u) => (int) $id])->all();
@@ -413,39 +413,26 @@ final class BlueprintService
         $currentVersion = BlueprintVersion::query()->findOrFail($bp->current_version_id);
         $base = $this->mapped($baseVersion->content, $form->uuid);
         $target = $this->mapped($currentVersion->content, $form->uuid);
-        $local = $this->drafts->normalize($this->drafts->load($form));
-        $changes = [];
 
-        foreach (self::LISTS as $list) {
-            $b = array_column($base[$list] ?? [], null, 'uuid');
-            $t = array_column($target[$list] ?? [], null, 'uuid');
-            $l = array_column($local[$list] ?? [], null, 'uuid');
-            $localKeys = $list === 'conditions' ? [] : array_column($local[$list] ?? [], 'uuid', 'key');
-            foreach (array_unique([...array_keys($b), ...array_keys($t)]) as $uuid) {
-                $bo = $b[$uuid] ?? null;
-                $to = $t[$uuid] ?? null;
-                $lo = $l[$uuid] ?? null;
-                if (self::same($bo, $to)) {
-                    continue;
-                }
-                $kind = rtrim($list, 's');
-                $label = $to['key'] ?? $bo['key'] ?? $to['name'] ?? $bo['name'] ?? $uuid;
-                [$action, $status, $reason] = match (true) {
-                    $bo === null && $lo === null && isset($to['key'], $localKeys[$to['key']]) => ['add', 'conflict', 'key_taken'],
-                    $bo === null && $lo === null => ['add', 'apply', null],
-                    $bo === null && self::same($lo, $to) => ['add', 'skip', 'already_present'],
-                    $bo === null => ['add', 'conflict', 'modified_locally'],
-                    $to === null && $lo === null => ['remove', 'skip', 'already_removed'],
-                    $to === null && self::same($lo, $bo) => ['remove', 'apply', null],
-                    $to === null => ['remove', 'conflict', 'modified_locally'],
-                    $lo === null => ['update', 'conflict', 'removed_locally'],
-                    self::same($lo, $bo) => ['update', 'apply', null],
-                    self::same($lo, $to) => ['update', 'skip', 'already_present'],
-                    default => ['update', 'conflict', 'modified_locally'],
-                };
-                $changes[] = ['kind' => $kind, 'uuid' => $uuid, 'label' => (string) $label, 'action' => $action, 'status' => $status, 'reason' => $reason, 'value' => $to];
-            }
-        }
+        return $this->mergeDocuments($base, $target, $this->drafts->normalize($this->drafts->load($form)));
+    }
+
+    /**
+     * Three-way merge of two versions of a draft document onto the local
+     * draft: element lists by uuid, form and collection settings property by
+     * property. Elements changed locally are kept and reported as conflicts.
+     *
+     * @param  array<string, mixed>  $base
+     * @param  array<string, mixed>  $target
+     * @param  array<string, mixed>  $local
+     * @return array{document: array<string, mixed>, changes: list<array<string, mixed>>}
+     */
+    public function mergeDocuments(array $base, array $target, array $local): array
+    {
+        $merged = self::mergeLists($base, $target, $local, self::LISTS);
+        $changes = $merged['changes'];
+        $doc = $merged['document'];
+
         // Form-level and collection settings, property by property.
         foreach (['form', 'collection'] as $section) {
             $b = $base[$section] ?? [];
@@ -469,25 +456,76 @@ final class BlueprintService
             }
         }
 
+        foreach ($changes as $c) {
+            if ($c['status'] === 'apply' && ($c['kind'] === 'form' || $c['kind'] === 'collection')) {
+                $doc[$c['kind']][$c['label']] = $c['value'];
+            }
+        }
+
+        return ['document' => $doc, 'changes' => $changes];
+    }
+
+    /**
+     * Three-way merge of element lists (each element has a uuid) from a base
+     * to a target version onto the local copy. Returns the local document
+     * with the applicable changes made, and every change with its status:
+     * `apply`, `skip` (already so) or `conflict` (changed locally; kept).
+     *
+     * @param  array<string, mixed>  $base
+     * @param  array<string, mixed>  $target
+     * @param  array<string, mixed>  $local
+     * @param  list<string>  $lists
+     * @return array{document: array<string, mixed>, changes: list<array<string, mixed>>}
+     */
+    public static function mergeLists(array $base, array $target, array $local, array $lists): array
+    {
+        $changes = [];
+        foreach ($lists as $list) {
+
+            $b = array_column($base[$list] ?? [], null, 'uuid');
+            $t = array_column($target[$list] ?? [], null, 'uuid');
+            $l = array_column($local[$list] ?? [], null, 'uuid');
+            $localKeys = $list === 'conditions' ? [] : array_column($local[$list] ?? [], 'uuid', 'key');
+            foreach (array_unique([...array_keys($b), ...array_keys($t)]) as $uuid) {
+                $bo = $b[$uuid] ?? null;
+                $to = $t[$uuid] ?? null;
+                $lo = $l[$uuid] ?? null;
+                if (self::same($bo, $to)) {
+                    continue;
+                }
+                $kind = $list === 'sla' ? 'sla' : rtrim($list, 's');
+                $label = $to['key'] ?? $bo['key'] ?? $to['name'] ?? $bo['name'] ?? $uuid;
+                [$action, $status, $reason] = match (true) {
+                    $bo === null && $lo === null && isset($to['key'], $localKeys[$to['key']]) => ['add', 'conflict', 'key_taken'],
+                    $bo === null && $lo === null => ['add', 'apply', null],
+                    $bo === null && self::same($lo, $to) => ['add', 'skip', 'already_present'],
+                    $bo === null => ['add', 'conflict', 'modified_locally'],
+                    $to === null && $lo === null => ['remove', 'skip', 'already_removed'],
+                    $to === null && self::same($lo, $bo) => ['remove', 'apply', null],
+                    $to === null => ['remove', 'conflict', 'modified_locally'],
+                    $lo === null => ['update', 'conflict', 'removed_locally'],
+                    self::same($lo, $bo) => ['update', 'apply', null],
+                    self::same($lo, $to) => ['update', 'skip', 'already_present'],
+                    default => ['update', 'conflict', 'modified_locally'],
+                };
+                $changes[] = ['kind' => $kind, 'uuid' => $uuid, 'label' => (string) $label, 'action' => $action, 'status' => $status, 'reason' => $reason, 'value' => $to, 'list' => $list];
+            }
+        }
+
         $doc = $local;
         foreach ($changes as $c) {
             if ($c['status'] !== 'apply') {
                 continue;
             }
-            if ($c['kind'] === 'form' || $c['kind'] === 'collection') {
-                $doc[$c['kind']][$c['label']] = $c['value'];
-
-                continue;
-            }
-            $list = $c['kind'].'s';
+            $list = $c['list'];
             $doc[$list] = match ($c['action']) {
-                'add' => [...$doc[$list], $c['value']],
-                'remove' => array_values(array_filter($doc[$list], static fn ($o) => $o['uuid'] !== $c['uuid'])),
-                default => array_map(static fn ($o) => $o['uuid'] === $c['uuid'] ? $c['value'] : $o, $doc[$list]),
+                'add' => [...($doc[$list] ?? []), $c['value']],
+                'remove' => array_values(array_filter($doc[$list] ?? [], static fn ($o) => $o['uuid'] !== $c['uuid'])),
+                default => array_map(static fn ($o) => $o['uuid'] === $c['uuid'] ? $c['value'] : $o, $doc[$list] ?? []),
             };
         }
 
-        return ['document' => $doc, 'changes' => $changes];
+        return ['document' => $doc, 'changes' => array_map(static fn (array $c) => array_diff_key($c, ['list' => true]), $changes)];
     }
 
     // ── Export / import ──────────────────────────────────────────────────

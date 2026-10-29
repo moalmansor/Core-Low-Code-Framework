@@ -11,6 +11,9 @@ use App\Expressions\Numbers\Decimal;
 use App\Expressions\Text\SafeRegex;
 use App\Expressions\Text\Unicode;
 use App\Modules\Core\I18n\Translator;
+use App\Modules\Integrations\ExternalSources;
+use App\Modules\Integrations\Models\ExternalDataSource;
+use App\Modules\Integrations\SourceFailure;
 use App\Modules\Records\Models\StoredFile;
 use Illuminate\Support\Facades\DB;
 
@@ -184,6 +187,9 @@ final class RecordValidator
                 }
             }
         }
+        if ($type->options && ($f['options']['source'] ?? null) === 'external' && ! ($f['options']['allowCustom'] ?? false)) {
+            $this->external($rt, $f, $v, $row, $path, $recordId);
+        }
         if (is_array($v) && array_is_list($v) && $type->multiple) {
             if (($min = $f['options']['min'] ?? null) !== null && count($v) < $min) {
                 $this->add($path, $this->msg($f, 'min_selections', ['min' => $min]));
@@ -251,6 +257,49 @@ final class RecordValidator
         foreach ($rules['custom'] ?? [] as $custom) {
             if (Evaluator::evaluate($custom['when'], $ctx)->value->data === true) {
                 $this->add($path, $this->msg($f, $custom['messageKey']));
+            }
+        }
+    }
+
+    /**
+     * A value chosen from an external data source must be one of its values
+     * (ADR-0057). A value the record already had is not checked again, so a
+     * source that is down blocks only a new choice.
+     *
+     * @param  array<string, mixed>  $f
+     * @param  array<string, mixed>|null  $row
+     */
+    private function external(FormRuntime $rt, array $f, mixed $v, ?array $row, string $path, ?int $recordId): void
+    {
+        $source = is_string($f['options']['external'] ?? null) ? ExternalDataSource::query()->where('uuid', strtolower($f['options']['external']))->first() : null;
+        $items = array_values(array_filter(array_map('strval', (array) $v), static fn (string $x) => $x !== ''));
+        if ($items === []) {
+            return;
+        }
+        if ($row === null && $recordId !== null && ! is_array($v) && ($col = $rt->column($f['uuid'])) !== null
+            && (string) DB::table($rt->table)->where('id', $recordId)->value($col['name']) === (string) $v) {
+            return;
+        }
+        if ($source === null) {
+            $this->add($path, $this->msg(null, 'option'));
+
+            return;
+        }
+        $known = [];
+        try {
+            foreach (app(ExternalSources::class)->rows($source, ['values' => $items]) as $r) {
+                $known[$r['value']] = true;
+            }
+        } catch (SourceFailure) {
+            $this->add($path, (string) __('integrations.cannot_check'));
+
+            return;
+        }
+        foreach ($items as $item) {
+            if (! isset($known[$item])) {
+                $this->add($path, $this->msg(null, 'option'));
+
+                return;
             }
         }
     }

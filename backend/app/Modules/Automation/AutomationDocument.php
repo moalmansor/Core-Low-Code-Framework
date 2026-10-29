@@ -33,8 +33,8 @@ use Illuminate\Validation\ValidationException;
  */
 final class AutomationDocument
 {
-    /** Triggers an admin can choose; inbound webhooks arrive with inbound endpoints (Phase 5). */
-    public const TRIGGERS = ['record_created', 'record_updated', 'record_deleted', 'field_changed', 'status_changed', 'condition_true', 'schedule', 'date_reached', 'watched_folder', 'manual'];
+    /** Triggers an admin can choose. */
+    public const TRIGGERS = ['record_created', 'record_updated', 'record_deleted', 'field_changed', 'status_changed', 'condition_true', 'schedule', 'date_reached', 'watched_folder', 'inbound_webhook', 'manual'];
 
     /** Triggers that start one run for one record, caused by someone's change. */
     public const EVENT_TRIGGERS = ['record_created', 'record_updated', 'record_deleted', 'field_changed', 'status_changed', 'condition_true'];
@@ -146,6 +146,7 @@ final class AutomationDocument
                     'folder' => $t->watched_path,
                     'fileField' => $c['fileField'] ?? null,
                     'nameField' => $c['nameField'] ?? null,
+                    'inboundEndpoint' => $t->inbound_endpoint_id === null ? null : strtolower((string) DB::table('inbound_endpoints')->where('id', $t->inbound_endpoint_id)->value('uuid')),
                 ];
             })->values()->all(),
             'condition' => $a->condition_id === null ? null : ($asts[(int) $a->condition_id] ?? null),
@@ -272,6 +273,7 @@ final class AutomationDocument
                 'cron_expression' => $t['cron'], 'timezone' => $t['timezone'], 'date_field_id' => $t['dateFieldId'], 'offset_minutes' => $t['offsetMinutes'],
                 'watched_disk' => $t['folder'] === null ? null : 'watched', 'watched_path' => $t['folder'],
                 'config' => $t['config'] === [] ? null : json_encode($t['config']),
+                'inbound_endpoint_id' => $t['inboundEndpointId'],
             ];
             if ($existing === null) {
                 $id = (int) DB::table('automation_triggers')->insertGetId($row + ['uuid' => $t['uuid'], 'automation_id' => $automationId, 'created_at' => $now]);
@@ -399,7 +401,7 @@ final class AutomationDocument
                 continue;
             }
             $out = ['uuid' => $uuid, 'type' => $type, 'fieldId' => null, 'fromStatusId' => null, 'toStatusId' => null, 'cron' => null, 'timezone' => null,
-                'dateFieldId' => null, 'offsetMinutes' => null, 'folder' => null, 'config' => []];
+                'dateFieldId' => null, 'offsetMinutes' => null, 'folder' => null, 'config' => [], 'inboundEndpointId' => null];
             switch ($type) {
                 case 'field_changed':
                     $field = $this->mainField($rt, $t['field'] ?? null);
@@ -440,6 +442,12 @@ final class AutomationDocument
                     } else {
                         $out['offsetMinutes'] = $offset;
                     }
+                    break;
+                case 'inbound_webhook':
+                    // An incoming webhook of this form: its run starts for the record the call created or updated.
+                    $endpoint = is_string($t['inboundEndpoint'] ?? null) && Str::isUuid($t['inboundEndpoint'])
+                        ? DB::table('inbound_endpoints')->where('uuid', strtolower($t['inboundEndpoint']))->where('form_id', $form->id)->value('id') : null;
+                    $endpoint === null ? $errors["{$p}.inboundEndpoint"][] = __('automations.bad_inbound_endpoint') : $out['inboundEndpointId'] = (int) $endpoint;
                     break;
                 case 'watched_folder':
                     $folder = trim((string) ($t['folder'] ?? ''), " \t/");

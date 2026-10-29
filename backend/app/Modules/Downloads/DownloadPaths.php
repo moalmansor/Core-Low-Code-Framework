@@ -242,6 +242,38 @@ final class DownloadPaths
     }
 
     /**
+     * Stored values of the path's last step for items at its last level (reports
+     * group and add these up); a value the user may only see masked is null.
+     * System values are as in a cell.
+     *
+     * @param  array<string, mixed>  $r  a resolved path
+     * @param  list<int>  $ids
+     * @return array<int, mixed>
+     */
+    public function rawValues(array $r, array $ids, ?User $user): array
+    {
+        $ids = array_values(array_unique($ids));
+        if ($ids === []) {
+            return [];
+        }
+        /** @var FormRuntime $rt */
+        $rt = $r['rt'];
+        if ($r['system'] !== null) {
+            return $this->systemCells($rt, (string) $r['system'], $ids);
+        }
+        if ($this->masked($r['field'], $user)) {
+            return array_fill_keys($ids, null);
+        }
+        $values = $r['repeater'] === null ? $this->recordValues($rt, $ids) : $this->rowValues($rt, (string) $r['repeater'], $ids);
+        $out = [];
+        foreach ($ids as $id) {
+            $out[$id] = $values[$id][$r['field']['key']] ?? null;
+        }
+
+        return $out;
+    }
+
+    /**
      * Applies a condition to the records of the source form through a path
      * of to-one and multi-reference hops (filters), limited to the user's
      * scope at every level. Returns false when the path is not usable.

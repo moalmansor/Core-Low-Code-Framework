@@ -17,7 +17,8 @@ final class FormRuntimes
 
     public function forForm(Form $form): ?FormRuntime
     {
-        if (array_key_exists($form->uuid, $this->byUuid)) {
+        // A publish in between makes a new current version: only a runtime of that version is reused.
+        if (array_key_exists($form->uuid, $this->byUuid) && $this->byUuid[$form->uuid]?->versionId === ($form->current_version_id === null ? null : (int) $form->current_version_id)) {
             return $this->byUuid[$form->uuid];
         }
         if ($form->current_version_id === null) {
@@ -30,9 +31,6 @@ final class FormRuntimes
 
     public function forUuid(string $uuid): ?FormRuntime
     {
-        if (array_key_exists($uuid, $this->byUuid)) {
-            return $this->byUuid[$uuid];
-        }
         $form = Form::query()->where('uuid', $uuid)->first();
 
         return $form === null ? ($this->byUuid[$uuid] = null) : $this->forForm($form);

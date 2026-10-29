@@ -11,7 +11,7 @@ const options = computed(() => (session.boot?.locales ?? []).map((l) => ({ label
 
 <template>
   <Select
-    v-if="options.length > 1"
+    v-if="options.length > 1 && (!session.me || session.mayChange('locale'))"
     :model-value="session.locale"
     :options="options"
     option-label="label"

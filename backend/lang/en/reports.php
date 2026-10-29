@@ -1,0 +1,47 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'bad_key' => 'Use 2 to 48 lowercase letters, digits and underscores, starting with a letter.',
+    'key_taken' => 'Another one already uses this key.',
+    'form_required' => 'Choose a published form or collection.',
+    'unknown_application' => 'This application does not exist.',
+    'name_required' => 'Give it a name.',
+    'bad_path' => 'This field cannot be read here: it no longer exists, or it is too many links away.',
+    'bucket_dates_only' => 'Only dates can be grouped by day, week, month, quarter or year.',
+    'too_many' => 'At most :max.',
+    'measure_needs_field' => 'Choose the field to add up.',
+    'numbers_only' => 'Only number fields can be added up or averaged.',
+    'numbers_or_dates' => 'The smallest and largest value need a number or a date field.',
+    'shape' => [
+        'table' => 'A table needs at least one value to show, or a list of columns with nothing grouped.',
+        'pivot' => 'A pivot table needs two groupings (rows and columns) and at least one value.',
+        'bar' => 'A bar chart needs one or two groupings and at least one value; with two groupings, one value.',
+        'line' => 'A line chart needs one or two groupings and at least one value; with two groupings, one value.',
+        'area' => 'An area chart needs one or two groupings and at least one value; with two groupings, one value.',
+        'pie' => 'A pie chart needs one grouping and one value.',
+        'kpi' => 'Key figures need one to four values and no grouping.',
+    ],
+    'bad_sort' => 'Sort by something the report shows.',
+    'not_visible' => 'This report uses ":name", which you cannot see, so it is not shown to you.',
+    'not_available' => 'This report is not available to you.',
+    'yes' => 'Yes',
+    'no' => 'No',
+    'empty' => '(empty)',
+    'total' => 'Total',
+    'agg_records' => 'Number of records',
+    'agg' => [
+        'count' => 'Number of :name',
+        'sum' => 'Total :name',
+        'avg' => 'Average :name',
+        'min' => 'Lowest :name',
+        'max' => 'Highest :name',
+    ],
+    'changed_meanwhile' => 'Someone else changed this while you were editing. Reload to see their changes.',
+    'choose_report' => 'Choose a report.',
+    'text_required' => 'Write the text.',
+    'unknown_role' => 'A chosen role no longer exists.',
+    'bad_size' => 'A widget is 2 to 12 columns wide and 1 to 6 rows high.',
+    'nothing_to_export' => 'There is nothing on this dashboard you can export.',
+];

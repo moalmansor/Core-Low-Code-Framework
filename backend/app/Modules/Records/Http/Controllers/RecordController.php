@@ -9,11 +9,16 @@ use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Access\AccessResolver;
 use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\RecordScope;
+use App\Modules\Adoption\UsageRecorder;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\DataQuality\DuplicateGuard;
+use App\Modules\Extensions\HookRunner;
 use App\Modules\Forms\Definition\ClientDefinition;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
+use App\Modules\Integrations\ExternalSources;
+use App\Modules\Integrations\Models\ExternalDataSource;
+use App\Modules\Integrations\SourceFailure;
 use App\Modules\Justification\JustificationPresenter;
 use App\Modules\Records\Runtime\ExpressionContext;
 use App\Modules\Records\Runtime\FormRuntime;
@@ -137,7 +142,23 @@ final class RecordController extends Controller
             $merged[$uuid] = $l === 'hidden' && ($levels['fields'][$uuid] ?? 'hidden') === 'hidden' ? 'hidden' : $l;
         }
 
-        return response()->json(['data' => $this->presenter->present($rt, $found, $merged) + ['permissions' => [
+        $presented = $this->presenter->present($rt, $found, $merged);
+        $hooks = app(HookRunner::class);
+        if ($hooks->has($rt, 'onLoad')) {
+            // Developer extensions at onLoad (ADR-0051) change only what is shown, never the stored record.
+            DB::beginTransaction();
+            try {
+                $presented['values'] = $hooks->run('onLoad', $rt, $this->user(), $presented['values'], null, $found['uuid'])['values'];
+            } catch (RecordException $e) {
+                DB::rollBack();
+                $hooks->flush();
+
+                return response()->json(['message' => $e->getMessage(), 'code' => $e->reason], $e->status);
+            }
+            DB::rollBack();
+        }
+
+        return response()->json(['data' => $presented + ['permissions' => [
             'edit' => $levels['modes']['edit'] && $mayEdit && $found['system']['deleted_at'] === null,
             'delete' => $levels['modes']['delete'] && $mayDelete && $found['system']['deleted_at'] === null,
             'restore' => $found['system']['deleted_at'] !== null && $mayDelete && $this->access->allows($this->user(), "form.{$form->uuid}.restore"),
@@ -153,9 +174,11 @@ final class RecordController extends Controller
         app(DuplicateGuard::class)->acknowledge((bool) ($data['confirm_duplicates'] ?? false));
 
         return $this->run(function () use ($rt, $data, $request, $form): JsonResponse {
-            $result = $this->pipeline->create($rt, $this->user(), $data['values'], $data['params'] ?? [], $this->key($request));
+            $result = $this->pipeline->create($rt, $this->user(), $data['values'], $data['params'] ?? [], $this->key($request), self::source($request));
             $record = $this->store->findById($rt, $result['id']);
             $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'view');
+            // Usage insight (§4.37): a submission, and the fields left empty in it.
+            app(UsageRecorder::class)->submitted($this->user(), $rt, $record['values'], $levels['fields']);
 
             return response()->json(['data' => $this->presenter->present($rt, $record, $levels['fields'])], 201);
         });
@@ -170,7 +193,7 @@ final class RecordController extends Controller
         abort_if($expected < 1, 428, __('records.row_version_required'));
 
         return $this->run(function () use ($rt, $data, $request, $form, $record, $expected): JsonResponse {
-            $result = $this->pipeline->update($rt, $this->user(), strtolower($record), $expected, $data['values'], $this->key($request), 'ui', $data['justification'] ?? null);
+            $result = $this->pipeline->update($rt, $this->user(), strtolower($record), $expected, $data['values'], $this->key($request), self::source($request), $data['justification'] ?? null);
             $found = $this->store->findById($rt, $result['id']);
             $levels = $this->fieldAccess->resolve($this->user(), $form->id, $form->uuid, $rt->definition, 'view');
 
@@ -236,6 +259,19 @@ final class RecordController extends Controller
             }
 
             return response()->json(['data' => $out, 'meta' => ['total' => count($out)]]);
+        }
+
+        if (($opts['source'] ?? null) === 'external' && $rt->targetTable($f) === null) {
+            // An external data source (ADR-0057): read through its cache, searched and cascaded like a collection.
+            $source = is_string($opts['external'] ?? null) ? ExternalDataSource::query()->where('uuid', strtolower($opts['external']))->first() : null;
+            abort_if($source === null, 404);
+            try {
+                $found = app(ExternalSources::class)->options($source, $term, ($opts['dependsOn'] ?? null) !== null ? ($data['depends'] ?? null) : null, $page, $pageSize);
+            } catch (SourceFailure $e) {
+                return response()->json(['message' => __('integrations.options_unavailable'), 'code' => 'source_unavailable'], 503);
+            }
+
+            return response()->json(['data' => array_map(static fn ($o) => $o + ['group' => null, 'color' => null, 'icon' => null, 'uuid' => null], $found['items']), 'meta' => ['total' => $found['total']]]);
         }
 
         $table = $rt->targetTable($f);
@@ -405,6 +441,12 @@ final class RecordController extends Controller
         abort_if($uuid === null, 404);
 
         return $rt->fields[$uuid];
+    }
+
+    /** Writes made through the token API are journalled as `api`, the application's own as `ui`. */
+    public static function source(Request $request): string
+    {
+        return $request->is('api/v1/data/*') ? 'api' : 'ui';
     }
 
     private function key(Request $request): string

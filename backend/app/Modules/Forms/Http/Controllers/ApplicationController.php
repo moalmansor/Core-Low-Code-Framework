@@ -6,6 +6,7 @@ namespace App\Modules\Forms\Http\Controllers;
 
 use App\Modules\Access\AccessResolver;
 use App\Modules\Access\ObjectPermissions;
+use App\Modules\Blueprints\ApplicationBlueprints;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Models\Locale;
 use App\Modules\Core\Tenancy\TenantContext;
@@ -66,6 +67,31 @@ final class ApplicationController extends Controller
         });
 
         return response()->json(['data' => ['uuid' => $app->uuid]], 201);
+    }
+
+    /**
+     * Copies an application with its forms (specification §4.30, ADR-0059):
+     * structure only, with permissions, or everything including notification
+     * rules and actions.
+     */
+    public function clone(Request $request, Application $application): JsonResponse
+    {
+        Gate::authorize('system.manage_applications');
+        Gate::authorize('system.manage_forms');
+        $data = $request->validate([
+            'key' => ['required', 'string', 'regex:/^[a-z][a-z0-9_]{1,47}$/'],
+            'name' => ['required', 'array'],
+            'name.*' => ['nullable', 'string', 'max:255'],
+            'include_mode' => ['required', Rule::in(['structure', 'structure_permissions', 'everything'])],
+        ]);
+        if ($data['include_mode'] !== 'structure') {
+            Gate::authorize('system.manage_permissions');
+        }
+        /** @var User $user */
+        $user = $request->user();
+        $result = app(ApplicationBlueprints::class)->cloneApplication($application, $data['key'], array_filter($data['name'], static fn ($v) => is_string($v) && trim($v) !== ''), $data['include_mode'], $user);
+
+        return response()->json(['data' => ['uuid' => strtolower($result['application']->uuid), 'key' => $result['application']->key, 'forms' => $result['forms'], 'notes' => $result['notes']]], 201);
     }
 
     public function update(Request $request, Application $application): JsonResponse

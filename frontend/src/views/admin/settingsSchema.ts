@@ -45,9 +45,19 @@ export const settingsSchema: Record<string, FieldDef[]> = {
   notifications: [n('email_max_attempts', 1, 20)],
   operations: [n('stuck_email_minutes', 1, 1440)],
   actions: [n('max_records', 1, 100000), n('queue_threshold', 1, 10000)],
+  api: [b('enabled'), n('token_max_days', 1, 3650), n('token_rate_limit_per_minute', 10, 10000), n('webhook_delivery_days', 1, 365)],
+  reports: [n('max_records', 100, 1000000)],
   downloads: [n('max_depth', 1, 10), n('sync_rows', 1, 100000), n('max_rows', 100, 1000000), n('email_attachment_mb', 1, 25)],
   documents: [n('max_template_mb', 1, 50), n('convert_timeout_seconds', 10, 600)],
   clamav: [b('enabled'), s('host', true), n('port', 1, 65535), n('timeout_seconds', 1, 300)],
+  self_service: [
+    {
+      key: 'editable_preferences',
+      type: 'multiselect',
+      options: ['locale', 'timezone', 'calendar', 'date_format', 'number_format', 'digits', 'theme_mode', 'density', 'notification_channels', 'digest_frequency', 'landing_page'],
+    },
+  ],
+  adoption: [{ key: 'usage_tracking', type: 'select', options: ['people', 'anonymous', 'off'] }, n('usage_retention_days', 30, 3650)],
   security: [
     n('password_min_length', 8, 128),
     b('password_require_uppercase'),
@@ -61,6 +71,8 @@ export const settingsSchema: Record<string, FieldDef[]> = {
     n('session_idle_minutes', 5, 1440),
     n('session_absolute_minutes', 15, 10080),
     n('api_rate_limit_per_minute', 30, 10000),
+    n('impersonation_max_minutes', 5, 480),
+    { key: 'impersonation_blocked_actions', type: 'multiselect', options: ['delete_records', 'export_data', 'run_actions', 'change_access'] },
   ],
   ldap: [
     b('enabled'),

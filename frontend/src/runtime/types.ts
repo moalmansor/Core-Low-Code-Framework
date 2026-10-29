@@ -27,7 +27,7 @@ export interface StaticOption {
 }
 
 export interface FieldOptions {
-  source: 'static' | 'collection' | 'form' | 'query' | 'users' | 'roles' | 'departments'
+  source: 'static' | 'collection' | 'form' | 'query' | 'users' | 'roles' | 'departments' | 'external'
   static?: StaticOption[]
   collection?: string | null
   dependsOn?: string | null
@@ -134,6 +134,8 @@ export interface ClientField {
   }
   access: AccessLevel
   serverComputed: boolean
+  /** The custom field component (a client extension's id) the field is shown with, if any. */
+  component?: string | null
 }
 
 export interface ClientGroup {

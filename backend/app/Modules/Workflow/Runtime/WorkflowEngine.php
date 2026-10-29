@@ -8,9 +8,11 @@ use App\Modules\Access\AccessResolver;
 use App\Modules\Assignment\ApprovalService;
 use App\Modules\Assignment\AssignmentService;
 use App\Modules\Audit\AuditWriter;
+use App\Modules\Core\Actors\ExternalActor;
 use App\Modules\Core\Correlation\CorrelationId;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Outbox\OutboxWriter;
+use App\Modules\Extensions\HookRunner;
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\Models\StoredFile;
 use App\Modules\Records\Runtime\FormRuntime;
@@ -182,20 +184,30 @@ final class WorkflowEngine
             'form' => $rt->form->uuid, 'record' => strtolower((string) $row->uuid), 'transition' => $t['uuid'],
             'from' => $wf->status($from)['uuid'] ?? null, 'to' => $t['to'], 'source' => $ctx['source'] ?? 'user', 'actor' => $ctx['actor'],
         ]);
+        // Developer extensions at onStatusChange (ADR-0051), as the person who moved the record, inside this transaction.
+        $hooks = app(HookRunner::class);
+        $actor = $ctx['actor'] === null ? null : User::query()->find($ctx['actor']);
+        if ($actor !== null && $hooks->has($rt, 'onStatusChange')) {
+            $hooks->run('onStatusChange', $rt, $actor, $values, null, strtolower((string) $row->uuid), [
+                'transition' => $t['key'], 'from' => $wf->status($from)['key'] ?? null, 'to' => $wf->status($t['toId'])['key'] ?? null,
+            ]);
+        }
 
         return $historyId;
     }
 
     /**
      * The first status of a new record: history entry, SLA timers and the
-     * "on create" assignment rules. Runs inside the create transaction.
+     * "on create" assignment rules. Runs inside the create transaction. The
+     * record starts in the workflow's initial status unless the caller chose
+     * another one (an external form's status on submission).
      *
      * @param  array<string, mixed>  $values
      */
-    public function enter(FormRuntime $rt, int $recordId, array $values, ?int $actor, ?int $onBehalfOf, ?int $ownerDepartmentId): void
+    public function enter(FormRuntime $rt, int $recordId, array $values, ?int $actor, ?int $onBehalfOf, ?int $ownerDepartmentId, ?int $status = null): void
     {
         $wf = WorkflowRuntime::for($rt);
-        $initial = $wf->initialId();
+        $initial = $status !== null && $wf->status($status) !== null ? $status : $wf->initialId();
         if ($initial !== null) {
             $now = SlaTimers::nowUtc();
             $historyId = $this->history($rt, $recordId, null, $initial, null, ['actor' => $actor, 'onBehalfOf' => $onBehalfOf, 'source' => 'user'], null, $ownerDepartmentId, $now);
@@ -289,7 +301,7 @@ final class WorkflowEngine
             'from_status_id' => $from, 'to_status_id' => $to, 'transition_id' => $transitionId, 'source' => $ctx['source'] ?? 'user',
             'comment' => ($c = trim((string) ($ctx['comment'] ?? ''))) === '' ? null : $c,
             'attachment_file_ids' => ($ctx['attachments'] ?? []) === [] ? null : json_encode(array_values($ctx['attachments'])),
-            'acted_by' => $ctx['actor'], 'on_behalf_of_user_id' => $ctx['onBehalfOf'] ?? null,
+            'acted_by' => $ctx['actor'], 'on_behalf_of_user_id' => $ctx['onBehalfOf'] ?? null, 'external_user_id' => app(ExternalActor::class)->id,
             'justification_id' => $ctx['justification'] ?? null, 'approval_request_id' => $ctx['approval'] ?? null,
             'seconds_in_previous' => $since === null ? null : max(0, $now->getTimestamp() - $since->getTimestamp()),
             'working_seconds_in_previous' => $since === null ? null : $this->sla->workingSeconds($rt, $ownerDepartmentId, $since, $now),

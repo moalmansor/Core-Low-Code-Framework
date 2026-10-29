@@ -9,6 +9,7 @@ use App\Modules\Core\Models\OutboxEvent;
 use App\Modules\Core\Outbox\OutboxRelay;
 use App\Modules\Notifications\Jobs\HandleNotificationEvent;
 use App\Modules\Notifications\Models\EmailTemplate;
+use App\Modules\Notifications\Models\NotificationChannel;
 use App\Modules\Notifications\Models\NotificationRule;
 use App\Modules\Records\Runtime\RecordObservers;
 use Illuminate\Support\ServiceProvider;
@@ -28,6 +29,7 @@ final class NotificationsServiceProvider extends ServiceProvider
         $r = $this->app->make(TranslatableRegistry::class);
         $r->register('email_template', EmailTemplate::class, ['subject', 'preheader'], 'translations.type.email_template');
         $r->register('notification_rule', NotificationRule::class, ['name'], 'translations.type.notification_rule');
+        $r->register('notification_channel', NotificationChannel::class, ['name'], 'translations.type.notification_channel');
 
         $relay = $this->app->make(OutboxRelay::class);
         foreach (self::EVENTS as $type) {

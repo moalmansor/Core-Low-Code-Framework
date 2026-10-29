@@ -15,12 +15,26 @@ const { t } = useI18n()
 onApiError((e) => {
   if (e.status === 401 && session.me) {
     session.me = null
-    router.push({ name: 'login', query: e.code === 'session_expired' ? { expired: '1' } : {} })
+    const reason = (e.body as { reason?: string }).reason
+    router.push({ name: 'login', query: e.code === 'session_expired' ? { expired: '1' } : e.code === 'access_policy' && reason ? { denied: reason } : {} })
     return
   }
   if (e.status === 403 && (e.code === 'two_factor_enrollment_required' || e.code === 'password_expired')) {
     session.loadMe()
     router.push({ name: 'profile', query: { tab: e.code === 'password_expired' ? 'password' : 'security' } })
+    return
+  }
+  if (e.status === 409 && e.code === 'impersonation_ended') {
+    toast.add({ severity: 'info', summary: e.message, life: 6000 })
+    void session.loadMe().then(() => router.push({ name: 'home' }))
+    return
+  }
+  if (e.status === 403 && e.code === 'impersonation_blocked') {
+    toast.add({ severity: 'warn', summary: e.message, life: 6000 })
+    return
+  }
+  if (e.status === 503 && e.code === 'maintenance') {
+    if (router.currentRoute.value.name !== 'maintenance') void router.push({ name: 'maintenance' })
     return
   }
   if (e.status === 419) {

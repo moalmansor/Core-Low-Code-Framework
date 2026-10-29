@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Core\Http\Controllers\EgressAllowlistController;
+use App\Modules\Core\Http\Controllers\FeatureFlagController;
 use App\Modules\Core\Http\Controllers\LocaleController;
 use App\Modules\Core\Http\Controllers\PublicController;
 use App\Modules\Core\Http\Controllers\SettingsController;
@@ -20,6 +21,12 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
     Route::patch('/settings/{group}', [SettingsController::class, 'update']);
     Route::post('/settings/branding/{kind}', [SettingsController::class, 'uploadBrandingAsset']);
     Route::post('/settings/mail/test', [SettingsController::class, 'testMail']);
+
+    // Feature flags (specification §4.36, ADR-0062).
+    Route::get('/feature-flags', [FeatureFlagController::class, 'index']);
+    Route::post('/feature-flags', [FeatureFlagController::class, 'store']);
+    Route::put('/feature-flags/{flag}', [FeatureFlagController::class, 'update'])->whereUuid('flag');
+    Route::delete('/feature-flags/{flag}', [FeatureFlagController::class, 'destroy'])->whereUuid('flag');
 
     Route::get('/egress-allowlist', [EgressAllowlistController::class, 'index']);
     Route::post('/egress-allowlist', [EgressAllowlistController::class, 'store']);

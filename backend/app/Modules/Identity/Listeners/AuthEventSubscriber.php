@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Modules\Identity\Listeners;
 
 use App\Modules\Audit\AuditWriter;
+use App\Modules\Identity\Impersonation\Impersonation;
 use App\Modules\Identity\Models\User;
+use App\Modules\Identity\Policies\AccessPolicies;
+use App\Modules\Identity\Policies\TrustedDevices;
 use App\Modules\Identity\Security\LoginThrottle;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
@@ -25,6 +28,8 @@ final class AuthEventSubscriber
     public function __construct(
         private readonly AuditWriter $audit,
         private readonly LoginThrottle $throttle,
+        private readonly AccessPolicies $policies,
+        private readonly TrustedDevices $devices,
     ) {}
 
     public function onLogin(Login $event): void
@@ -34,10 +39,15 @@ final class AuthEventSubscriber
         }
         $this->throttle->succeeded(app(Request::class), $event->user);
         $this->audit->record('auth.login', 'auth', objectType: 'user', objectId: $event->user->id, actorUserId: $event->user->id);
+        // The session being signed in is not stored yet, so every stored one counts as another.
+        $this->policies->limitSessions($event->user, null);
     }
 
     public function onLogout(Logout $event): void
     {
+        if (Session::isStarted() && Session::has(Impersonation::SESSION_KEY)) {
+            app(Impersonation::class)->ended(app(Request::class), 'logout');
+        }
         if ($event->user instanceof User) {
             $this->audit->record('auth.logout', 'auth', objectType: 'user', objectId: $event->user->id, actorUserId: $event->user->id);
         }
@@ -47,6 +57,15 @@ final class AuthEventSubscriber
     {
         if (Session::isStarted()) {
             DB::table('sessions')->where('id', Session::getId())->update(['two_factor_passed_at' => now()->format('Y-m-d H:i:s.u')]);
+        }
+        $this->trustIfRequired($event->user);
+    }
+
+    /** A second factor verified on this device makes it trusted where a policy asks for trusted devices. */
+    private function trustIfRequired(mixed $user): void
+    {
+        if ($user instanceof User && ($this->policies->effective($user)['trusted_device'] ?? false)) {
+            $this->devices->trust($user, app(Request::class));
         }
     }
 
@@ -59,6 +78,7 @@ final class AuthEventSubscriber
     public function onTwoFactorConfirmed(TwoFactorAuthenticationConfirmed $event): void
     {
         $this->audit->record('auth.2fa_enabled', 'security', objectType: 'user', objectId: (int) $event->user->getAuthIdentifier());
+        $this->trustIfRequired($event->user);
     }
 
     public function onTwoFactorDisabled(TwoFactorAuthenticationDisabled $event): void

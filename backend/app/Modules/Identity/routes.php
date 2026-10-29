@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Modules\Identity\Http\Controllers\AccessPolicyController;
+use App\Modules\Identity\Http\Controllers\ImpersonationController;
 use App\Modules\Identity\Http\Controllers\MeController;
+use App\Modules\Identity\Http\Controllers\PersonalController;
 use App\Modules\Identity\Http\Controllers\SsoController;
 use App\Modules\Identity\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -17,6 +20,25 @@ Route::middleware(['auth:sanctum', 'lcf.session'])->prefix('me')->group(function
     Route::get('/sessions', [MeController::class, 'sessions']);
     Route::delete('/sessions/{handle}', [MeController::class, 'revokeSession'])->where('handle', '[a-f0-9]{64}');
     Route::delete('/sessions', [MeController::class, 'revokeOtherSessions']);
+    Route::get('/pins', [PersonalController::class, 'pins']);
+    Route::post('/pins', [PersonalController::class, 'pin'])->middleware('throttle:60,1');
+    Route::delete('/pins/{record}', [PersonalController::class, 'unpin'])->whereUuid('record');
+    Route::get('/shortcuts', [PersonalController::class, 'shortcuts']);
+    Route::put('/shortcuts', [PersonalController::class, 'saveShortcuts']);
+    Route::get('/devices', [AccessPolicyController::class, 'devices']);
+    Route::delete('/devices/{device}', [AccessPolicyController::class, 'revokeDevice'])->whereNumber('device');
+});
+
+// Ending an impersonation works whatever gates the impersonated account would meet (ADR-0061).
+Route::middleware(['auth:sanctum', 'lcf.session'])->post('/impersonation/stop', [ImpersonationController::class, 'stop']);
+
+// Access policies per role (specification §4.36, ADR-0060).
+Route::middleware(['auth:sanctum', 'lcf.secure'])->group(function (): void {
+    Route::get('/access-policies', [AccessPolicyController::class, 'index']);
+    Route::post('/access-policies', [AccessPolicyController::class, 'store']);
+    Route::get('/access-policies/{policy}', [AccessPolicyController::class, 'show'])->whereUuid('policy');
+    Route::put('/access-policies/{policy}', [AccessPolicyController::class, 'update'])->whereUuid('policy');
+    Route::delete('/access-policies/{policy}', [AccessPolicyController::class, 'destroy'])->whereUuid('policy');
 });
 
 Route::middleware(['auth:sanctum', 'lcf.secure'])->prefix('users')->group(function (): void {
@@ -31,4 +53,5 @@ Route::middleware(['auth:sanctum', 'lcf.secure'])->prefix('users')->group(functi
     Route::post('/{user}/password-link', [UserController::class, 'sendPasswordLink']);
     Route::get('/{user}/sessions', [UserController::class, 'sessions']);
     Route::delete('/{user}/sessions', [UserController::class, 'revokeSessions']);
+    Route::post('/{user}/impersonate', [ImpersonationController::class, 'start'])->middleware('throttle:10,1');
 });

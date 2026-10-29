@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { track } from '@/runtime/usage'
 import AutoComplete from 'primevue/autocomplete'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
@@ -59,7 +60,9 @@ const { t, locale } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
 
-const formUuid = computed(() => String(route.params.form).toLowerCase())
+/** A page that hosts the form passes it in; otherwise it comes from the address. */
+const props = defineProps<{ form?: string }>()
+const formUuid = computed(() => String(props.form ?? route.params.form).toLowerCase())
 const definition = ref<ClientDefinition | null>(null)
 const loadError = ref('')
 const rows = ref<RecordPayload[]>([])
@@ -102,8 +105,8 @@ const canCreate = computed(() => definition.value?.access.modes.create === true 
 const canEdit = computed(() => definition.value?.access.modes.edit === true && definition.value.form.settings.modes?.edit !== false)
 const canDelete = computed(() => definition.value?.access.modes.delete === true)
 const canRestore = computed(() => can('restore'))
-const canExport = computed(() => can('export'))
-const canImport = computed(() => can('import'))
+const canExport = computed(() => can('export') && session.capable('record_export'))
+const canImport = computed(() => can('import') && session.capable('record_import'))
 
 const listable = (f: ClientField) => index.value !== null && index.value.isStored(f) && !index.value.fieldRepeater.has(f.uuid)
 const columns = computed(() => (definition.value?.fields ?? []).filter((f) => listable(f) && f.table?.visible === true).sort((a, b) => a.order - b.order))
@@ -119,6 +122,7 @@ async function loadDefinition(): Promise<void> {
   loadError.value = ''
   try {
     definition.value = (await get<{ data: ClientDefinition }>(`/r/${formUuid.value}/definition`, { mode: 'view' })).data
+    track('form_view', formUuid.value)
     document.title = [title.value, session.systemName].filter(Boolean).join(' · ')
   } catch (e) {
     loadError.value = e instanceof ApiError && e.status !== 0 ? e.message : t('records.load_failed')
@@ -665,7 +669,7 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
           <Menu ref="savedMenu" :model="savedItems" popup />
         </template>
         <RouterLink v-if="canCreate && !state.trashed" v-slot="{ navigate }" :to="{ name: 'records.create', params: { form: formUuid } }" custom>
-          <Button icon="pi pi-plus" :label="t('records.new')" data-testid="records-new" @click="navigate" />
+          <Button icon="pi pi-plus" :label="t('records.new')" data-testid="records-new" data-tour="new_record" @click="navigate" />
         </RouterLink>
         <template v-if="!state.trashed && (downloads.length || canPersonalDownloads)">
           <Button :label="t('dl.download')" icon="pi pi-download" severity="secondary" outlined aria-haspopup="true" data-testid="records-download" @click="(e: Event) => downloadMenu?.toggle(e)" />

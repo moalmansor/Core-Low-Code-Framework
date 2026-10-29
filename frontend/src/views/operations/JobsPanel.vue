@@ -25,7 +25,21 @@ import { opsApi, type JobKind, type OpsJob } from './api'
  */
 const { t, n, locale } = useI18n()
 const toast = useToast()
-const KINDS: JobKind[] = ['import', 'export', 'download', 'action', 'automation', 'scheduled_task', 'webhook', 'queue_job']
+const KINDS: JobKind[] = [
+  'import',
+  'export',
+  'download',
+  'action',
+  'automation',
+  'scheduled_task',
+  'webhook',
+  'webhook_delivery',
+  'channel_delivery',
+  'data_source',
+  'sync_run',
+  'extension',
+  'queue_job',
+]
 const f = reactive({ kind: null as JobKind | null, page: 1 })
 const rows = ref<OpsJob[]>([])
 const total = ref(0)
@@ -174,7 +188,9 @@ async function dismiss(): Promise<void> {
             ><EmptyValue v-else :compact="false" :text="t('ops.no_error')" />
           </dd>
         </dl>
-        <p v-if="!open.retryable" class="m-0 text-sm text-muted-color">{{ t(`ops.not_retryable.${open.kind === 'webhook' ? 'webhook' : 'other'}`) }}</p>
+        <p v-if="!open.retryable" class="m-0 text-sm text-muted-color">
+          {{ t(`ops.not_retryable.${['webhook', 'webhook_delivery', 'data_source', 'extension'].includes(open.kind) ? open.kind : 'other'}`) }}
+        </p>
         <details v-if="open.detail">
           <summary class="text-sm cursor-pointer">{{ t('ops.detail') }}</summary>
           <pre class="ops-trace" dir="ltr">{{ open.detail }}</pre>

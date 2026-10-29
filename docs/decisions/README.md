@@ -53,3 +53,22 @@ One short record per significant decision (specification §8.1). New records are
 | [0047](0047-notification-recipients-at-send-time.md) | Notification recipients from the record, resolved at send time |
 | [0048](0048-design-checklist-enforced-by-tests.md) | The screen checklist is enforced by tests |
 | [0049](0049-fixed-transition-bulk-status.md) | Bulk status change with a fixed transition |
+| [0050](0050-api-tokens-webhooks-inbound.md) | API tokens, webhooks and inbound endpoints |
+| [0051](0051-developer-extensions.md) | Developer extensions |
+| [0052](0052-configuration-packages.md) | Configuration packages and the environment drift report |
+| [0053](0053-reports-and-dashboards.md) | Reports and dashboards |
+| [0054](0054-pages-home-navigation-announcements-search.md) | Pages, home screens, navigation, announcements, maintenance mode and global search |
+| [0055](0055-themes.md) | Themes per organization and per application |
+| [0056](0056-notification-channels.md) | SMS and messaging notification channels |
+| [0057](0057-data-sources-and-sync-jobs.md) | External data sources and sync jobs |
+| [0058](0058-external-access.md) | External access: external forms, portal accounts, record links and signatures |
+| [0059](0059-application-and-part-blueprints.md) | Blueprints of applications, workflows, notification rules, actions and dashboards; cloning applications |
+| [0060](0060-access-policies-and-trusted-devices.md) | Access policies per role and trusted devices |
+| [0061](0061-impersonation.md) | Impersonation |
+| [0062](0062-feature-flags.md) | Feature flags |
+| [0063](0063-self-service.md) | Self-service preferences, pinned records, shortcuts and digests |
+| [0064](0064-help-content-knowledge-and-changelog.md) | Help content, knowledge pages and changelogs |
+| [0065](0065-guided-tours.md) | Guided tours and first-use hints |
+| [0066](0066-usage-insight.md) | Usage insight |
+| [0067](0067-review-safeguards.md) | Unreachable-screen guard and four safeguards found in review |
+| [0068](0068-report-cites-a-finished-run.md) | The verification report can only cite a finished run on the head commit |

@@ -9,6 +9,8 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRenderer } from './context'
 import GroupBody from './GroupBody.vue'
+import { helpFor } from './help'
+import HelpTip from './HelpTip.vue'
 import { labelOf, pickText } from './i18nText'
 import RepeaterGroup from './RepeaterGroup.vue'
 import { isGroupHidden, type RowRef } from './rules'
@@ -22,6 +24,8 @@ const { t } = useI18n()
 
 const title = computed(() => pickText(props.group.i18n?.title, ctx.locale.value))
 const description = computed(() => pickText(props.group.i18n?.description, ctx.locale.value))
+/** Tooltip help an administrator wrote for the group (§4.37). */
+const tip = computed(() => (ctx.formUuid.value ? helpFor('form', ctx.formUuid.value, ctx.locale.value)?.tooltips[props.group.uuid] : undefined))
 const printing = computed(() => ctx.mode.value === 'print')
 const collapsible = computed(() => !printing.value && (props.group.collapsible === true || props.group.type === 'accordion'))
 const open = ref(props.group.defaultState !== 'closed')
@@ -94,7 +98,7 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
   <SubformGroup v-else-if="group.type === 'subform'" :group="group" />
 
   <section v-else-if="group.type === 'tabs'" :class="frame" :data-group="group.key">
-    <h3 v-if="title" class="text-base font-semibold mb-2">{{ title }}</h3>
+    <h3 v-if="title" class="text-base font-semibold mb-2">{{ title }}<HelpTip v-if="tip" :text="tip" /></h3>
     <template v-if="printing">
       <div v-for="tab in children" :key="tab.uuid" class="mb-4">
         <h4 class="font-semibold mb-2">{{ labelOf(tab.i18n?.title, ctx.locale.value, tab.key) }}</h4>
@@ -118,7 +122,7 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
   </section>
 
   <section v-else-if="group.type === 'wizard'" :class="frame" :data-group="group.key">
-    <h3 v-if="title" class="text-base font-semibold mb-2">{{ title }}</h3>
+    <h3 v-if="title" class="text-base font-semibold mb-2">{{ title }}<HelpTip v-if="tip" :text="tip" /></h3>
     <template v-if="ctx.mode.value === 'view' || printing">
       <div v-for="s in children" :key="s.uuid" class="mb-4">
         <h4 class="font-semibold mb-2">{{ labelOf(s.i18n?.title, ctx.locale.value, s.key) }}</h4>
@@ -168,7 +172,7 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
 
   <fieldset v-else-if="group.type === 'fieldset'" class="border border-line rounded-lg p-4" :class="frame" :data-group="group.key">
     <legend v-if="title" class="px-2 font-semibold">
-      <i v-if="icon" :class="`${icon} me-2`" />{{ title }}
+      <i v-if="icon" :class="`${icon} me-2`" />{{ title }}<HelpTip v-if="tip" :text="tip" />
       <button v-if="collapsible" type="button" class="ms-2 text-muted-color" :aria-expanded="open" :aria-label="t('runtime.toggle_section')" @click="open = !open">
         <i :class="open ? 'pi pi-chevron-up' : 'pi pi-chevron-down'" />
       </button>
@@ -190,7 +194,7 @@ const groupErrors = computed(() => ctx.errorsAt(`_group.${props.group.key}`))
       :class="group.type === 'panel' || group.type === 'accordion' ? 'px-4 py-3 bg-subtle rounded-t-lg' : group.type === 'card' ? 'mb-3' : 'lcf-section-head'"
     >
       <i v-if="icon" :class="icon" />
-      <h3 class="text-base font-semibold flex-1">{{ title }}</h3>
+      <h3 class="text-base font-semibold flex-1">{{ title }}<HelpTip v-if="tip" :text="tip" /></h3>
       <Button
         v-if="collapsible"
         type="button"

@@ -47,14 +47,19 @@ final class Contrast
         return min(array_map(static fn (string $bg): float => self::ratio($hex, $bg), self::SURFACES[$mode]));
     }
 
-    /** The nearest shade (same hue and saturation) that reaches AA on the mode's surfaces, or null. */
-    public static function nearestPassing(string $hex, string $mode): ?string
+    /**
+     * The nearest shade (same hue and saturation) that reaches AA on the mode's surfaces, or null.
+     *
+     * @param  list<string>|null  $surfaces  the backgrounds to read on; the theme's own by default
+     */
+    public static function nearestPassing(string $hex, string $mode, ?array $surfaces = null): ?string
     {
         [$h, $s, $l] = self::hsl($hex);
         $direction = $mode === 'light' ? -1 : 1;
+        $backgrounds = $surfaces ?? self::SURFACES[$mode];
         for ($step = 0; $step <= 400; $step++) {
             $candidate = $step === 0 ? strtolower($hex) : self::fromHsl($h, $s, max(0.0, min(1.0, $l + $direction * $step * 0.0025)));
-            if (self::onSurfaces($candidate, $mode) >= self::AA_TEXT) {
+            if (min(array_map(static fn (string $bg): float => self::ratio($candidate, $bg), $backgrounds)) >= self::AA_TEXT) {
                 return $candidate;
             }
         }

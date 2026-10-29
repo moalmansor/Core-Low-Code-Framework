@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Identity\Http\Middleware;
 
+use App\Modules\Core\Actors\ImpersonationContext;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Security\PasswordPolicy;
 use Closure;
@@ -17,6 +18,10 @@ final class EnsurePasswordNotExpired
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
+        // The administrator acting is already verified; the impersonated account's own gates are not theirs to pass.
+        if (app(ImpersonationContext::class)->active()) {
+            return $next($request);
+        }
         if ($user instanceof User && $this->policy->isExpired($user)) {
             return response()->json(['message' => __('ui.auth.password_expired'), 'code' => 'password_expired'], 403);
         }
