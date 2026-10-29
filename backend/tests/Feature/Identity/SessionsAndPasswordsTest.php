@@ -30,6 +30,8 @@ it('ends a session at the absolute timeout even when active', function () {
     app(SettingsService::class)->write('security', 'session_idle_minutes', 30);
     app(SettingsService::class)->write('security', 'session_absolute_minutes', 60);
     $user = $this->makeUser();
+    // A frozen clock: the limits count whole seconds, so a second boundary crossed between the sign-in and the first jump would end the session one hop early.
+    $this->freezeSecond();
     login($this, $user);
     $this->getJson('/api/v1/me')->assertOk();
     foreach (range(1, 3) as $_) {

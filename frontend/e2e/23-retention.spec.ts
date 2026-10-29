@@ -37,9 +37,14 @@ test('a policy runs, a legal hold blocks a delete until lifted, a personal data 
   await page.locator('#ret-days').fill('3650')
   await page.getByTestId('ret-policy-save').click()
   await expect(page.getByTestId('ret-run')).toBeVisible()
+  // The run is queued on the heavy workers; its row appears once a worker starts it.
+  const started = page.waitForResponse((r) => /\/retention\/policies\/[^/]+\/run$/.test(r.url()) && r.request().method() === 'POST')
   await page.getByTestId('ret-run').click()
-  await page.goto('/admin/retention')
-  await expect(page.getByTestId('ret-runs').getByText('Succeeded').first()).toBeVisible({ timeout: 30_000 })
+  expect((await started).status()).toBe(202)
+  await expect(async () => {
+    await page.goto('/admin/retention')
+    await expect(page.getByTestId('ret-runs').getByText('Succeeded').first()).toBeVisible({ timeout: 3_000 })
+  }).toPass({ timeout: 90_000 })
 
   // A legal hold on a pilot record.
   const form = ((await api(page, 'GET', '/forms?search=visit_requests')).body.data as { uuid: string; key: string }[]).find((f) => f.key === 'visit_requests')!.uuid
