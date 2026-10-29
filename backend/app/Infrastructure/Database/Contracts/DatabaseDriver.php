@@ -130,6 +130,22 @@ interface DatabaseDriver
     public function addTimePartitions(string $table, array $bounds): array;
 
     /**
+     * Size on disk (data and indexes, bytes) of every table of the current
+     * database, largest first; what the growth warnings watch.
+     *
+     * @return array<string, int>
+     */
+    public function tableSizes(): array;
+
+    /**
+     * Inserts rows keeping their own ids (an archived record restored under
+     * the id it had), on SQL Server with IDENTITY_INSERT for the statement.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     */
+    public function insertKeepingIds(string $table, array $rows): void;
+
+    /**
      * Chunked, engine-neutral export of rows (JSON Lines + schema) to private
      * storage; restorable to either engine.
      *

@@ -30,6 +30,7 @@ use App\Modules\Records\Runtime\RecordQuery;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\RecordValidator;
 use App\Modules\Records\Runtime\References;
+use App\Modules\Retention\SubjectKeys;
 use App\Modules\Views\PrintLayouts;
 use App\Modules\Views\ViewRuntime;
 use Illuminate\Http\JsonResponse;
@@ -384,12 +385,14 @@ final class RecordController extends Controller
         $users = DB::table('users')->whereIn('id', [...$entries->pluck('actor_user_id')->filter(), ...$entries->pluck('on_behalf_of_user_id')->filter()])->pluck('name', 'id');
         $justifications = $seeJustifications ? app(JustificationPresenter::class)->many($entries->pluck('justification_id')->filter()->map(static fn ($v) => (int) $v)->all()) : [];
 
+        $keys = app(SubjectKeys::class);
+
         return response()->json(['data' => $entries->map(static fn ($e) => [
             'event' => $e->event,
             'at' => Carbon::parse($e->occurred_at, 'UTC')->toIso8601ZuluString(),
             'by' => $users[$e->actor_user_id] ?? null,
             'on_behalf_of' => $e->on_behalf_of_user_id === null ? null : ($users[$e->on_behalf_of_user_id] ?? null),
-            'changes' => array_values(array_filter(json_decode((string) $e->changes, true) ?: [], static fn ($c) => ! isset($hiddenKeys[$c['field_key']]))),
+            'changes' => array_values(array_filter($keys->openChanges($form->id, $found['id'], json_decode((string) $e->changes, true) ?: []), static fn ($c) => ! isset($hiddenKeys[$c['field_key']]))),
             'justification' => $e->justification_id === null ? null : ($justifications[(int) $e->justification_id] ?? ['restricted' => true]),
         ])->values()]);
     }

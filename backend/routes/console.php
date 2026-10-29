@@ -25,7 +25,9 @@ use App\Modules\Platform\Webhooks;
 use App\Modules\Records\Exchange\ExportService;
 use App\Modules\Records\FileStore;
 use App\Modules\Records\Runtime\RecycleBin;
+use App\Modules\Retention\LegalHolds;
 use App\Modules\Retention\Partitions;
+use App\Modules\Retention\StorageQuotas;
 use App\Modules\Scheduling\ScheduledTasks;
 use App\Modules\Schema\Execution\SchemaReconciler;
 use App\Modules\Schema\Execution\Snapshots;
@@ -88,6 +90,14 @@ Artisan::command('records:purge-recycle-bin', function (RecycleBin $bin): int {
 
     return 0;
 })->purpose('Remove deleted records whose recycle bin retention has passed');
+
+Artisan::command('retention:maintain', function (LegalHolds $holds, StorageQuotas $quotas): int {
+    $held = $holds->recomputeAll();
+    $changed = $quotas->measure();
+    $this->info("Records under legal hold: {$held}; storage quotas that changed state: {$changed}.");
+
+    return 0;
+})->purpose('Refresh legal-hold flags (records that came to match a held condition) and measure storage quotas');
 
 Artisan::command('partitions:maintain', function (Partitions $partitions): int {
     foreach ($partitions->maintain() as $table => $added) {
@@ -282,6 +292,8 @@ Schedule::command('automations:tick')->everyMinute()->withoutOverlapping()->onOn
 Schedule::command('external:maintain')->hourly()->withoutOverlapping()->onOneServer();
 Schedule::command('usage:prune')->dailyAt('03:45')->withoutOverlapping()->onOneServer();
 Schedule::command('webhooks:purge')->dailyAt('03:35')->withoutOverlapping()->onOneServer();
+// Before the recycle bin purge (03:25), so a record that came to match a held condition is not purged.
+Schedule::command('retention:maintain')->dailyAt('03:05')->withoutOverlapping()->onOneServer();
 Schedule::command('partitions:maintain')->dailyAt('00:20')->withoutOverlapping()->onOneServer();
 Schedule::command('records:purge-recycle-bin')->dailyAt('03:25')->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();

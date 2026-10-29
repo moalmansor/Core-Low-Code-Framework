@@ -40,16 +40,8 @@ final class ChainVerifier
                             $reason = 'sequence gap or reorder';
                         } elseif ($entry['prev_hash'] !== $prevHash) {
                             $reason = 'previous-hash mismatch';
-                        } else {
-                            $entry['changes'] = $entry['changes'] === null ? null : json_decode((string) $entry['changes'], true, 512, JSON_THROW_ON_ERROR);
-                            $entry['meta'] = $entry['meta'] === null ? null : json_decode((string) $entry['meta'], true, 512, JSON_THROW_ON_ERROR);
-                            $entry['occurred_at'] = self::normalizeTime((string) $entry['occurred_at']);
-                            foreach (['chain_id', 'chain_seq', 'organization_id', 'object_id', 'form_id', 'record_id', 'actor_user_id', 'subject_user_id', 'on_behalf_of_user_id', 'external_user_id', 'impersonation_session_id', 'justification_id'] as $intField) {
-                                $entry[$intField] = $entry[$intField] === null ? null : (int) $entry[$intField];
-                            }
-                            if (AuditWriter::hash($prevHash, $entry) !== $row->hash) {
-                                $reason = 'content hash mismatch';
-                            }
+                        } elseif (self::contentHash($entry) !== $row->hash) {
+                            $reason = 'content hash mismatch';
                         }
                         if ($reason !== null) {
                             $breaks[] = ['chain_id' => $chain, 'chain_seq' => (int) $row->chain_seq, 'id' => (int) $row->id, 'reason' => $reason];
@@ -74,6 +66,24 @@ final class ChainVerifier
         }
 
         return ['verified' => $verified, 'breaks' => $breaks];
+    }
+
+    /**
+     * The hash an entry read back from the table should carry: its content
+     * hashed after its own prev_hash, as AuditWriter wrote it.
+     *
+     * @param  array<string, mixed>  $entry  a row of audit_logs
+     */
+    public static function contentHash(array $entry): string
+    {
+        $entry['changes'] = $entry['changes'] === null ? null : json_decode((string) $entry['changes'], true, 512, JSON_THROW_ON_ERROR);
+        $entry['meta'] = $entry['meta'] === null ? null : json_decode((string) $entry['meta'], true, 512, JSON_THROW_ON_ERROR);
+        $entry['occurred_at'] = self::normalizeTime((string) $entry['occurred_at']);
+        foreach (['chain_id', 'chain_seq', 'organization_id', 'object_id', 'form_id', 'record_id', 'actor_user_id', 'subject_user_id', 'on_behalf_of_user_id', 'external_user_id', 'impersonation_session_id', 'justification_id'] as $intField) {
+            $entry[$intField] = $entry[$intField] === null ? null : (int) $entry[$intField];
+        }
+
+        return AuditWriter::hash((string) $entry['prev_hash'], $entry);
     }
 
     /** Both engines return DATETIME(6) values; normalise to the writer's format. */

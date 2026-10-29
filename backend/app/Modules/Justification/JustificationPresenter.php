@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Justification;
 
 use App\Modules\Records\Models\StoredFile;
+use App\Modules\Retention\SubjectKeys;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -48,6 +49,7 @@ final class JustificationPresenter
                 $files[(int) $a->justification_id][] = ['uuid' => $f->uuid, 'name' => $f->original_name, 'size' => $f->size_bytes, 'mime' => $f->mime_type];
             }
         }
+        $keys = app(SubjectKeys::class);
         $out = [];
         foreach ($rows as $r) {
             $out[(int) $r->id] = [
@@ -58,7 +60,10 @@ final class JustificationPresenter
                     'code' => $codes[$r->reason_code_id] ?? null, 'label' => $r->reason_code_label_snapshot,
                 ],
                 'note' => $r->note,
-                'changed_fields' => json_decode((string) $r->changed_fields, true) ?: [],
+                // Personal-data values are sealed with their record's key (ADR-0014): «erased» once it is destroyed.
+                'changed_fields' => array_map(static fn (array $c) => ['old' => $keys->open($r->form_id === null ? null : (int) $r->form_id, $r->record_id === null ? null : (int) $r->record_id, $c['old'] ?? null),
+                    'new' => $keys->open($r->form_id === null ? null : (int) $r->form_id, $r->record_id === null ? null : (int) $r->record_id, $c['new'] ?? null)] + $c,
+                    json_decode((string) $r->changed_fields, true) ?: []),
                 'affected_count' => (int) $r->affected_count,
                 'by' => $users[$r->user_id] ?? null,
                 'on_behalf_of' => $r->on_behalf_of_user_id === null ? null : ($users[$r->on_behalf_of_user_id] ?? null),

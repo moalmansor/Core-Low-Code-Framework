@@ -176,6 +176,24 @@ final class MySqlDriver extends AbstractDriver
         return [sprintf('alter table %s reorganize partition pmax into (%s)', $this->wrap($table), implode(', ', $parts))];
     }
 
+    public function tableSizes(): array
+    {
+        $out = [];
+        foreach ($this->connection->select('select table_name as name, coalesce(data_length, 0) + coalesce(index_length, 0) as bytes from information_schema.tables where table_schema = database() and table_type = ? order by bytes desc', ['BASE TABLE']) as $row) {
+            $out[(string) $row->name] = (int) $row->bytes;
+        }
+
+        return $out;
+    }
+
+    public function insertKeepingIds(string $table, array $rows): void
+    {
+        $this->assertIdentifier($table);
+        if ($rows !== []) {
+            $this->connection->table($table)->insert($rows);
+        }
+    }
+
     public function maxIndexKeyBytes(): int
     {
         return 3072;

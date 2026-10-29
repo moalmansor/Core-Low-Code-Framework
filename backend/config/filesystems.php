@@ -53,6 +53,18 @@ return [
             'report' => false,
         ],
 
+        // Cold storage for retention archives (specification §4.26): archived
+        // records and log copies are written here, as JSON with their hashes.
+        // Mount a separate, cheaper volume; restores read from it.
+        'archive' => [
+            'driver' => 'local',
+            'root' => env('ARCHIVE_ROOT', storage_path('app/archive')),
+            'visibility' => 'private',
+            'serve' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),

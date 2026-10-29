@@ -191,6 +191,36 @@ final class SqlServerDriver extends AbstractDriver
         return $out;
     }
 
+    public function tableSizes(): array
+    {
+        // Allocation units are visible to anyone who can see the table, so no server-state permission is needed.
+        $out = [];
+        foreach ($this->connection->select('select t.name as name, sum(a.total_pages) * 8192 as bytes from sys.tables t
+             join sys.partitions p on p.object_id = t.object_id join sys.allocation_units a on a.container_id = p.partition_id
+             group by t.name order by bytes desc') as $row) {
+            $out[(string) $row->name] = (int) $row->bytes;
+        }
+
+        return $out;
+    }
+
+    public function insertKeepingIds(string $table, array $rows): void
+    {
+        $this->assertIdentifier($table);
+        if ($rows === []) {
+            return;
+        }
+        $wrapped = $this->wrap($table);
+        $this->connection->transaction(function () use ($wrapped, $table, $rows): void {
+            $this->connection->unprepared("set identity_insert {$wrapped} on");
+            try {
+                $this->connection->table($table)->insert($rows);
+            } finally {
+                $this->connection->unprepared("set identity_insert {$wrapped} off");
+            }
+        });
+    }
+
     public function maxIdentifierLength(): int
     {
         return 60; // engine limit is 128; generated names are capped at 60 for MySQL parity

@@ -8,6 +8,7 @@ use App\Modules\Audit\AuditWriter;
 use App\Modules\Audit\ChainVerifier;
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\Core\Tenancy\TenantContext;
+use App\Modules\Retention\SubjectKeys;
 use App\Support\Csv;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -25,7 +26,8 @@ final class AuditLogController extends Controller
         Gate::authorize('system.view_audit_log');
         $filters = $this->validated($request);
         $page = $this->query($filters)->orderByDesc('occurred_at')->orderByDesc('id')
-            ->paginate(min(100, (int) ($filters['per_page'] ?? 25)));
+            ->paginate(min(100, (int) ($filters['per_page'] ?? 25)))
+            ->through(static fn (AuditLog $e) => $e->setAttribute('changes', SubjectKeys::redact($e->changes)));
 
         return response()->json($page);
     }
@@ -34,6 +36,8 @@ final class AuditLogController extends Controller
     {
         Gate::authorize('system.view_audit_log');
         $entry = AuditLog::query()->where('organization_id', app(TenantContext::class)->organizationId())->findOrFail($id);
+        // Personal-data values are shown in the record's own history, where field permissions apply (ADR-0014).
+        $entry->setAttribute('changes', SubjectKeys::redact($entry->changes));
 
         return response()->json(['data' => $entry]);
     }
@@ -56,7 +60,7 @@ final class AuditLogController extends Controller
                     fputcsv($out, array_map([Csv::class, 'cell'], [
                         $row->id, $row->occurred_at?->format('Y-m-d H:i:s.u'), $row->event, $row->category, $row->object_type,
                         $row->object_id, $row->actor_user_id, $row->ip_address, $row->correlation_id,
-                        $row->changes === null ? '' : json_encode($row->changes, JSON_UNESCAPED_UNICODE), $row->hash,
+                        $row->changes === null ? '' : json_encode(SubjectKeys::redact($row->changes), JSON_UNESCAPED_UNICODE), $row->hash,
                     ]), escape: '');
                 }
             });

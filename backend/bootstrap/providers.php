@@ -12,6 +12,7 @@ use App\Modules\External\ExternalServiceProvider;
 use App\Modules\Forms\FormsServiceProvider;
 use App\Modules\Identity\IdentityServiceProvider;
 use App\Modules\Integrations\IntegrationsServiceProvider;
+use App\Modules\Retention\RetentionServiceProvider;
 use App\Modules\ModulesServiceProvider;
 use App\Modules\Notifications\NotificationsServiceProvider;
 use App\Modules\Platform\PlatformServiceProvider;
@@ -37,5 +38,6 @@ return [
     ExperienceServiceProvider::class,
     ExternalServiceProvider::class,
     IntegrationsServiceProvider::class,
+    RetentionServiceProvider::class,
     ModulesServiceProvider::class,
 ];
