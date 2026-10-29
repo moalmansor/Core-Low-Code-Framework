@@ -1,0 +1,115 @@
+name: Performance
+
+# The budgets of architecture §20.2 on the Docker stack, on both engines, against the reference dataset of
+# §20.1 (backend/tests/Performance): 1 000 000 records in the measured form, 200 forms, 5 000 users and
+# 20 000 000 history rows. k6 drives the request budgets at 50 requests/s sustained and 150/s at peak;
+# the harness times permissions, formulas, the 100 000-row import, the three-level download and an
+# additive publish; Playwright times the 100-field form render and the client formulas.
+# perf/compare.mjs fails the job on a result over budget or more than 20 % slower than the engine's
+# baseline (perf/baseline). docs/performance.md records the results and how to read them.
+on:
+  push:
+    branches: [main, 'phase-*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      scale:
+        description: Dataset scale (1 = the full §20.1 dataset)
+        default: '1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  budgets:
+    name: Budgets on ${{ matrix.db }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [mysql, sqlsrv]
+    env:
+      SCALE: ${{ inputs.scale || '1' }}
+      LCF_DB_PASSWORD: ${{ format('Db-{0}-pw', github.run_id) }}
+      LCF_SA_PASSWORD: ${{ format('Sa-{0}-Pw!', github.run_id) }}
+    steps:
+      - name: Disk space for 1 M records and 20 M history rows
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+      - uses: actions/checkout@v4
+      - name: Configuration files
+        run: |
+          cp .env.example .env
+          sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$LCF_DB_PASSWORD/; s/^DB_ROOT_PASSWORD=.*/DB_ROOT_PASSWORD=Root-$LCF_DB_PASSWORD/; s/^MSSQL_SA_PASSWORD=.*/MSSQL_SA_PASSWORD=$LCF_SA_PASSWORD/" .env
+          cp backend/.env.example backend/.env
+          if [ "${{ matrix.db }}" = sqlsrv ]; then
+            sed -i "s/^DB_CONNECTION=.*/DB_CONNECTION=sqlsrv/; s/^DB_HOST=.*/DB_HOST=sqlserver/; s/^DB_PORT=.*/DB_PORT=1433/; s/^DB_USERNAME=.*/DB_USERNAME=sa/; s/^DB_PASSWORD=.*/DB_PASSWORD=$LCF_SA_PASSWORD/; s/^DB_TRUST_SERVER_CERTIFICATE=.*/DB_TRUST_SERVER_CERTIFICATE=true/" backend/.env
+          else
+            sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$LCF_DB_PASSWORD/" backend/.env
+          fi
+      - name: Build and start the stack
+        run: |
+          docker compose build
+          key=$(docker compose run --rm --no-deps --entrypoint php app artisan key:generate --show --no-ansi | tr -d '\r' | tail -n 1)
+          sed -i "s#^APP_KEY=.*#APP_KEY=$key#" backend/.env
+          profile=""; [ "${{ matrix.db }}" = sqlsrv ] && profile="--profile sqlsrv"
+          docker compose $profile up -d --wait --wait-timeout 600
+      - name: An administrator for the dataset (setup completed, two-factor enrolled)
+        run: |
+          docker compose exec -T -e HOME=/tmp app php artisan tinker --no-ansi --execute='
+            app(App\Modules\Core\Settings\SettingsService::class)->write("setup", "completed_at", now()->toIso8601String());
+            $u = new App\Modules\Identity\Models\User;
+            $u->forceFill(["name" => "Performance Admin", "email" => "perf-admin@perf.test", "status" => "active", "auth_source" => "local",
+              "password" => Illuminate\Support\Str::password(24), "password_changed_at" => now(),
+              "two_factor_secret" => Laravel\Fortify\Fortify::currentEncrypter()->encrypt(app(PragmaRX\Google2FA\Google2FA::class)->generateSecretKey()),
+              "two_factor_confirmed_at" => now()])->save();
+            $u->roles()->attach(DB::table("roles")->where("key", "super_admin")->value("id"), ["created_at" => now()->format("Y-m-d H:i:s.u")]);'
+      - name: Reference dataset (scale ${{ env.SCALE }})
+        run: |
+          docker compose exec -T -e LCF_PERFORMANCE=1 app php tests/Performance/bench.php dataset --admin=perf-admin@perf.test --scale=$SCALE --out=storage/app/perf-targets.json
+          docker compose cp app:/var/www/backend/storage/app/perf-targets.json perf-targets.json
+          docker compose exec -T app php artisan tinker --no-ansi --execute='foreach (app(App\Infrastructure\Database\Contracts\DatabaseDriver::class)->tableSizes() as $t => $bytes) { if ($bytes > 50e6) echo $t, " ", round($bytes / 1e6), " MB", PHP_EOL; }' || true
+          df -h /
+      - name: Load test (k6)
+        run: |
+          docker run --rm --network host -v "$PWD:/w" -w /w grafana/k6:0.54.0 run \
+            -e LCF_URL=http://localhost:8080 -e LCF_TARGETS=perf-targets.json -e LCF_K6_OUT=k6-summary.json perf/k6/load.js || echo "k6 thresholds failed; the comparison below decides"
+      - name: Job budgets (permissions, formulas, import, download, publish)
+        run: |
+          docker compose exec -T -e LCF_PERFORMANCE=1 app php tests/Performance/bench.php measure --targets=storage/app/perf-targets.json --out=storage/app/perf-measure.json
+          docker compose cp app:/var/www/backend/storage/app/perf-measure.json perf-measure.json
+          cat perf-measure.json
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - name: Browser budgets (form render, client formulas)
+        working-directory: frontend
+        env:
+          LCF_E2E_URL: http://localhost:8080
+          LCF_TARGETS: ../perf-targets.json
+          LCF_RENDER_OUT: ../perf-render.json
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npx playwright test -c playwright.perf.config.ts
+      - name: Compare with the budgets and the baseline
+        run: node perf/compare.mjs --engine ${{ matrix.db }} --k6 k6-summary.json --measure perf-measure.json --render perf-render.json --baseline perf/baseline/${{ matrix.db }}.json --out perf-results-${{ matrix.db }}.json
+      - name: Container logs and errors (on failure)
+        if: failure()
+        run: |
+          docker compose --profile sqlsrv logs --no-color | grep -v 'ErrorAlertMail' | tail -n 300
+          docker compose exec -T app php artisan tinker --no-ansi --execute='foreach (DB::table("error_logs")->orderByDesc("id")->limit(20)->get(["occurred_at", "exception_class", "message", "file", "line"]) as $e) { echo $e->occurred_at, " ", $e->exception_class, " ", substr((string) $e->message, 0, 400), " @ ", $e->file, ":", $e->line, PHP_EOL; }' || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-${{ matrix.db }}
+          path: |
+            k6-summary.json
+            perf-measure.json
+            perf-render.json
+            perf-results-${{ matrix.db }}.json

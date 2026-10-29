@@ -1,0 +1,21 @@
+{
+  "$comment": "Architecture §20.2 budgets, checked by perf/compare.mjs. source: k6 (p95 of a trend), measure (backend/tests/Performance), render (frontend/e2e-perf).",
+  "regression_tolerance": 0.2,
+  "budgets": [
+    { "key": "definition", "label": "Form definition load", "source": "k6", "metric": "lcf_definition", "budget": 150, "unit": "ms" },
+    { "key": "form_render", "label": "Form render, 100 fields", "source": "render", "budget": 1500, "unit": "ms" },
+    { "key": "record_view", "label": "Record view (record + 3 panels)", "source": "k6", "metric": "lcf_record_view", "budget": 400, "unit": "ms" },
+    { "key": "record_open", "label": "Record open (40 fields, 2 repeaters)", "source": "k6", "metric": "lcf_record_open", "budget": 400, "unit": "ms" },
+    { "key": "record_list", "label": "Record list, 1 M rows", "source": "k6", "metric": "lcf_record_list", "budget": 500, "unit": "ms" },
+    { "key": "global_search", "label": "Global search, 20 forms", "source": "k6", "metric": "lcf_global_search", "budget": 800, "unit": "ms" },
+    { "key": "record_save", "label": "Record save", "source": "k6", "metric": "lcf_record_save", "budget": 400, "unit": "ms" },
+    { "key": "permission_cached", "label": "Permission resolution, cached", "source": "measure", "budget": 5, "unit": "ms" },
+    { "key": "permission_cold", "label": "Permission resolution, cold", "source": "measure", "budget": 50, "unit": "ms" },
+    { "key": "expression_server", "label": "Formula set, server", "source": "measure", "budget": 20, "unit": "ms" },
+    { "key": "expression_client", "label": "Formula set, client", "source": "render", "budget": 10, "unit": "ms" },
+    { "key": "import_100k", "label": "Import 100 000 rows", "source": "measure", "budget": 600, "unit": "s" },
+    { "key": "download_3_level_xlsx", "label": "Download, 3 levels, 100 000 rows", "source": "measure", "budget": 300, "unit": "s" },
+    { "key": "publish_additive", "label": "Additive publish, 1 M rows", "source": "measure", "budget": 30, "unit": "s" },
+    { "key": "error_rate", "label": "Error rate under load", "source": "k6-rate", "metric": "lcf_errors", "budget": 0.1, "unit": "%" }
+  ]
+}

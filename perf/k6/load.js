@@ -189,7 +189,7 @@ export function mix(data) {
 
   if (roll < 0.3) {
     // 25 rows, ten columns (two through lookups), three filters, a sort, within the record scope.
-    const q = `view=${targets.view}&per_page=25&sort=amount&direction=desc&filter[channel][op]=in&filter[channel][values][]=web&filter[urgent]=1&filter[order_date][from]=2025-06-01&filter[order_date][to]=2026-12-31`;
+    const q = `view=${targets.view}&per_page=25&sort=amount&direction=desc&filter[channel][op]=in&filter[channel][values][]=phone&filter[urgent]=1&filter[order_date][from]=2025-06-01&filter[order_date][to]=2026-12-31`;
     const res = http.get(
       `${BASE}/api/v1/r/${f.order}?${q}`,
       Object.assign({ tags: { name: "list" } }, h),
