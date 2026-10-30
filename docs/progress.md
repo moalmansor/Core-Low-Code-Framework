@@ -13,7 +13,7 @@ Project memory file (specification §8.1). Updated at the end of every run.
 | 3 — Workflow, Records & Views | `phase-3-workflow` | **Complete. Merged.** Owner re-tested after merge. | [moalmansor/Core-Low-Code-Framework#13](https://github.com/moalmansor/Core-Low-Code-Framework/pull/13) |
 | 4 — Actions, Downloads, Notifications, Documents & Operations | `phase-4-actions` | **Complete. Merged.** Owner verified 2026-10-16. | [moalmansor/Core-Low-Code-Framework#14](https://github.com/moalmansor/Core-Low-Code-Framework/pull/14) |
 | 5 — Platform & Extensibility | `phase-5-platform` | **Complete. Merged.** Owner verified 2026-10-29. | [moalmansor/Core-Low-Code-Framework#15](https://github.com/moalmansor/Core-Low-Code-Framework/pull/15) |
-| 6 — Hardening & Final Delivery | `phase-6-hardening` | In progress (issue #9) | — |
+| 6 — Hardening & Final Delivery | `phase-6-hardening` | **Complete, in review.** Pull request into `main` closing issue #9 | (opened from `phase-6-hardening`) |
 
 ## Phase 0: completed deliverables
 
@@ -767,10 +767,14 @@ Done on the branch so far (2026-10-29):
   - `docs/performance.md` written (method, scaling, how to run at full rate, how to read a run, results).
   - Run 41046313256 on `6d67213` (CI and PHP JIT green): **MySQL passed every budget** (sustained list 111 ms, search 346 ms; peak, not asserted, 0.9 to 3.3 s). SQL Server passed every budget but global search (1 393 ms against 800 ms). Global search looked up the form's name translations once per hit instead of once per form: 400 of 467 queries for a common term. Fixed, with a test that a form's queries do not grow with its hits (fails on the old code). Locally on SQL Server with 5 000 rows per search form: 467 to 87 queries, 1.2 s to 0.52 to 0.65 s.
 
-Next, in order:
-1. Read the `performance.yml` run on the head commit. If every budget passes, commit `perf/baseline/{mysql,sqlsrv}.json` from a green run and write `docs/performance.md`. It must state that the full 50/150 requests per second on the reference environment was not run.
-2. Confirm that CI (all jobs, including e2e with the axe sweep on both engines) is green on the head commit.
-3. Final verification of §2–§7 and the PR closing #9, with the §8.2 report citing the head CI run. Raise in it the audit-archive conflict (ADR-0070), and say plainly which performance budgets were verified and at what load.
+  - Run 41056582257 on `ae3b3bb` (CI and PHP JIT green): **every budget passed on both engines.** Baselines are committed (`perf/baseline/`); each value is the slower of the two latest full-scale runs, because runner noise alone moves some results by more than 20 % (`docs/performance.md`).
+- **Final verification** of §2–§7: `docs/final-verification.md`.
+
+Phase 6 is complete. The pull request from `phase-6-hardening` into `main` closes #9 and carries the §8.2 report. It raises two points for the owner:
+- ADR-0070: audit logs are archive-only (the CLAUDE.md conflict);
+- ADR-0074: CI checks the request budgets on the sustained stage of the scaled load. The full 50 and 150 requests a second on §20.1 hardware was not run.
+
+**Resume point:** wait for the owner's review. Address review comments on `phase-6-hardening`. After each push, re-run CI and update the report's citation. Do not merge. There is no further phase in §8.3.
 
 ### Local development notes
 
