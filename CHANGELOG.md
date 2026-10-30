@@ -17,14 +17,26 @@ All notable changes to this project are documented here, one section per phase.
 - **Per-organization data keys** (AES-256-GCM) with `keys:rotate` and `keys:rewrap` (ADR-0071).
 - **Performance harness for the architecture §20 budgets:**
   - the reference dataset (1 M records, 200 forms, 5 000 users, 20 M history rows), built through the API;
-  - a k6 load test at 50 requests/s sustained and 150/s at peak;
+  - a k6 load test at 50 requests/s sustained and 150/s at peak, run in CI at a fifth of those rates on one runner;
   - job measurements and browser timing marks;
-  - the `performance.yml` workflow on both engines, failing over budget or on a regression above 20 %.
+  - the `performance.yml` workflow on both engines, failing over budget or on a regression above 20 %. In CI the request budgets are checked on the sustained stage, and the peak is reported (ADR-0074).
+- **`docs/performance.md`** (method, scaling, how to run at full rate, results) and **`docs/final-verification.md`** (every §2–§7 requirement with where it was built and how it is verified).
 - **Accessibility:** an axe sweep of every screen against WCAG 2.1 AA, in English and in Arabic (`25-accessibility.spec.ts`).
 - **Guides:** administrator, developer extensions, and deployment/backup/restore (`docs/guides`).
 
 ### Changed
 - **Insert imports run in parallel** batches on the heavy workers, each batch committed once (`import_job_batches`, ADR-0072). Each row is validated once. Metadata reads are kept for a batch (`BatchMemo`). One audit chain is used per batch, so an import no longer holds every chain head and stall other writers. The outbox relays once per transaction and skips forms with no listeners. Import throughput rose from about 25 to about 180 rows/s locally.
+- **Record lists at full scale (ADR-0073):**
+  - lists count matches only up to `records.list_count_limit` (Settings, Records; default 1 000) and say "more than N" past it;
+  - a list counted exactly is sorted from its matches;
+  - past the limit, MySQL reads the sorted field's index in order;
+  - ties in a sort are broken by record id.
+- **Fewer queries per request and per imported row:**
+  - access policies and feature flags are kept for the request;
+  - cold permission resolution no longer sends every permission key;
+  - an imported row takes 6 queries instead of 10;
+  - global search reads each form's name once instead of once per hit.
+- **`MYSQL_BUFFER_POOL_SIZE`** sizes MySQL's memory in the Docker stack (default 1 GB).
 - **`--danger` is now `#d0291d`**, and danger buttons use it: 4.5:1 on every surface.
 
 ### Security
