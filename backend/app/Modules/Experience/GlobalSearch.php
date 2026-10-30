@@ -205,6 +205,7 @@ final class GlobalSearch
             $presented = $this->presenter->many($rt, $records, $levels, true);
             $subtitle = json_decode((string) $c->result_template, true)['subtitle'] ?? null;
             $subtitleKey = $subtitle !== null && isset($searchable[$subtitle]) && ($levels[$subtitle] ?? 'hidden') !== 'hidden' ? $searchable[$subtitle]['key'] : null;
+            $formRef = ['uuid' => strtolower((string) $form->uuid), 'name' => $this->translator->labelOf($form->translationsFor('name'), (string) $form->key)];
             $hits = [];
             foreach ($records as $i => $rec) {
                 $score = 0;
@@ -217,7 +218,7 @@ final class GlobalSearch
                 }
                 $sub = $subtitleKey === null ? null : ($rec['values'][$subtitleKey] ?? null);
                 $hits[] = [
-                    'form' => ['uuid' => strtolower((string) $form->uuid), 'name' => $this->translator->labelOf($form->translationsFor('name'), (string) $form->key)],
+                    'form' => $formRef,
                     'record' => ['uuid' => $rec['uuid'], 'title' => $presented[$i]['title'] ?? null, 'subtitle' => is_scalar($sub) ? (string) $sub : null],
                     'score' => max(1, $score),
                 ];
