@@ -757,8 +757,12 @@ Done on the branch so far (2026-10-29):
 
   - Run on `fc49e3d` (PHP-FPM slow log plus MySQL samples during k6): every slow request was a list page select for a user scoped to a top-level department, at 11 to 16 s. The generator derives department, channel, urgent and amount from the same row number, so some top-level subtrees have no orders that match the reference filter. Walking the amount index then read all 1 000 000 orders. Reproduced locally at 999 000 orders on MySQL 8.0 and 8.4 (3.8 to 6.9 s). Fixed in `aa17c31` (ADR-0073 item 3): a list counted exactly sorts only the counted matches, and skips the page query when the page lies past the last match.
 
+  - Run 41020635029 on `e801c63` (CI and PHP JIT green on that commit): every job, permission and formula budget passes on both engines (MySQL: import 213 s, download 155 s, publish 3.4 s; SQL Server: import 359 s, download 284 s, publish 4.0 s). The request p95s are still 10 to 32 s.
+    - MySQL: its CPU sits at 300 to 390 % (all four cores) while PHP stays below 75 %, and every slow request is the list page select on the broad path. Locally, with the exact full-scale generator values on 999 000 rows, that select walks 354 to 1 004 rows of the amount index (3 to 136 ms). Forbidding that index costs 1.5 to 6 s, so CI most likely runs another plan. Commit `6ded0fc` makes the run print the running plan (`EXPLAIN FOR CONNECTION`) to confirm before fixing.
+    - SQL Server: app and database together reach about 400 % at peak. Locally its bounded count intersects five single-column indexes with hash joins (82 ms CPU at 66 000 rows), likely over 1 s at 1 000 000. `6ded0fc` also prints SQL Server's longest requests with their reads.
+
 Next, in order:
-1. Read the `performance.yml` run on `aa17c31` (run 41020595226). If the request budgets still fail at the scaled load, read the slow log and samples it prints. Then commit `perf/baseline/{mysql,sqlsrv}.json` from a green run and write `docs/performance.md`. It must state that the full 50/150 requests per second on the reference environment was not run.
+1. Read the `performance.yml` run on `6ded0fc`, decide the list fix from the captured plans, test it on both engines, and re-run. Then commit `perf/baseline/{mysql,sqlsrv}.json` from a green run and write `docs/performance.md`. It must state that the full 50/150 requests per second on the reference environment was not run.
 2. Confirm that CI (all jobs, including e2e with the axe sweep on both engines) is green on the head commit.
 3. Final verification of §2–§7 and the PR closing #9, with the §8.2 report citing the head CI run. Raise in it the audit-archive conflict (ADR-0070), and say plainly which performance budgets were verified and at what load.
 
