@@ -110,6 +110,22 @@ jobs:
       # application servers, a worker, Redis and an 8-vCPU database server). One 4-vCPU runner holds all of
       # them and k6 too, about a fifth of that hardware, so it is loaded at a fifth of the rates: the latency
       # budgets are checked at that load. docs/performance.md explains the scaling.
+      # The plan MySQL picks for the load test's list query (the first division's scope) on the loaded
+      # dataset, with the statistics it is based on, before and after the statistics are rebuilt.
+      - name: List query plan (MySQL)
+        if: matrix.db == 'mysql'
+        continue-on-error: true
+        run: |
+          my() { docker compose exec -T mysql mysql -uroot -p"Root-$LCF_DB_PASSWORD" lcf "$@" 2>/dev/null; }
+          q="select * from f_perf_order where owner_department_id in (select descendant_id from department_closure where ancestor_id = (select id from departments where code = 'P0')) and deleted_at is null and urgent = 1 and channel in ('phone') and order_date >= '2025-06-01' and order_date <= '2026-12-31' order by amount desc, id desc limit 25"
+          plan() {
+            my -e "select index_name, stat_name, stat_value, sample_size, last_update from mysql.innodb_index_stats where database_name = 'lcf' and table_name = 'f_perf_order' and stat_name = 'n_diff_pfx01' and index_name in ('PRIMARY', 'ix_f_perf_order_amount', 'ix_f_perf_order_channel', 'ix_f_perf_order_urgent', 'ix_f_perf_order_order_date', 'ix_f_perf_order_owner_department_id')"
+            my -e "explain format=tree $q" | sed 's/\\n/\n/g'
+            timeout 120 docker compose exec -T mysql mysql -uroot -p"Root-$LCF_DB_PASSWORD" lcf -e "explain analyze $q" 2>/dev/null | sed 's/\\n/\n/g' || echo "explain analyze took over 120 s"
+          }
+          echo "== as loaded"; plan
+          my -e "analyze table f_perf_order, department_closure"
+          echo "== after analyze table"; plan
       - name: Load test (k6, ${{ env.LCF_RATE }}/s sustained, ${{ env.LCF_PEAK_RATE }}/s peak)
         run: |
           # Every 20 s while the load runs: CPU and memory per container, and the database's busy sessions.
@@ -119,12 +135,6 @@ jobs:
               if [ "${{ matrix.db }}" = mysql ]; then
                 my() { docker compose exec -T mysql mysql -uroot -p"Root-$LCF_DB_PASSWORD" "$@" 2>/dev/null; }
                 my -N -e "select command, state, time, left(info, 160) from information_schema.processlist where command <> 'Sleep' and id <> connection_id() order by time desc limit 8"
-                # The longest-running statement in full, and the plan it is running with.
-                slow=$(my -N -e "select id from information_schema.processlist where command in ('Query', 'Execute') and time >= 1 and info like 'select%' and id <> connection_id() order by time desc limit 1")
-                if [ -n "$slow" ]; then
-                  my -N -e "select info from information_schema.processlist where id = $slow"
-                  my -e "explain format=tree for connection $slow" || my -e "explain for connection $slow"
-                fi
               else
                 # The longest-running requests: what they wait on, their reads, and their text.
                 docker compose exec -T sqlserver bash -c 'c=$(ls -d /opt/mssql-tools*/bin/sqlcmd | tail -n 1); case "$c" in *18*) t=-C;; esac; "$c" $t -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -W -s "|" -Q "set nocount on; select top 4 r.session_id, r.status, r.wait_type, r.cpu_time, r.total_elapsed_time, r.logical_reads, left(replace(t.text, char(10), char(32)), 700) as text from sys.dm_exec_requests r cross apply sys.dm_exec_sql_text(r.sql_handle) t where r.session_id <> @@spid and r.session_id > 50 order by r.total_elapsed_time desc"' 2>&1 | head -n 12

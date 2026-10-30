@@ -12,6 +12,7 @@
 
 import http from "k6/http";
 import { check, fail, sleep } from "k6";
+import exec from "k6/execution";
 import { Rate, Trend } from "k6/metrics";
 
 const BASE = __ENV.LCF_URL || "http://localhost:8080";
@@ -69,6 +70,22 @@ export const options = {
     lcf_record_list: ["p(95)<500"],
     lcf_global_search: ["p(95)<800"],
     lcf_record_save: ["p(95)<400"],
+    // Not budgets: these only make k6 keep each stage's own figures for the summary below.
+    ...Object.fromEntries(
+      [
+        "definition",
+        "record_view",
+        "record_open",
+        "record_list",
+        "global_search",
+        "record_save",
+      ].flatMap((k) =>
+        ["sustained", "peak"].map((st) => [
+          `lcf_${k}{stage:${st}}`,
+          ["p(95)>=0"],
+        ]),
+      ),
+    ),
   },
   summaryTrendStats: ["avg", "med", "p(90)", "p(95)", "p(99)", "max", "count"],
 };
@@ -125,7 +142,7 @@ const pick = (list) => list[Math.floor(Math.random() * list.length)];
 function record(trend, res, ok) {
   const passed = check(res, { [`${trend.name} answered`]: () => ok });
   errors.add(!passed);
-  if (passed) trend.add(res.timings.duration);
+  if (passed) trend.add(res.timings.duration, { stage: exec.scenario.name });
   return passed;
 }
 
@@ -275,8 +292,14 @@ export function handleSummary(data) {
     Object.entries(trends)
       .map(([key, t]) => {
         const v = data.metrics[t.name]?.values;
+        const stage = (st) => {
+          const sv = data.metrics[`${t.name}{stage:${st}}`]?.values;
+          return sv
+            ? `${st} ${sv["p(95)"].toFixed(1)} ms (n=${sv.count})`
+            : `${st} -`;
+        };
         return v
-          ? `${key.padEnd(14)} p95 ${v["p(95)"].toFixed(1)} ms  (n=${v.count})`
+          ? `${key.padEnd(14)} p95 ${v["p(95)"].toFixed(1)} ms  (n=${v.count});  ${stage("sustained")};  ${stage("peak")}`
           : `${key.padEnd(14)} no samples`;
       })
       .concat([
