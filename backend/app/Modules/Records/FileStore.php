@@ -201,7 +201,13 @@ final class FileStore
     /** @return array{0: string, 1: int, 2: int} */
     private function reencode(string $path, string $extension): array
     {
-        $image = @imagecreatefromstring((string) file_get_contents($path));
+        $bytes = (string) file_get_contents($path);
+        // The header is read before anything is decoded: a small file must not claim gigabytes of pixels.
+        $size = @getimagesizefromstring($bytes);
+        if ($size === false || $size[0] > 4096 || $size[1] > 4096) {
+            throw ValidationException::withMessages(['file' => __($size === false ? 'ui.files.invalid_image' : 'ui.files.image_too_big')]);
+        }
+        $image = @imagecreatefromstring($bytes);
         if ($image === false) {
             throw ValidationException::withMessages(['file' => __('ui.files.invalid_image')]);
         }

@@ -316,6 +316,7 @@ export const icons: Record<string, string> = {
   automations: 'pi-bolt',
   scheduled_tasks: 'pi-clock',
   operations_center: 'pi-server',
+  retention: 'pi-history',
   integrations: 'pi-link',
   extensions: 'pi-code',
   packages: 'pi-box',

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Infrastructure\Crypto\KeyRotation;
 use App\Modules\Adoption\UsageRecorder;
 use App\Modules\Assignment\Claims;
 use App\Modules\Assignment\Http\Controllers\DelegationController;
@@ -12,6 +13,7 @@ use App\Modules\Automation\WatchedFolders;
 use App\Modules\Core\Outbox\OutboxRelay;
 use App\Modules\Core\Outbox\OutboxWriter;
 use App\Modules\Core\Settings\SettingsService;
+use App\Modules\Core\Tenancy\TenantContext;
 use App\Modules\Documents\GeneratedDocuments;
 use App\Modules\Downloads\DownloadJobs;
 use App\Modules\External\Signatures;
@@ -25,6 +27,9 @@ use App\Modules\Platform\Webhooks;
 use App\Modules\Records\Exchange\ExportService;
 use App\Modules\Records\FileStore;
 use App\Modules\Records\Runtime\RecycleBin;
+use App\Modules\Retention\LegalHolds;
+use App\Modules\Retention\Partitions;
+use App\Modules\Retention\StorageQuotas;
 use App\Modules\Scheduling\ScheduledTasks;
 use App\Modules\Schema\Execution\SchemaReconciler;
 use App\Modules\Schema\Execution\Snapshots;
@@ -87,6 +92,50 @@ Artisan::command('records:purge-recycle-bin', function (RecycleBin $bin): int {
 
     return 0;
 })->purpose('Remove deleted records whose recycle bin retention has passed');
+
+Artisan::command('retention:maintain', function (LegalHolds $holds, StorageQuotas $quotas): int {
+    $held = $holds->recomputeAll();
+    $changed = $quotas->measure();
+    $this->info("Records under legal hold: {$held}; storage quotas that changed state: {$changed}.");
+
+    return 0;
+})->purpose('Refresh legal-hold flags (records that came to match a held condition) and measure storage quotas');
+
+Artisan::command('keys:rotate {--organization= : Only this organization id} {--purpose=fields : fields or blind_index}', function (KeyRotation $rotation, AuditWriter $audit): int {
+    $purpose = (string) $this->option('purpose');
+    if (! in_array($purpose, ['fields', 'blind_index'], true)) {
+        $this->error('The purpose is fields or blind_index.');
+
+        return 1;
+    }
+    $orgs = $this->option('organization') !== null ? [(int) $this->option('organization')] : DB::table('organizations')->orderBy('id')->pluck('id')->map(static fn ($v) => (int) $v)->all();
+    $failed = 0;
+    foreach ($orgs as $org) {
+        app(TenantContext::class)->set($org);
+        $result = $purpose === 'fields' ? $rotation->rotateFields($org) : $rotation->rotateBlindIndex($org);
+        $audit->record('security.key_rotated', 'security', meta: ['purpose' => $purpose, 'key' => $result['key'], 'values' => $result['values'], 'skipped' => $result['skipped']]);
+        $this->info("Organization {$org}: new {$purpose} key {$result['key']}, {$result['values']} value(s) moved, {$result['skipped']} skipped.");
+        $failed += $result['skipped'];
+    }
+
+    return $failed > 0 ? 1 : 0;
+})->purpose('Give each organization a new data key and move its encrypted field values (or blind indexes) to it');
+
+Artisan::command('keys:rewrap', function (KeyRotation $rotation, AuditWriter $audit): int {
+    $result = $rotation->rewrap();
+    $audit->record('security.master_key_rewrapped', 'security', meta: $result);
+    $this->info("Re-encrypted {$result['values']} value(s) under the current APP_KEY; {$result['skipped']} could not be opened.");
+
+    return $result['skipped'] > 0 ? 1 : 0;
+})->purpose('After moving the old APP_KEY to APP_PREVIOUS_KEYS, re-encrypt everything sealed with it under the new key');
+
+Artisan::command('partitions:maintain', function (Partitions $partitions): int {
+    foreach ($partitions->maintain() as $table => $added) {
+        $this->info("{$table}: {$added} monthly partition(s) added.");
+    }
+
+    return 0;
+})->purpose('Keep the next twelve monthly partitions of the audit and error logs in place');
 
 Artisan::command('automations:tick', function (AutomationEngine $engine, WatchedFolders $folders): int {
     $resumed = $engine->resumeDue();
@@ -273,6 +322,9 @@ Schedule::command('automations:tick')->everyMinute()->withoutOverlapping()->onOn
 Schedule::command('external:maintain')->hourly()->withoutOverlapping()->onOneServer();
 Schedule::command('usage:prune')->dailyAt('03:45')->withoutOverlapping()->onOneServer();
 Schedule::command('webhooks:purge')->dailyAt('03:35')->withoutOverlapping()->onOneServer();
+// Before the recycle bin purge (03:25), so a record that came to match a held condition is not purged.
+Schedule::command('retention:maintain')->dailyAt('03:05')->withoutOverlapping()->onOneServer();
+Schedule::command('partitions:maintain')->dailyAt('00:20')->withoutOverlapping()->onOneServer();
 Schedule::command('records:purge-recycle-bin')->dailyAt('03:25')->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:reminders')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:digest')->hourlyAt(5)->withoutOverlapping()->onOneServer();

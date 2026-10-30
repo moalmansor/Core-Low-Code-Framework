@@ -159,6 +159,23 @@ it('skips rows locked by another transaction', function () {
     });
 });
 
+it('reads a sorted page through the index in order, with the same rows as without it', function () {
+    foreach (range(1, 30) as $i) {
+        DB::table('zz_contract_parent')->insert(['code' => "o{$i}", 'title' => 't', 'status' => $i % 3 === 0 ? 'live' : 'draft']);
+    }
+    foreach (DB::table('zz_contract_parent')->pluck('id') as $id) {
+        DB::table('zz_contract_child')->insert(['parent_id' => $id]);
+    }
+    $page = fn () => DB::table('zz_contract_parent')->where('status', 'draft')
+        ->whereIn('zz_contract_parent.id', DB::table('zz_contract_child')->select('parent_id'))
+        ->orderBy('zz_contract_parent.code', 'desc')->orderBy('zz_contract_parent.id', 'desc')->limit(5);
+    $plain = $page()->pluck('code')->all();
+    $q = driver()->readInIndexOrder($page(), 'zz_contract_parent', 'uq_zz_contract_parent_code');
+
+    expect($q->pluck('code')->all())->toBe($plain)->toHaveCount(5);
+    expect(fn () => driver()->readInIndexOrder($page(), 'zz_contract_parent', 'ix x'))->toThrow(InvalidArgumentException::class);
+});
+
 it('maps every logical type to a native type', function (LogicalType $type) {
     $spec = new ColumnSpec('c', $type, length: 20, precision: 10, scale: 2, values: ['a']);
     expect(driver()->nativeType($spec))->toBeString()->not->toBe('');

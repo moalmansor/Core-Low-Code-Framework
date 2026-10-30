@@ -1,0 +1,80 @@
+name: PHP JIT
+
+# The OPcache JIT stays off in the image and in CI (docker/php/php.ini, ADR-0069): PHP 8.3.35's JIT segfaulted
+# on the form publish analysis. This job runs the engine suite with the JIT on, under gdb with PHP's debug
+# symbols, so a crash on the PHP release CI installs is located (C backtrace) instead of guessed, and so the day
+# the JIT is safe is known from evidence. It never blocks a merge: production does not run the JIT.
+on:
+  push:
+    branches: [main, 'phase-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: php-jit-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  engine-under-jit:
+    name: Engine suite under the JIT (${{ matrix.jit }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        jit: [tracing, function]
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: "${{ format('ci-{0}-Aa1!', github.run_id) }}"
+        ports: ['3306:3306']
+        options: --health-cmd="mysqladmin ping -h 127.0.0.1 --silent" --health-interval=5s --health-retries=30
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_DATABASE: lcf_test
+      DB_USERNAME: root
+      DB_PASSWORD: "${{ format('ci-{0}-Aa1!', github.run_id) }}"
+      DB_ADMIN_PASSWORD: "${{ format('ci-{0}-Aa1!', github.run_id) }}"
+      REDIS_HOST: 127.0.0.1
+      LCF_ESBUILD: ../frontend/node_modules/@esbuild/linux-x64/bin/esbuild
+    steps:
+      - uses: actions/checkout@v4
+      - name: LibreOffice Writer and gdb
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-writer-nogui fonts-dejavu-core gdb
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, gd, zip, bcmath, pcntl, ldap, redis, pdo_mysql, exif, sodium
+          coverage: none
+          tools: composer:v2
+          debug: true
+          ini-values: 'opcache.enable_cli=1, opcache.jit=${{ matrix.jit }}, opcache.jit_buffer_size=128M'
+      - run: composer install --no-interaction --no-progress --prefer-dist
+        working-directory: backend
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+        working-directory: frontend
+      - name: Throw-away application key for this run
+        run: echo "APP_KEY=base64:$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+      - run: php .github/scripts/prepare-database.php lcf_test
+      - name: The JIT is on
+        run: php -v && php -r 'var_export(opcache_get_status(false)["jit"] ?? null); echo PHP_EOL;'
+      - name: Engine suite under the JIT, inside gdb
+        working-directory: backend
+        run: |
+          touch .env
+          # gdb runs the suite; on a crash it prints the C backtrace (PHP's debug symbols name each engine
+          # function). The step passes only when PHP exited normally, i.e. without a signal and with Pest green.
+          set +e
+          gdb -batch -ex 'set pagination off' -ex run -ex 'bt 40' --args php vendor/bin/pest tests/Engine --colors=never 2>&1 | tee ../gdb.log
+          if grep -q 'received signal SIG' ../gdb.log; then echo "::error::PHP crashed under the ${{ matrix.jit }} JIT (backtrace above)"; exit 1; fi
+          grep -q 'exited normally' ../gdb.log || { echo "::error::the engine suite failed under the ${{ matrix.jit }} JIT"; exit 1; }

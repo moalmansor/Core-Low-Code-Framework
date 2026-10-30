@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Records\Exchange;
 
+use App\Infrastructure\Database\Contracts\DatabaseDriver;
 use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\RecordScope;
 use App\Modules\Audit\AuditWriter;
@@ -14,6 +15,7 @@ use App\Modules\Identity\Models\User;
 use App\Modules\Justification\JustificationGate;
 use App\Modules\Notifications\InAppNotifier;
 use App\Modules\Records\FileStore;
+use App\Modules\Records\Jobs\RunImportBatchJob;
 use App\Modules\Records\Jobs\RunImportJob;
 use App\Modules\Records\Models\StoredFile;
 use App\Modules\Records\Runtime\FormRuntime;
@@ -24,6 +26,9 @@ use App\Modules\Records\Runtime\RecordPipeline;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\SubmissionJournal;
 use App\Modules\Records\Runtime\ValueCodec;
+use App\Support\BatchMemo;
+use App\Support\Files\ZipGuard;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -81,6 +86,7 @@ final class ImportService
         private readonly CorrelationId $correlation,
         private readonly FormRuntimes $runtimes,
         private readonly Translator $translator,
+        private readonly DatabaseDriver $driver,
     ) {}
 
     /**
@@ -375,6 +381,11 @@ final class ImportService
         $keyUuid = $job->key_field_id === null ? null : DB::table('fields')->where('id', $job->key_field_id)->value('uuid');
         $mapping = ['columns' => $columns, 'key' => $keyUuid === null ? null : ($rt->fields[strtolower((string) $keyUuid)] ?? null)];
         $errorsPath = "imports/{$job->uuid}";
+        if ($job->mode === 'insert' && $total > self::BATCH) {
+            $this->fanOut($job, $path, $format, $errorsPath);
+
+            return;
+        }
         $batch = [];
         $batchNo = 0;
         $last = (int) $job->last_committed_batch;
@@ -400,13 +411,147 @@ final class ImportService
     }
 
     /**
+     * An insert-mode import runs its batches in parallel (ADR-0072): no row
+     * of an insert depends on another (an update or upsert row may depend on
+     * an earlier one, so those run in order). The rows are written to one
+     * file per batch and each batch is queued as its own job; batches that
+     * already committed are skipped when the import is run again.
+     */
+    private function fanOut(object $job, string $path, string $format, string $errorsPath): void
+    {
+        $committed = DB::table('import_job_batches')->where('import_job_id', $job->id)->where('outcome', 'committed')->pluck('batch_no')->map(static fn ($v) => (int) $v)->all();
+        DB::table('import_job_batches')->where('import_job_id', $job->id)->where('outcome', '!=', 'committed')->delete();
+        $disk = Storage::disk(FileStore::DISK);
+        $pending = [];
+        $rows = [];
+        $batchNo = 0;
+        $flush = static function () use (&$rows, &$batchNo, &$pending, $committed, $disk, $errorsPath): void {
+            $batchNo++;
+            if (! in_array($batchNo, $committed, true)) {
+                // serialize() keeps the cells' types (dates stay dates); only date classes are read back.
+                $disk->put("{$errorsPath}/rows-{$batchNo}.bin", serialize($rows));
+                $pending[] = $batchNo;
+            }
+            $rows = [];
+        };
+        foreach ($this->dataRows($path, $format) as $rowNumber => $cells) {
+            $rows[$rowNumber] = $cells;
+            if (count($rows) === self::BATCH) {
+                $flush();
+            }
+        }
+        if ($rows !== []) {
+            $flush();
+        }
+        foreach ($pending as $n) {
+            RunImportBatchJob::dispatch((int) $job->id, $n);
+        }
+        if ($pending === []) {
+            $this->finishIfDone((int) $job->id);
+        }
+    }
+
+    /** Runs one batch of a parallel import; called by RunImportBatchJob. */
+    public function runBatch(int $jobId, int $batchNo): void
+    {
+        $job = DB::table('import_jobs')->where('id', $jobId)->first();
+        if ($job === null || $job->finished_at !== null || DB::table('import_job_batches')->where('import_job_id', $jobId)->where('batch_no', $batchNo)->exists()) {
+            return;
+        }
+        $user = User::query()->find($job->user_id);
+        $form = DB::table('forms')->where('id', $job->form_id)->first();
+        $rt = $form === null ? null : $this->runtimes->forUuid((string) $form->uuid);
+        if ($user === null || $rt === null || $user->status !== 'active') {
+            $this->finishFailed($job, __('records.import.job_unavailable'));
+
+            return;
+        }
+        Auth::setUser($user);
+        $errorsPath = "imports/{$job->uuid}";
+        $file = "{$errorsPath}/rows-{$batchNo}.bin";
+        $rows = unserialize((string) Storage::disk(FileStore::DISK)->get($file), ['allowed_classes' => [\DateTimeImmutable::class, \DateTime::class, \DateInterval::class]]);
+        $keyUuid = $job->key_field_id === null ? null : DB::table('fields')->where('id', $job->key_field_id)->value('uuid');
+        $mapping = ['columns' => json_decode((string) $job->mapping, true), 'key' => $keyUuid === null ? null : ($rt->fields[strtolower((string) $keyUuid)] ?? null)];
+        $started = Carbon::parse((string) $job->started_at, 'UTC')->getTimestamp();
+        $limitSeconds = 60 * (int) $this->settings->get('records', 'import_time_limit_minutes');
+        try {
+            $stopped = $this->batch($job, $rt, $user, $mapping, (array) $rows, $batchNo, $errorsPath, (float) $started, $limitSeconds, true);
+        } catch (UniqueConstraintViolationException $e) {
+            if (DB::table('import_job_batches')->where('import_job_id', $jobId)->where('batch_no', $batchNo)->exists()) {
+                return; // the same batch, delivered twice, committed meanwhile
+            }
+            throw $e;
+        }
+        if ($stopped !== null) {
+            DB::table('import_job_batches')->insertOrIgnore(['import_job_id' => $jobId, 'batch_no' => $batchNo, 'outcome' => $stopped, 'created_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u')]);
+        } else {
+            Storage::disk(FileStore::DISK)->delete($file);
+        }
+        $this->finishIfDone($jobId);
+    }
+
+    /** A parallel import's counters, as the sums of its batches; $final also writes after the import finished. */
+    private function writeTotals(int $jobId, bool $final): void
+    {
+        $sum = DB::table('import_job_batches')->where('import_job_id', $jobId)
+            ->selectRaw('sum(processed_rows) as processed, sum(created_count) as created, sum(updated_count) as updated, sum(error_count) as errors, count(*) as batches')->first();
+        $q = DB::table('import_jobs')->where('id', $jobId);
+        if (! $final) {
+            $q->whereNull('finished_at');
+        }
+        $q->update([
+            'processed_rows' => (int) $sum->processed, 'created_count' => (int) $sum->created, 'updated_count' => (int) $sum->updated,
+            'error_count' => (int) $sum->errors, 'last_committed_batch' => (int) $sum->batches,
+            'updated_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u'),
+        ]);
+    }
+
+    /** Finishes a parallel import once every batch has run, exactly once. */
+    private function finishIfDone(int $jobId): void
+    {
+        $job = DB::table('import_jobs')->where('id', $jobId)->first();
+        $expected = (int) ceil((int) $job->total_rows / self::BATCH);
+        if ($job->finished_at !== null || DB::table('import_job_batches')->where('import_job_id', $jobId)->count() < $expected) {
+            return;
+        }
+        $lock = "import-finish-{$jobId}";
+        if (! $this->driver->namedLock($lock, 30)) {
+            return;
+        }
+        try {
+            $job = DB::table('import_jobs')->where('id', $jobId)->first();
+            if ($job->finished_at !== null) {
+                return;
+            }
+            $outcomes = DB::table('import_job_batches')->where('import_job_id', $jobId)->pluck('outcome')->all();
+            $this->writeTotals($jobId, true);
+            $stopped = in_array('cancelled', $outcomes, true) ? 'cancelled' : (in_array('time_limit', $outcomes, true) ? 'time_limit' : null);
+            $user = User::query()->findOrFail($job->user_id);
+            $rt = $this->runtimes->forUuid((string) DB::table('forms')->where('id', $job->form_id)->value('uuid'));
+            if ($rt === null) {
+                $this->finishFailed($job, __('records.import.job_unavailable'));
+
+                return;
+            }
+            $keyUuid = $job->key_field_id === null ? null : DB::table('fields')->where('id', $job->key_field_id)->value('uuid');
+            $mapping = ['columns' => json_decode((string) $job->mapping, true), 'key' => $keyUuid === null ? null : ($rt->fields[strtolower((string) $keyUuid)] ?? null)];
+            $this->finish($jobId, $rt, $user, $mapping, "imports/{$job->uuid}", $stopped);
+            // Again after finishing: a batch's progress write that slipped in before the import was marked finished.
+            $this->writeTotals($jobId, true);
+            Storage::disk(FileStore::DISK)->delete(array_map(static fn (int $n) => "imports/{$job->uuid}/rows-{$n}.bin", range(1, max(1, $expected))));
+        } finally {
+            $this->driver->releaseNamedLock($lock);
+        }
+    }
+
+    /**
      * One batch in one transaction. Returns why the job stopped before it
      * (cancelled, time limit), or null.
      *
      * @param  array{columns: list<array<string, mixed>>, key: array<string, mixed>|null}  $mapping
      * @param  array<int, list<mixed>>  $rows
      */
-    private function batch(object $job, FormRuntime $rt, User $user, array $mapping, array $rows, int $batchNo, string $errorsPath, float $started, int $limitSeconds): ?string
+    private function batch(object $job, FormRuntime $rt, User $user, array $mapping, array $rows, int $batchNo, string $errorsPath, float $started, int $limitSeconds, bool $parallel = false): ?string
     {
         $status = DB::table('import_jobs')->where('id', $job->id)->value('status');
         if ($status === 'cancelled') {
@@ -415,13 +560,22 @@ final class ImportService
         if ($limitSeconds > 0 && microtime(true) - $started > $limitSeconds) {
             return 'time_limit';
         }
-        $counts = ['created' => 0, 'updated' => 0, 'errors' => 0, 'processed' => 0];
+        $counts = [];
         $failed = [];
-        DB::transaction(function () use ($job, $rt, $user, $mapping, $rows, $batchNo, $errorsPath, &$counts, &$failed): void {
+        // The batch's metadata reads (rules, conditions, calendars) are made once for its 500 rows, and its audit
+        // entries go to one chain, so the batch's transaction holds one chain head, not all of them.
+        $work = function () use ($job, $rt, $user, $mapping, $rows, $batchNo, $errorsPath, $parallel, &$counts, &$failed): void {
+            $counts = ['created' => 0, 'updated' => 0, 'errors' => 0, 'processed' => 0];
+            $failed = [];
+            if ($parallel) {
+                // First, so a batch delivered twice stops at the unique key before it changes anything.
+                DB::table('import_job_batches')->insert(['import_job_id' => $job->id, 'batch_no' => $batchNo, 'outcome' => 'committed', 'created_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u')]);
+            }
             $this->journal->forImportJob((int) $job->id, function () use ($job, $rt, $user, $mapping, $rows, &$counts, &$failed): void {
                 foreach ($rows as $rowNumber => $cells) {
                     $counts['processed']++;
-                    $prepared = $this->prepare($rt, $user, $mapping, $cells, (string) $job->mode);
+                    // A real run validates each row once, in the pipeline's save; a dry run checks without saving.
+                    $prepared = $this->prepare($rt, $user, $mapping, $cells, (string) $job->mode, (bool) $job->dry_run);
                     if ($prepared['errors'] === [] && ! $job->dry_run) {
                         $key = "import:{$job->uuid}:{$rowNumber}";
                         try {
@@ -441,21 +595,37 @@ final class ImportService
                         $counts[$prepared['action'] === 'create' ? 'created' : 'updated']++;
                     }
                 }
-            });
-            DB::table('import_jobs')->where('id', $job->id)->update([
-                'processed_rows' => DB::raw('processed_rows + '.$counts['processed']),
-                'created_count' => DB::raw('created_count + '.$counts['created']),
-                'updated_count' => DB::raw('updated_count + '.$counts['updated']),
-                'error_count' => DB::raw('error_count + '.$counts['errors']),
-                'last_committed_batch' => $batchNo,
-                'updated_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u'),
-            ]);
+            }, $parallel);
+            if ($parallel) {
+                // The batch's counts stay on its own row: every row this batch inserted holds a shared lock on
+                // the import's row (the journal's foreign key), so updating that row here would deadlock with
+                // the batches running beside it. The import's counters follow after the commit.
+                DB::table('import_job_batches')->where('import_job_id', $job->id)->where('batch_no', $batchNo)->update([
+                    'processed_rows' => $counts['processed'], 'created_count' => $counts['created'], 'updated_count' => $counts['updated'], 'error_count' => $counts['errors'],
+                ]);
+            } else {
+                DB::table('import_jobs')->where('id', $job->id)->update([
+                    'processed_rows' => DB::raw('processed_rows + '.$counts['processed']),
+                    'created_count' => DB::raw('created_count + '.$counts['created']),
+                    'updated_count' => DB::raw('updated_count + '.$counts['updated']),
+                    'error_count' => DB::raw('error_count + '.$counts['errors']),
+                    'last_committed_batch' => $batchNo,
+                    'updated_at' => Carbon::now('UTC')->format('Y-m-d H:i:s.u'),
+                ]);
+            }
             // The batch's errors, written before it commits; a batch that runs again overwrites its own file.
             $file = "{$errorsPath}/batch-{$batchNo}.jsonl";
             $failed === []
                 ? Storage::disk(FileStore::DISK)->delete($file)
                 : Storage::disk(FileStore::DISK)->put($file, implode("\n", array_map(static fn (array $f) => json_encode($f, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), $failed)));
-        });
+        };
+        // A parallel batch that deadlocks with another is run again (it changed nothing: its transaction rolled back).
+        app(BatchMemo::class)->within(fn () => $this->audit->onChain($batchNo, fn () => DB::transaction($work, $parallel ? 3 : 1)));
+        if ($parallel) {
+            // Progress for the screens: the sums of the batches committed so far, written only while the import
+            // runs, so a batch that reports after the import finished never changes its totals.
+            $this->writeTotals((int) $job->id, false);
+        }
 
         return null;
     }
@@ -522,8 +692,12 @@ final class ImportService
             break;
         }
         $rows = [];
-        for ($b = 1; $b <= (int) $job->last_committed_batch; $b++) {
-            foreach (explode("\n", (string) Storage::disk(FileStore::DISK)->get("{$errorsPath}/batch-{$b}.jsonl")) as $line) {
+        $batches = max((int) $job->last_committed_batch, (int) ceil((int) $job->total_rows / self::BATCH));
+        $disk = Storage::disk(FileStore::DISK);
+        for ($b = 1; $b <= $batches; $b++) {
+            // A batch without errors leaves no file.
+            $content = $disk->exists("{$errorsPath}/batch-{$b}.jsonl") ? (string) $disk->get("{$errorsPath}/batch-{$b}.jsonl") : '';
+            foreach (explode("\n", $content) as $line) {
                 if (trim($line) !== '') {
                     $e = json_decode($line, true);
                     $rows[(int) $e['row']] = $e;
@@ -561,7 +735,7 @@ final class ImportService
      * @param  list<mixed>  $cells
      * @return array{input: array<string, mixed>, current: array<string, mixed>|null, version: int, errors: array<string, list<string>>, action: string}
      */
-    public function prepare(FormRuntime $rt, User $user, array $mapping, array $cells, string $mode): array
+    public function prepare(FormRuntime $rt, User $user, array $mapping, array $cells, string $mode, bool $check = true): array
     {
         $input = [];
         $errors = [];
@@ -633,11 +807,14 @@ final class ImportService
             // Empty cells of an update leave the stored value untouched.
             $input = array_filter($input, static fn ($v) => $v !== null);
         }
-        // Every problem of the row at once: the pipeline's checks add to the conversion errors.
-        try {
-            $errors += $this->pipeline->check($rt, $user, $input, $current);
-        } catch (RecordException $e) {
-            $errors['_'][] = $e->getMessage();
+        // Every problem of the row at once: the pipeline's checks add to the conversion errors. Without
+        // conversion errors a real run leaves them to the save, which runs the same checks and reports them.
+        if ($check || $errors !== []) {
+            try {
+                $errors += $this->pipeline->check($rt, $user, $input, $current);
+            } catch (RecordException $e) {
+                $errors['_'][] = $e->getMessage();
+            }
         }
 
         return ['input' => $input, 'current' => $current, 'version' => (int) ($version ?? 0), 'errors' => $errors, 'action' => $current === null ? 'create' : 'update'];
@@ -752,6 +929,9 @@ final class ImportService
     private function reader(string $path, string $format): ReaderInterface
     {
         if ($format === 'xlsx') {
+            if (! ZipGuard::safe($path)) {
+                throw new RecordException(422, 'import_unreadable', __('records.import.unreadable'));
+            }
             $options = new XlsxReaderOptions;
             $options->SHOULD_FORMAT_DATES = false;
 

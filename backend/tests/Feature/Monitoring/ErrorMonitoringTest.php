@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Monitoring\Mail\ErrorAlertMail;
 use App\Modules\Monitoring\Models\ErrorGroup;
 use App\Modules\Monitoring\Models\ErrorLog;
@@ -19,6 +20,8 @@ beforeEach(function () {
 it('shows users a friendly message with a reference and records the error', function () {
     Mail::fake();
     $this->superAdmin();
+    app(SettingsService::class)->write('mail', 'host', 'smtp.example.test');
+    app(SettingsService::class)->write('mail', 'from_address', 'noreply@example.test');
     $response = $this->postJson('/api/v1/__test/boom', ['password' => 'p@ss', 'note' => 'hello', 'api_key' => 'k-123'], ['X-Correlation-ID' => '01J8ZZZZZZZZZZZZZZZZZZZZZZ'])
         ->assertStatus(500)
         ->assertJsonStructure(['message', 'reference', 'correlation_id'])
@@ -34,6 +37,19 @@ it('shows users a friendly message with a reference and records the error', func
     $request = json_encode($log->request);
     expect($request)->not->toContain('p@ss')->not->toContain('k-123')->toContain('hello');
     Mail::assertQueued(ErrorAlertMail::class);
+});
+
+it('queues no alert while outgoing mail is not configured, and an alert never retries in a loop', function () {
+    Mail::fake();
+    $this->superAdmin();
+    $this->postJson('/api/v1/__test/boom')->assertStatus(500);
+    // The group is recorded for Error Monitoring, but a message that cannot be sent is not queued.
+    expect(ErrorGroup::query()->count())->toBe(1);
+    Mail::assertNothingQueued();
+    // When one is queued, the mail server is asked again a bounded number of times, spaced out.
+    $mail = new ErrorAlertMail(1, 'E-TEST');
+    expect($mail->tries)->toBe(3)->and($mail->backoff)->toBe([60, 300]);
+    expect(config('horizon.defaults.mail-1.tries'))->toBe(1);
 });
 
 it('groups duplicates by fingerprint and counts occurrences', function () {

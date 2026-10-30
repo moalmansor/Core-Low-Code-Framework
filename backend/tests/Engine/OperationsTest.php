@@ -164,3 +164,36 @@ it('alerts the chosen roles when a measure reaches its threshold, once per coold
         ->and(DB::table('audit_logs')->where('event', 'operations.alert_triggered')->count())->toBe(1)
         ->and($saved['rules'][0]['roles'])->toBe([strtolower((string) $role)]);
 });
+
+it('writes a parallel import batch entry once with its outcome, and nothing for a failure that rolls the batch back', function () {
+    $w = opsForm($this);
+    $journal = app(SubmissionJournal::class);
+    $now = now()->format('Y-m-d H:i:s.u');
+    $org = $w['rt']->form->organization_id;
+    $file = (int) DB::table('files')->insertGetId([
+        'uuid' => (string) Str::uuid7(), 'organization_id' => $org, 'created_at' => $now, 'updated_at' => $now, 'disk' => 'local', 'path' => 'imports/test.xlsx',
+        'original_name' => 'test.xlsx', 'mime_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'extension' => 'xlsx', 'size_bytes' => 1,
+        'sha256' => str_repeat('0', 64), 'scan_status' => 'clean',
+    ]);
+    $job = (int) DB::table('import_jobs')->insertGetId([
+        'uuid' => (string) Str::uuid7(), 'organization_id' => $org, 'form_id' => $w['rt']->form->id, 'user_id' => $this->admin->id,
+        'file_id' => $file, 'mapping' => '{}', 'mode' => 'insert', 'dry_run' => false, 'status' => 'running', 'correlation_id' => (string) Str::uuid7(), 'created_at' => $now, 'updated_at' => $now,
+    ]);
+    $key = 'import:test:7';
+    $journal->forImportJob($job, function () use ($journal, $w, $key): void {
+        // A deadlock or other error inside the batch: nothing is written, even outside a transaction.
+        $first = $journal->open($key, $w['rt']->form->id, $w['rt']->versionId, 'create', 'import', $this->admin->id, ['visitor' => 'A'], null, null);
+        expect($first['state'])->toBe('new')->and($first['id'])->toBeLessThan(0);
+        $journal->failed($first['id'], new RuntimeException('Deadlock found when trying to get lock'));
+        expect(DB::table('submission_journal')->where('idempotency_key', $key)->exists())->toBeFalse();
+        // The batch runs again: the same key opens and is written once, with its outcome.
+        $again = $journal->open($key, $w['rt']->form->id, $w['rt']->versionId, 'create', 'import', $this->admin->id, ['visitor' => 'A'], null, null);
+        $journal->processed($again['id'], 42);
+        // A validation rejection of another row is kept.
+        $rejected = $journal->open('import:test:8', $w['rt']->form->id, $w['rt']->versionId, 'create', 'import', $this->admin->id, ['visitor' => null], null, null);
+        $journal->rejected($rejected['id'], 'Visitor is required.');
+    }, true);
+    expect(DB::table('submission_journal')->where('idempotency_key', $key)->get(['status', 'record_id', 'import_job_id'])->map(fn ($r) => (array) $r)->all())
+        ->toBe([['status' => 'processed', 'record_id' => 42, 'import_job_id' => $job]])
+        ->and(DB::table('submission_journal')->where('idempotency_key', 'import:test:8')->value('status'))->toBe('failed');
+});

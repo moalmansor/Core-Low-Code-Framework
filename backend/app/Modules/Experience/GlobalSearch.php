@@ -12,6 +12,7 @@ use App\Modules\Access\RecordScope;
 use App\Modules\Audit\AuditWriter;
 use App\Modules\Core\Flags\FeatureFlags;
 use App\Modules\Core\I18n\Translator;
+use App\Modules\Core\Models\Translation;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\Runtime\FormRuntime;
@@ -160,6 +161,13 @@ final class GlobalSearch
         $needle = mb_strtolower(Unicode::normalizeArabic($term));
         $roles = $user->activeRoles()->pluck('roles.id')->map(static fn ($v) => (int) $v)->all();
         $configs = DB::table('search_configs')->where('is_enabled', true)->orderBy('form_id')->limit(200)->get();
+        // The configured forms in one read, not one per configuration.
+        $configForms = Form::query()->whereIn('id', $configs->pluck('form_id')->all())->get()->keyBy('id');
+        // Every searched form's name in every locale, in one query: locale => value per form id.
+        $formNames = [];
+        foreach (Translation::query()->where(['object_type' => 'form', 'field' => 'name'])->whereIn('object_id', $configForms->keys()->all())->get(['object_id', 'locale', 'value']) as $t) {
+            $formNames[(int) $t->object_id][$t->locale] = $t->value;
+        }
         $results = [];
         $forms = 0;
         foreach ($configs as $c) {
@@ -167,7 +175,7 @@ final class GlobalSearch
             if ($scopeRoles !== [] && array_intersect($scopeRoles, $roles) === []) {
                 continue;
             }
-            $form = Form::query()->find($c->form_id);
+            $form = $configForms->get($c->form_id);
             if ($form === null || $form->state !== 'published' || ! $this->access->allows($user, 'form.'.strtolower((string) $form->uuid).'.view')
                 || ! app(FeatureFlags::class)->allows($user, 'form', (int) $form->id)) {
                 continue;
@@ -203,6 +211,7 @@ final class GlobalSearch
             $presented = $this->presenter->many($rt, $records, $levels, true);
             $subtitle = json_decode((string) $c->result_template, true)['subtitle'] ?? null;
             $subtitleKey = $subtitle !== null && isset($searchable[$subtitle]) && ($levels[$subtitle] ?? 'hidden') !== 'hidden' ? $searchable[$subtitle]['key'] : null;
+            $formRef = ['uuid' => strtolower((string) $form->uuid), 'name' => $this->translator->labelOf($formNames[(int) $form->id] ?? [], (string) $form->key)];
             $hits = [];
             foreach ($records as $i => $rec) {
                 $score = 0;
@@ -215,7 +224,7 @@ final class GlobalSearch
                 }
                 $sub = $subtitleKey === null ? null : ($rec['values'][$subtitleKey] ?? null);
                 $hits[] = [
-                    'form' => ['uuid' => strtolower((string) $form->uuid), 'name' => $this->translator->labelOf($form->translationsFor('name'), (string) $form->key)],
+                    'form' => $formRef,
                     'record' => ['uuid' => $rec['uuid'], 'title' => $presented[$i]['title'] ?? null, 'subtitle' => is_scalar($sub) ? (string) $sub : null],
                     'score' => max(1, $score),
                 ];

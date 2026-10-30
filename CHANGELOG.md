@@ -2,6 +2,57 @@
 
 All notable changes to this project are documented here, one section per phase.
 
+## [Unreleased] — Phase 6: Hardening
+
+### Added
+- **Retention, archiving, quotas and personal data (§4.26, ADR-0070):**
+  - retention policies per data class (archive, export then delete, delete), with a log of each run;
+  - archive and restore of records under their original id;
+  - legal holds on one record or on a condition;
+  - storage quotas, enforced at upload;
+  - personal data requests (locate, export, anonymize, delete) with review, a justification and step-up;
+  - personal values in the audit trail sealed per record and shredded on anonymization, with the hash chain intact;
+  - monthly partitions of `audit_logs` and `error_logs` (`partitions:maintain`);
+  - a table-growth alert.
+- **Per-organization data keys** (AES-256-GCM) with `keys:rotate` and `keys:rewrap` (ADR-0071).
+- **Performance harness for the architecture §20 budgets:**
+  - the reference dataset (1 M records, 200 forms, 5 000 users, 20 M history rows), built through the API;
+  - a k6 load test at 50 requests/s sustained and 150/s at peak, run in CI at a fifth of those rates on one runner;
+  - job measurements and browser timing marks;
+  - the `performance.yml` workflow on both engines, failing over budget or on a regression above 20 %. In CI the request budgets are checked on the sustained stage, the peak is reported, and a regression against the baseline is a warning (ADR-0074).
+- **`docs/performance.md`** (method, scaling, how to run at full rate, results) and **`docs/final-verification.md`** (every §2–§7 requirement with where it was built and how it is verified).
+- **Accessibility:** an axe sweep of every screen against WCAG 2.1 AA, in English and in Arabic (`25-accessibility.spec.ts`).
+- **Guides:** administrator, developer extensions, and deployment/backup/restore (`docs/guides`).
+
+### Changed
+- **Insert imports run in parallel** batches on the heavy workers, each batch committed once (`import_job_batches`, ADR-0072). Each row is validated once. Metadata reads are kept for a batch (`BatchMemo`). One audit chain is used per batch, so an import no longer holds every chain head and stall other writers. The outbox relays once per transaction and skips forms with no listeners. Import throughput rose from about 25 to about 180 rows/s locally.
+- **Record lists at full scale (ADR-0073):**
+  - lists count matches only up to `records.list_count_limit` (Settings, Records; default 1 000) and say "more than N" past it;
+  - a list counted exactly is sorted from its matches;
+  - past the limit, MySQL reads the sorted field's index in order;
+  - ties in a sort are broken by record id.
+- **Fewer queries per request and per imported row:**
+  - access policies and feature flags are kept for the request;
+  - cold permission resolution no longer sends every permission key;
+  - an imported row takes 6 queries instead of 10;
+  - global search reads every searched form's name in one query, instead of once per hit.
+- **`MYSQL_BUFFER_POOL_SIZE`** sizes MySQL's memory in the Docker stack (default 1 GB).
+- **`--danger` is now `#d0291d`**, and danger buttons use it: 4.5:1 on every surface.
+
+### Security
+- **PDF rendering** reaches images only through the egress gateway and reads no local files.
+- **Image and zip bombs** are refused before parsing.
+- **The 46 public routes** are pinned by a test.
+- **The audit chain** is verified after the end-to-end suite on both engines.
+- **Dependencies** updated for new advisories: `symfony/mime`, vue-i18n, ECharts, Vite and undici.
+- Details are in `docs/security-review.md`.
+
+### Fixed
+- **The two items carried forward (ADR-0069):**
+  - The PHP 8.3 JIT crash is an engine defect; the JIT stays off, and `php-jit.yml` tracks it under gdb.
+  - The run 152 data-repair scan timed out because the page never polled; it now does.
+- **The `encryption_keys` table of the ERD** now exists.
+
 ## [Unreleased] — Phase 4: Actions, Integrations & Background Work
 
 ### Fixed

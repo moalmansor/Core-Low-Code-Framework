@@ -1,0 +1,181 @@
+name: Performance
+
+# The budgets of architecture §20.2 on the Docker stack, on both engines, against the reference dataset of
+# §20.1 (backend/tests/Performance): 1 000 000 records in the measured form, 200 forms, 5 000 users and
+# 20 000 000 history rows. k6 drives the request budgets at a load scaled to the runner (see the k6 step);
+# the harness times permissions, formulas, the 100 000-row import, the three-level download and an
+# additive publish; Playwright times the 100-field form render and the client formulas.
+# perf/compare.mjs fails the job on a result over budget or more than 20 % slower than the engine's
+# baseline (perf/baseline). docs/performance.md records the results and how to read them.
+on:
+  push:
+    branches: [main, 'phase-*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      scale:
+        description: Dataset scale (1 = the full §20.1 dataset)
+        default: '1'
+      rate:
+        description: Requests per second, sustained (§20.2 sets 50 on the reference environment)
+        default: '10'
+      peak_rate:
+        description: Requests per second at peak (§20.2 sets 150 on the reference environment)
+        default: '30'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  budgets:
+    name: Budgets on ${{ matrix.db }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [mysql, sqlsrv]
+    env:
+      SCALE: ${{ inputs.scale || '1' }}
+      LCF_RATE: ${{ inputs.rate || '10' }}
+      LCF_PEAK_RATE: ${{ inputs.peak_rate || '30' }}
+      LCF_DB_PASSWORD: ${{ format('Db-{0}-pw', github.run_id) }}
+      LCF_SA_PASSWORD: ${{ format('Sa-{0}-Pw!', github.run_id) }}
+    steps:
+      - name: Disk space for 1 M records and 20 M history rows
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+      - uses: actions/checkout@v4
+      - name: Configuration files
+        run: |
+          cp .env.example .env
+          sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$LCF_DB_PASSWORD/; s/^DB_ROOT_PASSWORD=.*/DB_ROOT_PASSWORD=Root-$LCF_DB_PASSWORD/; s/^MSSQL_SA_PASSWORD=.*/MSSQL_SA_PASSWORD=$LCF_SA_PASSWORD/" .env
+          # The reference database server holds the working set in memory (32 GB); the runner has 16 GB for
+          # everything, so MySQL gets 6 GB of it (SQL Server sizes its own cache).
+          sed -i "s/^MYSQL_BUFFER_POOL_SIZE=.*/MYSQL_BUFFER_POOL_SIZE=6G/" .env
+          cp backend/.env.example backend/.env
+          if [ "${{ matrix.db }}" = sqlsrv ]; then
+            sed -i "s/^DB_CONNECTION=.*/DB_CONNECTION=sqlsrv/; s/^DB_HOST=.*/DB_HOST=sqlserver/; s/^DB_PORT=.*/DB_PORT=1433/; s/^DB_USERNAME=.*/DB_USERNAME=sa/; s/^DB_PASSWORD=.*/DB_PASSWORD=$LCF_SA_PASSWORD/; s/^DB_TRUST_SERVER_CERTIFICATE=.*/DB_TRUST_SERVER_CERTIFICATE=true/" backend/.env
+          else
+            sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$LCF_DB_PASSWORD/" backend/.env
+          fi
+          # Requests slower than 3 s leave their PHP stack in the app container's log (read after the load test).
+          echo "PHP_FPM_SLOWLOG_TIMEOUT=3s" >> backend/.env
+      - name: Build and start the stack
+        run: |
+          docker compose build
+          key=$(docker compose run --rm --no-deps --entrypoint php app artisan key:generate --show --no-ansi | tr -d '\r' | tail -n 1)
+          sed -i "s#^APP_KEY=.*#APP_KEY=$key#" backend/.env
+          profile=""; [ "${{ matrix.db }}" = sqlsrv ] && profile="--profile sqlsrv"
+          docker compose $profile up -d --wait --wait-timeout 600
+      - name: An administrator for the dataset (setup completed, two-factor enrolled)
+        run: |
+          docker compose exec -T -e HOME=/tmp app php artisan tinker --no-ansi --execute='
+            app(App\Modules\Core\Settings\SettingsService::class)->write("setup", "completed_at", now()->toIso8601String());
+            $u = new App\Modules\Identity\Models\User;
+            $u->forceFill(["name" => "Performance Admin", "email" => "perf-admin@perf.test", "status" => "active", "auth_source" => "local",
+              "password" => Illuminate\Support\Str::password(24), "password_changed_at" => now(),
+              "two_factor_secret" => Laravel\Fortify\Fortify::currentEncrypter()->encrypt(app(PragmaRX\Google2FA\Google2FA::class)->generateSecretKey()),
+              "two_factor_confirmed_at" => now()])->save();
+            $u->roles()->attach(DB::table("roles")->where("key", "super_admin")->value("id"), ["created_at" => now()->format("Y-m-d H:i:s.u")]);'
+      - name: Reference dataset (scale ${{ env.SCALE }})
+        run: |
+          docker compose exec -T -e LCF_PERFORMANCE=1 app php tests/Performance/bench.php dataset --admin=perf-admin@perf.test --scale=$SCALE --out=storage/app/perf-targets.json
+          docker compose cp app:/var/www/backend/storage/app/perf-targets.json perf-targets.json
+          docker compose exec -T -e HOME=/tmp app php artisan tinker --no-ansi --execute='foreach (app(App\Infrastructure\Database\Contracts\DatabaseDriver::class)->tableSizes() as $t => $bytes) { if ($bytes > 50e6) echo $t, " ", round($bytes / 1e6), " MB", PHP_EOL; }' || true
+          df -h /
+      # Before the load test, so no request still queued from it is timed with the jobs.
+      - name: Job budgets (permissions, formulas, import, download, publish)
+        run: |
+          docker compose exec -T -e LCF_PERFORMANCE=1 app php tests/Performance/bench.php measure --targets=storage/app/perf-targets.json --out=storage/app/perf-measure.json
+          docker compose cp app:/var/www/backend/storage/app/perf-measure.json perf-measure.json
+          cat perf-measure.json
+      - name: Background work from the jobs finished
+        run: |
+          # The import's records and events are still being worked through by the queues; the load test
+          # measures requests, not requests competing with a 100 000-row backlog.
+          for i in $(seq 90); do
+            left=$(docker compose exec -T -e HOME=/tmp app php artisan tinker --no-ansi --execute='$q = Illuminate\Support\Facades\Queue::class; echo $q::connection("redis")->size("default") + $q::connection("redis")->size("mail") + $q::connection("redis")->size("schema") + $q::connection("redis_heavy")->size("heavy");' | tr -dc '0-9')
+            echo "jobs waiting: ${left:-?}"
+            [ "${left:-1}" = "0" ] && exit 0
+            sleep 10
+          done
+          echo "::warning::queues still busy after 15 minutes"
+      # §20.2 sets 50 requests/s sustained and 150 at peak for the reference environment of §20.1 (two 4-vCPU
+      # application servers, a worker, Redis and an 8-vCPU database server). One 4-vCPU runner holds all of
+      # them and k6 too, about a fifth of that hardware, so it is loaded at a fifth of the rates: the latency
+      # budgets are checked at that load. docs/performance.md explains the scaling.
+      # The plan MySQL picks, unhinted, for the load test's list query (the first division's scope) on the
+      # dataset as loaded, with the sampled statistics it is based on (ADR-0073 item 4).
+      - name: List query plan (MySQL)
+        if: matrix.db == 'mysql'
+        continue-on-error: true
+        run: |
+          my() { docker compose exec -T mysql mysql -uroot -p"Root-$LCF_DB_PASSWORD" lcf "$@" 2>/dev/null; }
+          q="select * from f_perf_order where owner_department_id in (select descendant_id from department_closure where ancestor_id = (select id from departments where code = 'P0')) and deleted_at is null and urgent = 1 and channel in ('phone') and order_date >= '2025-06-01' and order_date <= '2026-12-31' order by amount desc, id desc limit 25"
+          plan() {
+            my -e "select index_name, stat_name, stat_value, sample_size, last_update from mysql.innodb_index_stats where database_name = 'lcf' and table_name = 'f_perf_order' and stat_name = 'n_diff_pfx01' and index_name in ('PRIMARY', 'ix_f_perf_order_amount', 'ix_f_perf_order_channel', 'ix_f_perf_order_urgent', 'ix_f_perf_order_order_date', 'ix_f_perf_order_owner_department_id')"
+            my -e "explain format=tree $q" | sed 's/\\n/\n/g'
+            timeout 120 docker compose exec -T mysql mysql -uroot -p"Root-$LCF_DB_PASSWORD" lcf -e "explain analyze $q" 2>/dev/null | sed 's/\\n/\n/g' || echo "explain analyze took over 120 s"
+          }
+          plan
+      - name: Load test (k6, ${{ env.LCF_RATE }}/s sustained, ${{ env.LCF_PEAK_RATE }}/s peak)
+        run: |
+          # Every 20 s while the load runs: CPU and memory per container, and the database's busy sessions.
+          ( while true; do
+              echo "== $(date -u +%H:%M:%S)"
+              docker stats --no-stream --format '{{.Name}} cpu={{.CPUPerc}} mem={{.MemUsage}}'
+              if [ "${{ matrix.db }}" = mysql ]; then
+                my() { docker compose exec -T mysql mysql -uroot -p"Root-$LCF_DB_PASSWORD" "$@" 2>/dev/null; }
+                my -N -e "select command, state, time, left(info, 160) from information_schema.processlist where command <> 'Sleep' and id <> connection_id() order by time desc limit 8"
+              else
+                # The longest-running requests: what they wait on, their reads, and their text.
+                docker compose exec -T sqlserver bash -c 'c=$(ls -d /opt/mssql-tools*/bin/sqlcmd | tail -n 1); case "$c" in *18*) t=-C;; esac; "$c" $t -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -W -s "|" -Q "set nocount on; select top 4 r.session_id, r.status, r.wait_type, r.cpu_time, r.total_elapsed_time, r.logical_reads, left(replace(t.text, char(10), char(32)), 700) as text from sys.dm_exec_requests r cross apply sys.dm_exec_sql_text(r.sql_handle) t where r.session_id <> @@spid and r.session_id > 50 order by r.total_elapsed_time desc"' 2>&1 | head -n 12
+              fi
+              sleep 20
+            done ) > perf-diag.txt 2>&1 &
+          echo $! > perf-diag.pid
+          docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD:/w" -w /w grafana/k6:0.54.0 run \
+            -e LCF_URL=http://localhost:8080 -e LCF_TARGETS=/w/perf-targets.json -e LCF_K6_OUT=/w/k6-summary.json \
+            -e LCF_RATE=$LCF_RATE -e LCF_PEAK_RATE=$LCF_PEAK_RATE perf/k6/load.js || echo "k6 thresholds failed; the comparison below decides"
+          kill "$(cat perf-diag.pid)" || true
+      - name: Where the time went under load (samples, slow requests)
+        if: always()
+        run: |
+          cat perf-diag.txt || true
+          echo "== slow requests (> 3 s): $(docker compose logs app --no-color | grep -c 'executing too slow' || true)"
+          docker compose logs app --no-color | grep -A 14 'executing too slow' | sed 's/^app-1 *| //' | head -n 300 || true
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - name: Browser budgets (form render, client formulas)
+        working-directory: frontend
+        env:
+          LCF_E2E_URL: http://localhost:8080
+          LCF_TARGETS: ../perf-targets.json
+          LCF_RENDER_OUT: ../perf-render.json
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npx playwright test -c playwright.perf.config.ts
+      - name: Compare with the budgets and the baseline
+        run: node perf/compare.mjs --engine ${{ matrix.db }} --k6 k6-summary.json --measure perf-measure.json --render perf-render.json --baseline perf/baseline/${{ matrix.db }}.json --out perf-results-${{ matrix.db }}.json --rate $LCF_RATE --peak-rate $LCF_PEAK_RATE --latency-stage sustained --regressions warn
+      - name: Container logs and errors (on failure)
+        if: failure()
+        run: |
+          docker compose --profile sqlsrv logs --no-color | grep -v 'ErrorAlertMail' | tail -n 300
+          docker compose exec -T -e HOME=/tmp app php artisan tinker --no-ansi --execute='foreach (DB::table("error_logs")->orderByDesc("id")->limit(20)->get(["occurred_at", "exception_class", "message", "file", "line"]) as $e) { echo $e->occurred_at, " ", $e->exception_class, " ", substr((string) $e->message, 0, 400), " @ ", $e->file, ":", $e->line, PHP_EOL; }' || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-${{ matrix.db }}
+          path: |
+            k6-summary.json
+            perf-diag.txt
+            perf-measure.json
+            perf-render.json
+            perf-results-${{ matrix.db }}.json

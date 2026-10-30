@@ -100,6 +100,14 @@ interface DatabaseDriver
     /** Row lock that skips rows locked by other transactions (queue claims). */
     public function skipLocked(Builder $query): Builder;
 
+    /**
+     * Reads `$table` first, through `$index` in the query's order, so a sorted page stops
+     * after its rows instead of collecting and sorting every match (MySQL: optimizer hints,
+     * whose choice otherwise turns on sampled statistics; SQL Server: unchanged, as its
+     * row goal already walks the index). Selects `$table.*`.
+     */
+    public function readInIndexOrder(Builder $query, string $table, string $index): Builder;
+
     public function namedLock(string $name, int $timeoutSeconds): bool;
 
     public function releaseNamedLock(string $name): void;
@@ -111,6 +119,39 @@ interface DatabaseDriver
      * @return list<string>
      */
     public function createTimePartitions(string $table, string $column, array $bounds): array;
+
+    /**
+     * The upper bounds (ISO dates) of a table's time partitions, oldest first;
+     * empty when the table is not partitioned.
+     *
+     * @return list<string>
+     */
+    public function timePartitionBounds(string $table): array;
+
+    /**
+     * Statements that add monthly partitions with the given upper bounds after
+     * the last one (the months ahead, kept by partitions:maintain).
+     *
+     * @param  list<string>  $bounds  ISO dates, later than every existing bound
+     * @return list<string>
+     */
+    public function addTimePartitions(string $table, array $bounds): array;
+
+    /**
+     * Size on disk (data and indexes, bytes) of every table of the current
+     * database, largest first; what the growth warnings watch.
+     *
+     * @return array<string, int>
+     */
+    public function tableSizes(): array;
+
+    /**
+     * Inserts rows keeping their own ids (an archived record restored under
+     * the id it had), on SQL Server with IDENTITY_INSERT for the statement.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     */
+    public function insertKeepingIds(string $table, array $rows): void;
 
     /**
      * Chunked, engine-neutral export of rows (JSON Lines + schema) to private

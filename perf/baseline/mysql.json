@@ -1,0 +1,17 @@
+{
+  "definition": 113.26,
+  "form_render": 97,
+  "record_view": 163.03,
+  "record_open": 146.67,
+  "record_list": 157.46,
+  "global_search": 345.52,
+  "record_save": 204.25,
+  "permission_cached": 0.82,
+  "permission_cold": 15.34,
+  "expression_server": 1.81,
+  "expression_client": 1.2,
+  "import_100k": 276.1,
+  "download_3_level_xlsx": 175.4,
+  "publish_additive": 3.2,
+  "error_rate": 0
+}

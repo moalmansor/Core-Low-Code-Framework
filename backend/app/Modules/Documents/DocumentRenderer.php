@@ -14,6 +14,7 @@ use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Templating\RenderContext;
 use App\Modules\Records\Templating\TemplateValues;
 use App\Modules\Views\PrintRenderer;
+use App\Support\Pdf\PdfFactory;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Storage;
 use Mpdf\Mpdf;
@@ -331,7 +332,7 @@ final class DocumentRenderer
         }
         $size = $paper['size'] === 'letter' ? 'Letter' : ($paper['size'] === 'legal' ? 'Legal' : strtoupper($paper['size']));
         $m = $paper['margins'];
-        $mpdf = new Mpdf([
+        $mpdf = app(PdfFactory::class)->make([
             'mode' => 'utf-8', 'format' => $size, 'orientation' => $paper['orientation'] === 'landscape' ? 'L' : 'P', 'tempDir' => $dir,
             'margin_top' => $m['top'], 'margin_right' => $m['right'], 'margin_bottom' => $m['bottom'], 'margin_left' => $m['left'],
             'default_font' => 'dejavusans', 'autoScriptToLang' => true, 'autoLangToFont' => true, 'autoArabic' => true,

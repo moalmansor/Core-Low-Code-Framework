@@ -72,3 +72,9 @@ One short record per significant decision (specification §8.1). New records are
 | [0066](0066-usage-insight.md) | Usage insight |
 | [0067](0067-review-safeguards.md) | Unreachable-screen guard and four safeguards found in review |
 | [0068](0068-report-cites-a-finished-run.md) | The verification report can only cite a finished run on the head commit |
+| [0069](0069-carried-forward-jit-crash-and-repair-scan.md) | The two items carried into Phase 6: the PHP JIT crash and the run 152 repair scan |
+| [0070](0070-retention-legal-holds-personal-data.md) | Retention, legal holds, storage quotas and personal data as built |
+| [0071](0071-data-keys-and-rotation.md) | Per-organization data keys and the key rotation procedure |
+| [0072](0072-bulk-work-throughput.md) | Bulk-work throughput: parallel import batches, batch memo, one audit chain per batch |
+| [0073](0073-lists-and-imports-at-full-scale.md) | Lists and imports at full scale: bounded counts, id tie-breaks, fewer round trips per imported row |
+| [0074](0074-request-budgets-on-the-sustained-stage.md) | CI checks the request budgets on the sustained stage of the scaled load, and reports regressions without failing |

@@ -96,7 +96,8 @@ final class AccessResolver
     {
         $result = [];
         $keys = $onlyKeys ?? Permission::query()->pluck('key')->all();
-        $grants = $this->applicableGrants($user, $keys);
+        // Every key: no key list in the query (thousands at 200 forms; a long IN list is slow on SQL Server).
+        $grants = $this->applicableGrants($user, $onlyKeys === null ? null : $keys);
         foreach ($keys as $key) {
             [$granted] = $this->decide($grants[$key] ?? []);
             $result[$key] = $granted;
@@ -147,10 +148,10 @@ final class AccessResolver
      * active roles, their department (and ancestors whose grant includes
      * descendants), and the user themself. Expired grants are ignored.
      *
-     * @param  list<string>  $keys
+     * @param  list<string>|null  $keys  null: every permission
      * @return array<string, list<array{tier: string, effect: string, subject_type: string, subject_id: int, include_descendants: bool, assignment_id: int}>>
      */
-    private function applicableGrants(User $user, array $keys): array
+    private function applicableGrants(User $user, ?array $keys): array
     {
         if ($keys === []) {
             return [];
@@ -164,7 +165,7 @@ final class AccessResolver
         $now = now()->format('Y-m-d H:i:s.u');
         $rows = PermissionAssignment::query()
             ->join('permissions', 'permissions.id', '=', 'permission_assignments.permission_id')
-            ->whereIn('permissions.key', $keys)
+            ->when($keys !== null, static fn ($q) => $q->whereIn('permissions.key', $keys))
             ->where(static fn ($q) => $q->whereNull('permission_assignments.valid_until')->orWhere('permission_assignments.valid_until', '>', $now))
             ->where(static function ($q) use ($user, $roleIds, $deptIds): void {
                 $q->where(static fn ($w) => $w->where('subject_type', 'user')->where('subject_id', $user->id));

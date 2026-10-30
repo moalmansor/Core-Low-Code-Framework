@@ -20,7 +20,9 @@ use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\RuleRuntime;
+use App\Support\BatchMemo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -67,7 +69,8 @@ final class Notifier
         if ($recordId === null) {
             return;
         }
-        $rules = DB::table('notification_rules')->where('form_id', $rt->form->id)->where('trigger', $trigger)->where('is_active', true)->orderBy('id')->get();
+        $rules = app(BatchMemo::class)->remember("notification_rules.{$rt->form->id}.{$trigger}", static fn () => DB::table('notification_rules')
+            ->where('form_id', $rt->form->id)->where('trigger', $trigger)->where('is_active', true)->orderBy('id')->get());
         foreach ($rules as $rule) {
             if (! $this->matches($rule, $rt, $trigger, $event)) {
                 continue;
@@ -503,10 +506,29 @@ final class Notifier
      * @param  array<string, mixed>  $new
      * @return array<string, mixed>
      */
+    /**
+     * The active "condition met" rules of a form.
+     *
+     * @return Collection<int, \stdClass>
+     */
+    public static function conditionRules(int $formId): Collection
+    {
+        return app(BatchMemo::class)->remember('notification_rules.condition_met.'.$formId, static fn () => DB::table('notification_rules')
+            ->where('form_id', $formId)->where('trigger', 'condition_met')->where('is_active', true)->whereNotNull('condition_id')->get(['uuid', 'condition_id']));
+    }
+
+    /** Whether the form has any active notification rule (so its record events are worth queueing). */
+    public static function formHasRules(string $formUuid): bool
+    {
+        return app(BatchMemo::class)->remember('notification_rules.any.'.strtolower($formUuid), static fn () => DB::table('notification_rules')
+            ->join('forms', 'forms.id', '=', 'notification_rules.form_id')->where('forms.uuid', strtolower($formUuid))
+            ->where('notification_rules.is_active', true)->exists());
+    }
+
     public function conditionsMet(FormRuntime $rt, ?array $old, array $new): array
     {
         $met = [];
-        foreach (DB::table('notification_rules')->where('form_id', $rt->form->id)->where('trigger', 'condition_met')->where('is_active', true)->whereNotNull('condition_id')->get(['uuid', 'condition_id']) as $r) {
+        foreach (self::conditionRules($rt->form->id) as $r) {
             $ast = $this->conditions->ast((int) $r->condition_id);
             if ($ast === null) {
                 continue;

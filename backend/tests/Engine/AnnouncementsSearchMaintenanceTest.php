@@ -94,6 +94,16 @@ it('searches the configured fields of the forms a person may see, within their s
     expect($hits)->toHaveCount(2)
         ->and($hits[0]['record']['subtitle'])->toBe('PR-1')
         ->and($hits[0]['score'])->toBeGreaterThan($hits[1]['score']);
+    // A form's name is read once per form, not once per hit: two hits cost what one does.
+    $nameReads = function (string $q): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->getJson('/api/v1/search?q='.$q)->assertOk();
+        DB::disableQueryLog();
+
+        return collect(DB::getQueryLog())->filter(fn (array $e) => preg_match('/from\W+translations\W/i', $e['query']) === 1)->count();
+    };
+    expect($nameReads('printer'))->toBe($nameReads('PH-3'));
 
     // Someone without the form finds nothing; someone with it finds records; the sensitive field is never searched.
     $viewer = $this->makeUser();

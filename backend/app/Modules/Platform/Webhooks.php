@@ -20,6 +20,7 @@ use App\Modules\Records\Runtime\FormRuntimes;
 use App\Modules\Records\Runtime\RecordPresenter;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Workflow\Runtime\WorkflowRuntime;
+use App\Support\BatchMemo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -79,6 +80,13 @@ final class Webhooks
      * @param  array<string, mixed>  $payload
      * @return list<int> the delivery ids
      */
+    /** Whether the organization has any active webhook (so its record events are worth queueing). */
+    public static function anyActive(int $organizationId): bool
+    {
+        return app(BatchMemo::class)->remember('webhooks.any.'.$organizationId, static fn () => Webhook::query()->withoutGlobalScope('organization')
+            ->where('organization_id', $organizationId)->where('is_active', true)->exists());
+    }
+
     public function fanOut(string $outboxType, array $payload, int $organizationId): array
     {
         $event = self::eventOf($outboxType, $payload);

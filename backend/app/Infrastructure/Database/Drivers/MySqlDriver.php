@@ -116,6 +116,15 @@ final class MySqlDriver extends AbstractDriver
         return $query->lock('for update skip locked');
     }
 
+    public function readInIndexOrder(Builder $query, string $table, string $index): Builder
+    {
+        $this->assertIdentifier($table);
+        $this->assertIdentifier($index);
+        $t = $this->wrap($table);
+
+        return $query->select(new Raw(sprintf('/*+ JOIN_PREFIX(%1$s) ORDER_INDEX(%1$s %2$s) */ %1$s.*', $t, $this->wrap($index))));
+    }
+
     public function namedLock(string $name, int $timeoutSeconds): bool
     {
         $row = $this->connection->selectOne('select get_lock(?, ?) as acquired', [substr($name, 0, 64), $timeoutSeconds]);
@@ -140,6 +149,58 @@ final class MySqlDriver extends AbstractDriver
         $parts[] = 'partition pmax values less than (maxvalue)';
 
         return [sprintf('alter table %s partition by range columns(%s) (%s)', $this->wrap($table), $this->wrap($column), implode(', ', $parts))];
+    }
+
+    public function timePartitionBounds(string $table): array
+    {
+        $this->assertIdentifier($table);
+        $rows = $this->connection->select(
+            'select partition_description as bound from information_schema.partitions
+             where table_schema = database() and table_name = ? and partition_name is not null order by partition_ordinal_position',
+            [$table],
+        );
+        $bounds = [];
+        foreach ($rows as $row) {
+            if (preg_match('/(\d{4}-\d{2}-\d{2})/', (string) $row->bound, $m) === 1) {
+                $bounds[] = $m[1];
+            }
+        }
+
+        return $bounds;
+    }
+
+    public function addTimePartitions(string $table, array $bounds): array
+    {
+        $this->assertIdentifier($table);
+        if ($bounds === []) {
+            return [];
+        }
+        $parts = [];
+        foreach ($bounds as $bound) {
+            $date = $this->assertDate($bound);
+            $parts[] = sprintf("partition p%s values less than ('%s')", str_replace('-', '', $date), $date);
+        }
+        $parts[] = 'partition pmax values less than (maxvalue)';
+
+        return [sprintf('alter table %s reorganize partition pmax into (%s)', $this->wrap($table), implode(', ', $parts))];
+    }
+
+    public function tableSizes(): array
+    {
+        $out = [];
+        foreach ($this->connection->select('select table_name as name, coalesce(data_length, 0) + coalesce(index_length, 0) as bytes from information_schema.tables where table_schema = database() and table_type = ? order by bytes desc', ['BASE TABLE']) as $row) {
+            $out[(string) $row->name] = (int) $row->bytes;
+        }
+
+        return $out;
+    }
+
+    public function insertKeepingIds(string $table, array $rows): void
+    {
+        $this->assertIdentifier($table);
+        if ($rows !== []) {
+            $this->connection->table($table)->insert($rows);
+        }
     }
 
     public function maxIndexKeyBytes(): int

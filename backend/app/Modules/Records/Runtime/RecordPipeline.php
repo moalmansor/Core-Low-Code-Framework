@@ -22,12 +22,16 @@ use App\Modules\Justification\JustificationGate;
 use App\Modules\Records\Models\StoredFile;
 use App\Modules\Reference\Models\NumberSequence;
 use App\Modules\Reference\NumberGenerator;
+use App\Modules\Retention\StorageQuotas;
+use App\Modules\Retention\SubjectKeys;
 use App\Modules\Workflow\Runtime\SlaTimers;
 use App\Modules\Workflow\Runtime\WorkflowEngine;
 use App\Modules\Workflow\Runtime\WorkflowRuntime;
+use App\Support\BatchMemo;
 use App\Support\Json\Canonical;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 /**
@@ -99,8 +103,9 @@ final class RecordPipeline
                 throw new RecordException(422, 'invalid', __('records.invalid'), ['errors' => $errors]);
             }
             app(DuplicateGuard::class)->check($rt, $user, $values, null, 'create', $source);
-            // A crash between commit and journal update: the record exists under the journal's uuid.
-            if (($existing = $this->store->find($rt, $entry['uuid'], true)) !== null) {
+            // A crash between commit and journal update: the record exists under the journal's uuid. A journal
+            // entry opened just now ('new') has had no earlier attempt, so there is nothing to find.
+            if ($entry['state'] !== 'new' && ($existing = $this->store->find($rt, $entry['uuid'], true)) !== null) {
                 $this->journal->processed($entry['id'], $existing['id']);
 
                 return ['id' => $existing['id'], 'uuid' => $existing['uuid']];
@@ -125,7 +130,7 @@ final class RecordPipeline
                 ] + $links;
                 $id = $this->store->insert($rt, $entry['uuid'], $values, $system);
                 $this->attachFiles($rt, $id, $values, $user);
-                $this->audit->record('record.created', 'data', $this->diff($rt, [], $values), 'record', $id, ['form' => $rt->form->key, 'row_version' => 1], $user->id, null, $rt->form->id, $id, $onBehalf);
+                $this->audit->record('record.created', 'data', $this->diff($rt, [], $values, $id), 'record', $id, ['form' => $rt->form->key, 'row_version' => 1], $user->id, null, $rt->form->id, $id, $onBehalf);
                 $this->workflow->enter($rt, $id, $values, $user->id, $onBehalf, $user->department_id === null ? null : (int) $user->department_id, $start);
                 $this->outbox->publish('record.saved', ['form' => $rt->form->uuid, 'record' => $entry['uuid'], 'operation' => 'create', 'actor' => $user->id]
                     + $this->observers->payload($rt, null, $values, $user));
@@ -206,7 +211,7 @@ final class RecordPipeline
                         }
                     }
                     $values = $this->assignNumbers($rt, $values, $current['values']);
-                    $diff = $this->diff($rt, $current['values'], $values);
+                    $diff = $this->diff($rt, $current['values'], $values, $current['id']);
                     $justificationId = $justifiedBy ?? ($validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'edit', $validated, $this->justified($diff), 1, $onBehalf));
                     $ok = $this->store->update($rt, $current['id'], $expectedVersion, $values, $changed, [
                         'updated_by' => $user->id, 'form_version_id' => $rt->versionId, 'search_text' => $this->searchText($rt, $values),
@@ -319,7 +324,7 @@ final class RecordPipeline
                 'fields' => $changed, 'status' => $statusId, 'transition' => $t['id'], 'values' => $values, 'old' => $current['values'],
             ], $input['justification'] ?? null);
             $result = DB::transaction(function () use ($rt, $user, $current, $values, $changed, $expectedVersion, $levels, $t, $validated, $onBehalf, $comment, $attachments, $source, $justifiedBy): array {
-                $diff = $this->diff($rt, $current['values'], $values);
+                $diff = $this->diff($rt, $current['values'], $values, $current['id']);
                 $justificationId = $justifiedBy ?? ($validated === null ? null : $this->justifications->record($rt, $current['id'], $user, 'transition', $validated, $this->justified($diff), 1, $onBehalf));
                 $version = $expectedVersion;
                 if ($changed !== []) {
@@ -503,7 +508,10 @@ final class RecordPipeline
         if (in_array($ability, ['create', 'edit'], true) && ($modes[$ability] ?? true) === false) {
             throw new RecordException(403, 'mode_disabled', __('records.mode_disabled'));
         }
-        if (PublishLockedRecords::locked($form->id)) {
+        // Read once per bulk unit (an import batch): the batch's transaction holds the record table, so a
+        // publish that would lock the form waits for the batch to commit anyway. Maintenance mode, above,
+        // is a security check and is read for every record (ADR-0072).
+        if (app(BatchMemo::class)->remember('publish_locked.'.$form->id, static fn () => PublishLockedRecords::locked($form->id))) {
             throw new RecordException(423, 'locked', __('forms.locked'));
         }
 
@@ -895,13 +903,21 @@ final class RecordPipeline
                 if (! $mine && ! $already) {
                     throw new RecordException(422, 'invalid', __('records.invalid'), ['errors' => [$rt->fields[$fieldUuid]['key'] => [__('records.rules.file_missing')]]]);
                 }
+                if ($mine) {
+                    // A new file must fit the storage quotas of the form, its application and the organization (§4.26).
+                    try {
+                        app(StorageQuotas::class)->assertRoom($rt->form->organization_id, $rt->form->id, (int) $file->size_bytes);
+                    } catch (ValidationException) {
+                        throw new RecordException(422, 'invalid', __('records.invalid'), ['errors' => [$rt->fields[$fieldUuid]['key'] => [__('retention.quota_exceeded')]]]);
+                    }
+                }
                 $file->forceFill(['is_temporary' => false, 'form_id' => $rt->form->id, 'record_id' => $recordId, 'field_id' => $fieldId, 'owner_type' => 'record', 'owner_id' => $recordId])->save();
             }
         }
     }
 
     /** Normalized text of the searchable fields (architecture §11.2 `search_text`). */
-    private function searchText(FormRuntime $rt, array $values): ?string
+    public function searchText(FormRuntime $rt, array $values): ?string
     {
         $wanted = $rt->definition['form']['settings']['searchFields'] ?? [];
         $parts = [];
@@ -927,12 +943,14 @@ final class RecordPipeline
     }
 
     /**
-     * Field-level diff for the audit log (track-changes fields only; sensitive values masked).
+     * Field-level diff for the audit log (track-changes fields only; sensitive values masked;
+     * personal-data values sealed with the record's subject key, ADR-0014).
      *
      * @return list<array{field_key: string, old: mixed, new: mixed}>
      */
-    private function diff(FormRuntime $rt, array $before, array $after): array
+    private function diff(FormRuntime $rt, array $before, array $after, int $recordId): array
     {
+        $keys = app(SubjectKeys::class);
         $out = [];
         foreach ($rt->mainFields() as $f) {
             if (! $rt->isStored($f) || ! ($f['flags']['trackChanges'] ?? true)) {
@@ -944,6 +962,11 @@ final class RecordPipeline
                 continue;
             }
             $mask = ($f['flags']['sensitive'] ?? false) || ($f['flags']['encrypted'] ?? false);
+            if (! $mask && ($f['flags']['personal'] ?? false)) {
+                $out[] = ['field_key' => $f['key'], 'old' => $keys->seal($rt->form->id, $recordId, $old), 'new' => $keys->seal($rt->form->id, $recordId, $new)];
+
+                continue;
+            }
             $out[] = ['field_key' => $f['key'], 'old' => $mask && $old !== null ? '«masked»' : $old, 'new' => $mask && $new !== null ? '«masked»' : $new];
         }
         foreach ($rt->repeaters as $rep) {
@@ -978,7 +1001,7 @@ final class RecordPipeline
                 continue;
             }
             $last = $e;
-            foreach (json_decode((string) $e->changes, true) ?: [] as $c) {
+            foreach (app(SubjectKeys::class)->openChanges($rt->form->id, $current['id'], json_decode((string) $e->changes, true) ?: []) as $c) {
                 $changed[$c['field_key']] ??= ['base' => $c['old']];
             }
         }

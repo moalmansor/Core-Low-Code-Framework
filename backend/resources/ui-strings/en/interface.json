@@ -24,6 +24,7 @@
   "records.apply_refresh": "Apply & refresh",
   "records.count": "{from}–{to} of {total}",
   "records.count_none": "No records",
+  "records.count_more": "{from}–{to} of more than {total}",
   "records.delete_selected": "Delete {n} selected",
   "records.delete_selected_confirm": "Delete {n} selected records? They move to the trash and can be restored by someone allowed to.",
   "records.deleted_n": "{n} records deleted",

@@ -19,12 +19,12 @@ use App\Modules\Records\FileStore;
 use App\Modules\Records\Models\StoredFile;
 use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\RecordException;
+use App\Support\Pdf\PdfFactory;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Mpdf\Mpdf;
 use setasign\Fpdi\PdfParser\StreamReader;
 use Throwable;
 
@@ -298,7 +298,9 @@ final class Signatures
             throw ValidationException::withMessages(['signature' => __('external.signature_missing')]);
         }
         $raw = base64_decode(substr($image, strlen('data:image/png;base64,')), true);
-        $gd = $raw === false ? false : @imagecreatefromstring($raw);
+        // Dimensions come from the header before decoding, so a crafted PNG cannot claim gigabytes of pixels.
+        $size = $raw === false ? false : @getimagesizefromstring($raw);
+        $gd = $size === false || $size[0] > 2000 || $size[1] > 1000 ? false : @imagecreatefromstring((string) $raw);
         if ($gd === false || imagesx($gd) < 50 || imagesy($gd) < 20 || imagesx($gd) > 2000 || imagesy($gd) > 1000) {
             throw ValidationException::withMessages(['signature' => __('external.signature_missing')]);
         }
@@ -316,7 +318,7 @@ final class Signatures
         if (! is_dir($dir)) {
             mkdir($dir, 0775, true);
         }
-        $mpdf = new Mpdf(['mode' => 'utf-8', 'tempDir' => $dir, 'default_font' => 'dejavusans', 'autoScriptToLang' => true, 'autoLangToFont' => true, 'autoArabic' => true]);
+        $mpdf = app(PdfFactory::class)->make(['mode' => 'utf-8', 'tempDir' => $dir, 'default_font' => 'dejavusans', 'autoScriptToLang' => true, 'autoLangToFont' => true, 'autoArabic' => true]);
         $mpdf->showImageErrors = false;
         $pages = $mpdf->setSourceFile(StreamReader::createByString($original));
         for ($i = 1; $i <= $pages; $i++) {

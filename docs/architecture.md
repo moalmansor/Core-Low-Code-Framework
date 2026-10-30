@@ -547,6 +547,11 @@ outbound HTTP (enforced by arch test banning `Http::`, Guzzle, `curl_*`,
   "searchable encrypted" on the field.
 - Logs: `Masker` removes values of fields flagged sensitive/encrypted, passwords,
   tokens, and configured header names before writing to any sink.
+- **As built (ADR-0071):**
+  - **Data keys.** `DataKeys` implements the envelope scheme for the `fields` and `blind_index` purposes. Keys are created on first use. Values written before data keys existed still open.
+  - **`keys:rotate`** moves an organization's encrypted values or blind indexes to a new key, using compare-and-swap updates.
+  - **`keys:rewrap`** re-seals everything sealed with `APP_KEY` after a master-key change, and clears the settings cache.
+  - **Purposes not used yet.** `files` and `secrets` keys are reserved: file contents rely on disk encryption, and secrets are sealed with `APP_KEY` and re-sealed by `keys:rewrap`.
 
 ### 7.6 External surfaces
 
@@ -2594,6 +2599,7 @@ erDiagram
   forms ||--o{ actions : has
   actions ||--o{ action_steps : chain
   forms ||--o{ import_jobs : imports
+  import_jobs ||--o{ import_job_batches : batches
 ```
 
 **`views`** (table configuration per form, per role)
@@ -2997,6 +3003,26 @@ erDiagram
 - **Check:** `ck_import_jobs_mode`: `mode IN ('insert', 'update', 'upsert')` (both engines)
 - **Check:** `ck_import_jobs_status`: `status IN ('queued', 'validating', 'running', 'completed', 'completed_with_errors', 'failed', 'cancelled')` (both engines)
 - **Check (SQL Server):** `ck_import_jobs_mapping_json`: `ISJSON(mapping) = 1`
+
+**`import_job_batches`** (supporting — parallel imports, ADR-0072)
+
+| Column | MySQL 8 | SQL Server 2019 | Null | Default | Notes |
+|---|---|---|---|---|---|
+| `id` | BIGINT UNSIGNED AUTO_INCREMENT | BIGINT IDENTITY(1,1) | NOT NULL | — |  |
+| `import_job_id` | BIGINT UNSIGNED | BIGINT | NOT NULL | — | → `import_jobs.id` CASCADE |
+| `batch_no` | INT | INT | NOT NULL | — | 500-row batch, from 1 |
+| `outcome` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `committed`, `cancelled`, `time_limit` |
+| `processed_rows` | INT | INT | NOT NULL | 0 |  |
+| `created_count` | INT | INT | NOT NULL | 0 |  |
+| `updated_count` | INT | INT | NOT NULL | 0 |  |
+| `error_count` | INT | INT | NOT NULL | 0 |  |
+| `created_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
+
+- **Primary key:** `pk_import_job_batches` (`id`); SQL Server clustered.
+- **Unique:** `uq_import_job_batches_import_job_id_batch_no` (`import_job_id`, `batch_no`)
+- **Foreign key:** `fk_import_job_batches_import_job_id`: `import_job_id` → `import_jobs`(`id`) ON DELETE CASCADE
+- **Check:** `ck_import_job_batches_outcome` (`outcome` in the values above)
+- An insert-mode import runs each batch as its own queued job; the batch's row is written first in the batch's transaction, so a batch delivered twice stops at the unique key, and the import's totals are the sums of its batches.
 
 **`export_jobs`** (supporting — built-in exports)
 
@@ -5280,7 +5306,7 @@ admin-created, never seeded.
 | `updated_at` | DATETIME(6) | DATETIME2(6) | NOT NULL | — | set by the application (UTC) |
 | `created_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
 | `updated_by` | BIGINT UNSIGNED | BIGINT | NULL | — | → `users.id` NO ACTION |
-| `metric` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `failed_submissions`, `failed_jobs`, `failed_emails`, `stuck_emails`, `failed_webhooks`, `failed_integrations`, `queue_size`, `error_rate`, `storage_usage`, `scheduler_lag` |
+| `metric` | VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin | VARCHAR(32) COLLATE Latin1_General_100_BIN2 | NOT NULL | — | values: `failed_submissions`, `failed_jobs`, `failed_emails`, `stuck_emails`, `failed_webhooks`, `failed_integrations`, `queue_size`, `error_rate`, `storage_usage`, `largest_table_mb`, `scheduler_lag` |
 | `threshold` | INT | INT | NOT NULL | — |  |
 | `window_minutes` | INT | INT | NOT NULL | — |  |
 | `recipient_role_ids` | JSON | NVARCHAR(MAX) | NOT NULL | — |  |
@@ -5296,7 +5322,7 @@ admin-created, never seeded.
 - **Foreign key:** `fk_operations_alert_rules_organization_id`: `organization_id` → `organizations`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_operations_alert_rules_created_by`: `created_by` → `users`(`id`) ON DELETE NO ACTION
 - **Foreign key:** `fk_operations_alert_rules_updated_by`: `updated_by` → `users`(`id`) ON DELETE NO ACTION
-- **Check:** `ck_operations_alert_rules_metric`: `metric IN ('failed_submissions', 'failed_jobs', 'failed_emails', 'stuck_emails', 'failed_webhooks', 'failed_integrations', 'queue_size', 'error_rate', 'storage_usage', 'scheduler_lag')` (both engines)
+- **Check:** `ck_operations_alert_rules_metric`: `metric IN ('failed_submissions', 'failed_jobs', 'failed_emails', 'stuck_emails', 'failed_webhooks', 'failed_integrations', 'queue_size', 'error_rate', 'storage_usage', 'largest_table_mb', 'scheduler_lag')` (both engines)
 - **Check (SQL Server):** `ck_operations_alert_rules_recipient_role_ids_json`: `ISJSON(recipient_role_ids) = 1`
 
 **`operations_dismissals`** (supporting — §4.2 failed jobs dismissed with a reason, ADR-0045)
@@ -7306,6 +7332,14 @@ At pipeline step 9 the `JustificationGate`:
   that anonymization destroys — crypto-shredding: the ciphertext and therefore the
   chain hashes are untouched, but the values become unrecoverable, ADR-0014).
 - Storage quotas measured nightly; warnings at threshold; uploads blocked at hard limit.
+- **As built (ADR-0070):**
+  - **Audit logs are archived, never removed or switched out.** CLAUDE.md makes audit entries immutable; the conflict with "switched out to an archive table" above is raised in the Phase 6 pull request. An audit-log policy writes a verified monthly copy (JSON Lines plus a chain proof) to the `archive` disk once.
+  - **Error logs and the other logs** are deleted in partition-local chunks, never by partition DDL.
+  - **Record archives and restores.** Record archives are full snapshots (repeater rows, links, file contents) restored under their original id through `DatabaseDriver::insertKeepingIds`.
+  - **Partition maintenance.** `partitions:maintain` runs daily.
+  - **Nightly upkeep.** `retention:maintain` runs nightly before the recycle-bin purge: it recomputes legal-hold flags and measures quotas.
+  - **Quota enforcement.** Quotas are also checked live at upload and attach.
+  - **Sealing.** Values are sealed with libsodium secretbox. Subject keys are wrapped with the application key.
 
 ### 19.17 Applications & tenancy
 
@@ -7474,13 +7508,17 @@ As built (ADR-0064 to ADR-0066):
 | Publish of an additive change on a 1 M-row table (MySQL INSTANT / SQL Server metadata-only add) | ≤ 30 s |
 
 Budgets are asserted by k6 load scripts and Playwright performance marks in Phase
-6; regressions beyond 20 % fail the performance job.
+6; regressions beyond 20 % fail the performance job. In CI the load is scaled to the
+runner, and the request p95s are asserted on its sustained stage. On shared CI
+runners, a regression against the baseline is reported as a warning, because the
+same code varies by more than 20 % from run to run (ADR-0074; `docs/performance.md`).
 
 ### 20.3 Capacity assumptions & levers
 
 Metadata caching (§3.1, §16.5) means a typical request does 0 metadata queries;
-records use indexed filters only (filterable fields get indexes); list counts use
-estimated counts above 100 000 rows (exact count on demand); heavy work is queued;
+records use indexed filters only (filterable fields get indexes); list counts are
+exact up to `records.list_count_limit` (default 1 000) and say "more than N" past it,
+and a list counted exactly is sorted from its matches (ADR-0073); heavy work is queued;
 read replicas can be configured for reports/downloads (`read` connection) without
 code changes.
 

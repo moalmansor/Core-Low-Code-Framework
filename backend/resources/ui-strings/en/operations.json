@@ -77,6 +77,7 @@
   "ops.metric.failed_webhooks": "Failed webhook calls",
   "ops.metric.queue_size": "Waiting jobs",
   "ops.metric.scheduler_lag": "Minutes since the scheduler ran",
+  "ops.metric.largest_table_mb": "Largest table (MB)",
   "ops.metric.storage_usage": "Storage used (%)",
   "ops.metric.stuck_emails": "Stuck e-mails",
   "ops.minutes": "minutes",

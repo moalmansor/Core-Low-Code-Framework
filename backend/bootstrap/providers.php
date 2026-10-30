@@ -16,6 +16,7 @@ use App\Modules\ModulesServiceProvider;
 use App\Modules\Notifications\NotificationsServiceProvider;
 use App\Modules\Platform\PlatformServiceProvider;
 use App\Modules\Reports\ReportsServiceProvider;
+use App\Modules\Retention\RetentionServiceProvider;
 use App\Modules\Scheduling\SchedulingServiceProvider;
 use App\Providers\AppServiceProvider;
 
@@ -37,5 +38,6 @@ return [
     ExperienceServiceProvider::class,
     ExternalServiceProvider::class,
     IntegrationsServiceProvider::class,
+    RetentionServiceProvider::class,
     ModulesServiceProvider::class,
 ];

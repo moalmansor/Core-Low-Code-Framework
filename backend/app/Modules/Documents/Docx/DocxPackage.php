@@ -6,6 +6,7 @@ namespace App\Modules\Documents\Docx;
 
 use App\Modules\Records\Templating\TemplateValues;
 use App\Modules\Records\Templating\ValueFormat;
+use App\Support\Files\ZipGuard;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -52,6 +53,9 @@ final class DocxPackage
      */
     public static function inspect(string $path): array
     {
+        if (! ZipGuard::safe($path)) {
+            return ['tokens' => [], 'row_groups' => [], 'problems' => ['not_docx']];
+        }
         $zip = new ZipArchive;
         if ($zip->open($path, ZipArchive::RDONLY) !== true) {
             return ['tokens' => [], 'row_groups' => [], 'problems' => ['not_docx']];

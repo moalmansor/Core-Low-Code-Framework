@@ -121,6 +121,14 @@ final class SqlServerDriver extends AbstractDriver
         return $query->lock('with(rowlock, updlock, readpast)');
     }
 
+    public function readInIndexOrder(Builder $query, string $table, string $index): Builder
+    {
+        $this->assertIdentifier($table);
+        $this->assertIdentifier($index);
+
+        return $query->select($table.'.*');
+    }
+
     public function namedLock(string $name, int $timeoutSeconds): bool
     {
         $row = $this->connection->selectOne(
@@ -160,6 +168,65 @@ final class SqlServerDriver extends AbstractDriver
             sprintf('alter table %s drop constraint %s', $this->wrap($table), $pk),
             sprintf('alter table %s add constraint %s primary key clustered (%s, %s) on %s(%s)', $this->wrap($table), $pk, $this->wrap($column), $this->wrap('id'), $scheme, $this->wrap($column)),
         ];
+    }
+
+    public function timePartitionBounds(string $table): array
+    {
+        $this->assertIdentifier($table);
+        $rows = $this->connection->select(
+            'select convert(varchar(10), cast(v.value as datetime2(6)), 23) as bound from sys.partition_range_values v
+             join sys.partition_functions f on f.function_id = v.function_id where f.name = ? order by v.boundary_id',
+            ['pf_'.$table.'_monthly'],
+        );
+
+        return array_map(static fn ($r): string => (string) $r->bound, $rows);
+    }
+
+    public function addTimePartitions(string $table, array $bounds): array
+    {
+        $this->assertIdentifier($table);
+        $function = $this->wrap('pf_'.$table.'_monthly');
+        $scheme = $this->wrap('ps_'.$table.'_monthly');
+        $out = [];
+        foreach ($bounds as $bound) {
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $bound) !== 1) {
+                throw new InvalidArgumentException("Invalid partition bound [{$bound}].");
+            }
+            $out[] = "alter partition scheme {$scheme} next used [primary]";
+            $out[] = "alter partition function {$function}() split range ('{$bound}')";
+        }
+
+        return $out;
+    }
+
+    public function tableSizes(): array
+    {
+        // Allocation units are visible to anyone who can see the table, so no server-state permission is needed.
+        $out = [];
+        foreach ($this->connection->select('select t.name as name, sum(a.total_pages) * 8192 as bytes from sys.tables t
+             join sys.partitions p on p.object_id = t.object_id join sys.allocation_units a on a.container_id = p.partition_id
+             group by t.name order by bytes desc') as $row) {
+            $out[(string) $row->name] = (int) $row->bytes;
+        }
+
+        return $out;
+    }
+
+    public function insertKeepingIds(string $table, array $rows): void
+    {
+        $this->assertIdentifier($table);
+        if ($rows === []) {
+            return;
+        }
+        $wrapped = $this->wrap($table);
+        $this->connection->transaction(function () use ($wrapped, $table, $rows): void {
+            $this->connection->unprepared("set identity_insert {$wrapped} on");
+            try {
+                $this->connection->table($table)->insert($rows);
+            } finally {
+                $this->connection->unprepared("set identity_insert {$wrapped} off");
+            }
+        });
     }
 
     public function maxIdentifierLength(): int

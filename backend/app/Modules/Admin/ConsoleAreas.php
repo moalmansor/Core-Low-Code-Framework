@@ -47,6 +47,7 @@ final class ConsoleAreas
         'translations' => ['configuration', ['system.manage_translations'], '/admin/translations'],
         'system_settings' => ['configuration', ['system.manage_settings'], '/admin/settings'],
         'audit_log' => ['compliance', ['system.view_audit_log'], '/admin/audit'],
+        'retention' => ['compliance', ['system.manage_retention', 'system.apply_legal_hold', 'system.manage_personal_data_requests'], '/admin/retention'],
         'reason_codes' => ['compliance', ['system.manage_justification_rules'], '/admin/reason-codes'],
         'operations_center' => ['operations', ['system.manage_operations'], '/admin/operations'],
         'error_monitoring' => ['operations', ['system.view_errors'], '/admin/errors'],

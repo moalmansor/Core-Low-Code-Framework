@@ -89,6 +89,32 @@ export const ProductPreset = definePreset(Aura, {
     mask: { background: 'var(--overlay)', color: 'var(--text)' },
   },
   components: {
+    // Danger buttons in the product's danger colour (WCAG AA on every surface, src/theme/contrast.spec.ts), not
+    // Aura's red, whose text and outlined variants fall below 4.5:1 on the page background.
+    button: {
+      root: {
+        danger: {
+          background: 'var(--danger)',
+          hoverBackground: 'color-mix(in srgb, var(--danger) 88%, var(--text))',
+          activeBackground: 'color-mix(in srgb, var(--danger) 80%, var(--text))',
+          borderColor: 'var(--danger)',
+          hoverBorderColor: 'color-mix(in srgb, var(--danger) 88%, var(--text))',
+          activeBorderColor: 'color-mix(in srgb, var(--danger) 80%, var(--text))',
+          color: 'var(--on-danger)',
+          hoverColor: 'var(--on-danger)',
+          activeColor: 'var(--on-danger)',
+          focusRing: { color: 'var(--focus-ring)', shadow: 'none' },
+        },
+      },
+      outlined: { danger: { hoverBackground: 'var(--danger-subtle)', activeBackground: 'var(--danger-subtle)', borderColor: 'var(--danger)', color: 'var(--danger)' } },
+      text: { danger: { hoverBackground: 'var(--danger-subtle)', activeBackground: 'var(--danger-subtle)', color: 'var(--danger)' } },
+    },
+    // Badges (unread counts) in the product's tones: Aura's red badge is 3.76:1 with white text.
+    badge: {
+      primary: { background: 'var(--primary)', color: 'var(--on-primary)' },
+      success: { background: 'var(--success)', color: 'var(--on-success)' },
+      danger: { background: 'var(--danger)', color: 'var(--on-danger)' },
+    },
     message: { info: severity('primary'), success: severity('success'), warn: severity('warning'), error: severity('danger'), secondary: severity('primary'), contrast: severity('primary') },
     toast: {
       info: { ...severity('primary'), detailColor: 'var(--text)' },

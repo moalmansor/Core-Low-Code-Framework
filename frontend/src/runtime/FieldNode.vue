@@ -64,7 +64,7 @@ function onFocus(): void {
       <label v-if="!inlineLabel" :for="inputId" :class="position === 'hidden' ? 'sr-only' : ['lcf-label text-sm font-medium', position === 'side' ? 'md:pt-2' : '']">
         <i v-if="field.ui.icon" :class="`${field.ui.icon} me-1 text-muted-color`" />{{ label
         }}<span v-if="s.required && !readOnlyView" class="text-danger ms-1" :aria-label="t('runtime.required')">*</span>
-        <i v-if="tooltip" v-tooltip.top="tooltip" class="pi pi-info-circle ms-1 text-muted-color" tabindex="0" :aria-label="tooltip" />
+        <i v-if="tooltip" v-tooltip.top="tooltip" class="pi pi-info-circle ms-1 text-muted-color" tabindex="0" role="img" :aria-label="tooltip" />
       </label>
       <div class="min-w-0">
         <p v-if="description && !compact" class="text-sm text-muted-color mb-1">{{ description }}</p>

@@ -12,6 +12,7 @@ use App\Modules\Records\Runtime\FormRuntime;
 use App\Modules\Records\Runtime\RecordException;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\RecycleBin;
+use App\Support\BatchMemo;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -51,8 +52,8 @@ final class DuplicateGuard
      */
     public function check(FormRuntime $rt, User $user, array $values, ?int $recordId, string $operation, string $source): void
     {
-        $rules = DB::table('duplicate_rules')->where('form_id', $rt->form->id)->where('is_active', true)
-            ->whereIn('applies_on', [$operation, 'both'])->orderBy('id')->get();
+        $rules = app(BatchMemo::class)->remember("duplicate_rules.{$rt->form->id}.{$operation}", static fn () => DB::table('duplicate_rules')
+            ->where('form_id', $rt->form->id)->where('is_active', true)->whereIn('applies_on', [$operation, 'both'])->orderBy('id')->get());
         if ($rules->isEmpty()) {
             return;
         }

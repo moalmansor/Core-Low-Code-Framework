@@ -11,6 +11,7 @@ use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\RecordScope;
 use App\Modules\Adoption\UsageRecorder;
 use App\Modules\Core\I18n\Translator;
+use App\Modules\Core\Settings\SettingsService;
 use App\Modules\DataQuality\DuplicateGuard;
 use App\Modules\Extensions\HookRunner;
 use App\Modules\Forms\Definition\ClientDefinition;
@@ -30,8 +31,10 @@ use App\Modules\Records\Runtime\RecordQuery;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\RecordValidator;
 use App\Modules\Records\Runtime\References;
+use App\Modules\Retention\SubjectKeys;
 use App\Modules\Views\PrintLayouts;
 use App\Modules\Views\ViewRuntime;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -99,17 +102,27 @@ final class RecordController extends Controller
         if ($view !== null) {
             $views->filter($q, $rt, $user, $view, $data['vf'] ?? []);
         }
-        $total = (clone $q)->count();
+        [$total, $exact, $matches] = $this->boundedCount($q, $rt->table);
         $perPage = $data['per_page'] ?? ($presented['page_size'] ?? 25);
         $page = $data['page'] ?? 1;
         $totals = $presented === null ? [] : $views->totals($q, $rt, $user, $presented);
+        if ($exact) {
+            // Few enough matches to count exactly: sort just those (ADR-0073). Walking the
+            // sort column's index instead reads the whole form when almost nothing matches.
+            $q->select($rt->table.'.*')->joinSub($matches, 'lcf_matches', 'lcf_matches.id', '=', $rt->table.'.id');
+        }
         if ($view !== null) {
             $sortPath = isset($data['sort']) ? explode('.', (string) $data['sort']) : null;
             $views->order($q, $rt, $user, $view, $sortPath === null ? null : ['path' => $sortPath, 'dir' => $data['direction'] ?? 'asc']);
         } else {
             $query->order($q, $rt, $levels['fields'], $data);
         }
-        $rows = $q->forPage($page, $perPage)->get()->map(static fn ($r) => (array) $r)->all();
+        if (! $exact && ($index = $this->sortIndex($q, $rt)) !== null) {
+            // More matches than the count limit: walking the sorted column's index finds a page
+            // within limit-to-form-size rows, whatever the sampled statistics favour (ADR-0073).
+            app(DatabaseDriver::class)->readInIndexOrder($q, $rt->table, $index);
+        }
+        $rows = $exact && ($page - 1) * $perPage >= $total ? [] : $q->forPage($page, $perPage)->get()->map(static fn ($r) => (array) $r)->all();
         $records = $this->store->hydrate($rt, $rows, false);
         $out = $this->presenter->many($rt, $records, $levels['fields']);
         if ($presented !== null) {
@@ -122,9 +135,47 @@ final class RecordController extends Controller
 
         return response()->json([
             'data' => $out,
-            'meta' => ['total' => $total, 'page' => $page, 'per_page' => $perPage, 'view' => $presented, 'totals' => $totals === [] ? (object) [] : $totals,
+            'meta' => ['total' => $total, 'total_exact' => $exact, 'page' => $page, 'per_page' => $perPage, 'view' => $presented, 'totals' => $totals === [] ? (object) [] : $totals,
                 'views' => array_map(static fn ($v) => ['uuid' => $v['uuid'], 'key' => $v['key'], 'name' => $v['i18n']['name']], $views->available($rt, $user))],
         ]);
+    }
+
+    /**
+     * The number of matching records, counted exactly up to the
+     * `records.list_count_limit` setting: past it the list says "N+", so a
+     * broad filter on a large form never counts every match on each page.
+     * Also returns the bounded query of matching ids that was counted.
+     *
+     * @return array{0: int, 1: bool, 2: Builder}
+     */
+    private function boundedCount(Builder $q, string $table): array
+    {
+        $limit = (int) app(SettingsService::class)->get('records', 'list_count_limit');
+        $matches = (clone $q)->select($table.'.id')->limit($limit + 1);
+        $n = DB::query()->fromSub($matches, 'matches')->count();
+
+        return $n > $limit ? [$limit, false, $matches] : [$n, true, $matches];
+    }
+
+    /** The single-column index on the list's first sort column, when it sorts by a column of the form's own table. */
+    private function sortIndex(Builder $q, FormRuntime $rt): ?string
+    {
+        $first = $q->orders[0] ?? null;
+        if (! is_array($first) || ! is_string($first['column'] ?? null) || ! str_starts_with($first['column'], $rt->table.'.')) {
+            return null;
+        }
+        $column = substr($first['column'], strlen($rt->table) + 1);
+        foreach ($rt->definition['schema']['tables'] ?? [] as $table) {
+            if (($table['name'] ?? null) === $rt->table) {
+                foreach ($table['indexes'] ?? [] as $index) {
+                    if (($index['columns'] ?? null) === [$column]) {
+                        return $index['name'];
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     public function show(Form $form, string $record): JsonResponse
@@ -384,12 +435,14 @@ final class RecordController extends Controller
         $users = DB::table('users')->whereIn('id', [...$entries->pluck('actor_user_id')->filter(), ...$entries->pluck('on_behalf_of_user_id')->filter()])->pluck('name', 'id');
         $justifications = $seeJustifications ? app(JustificationPresenter::class)->many($entries->pluck('justification_id')->filter()->map(static fn ($v) => (int) $v)->all()) : [];
 
+        $keys = app(SubjectKeys::class);
+
         return response()->json(['data' => $entries->map(static fn ($e) => [
             'event' => $e->event,
             'at' => Carbon::parse($e->occurred_at, 'UTC')->toIso8601ZuluString(),
             'by' => $users[$e->actor_user_id] ?? null,
             'on_behalf_of' => $e->on_behalf_of_user_id === null ? null : ($users[$e->on_behalf_of_user_id] ?? null),
-            'changes' => array_values(array_filter(json_decode((string) $e->changes, true) ?: [], static fn ($c) => ! isset($hiddenKeys[$c['field_key']]))),
+            'changes' => array_values(array_filter($keys->openChanges($form->id, $found['id'], json_decode((string) $e->changes, true) ?: []), static fn ($c) => ! isset($hiddenKeys[$c['field_key']]))),
             'justification' => $e->justification_id === null ? null : ($justifications[(int) $e->justification_id] ?? ['restricted' => true]),
         ])->values()]);
     }

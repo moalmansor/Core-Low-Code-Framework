@@ -24,6 +24,7 @@
   "records.apply_refresh": "تطبيق وتحديث",
   "records.count": "{from}–{to} من {total}",
   "records.count_none": "لا توجد سجلات",
+  "records.count_more": "{from}–{to} من أكثر من {total}",
   "records.delete_selected": "حذف {n} محددة",
   "records.delete_selected_confirm": "حذف {n} من السجلات المحددة؟ تنتقل إلى سلة المحذوفات ويمكن لمن يملك الصلاحية استعادتها.",
   "records.deleted_n": "حُذف {n} من السجلات",

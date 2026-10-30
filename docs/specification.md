@@ -634,6 +634,7 @@ All access control lives in **one** interface.
 - **Download menu** with the download profiles available to the user (4.23).
 - **Admin control:** record counts per form, full edit, soft delete + restore.
 - **Shareable state:** search, filters, sort, page, and page size are kept in the page address, so a filtered list can be bookmarked and shared. The server ignores filters on fields that are unknown, hidden from the user, encrypted, or not marked filterable.
+- **Counting:** a list counts its matches exactly up to `records.list_count_limit` (Settings, Records; default 1 000). Past it the list says "more than N" and the pager keeps offering the next page while the current one is full; a narrower filter brings back an exact count. When a list is sorted by a column, ties are broken by record id in the same direction, so the order is stable from page to page. When the count is exact, the page is sorted from just the counted matches, so a filter that matches little of a large form stays fast whatever the sort. Past the limit, a list sorted by a field with its own index reads that index in order (ADR-0073).
 - **Mixed scripts:** each cell takes its reading direction from its own content, so Arabic text in the English interface and Latin codes in the Arabic interface both read correctly.
 - **Views (ADR-0034):** an admin defines a form's views on its configuration screen; views take effect when saved. Who uses which view is granted in the access matrix (one permission per view, created with it); a user without a granted view gets the form's default view. Columns and filters are relation paths: the form's own fields, its system values (status, record number, created and updated time), and fields of the forms it links to, followed through lookups up to a fixed depth. Columns on fields the user may not see are left out of the user's view, and their values are never sent.
 - **Justification columns** (latest reason, code, time, and author) are offered only to holders of View Justifications.
@@ -987,6 +988,16 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Storage quotas** per form and per application, with a warning threshold and a hard limit, and a report of storage used by form and by user.
 - **Personal data handling:** an admin can locate every record and log entry relating to a given person, export them, and action a deletion or anonymization request. Anonymization preserves the audit trail's integrity by replacing identifying values while keeping the sequence of events intact. Fields are markable as personal data in the field properties, which is what drives this search.
 - Legal hold: a record or a set of records can be exempted from deletion until the hold is lifted, with the reason recorded.
+- **As built (ADR-0070):**
+  - **Policies.** Each policy covers one data class (records, audit log, error log, e-mail log, notifications, submission journal, download files, uploaded files, recycle bin), optionally one application or form. It runs on its own schedule and is audited per run and per record.
+  - **End actions.** Archive writes a hashed JSON copy to a separate cold-storage volume, from which a record can be restored under its own identity with its rows, links and files. Export then delete keeps one file per run.
+  - **Audit log entries are never deleted.** Their policy only makes a verified monthly copy with the chain proof.
+  - **Partitions.** Audit and error logs are partitioned by month with twelve months prepared ahead.
+  - **Growth warnings.** Table and volume growth are Operations Center alert measures.
+  - **Storage quotas.** Quotas apply to the organization, an application or a form. The hard limit is checked at upload and attach.
+  - **Legal holds.** A hold covers one record or the records matching a condition, and is respected by every deletion path.
+  - **Personal data requests** locate, export, anonymize or delete. They are approved with a justification, plus a two-factor code for anonymize and delete.
+  - **Audit trail values.** Personal-data values in the audit trail, justifications and merge snapshots are sealed with a per-record key. Anonymization destroys the key, so the values become unreadable while every entry and hash stays in place.
 
 ### 4.27 Applications, Workspaces & Tenancy
 - One installation hosts many **applications** (HR, Procurement, Support), each with its own menus, forms, collections, permissions, branding, and settings, built by admins without code.
@@ -1213,6 +1224,13 @@ A status alone does not say who is expected to act, so records carry assignment 
 - **Impersonation** cannot be used to escalate privilege, is always visible in the interface, is time-limited, and is audited as the acting admin.
 - **Data protection:** encryption of sensitive fields; secrets only in environment config; per-tenant and per-field key management with a documented key rotation procedure.
 - **Operations:** scheduled backups with a documented restore procedure; dependency vulnerability scanning (composer audit, npm audit).
+- **As built (ADR-0071, Phase 6 security review in `docs/security-review.md`):**
+  - **Data keys.** Encrypted field values use per-organization data keys with key ids in the ciphertext.
+  - **Rotation.** `keys:rotate` and `keys:rewrap` implement the rotation procedure in the deployment guide.
+  - **PDF rendering** reaches images only through the egress gateway, and never reads local files.
+  - **Image and zip uploads** are checked for decompression bombs before parsing.
+  - **Route test.** Every API route outside a fixed public list requires sign-in, enforced by a test.
+  - **Audit-chain verification** runs over the whole end-to-end suite in CI.
 - No sensitive data in logs or in user-facing errors.
 - **Additional safeguards (added in Phase 1):**
   - two-factor authentication cannot be switched off by holders of a role that requires it; an administrator can reset it, which forces re-enrollment at the next sign-in;
@@ -1232,10 +1250,17 @@ A status alone does not say who is expected to act, so records carry assignment 
   - background jobs for heavy work.
 - **Data integrity:** transactions, constraints, idempotent retries, and optimistic concurrency on every record write (4.9).
 - **Performance budgets**, verified by load tests in Phase 6: a form renders and a record list returns within a defined target at a stated record count; permission resolution is cached; a defined number of concurrent users is supported. The targets are written into `docs/architecture.md` in Phase 0 and tested against, not left implicit.
+  - *As built (Phase 6):*
+    - The budgets of architecture §20.2 are checked by the `performance.yml` workflow on both engines, against the §20.1 reference dataset.
+    - The tools: `backend/tests/Performance`, `perf/k6/load.js`, `frontend/e2e-perf`, and `perf/compare.mjs` with `perf/budgets.json`.
+    - A result over budget, or more than 20 % slower than the engine's baseline (`perf/baseline`), fails the run.
+    - The results are in `docs/performance.md`.
+    - Insert imports run their batches in parallel on the heavy workers (ADR-0072); their number is `HORIZON_HEAVY_PROCESSES`.
 - **UI:** fully responsive, accessible (WCAG 2.1 AA), and consistent in design across RTL and LTR.
   - The application frame fills the window at every size and zoom level; the menu and the content scroll separately, never the page.
   - A visible focus ring on every focusable element; motion is removed when the operating system asks for reduced motion.
   - Table headers are at least 12px (13px for Arabic text).
+  - *As built (Phase 6):* `frontend/e2e/25-accessibility.spec.ts` runs axe-core's WCAG 2.0/2.1 A and AA rules on every screen without a parameter, the home screen, My Work, the profile, and a form's list, new-record form and record page, in English and in Arabic. Any violation fails the end-to-end suite on both engines. The colour tokens are checked separately by `src/theme/contrast.spec.ts`.
 - **Code quality:**
   - modular, strictly typed, documented;
   - automated tests covering every module on both database engines.

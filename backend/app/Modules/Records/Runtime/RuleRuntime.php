@@ -10,6 +10,7 @@ use App\Expressions\Evaluation\Evaluator;
 use App\Expressions\Values\Value;
 use App\Modules\Identity\Models\User;
 use App\Modules\Reference\WorkingCalendars;
+use App\Support\BatchMemo;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -98,8 +99,11 @@ final class RuleRuntime
     public function context(FormRuntime $rt, string $mode, User $user, array $params = []): Context
     {
         $calendar = null;
-        $calendarId = $rt->form->business_calendar_id ?? ($user->department_id === null ? null : DB::table('departments')->where('id', $user->department_id)->value('business_calendar_id'));
-        $calendarId ??= DB::table('business_calendars')->where('organization_id', $rt->form->organization_id)->where('is_default', true)->value('id');
+        $memo = app(BatchMemo::class);
+        $calendarId = $rt->form->business_calendar_id ?? ($user->department_id === null ? null
+            : $memo->remember('department_calendar.'.$user->department_id, static fn () => DB::table('departments')->where('id', $user->department_id)->value('business_calendar_id')));
+        $calendarId ??= $memo->remember('default_calendar.'.$rt->form->organization_id, static fn () => DB::table('business_calendars')
+            ->where('organization_id', $rt->form->organization_id)->where('is_default', true)->value('id'));
         if ($calendarId !== null) {
             $calendar = app(WorkingCalendars::class)->expressionCalendar((int) $calendarId);
         }

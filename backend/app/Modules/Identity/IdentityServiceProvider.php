@@ -12,6 +12,7 @@ use App\Modules\Identity\Auth\LoginAuthenticator;
 use App\Modules\Identity\Auth\TenantAwareUserProvider;
 use App\Modules\Identity\Listeners\AuthEventSubscriber;
 use App\Modules\Identity\Models\User;
+use App\Modules\Identity\Policies\AccessPolicies;
 use App\Modules\Identity\Sessions\SessionHandler;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -33,6 +34,8 @@ final class IdentityServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(ImpersonationContext::class);
+        // One per request or job, so its memo of a user's effective policies serves every check in it.
+        $this->app->scoped(AccessPolicies::class);
         // A reset request for an unknown address gets the same answer as a
         // known one, so the form cannot be used to discover accounts.
         $this->app->bind(DisableTwoFactorAuthentication::class, DisableTwoFactorWhenAllowed::class);

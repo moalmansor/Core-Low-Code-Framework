@@ -6,10 +6,10 @@ namespace App\Modules\Records\Runtime;
 
 use App\Expressions\Numbers\Decimal;
 use App\Expressions\Text\Unicode;
+use App\Infrastructure\Crypto\DataKeys;
 use App\Support\Html\HtmlSanitizer;
 use DateTimeImmutable;
 use DateTimeZone;
-use Illuminate\Support\Facades\Crypt;
 use Throwable;
 
 /**
@@ -89,9 +89,10 @@ final class ValueCodec
         }
         $main = $rt->column($field['uuid']);
         if ($main !== null && ($main['encrypted'] ?? false)) {
-            $out = [$main['name'] => $value === null ? null : Crypt::encryptString((string) json_encode($value, JSON_UNESCAPED_UNICODE))];
+            // The organization's data key (envelope encryption, architecture §7.5).
+            $out = [$main['name'] => $value === null ? null : app(DataKeys::class)->encrypt($rt->form->organization_id, 'fields', (string) json_encode($value, JSON_UNESCAPED_UNICODE))];
             if (($bidx = $rt->column($field['uuid'], 'bidx')) !== null) {
-                $out[$bidx['name']] = $value === null ? null : self::blindIndex($value);
+                $out[$bidx['name']] = $value === null ? null : self::blindIndex($value, $rt->form->organization_id);
             }
 
             return $out;
@@ -139,7 +140,7 @@ final class ValueCodec
                 return null;
             }
             try {
-                return json_decode(Crypt::decryptString((string) $raw), true);
+                return json_decode(app(DataKeys::class)->decrypt((string) $raw), true);
             } catch (Throwable) {
                 return null;
             }
@@ -161,12 +162,12 @@ final class ValueCodec
         };
     }
 
-    public static function blindIndex(mixed $value): string
+    /** Keyed blind index of a value, with the organization's blind-index key once it has one. */
+    public static function blindIndex(mixed $value, ?int $organizationId): string
     {
         $text = is_scalar($value) ? (string) $value : (string) json_encode($value);
-        $normalized = mb_strtolower(Unicode::normalizeArabic(trim($text)));
 
-        return hash_hmac('sha256', $normalized, 'bidx|'.config('app.key'));
+        return app(DataKeys::class)->blindIndex($organizationId, mb_strtolower(Unicode::normalizeArabic(trim($text))));
     }
 
     /** Value for a column of a logical type. */

@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Modules\Records\Http\Controllers;
 
 use App\Modules\Access\AccessResolver;
+use App\Modules\Core\Tenancy\TenantContext;
 use App\Modules\Forms\Definition\PublishedDefinitions;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Identity\Models\User;
 use App\Modules\Records\FileStore;
 use App\Modules\Records\Models\StoredFile;
+use App\Modules\Retention\StorageQuotas;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -50,6 +52,8 @@ final class FileController extends Controller
                 }
             }
         }
+        // Refused before anything is stored when it would pass a storage quota's hard limit (§4.26).
+        app(StorageQuotas::class)->assertRoom(app(TenantContext::class)->organizationId(), isset($form) ? $form->id : null, (int) $request->file('file')->getSize());
         $file = $files->storeUpload($request->file('file'), $types, $maxKb);
 
         return response()->json(['data' => ['uuid' => $file->uuid, 'name' => $file->original_name, 'size' => $file->size_bytes, 'mime' => $file->mime_type, 'width' => $file->width, 'height' => $file->height]], 201);

@@ -223,7 +223,8 @@ return [
             'timeout' => 7200,
             'nice' => 0,
         ],
-        // Outgoing e-mail from the e-mail queue and error alerts.
+        // Outgoing e-mail from the e-mail queue and error alerts. A job that sets no attempts of its own gets one:
+        // unlimited attempts with no backoff turned a failing alert into a loop of retries (ADR-0069).
         'mail-1' => [
             'connection' => 'redis',
             'queue' => ['mail'],
@@ -232,7 +233,7 @@ return [
             'maxTime' => 0,
             'maxJobs' => 0,
             'memory' => 128,
-            'tries' => 0,
+            'tries' => 1,
             'timeout' => 150,
             'nice' => 0,
         ],
@@ -257,8 +258,9 @@ return [
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
+            // A large insert import spreads its batches over these processes (ADR-0072); size it to the worker's CPUs.
             'heavy-1' => [
-                'maxProcesses' => 2,
+                'maxProcesses' => (int) env('HORIZON_HEAVY_PROCESSES', 4),
             ],
             'mail-1' => [
                 'maxProcesses' => 2,
@@ -268,6 +270,9 @@ return [
         'local' => [
             'supervisor-1' => [
                 'maxProcesses' => 3,
+            ],
+            'heavy-1' => [
+                'maxProcesses' => (int) env('HORIZON_HEAVY_PROCESSES', 2),
             ],
         ],
     ],

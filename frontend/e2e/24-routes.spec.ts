@@ -40,7 +40,7 @@ test('every admin route resolves and renders, and every tab on it loads', async 
   const application = ((await sameSite(page, 'GET', '/applications')).data as { uuid: string }[])[0]!.uuid
   // Editors open on "new" for an object that does not exist yet; forms and applications take the pilot's.
   const values: Record<string, string> = { form: form.uuid, application }
-  for (const p of ['theme', 'screen', 'page', 'profile', 'automation', 'channel', 'template', 'extension', 'webhook', 'endpoint', 'source', 'job', 'report', 'dashboard']) values[p] = 'new'
+  for (const p of ['theme', 'screen', 'page', 'profile', 'automation', 'channel', 'template', 'extension', 'webhook', 'endpoint', 'source', 'job', 'report', 'dashboard', 'policy']) values[p] = 'new'
   // Routes whose parameter means something else: an external form has its own id; a package or drift report is
   // only ever made from a file and a blueprint only from a form, so the earliest existing one is opened
   // (17-packages.spec.ts and 22-blueprints.spec.ts make them).
@@ -50,6 +50,8 @@ test('every admin route resolves and renders, and every tab on it loads', async 
     '/admin/packages/p/:package': { package: await first('/packages') },
     '/admin/packages/reports/:report': { report: await first('/drift-reports') },
     '/admin/blueprints/:blueprint': { blueprint: await first('/blueprints') },
+    // A personal data request is only ever made from the Retention screen (23-retention.spec.ts makes one).
+    '/admin/retention/requests/:request': { request: await first('/personal-data-requests') },
   }
   const notYet: string[] = []
 

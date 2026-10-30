@@ -15,6 +15,7 @@ use App\Modules\Records\Runtime\RecordPipeline;
 use App\Modules\Records\Runtime\RecordStore;
 use App\Modules\Records\Runtime\RecycleBin;
 use App\Modules\Records\Runtime\ReferentialIntegrity;
+use App\Modules\Retention\SubjectKeys;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -137,7 +138,18 @@ final class RecordMerger
                 $current = $this->store->findById($rt, $keep['id']) ?? $keep;
                 $this->pipeline->update($rt, $user, $keep['uuid'], $current['row_version'], $values, 'merge-'.Str::uuid7(), 'ui', null, $justificationId);
             }
-            $snapshots = array_map(static fn ($o) => ['uuid' => $o['uuid'], 'values' => $o['values']], $others);
+            // Personal-data values are sealed with each merged record's own key, so erasing that person erases them here too (ADR-0014).
+            $personal = array_column(array_filter($rt->mainFields(), static fn ($f) => (bool) ($f['flags']['personal'] ?? false)), 'key');
+            $keys = app(SubjectKeys::class);
+            $snapshots = array_map(static function ($o) use ($personal, $keys, $rt) {
+                foreach ($personal as $key) {
+                    if (array_key_exists($key, $o['values'])) {
+                        $o['values'][$key] = $keys->seal($rt->form->id, $o['id'], $o['values'][$key]);
+                    }
+                }
+
+                return ['uuid' => $o['uuid'], 'values' => $o['values']];
+            }, $others);
             $sensitive = array_filter($rt->mainFields(), static fn ($f) => (bool) (($f['flags']['sensitive'] ?? false) || ($f['flags']['encrypted'] ?? false)));
             DB::table('merge_history')->insert([
                 'uuid' => (string) Str::uuid7(), 'organization_id' => $rt->form->organization_id, 'form_id' => $rt->form->id, 'survivor_record_id' => $keep['id'],

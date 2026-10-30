@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Monitoring;
 
+use App\Modules\Core\Mail\SettingsSmtpTransport;
 use App\Modules\Core\Settings\SettingsService;
 use App\Modules\Identity\Models\User;
 use App\Modules\Monitoring\Mail\ErrorAlertMail;
@@ -14,6 +15,9 @@ use Illuminate\Support\Facades\Mail;
  * E-mail alerts for new or regressed error groups (specification §4.21),
  * sent to active users holding the configured roles, at most once per
  * cooldown period per group and only at or above the configured severity.
+ * Nothing is queued while outgoing mail is not configured: the group is in
+ * Error Monitoring either way, and a message that cannot be sent would only
+ * fail (ADR-0069).
  */
 final class ErrorAlerts
 {
@@ -37,7 +41,7 @@ final class ErrorAlerts
             ->where('status', 'active')
             ->whereHas('roles', static fn ($q) => $q->whereIn('key', $roleKeys))
             ->pluck('email')->all();
-        if ($recipients === []) {
+        if ($recipients === [] || (new SettingsSmtpTransport($this->settings))->config() === null) {
             return;
         }
         $group->forceFill(['last_alerted_at' => now()])->saveQuietly();

@@ -29,7 +29,7 @@ final class ThemeTokens
     /** @var array<string, array<string, string>> */
     public const DEFAULTS = [
         'light' => [
-            'primary' => '#1a6fd4', 'accent' => '#107c52', 'success' => '#107c52', 'warning' => '#b45309', 'danger' => '#d92d20',
+            'primary' => '#1a6fd4', 'accent' => '#107c52', 'success' => '#107c52', 'warning' => '#b45309', 'danger' => '#d0291d',
             'page' => '#f4f6f9', 'surface' => '#ffffff', 'subtle' => '#f8fafc', 'border' => '#e3e8ef', 'text' => '#1f2937', 'muted' => '#627289',
         ],
         'dark' => [

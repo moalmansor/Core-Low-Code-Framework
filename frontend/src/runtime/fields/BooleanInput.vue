@@ -46,7 +46,7 @@ function accept(): void {
     <div class="flex flex-col">
       <label :for="inputId" class="cursor-pointer">
         {{ label }}<span v-if="required" class="text-danger ms-1" :aria-label="t('runtime.required')">*</span>
-        <i v-if="tooltip" v-tooltip.top="tooltip" class="pi pi-info-circle ms-1 text-muted-color" tabindex="0" :aria-label="tooltip" />
+        <i v-if="tooltip" v-tooltip.top="tooltip" class="pi pi-info-circle ms-1 text-muted-color" tabindex="0" role="img" :aria-label="tooltip" />
       </label>
       <Button v-if="field.type === 'consent' && terms" type="button" :label="t('runtime.consent_read_terms')" link size="small" class="!p-0 self-start" @click="showTerms = true" />
     </div>

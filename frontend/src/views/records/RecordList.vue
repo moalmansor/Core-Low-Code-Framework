@@ -67,6 +67,8 @@ const definition = ref<ClientDefinition | null>(null)
 const loadError = ref('')
 const rows = ref<RecordPayload[]>([])
 const total = ref(0)
+// False when the server stopped counting at its limit: the list holds more than `total` records.
+const totalExact = ref(true)
 const loading = ref(false)
 const state = reactive<ListState>({ ...DEFAULT_STATE, filters: [] })
 const filtersOpen = ref(true)
@@ -149,11 +151,12 @@ async function load(): Promise<void> {
   try {
     const res = await get<{
       data: Row[]
-      meta: { total: number; per_page: number; view: ActiveView | null; totals: Record<string, unknown>; views: { uuid: string; key: string; name: Record<string, string> }[] }
+      meta: { total: number; total_exact?: boolean; per_page: number; view: ActiveView | null; totals: Record<string, unknown>; views: { uuid: string; key: string; name: Record<string, string> }[] }
     }>(`/r/${formUuid.value}`, { ...params(), page: state.page, per_page: state.perPage })
     if (mine !== seq) return
     rows.value = res.data
     total.value = res.meta.total
+    totalExact.value = res.meta.total_exact !== false
     views.value = res.meta.views ?? []
     const firstView = activeView.value === null && res.meta.view !== null
     activeView.value = res.meta.view ?? null
@@ -372,8 +375,12 @@ const number = (n: number) => new Intl.NumberFormat(locale.value).format(n)
 const range = computed(() => {
   if (total.value === 0) return t('records.count_none')
   const from = (state.page - 1) * state.perPage + 1
-  return t('records.count', { from: number(from), to: number(Math.min(total.value, from + rows.value.length - 1)), total: number(total.value) })
+  const to = from + rows.value.length - 1
+  if (!totalExact.value) return t('records.count_more', { from: number(from), to: number(to), total: number(total.value) })
+  return t('records.count', { from: number(from), to: number(Math.min(total.value, to)), total: number(total.value) })
 })
+// Past the counting limit the pager always offers the next page while this one is full.
+const pagerTotal = computed(() => (totalExact.value ? total.value : Math.max(total.value, state.page * state.perPage + (rows.value.length === state.perPage ? state.perPage : 0))))
 
 type Pill = { text: string; class?: string; style?: Record<string, string> }
 type Link = { text: string; to: { name: string; params: Record<string, string> } }
@@ -855,7 +862,7 @@ const perPageOptions = computed(() => PER_PAGE.map((n) => ({ value: n, label: t(
       paginator
       :rows="state.perPage"
       :first="(state.page - 1) * state.perPage"
-      :total-records="total"
+      :total-records="pagerTotal"
       :loading="loading"
       data-key="uuid"
       removable-sort

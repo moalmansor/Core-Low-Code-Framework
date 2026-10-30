@@ -23,6 +23,9 @@ createApp(App)
     theme: { preset: ProductPreset, options: { darkModeSelector: '.app-dark', cssLayer: false } },
     csp: nonce ? { nonce } : undefined,
     ripple: false,
+    // WCAG 2.1 (axe "aria-hidden-focus"): Listbox's hidden focus-redirect spans are aria-hidden yet focusable.
+    // Taking them out of the tab order and making the list itself the tab stop keeps keyboard use the same.
+    pt: { listbox: { hiddenFirstFocusableEl: { tabindex: -1 }, hiddenLastFocusableEl: { tabindex: -1 }, list: { tabindex: 0 } } },
   })
   .use(ToastService)
   .use(ConfirmationService)
