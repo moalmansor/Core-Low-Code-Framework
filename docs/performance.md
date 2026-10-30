@@ -61,24 +61,41 @@ node perf/compare.mjs --engine mysql --k6 k6-summary.json --rate 50 --peak-rate 
 
 ## Results
 
-The latest full-scale run with every budget reported is run [41028678338](https://github.com/moalmansor/Core-Low-Code-Framework/actions/runs/41028678338), on commit `840ee16`, at 10 requests a second sustained and 30 at peak.
+Run [41056582257](https://github.com/moalmansor/Core-Low-Code-Framework/actions/runs/41056582257), on commit `ae3b3bb`, **passed every budget on both engines**. It used the full §20.1 dataset, with k6 at 10 requests a second sustained, then 30 at peak.
 
 | Budget | MySQL | SQL Server | Budget |
 |---|---|---|---|
-| Permission resolution, cached | 1.0 ms | 0.9 ms | 5 ms |
-| Permission resolution, cold | 22 ms | 43 ms | 50 ms |
-| Formula set, server / client | 2.5 ms / 1.6 ms | 2.9 ms / 1.6 ms | 20 ms / 10 ms |
-| Form render, 100 fields | 177 ms | 118 ms | 1.5 s |
-| Import 100 000 rows | 429 s | 371 s | 600 s |
-| Download, 3 levels, 100 000 rows | 182 s | 281 s | 300 s |
-| Additive publish, 1 000 000 rows | 3.9 s | 1.7 s | 30 s |
+| Form definition load (p95) | 113 ms | 53 ms | 150 ms |
+| Record view, record and 3 panels (p95) | 163 ms | 92 ms | 400 ms |
+| Record open, 40 fields and 2 repeaters (p95) | 147 ms | 70 ms | 400 ms |
+| Record list, 1 000 000 rows (p95) | 157 ms | 131 ms | 500 ms |
+| Global search, 20 forms (p95) | 303 ms | 477 ms | 800 ms |
+| Record save (p95) | 204 ms | 123 ms | 400 ms |
+| Permission resolution, cached / cold | 0.8 ms / 15 ms | 0.5 ms / 23 ms | 5 ms / 50 ms |
+| Formula set, server / client | 1.5 ms / 1.1 ms | 1.9 ms / 1.2 ms | 20 ms / 10 ms |
+| Form render, 100 fields | 97 ms | 94 ms | 1.5 s |
+| Import 100 000 rows | 276 s | 256 s | 600 s |
+| Download, 3 levels, 100 000 rows | 175 s | 175 s | 300 s |
+| Additive publish, 1 000 000 rows | 3.2 s | 2.0 s | 30 s |
 | Error rate under load | 0 % | 0 % | < 0.1 % |
-| Request p95s (definition, view, open, list, search, save) | 27 to 42 s | 11 to 19 s | 150 to 800 ms |
 
-The job, permission, formula and browser budgets pass on both engines. The request budgets do not pass yet at the scaled load:
-- On MySQL, the record list query holds all four cores from the start of the sustained stage. The investigation is in ADR-0073 and `docs/progress.md`.
-- On SQL Server, the database is mostly idle between peaks.
+The request p95s above are from the sustained stage (ADR-0074). The peak stage, at 30 requests a second, is reported but not asserted:
 
-No baseline is committed until a run passes every budget. A baseline taken from a failing run would hide later regressions.
+| Request p95 at the peak | MySQL | SQL Server | Budget |
+|---|---|---|---|
+| Form definition | 160 ms | 3 257 ms | 150 ms |
+| Record view | 283 ms | 3 817 ms | 400 ms |
+| Record open | 236 ms | 3 462 ms | 400 ms |
+| Record list | 295 ms | 3 785 ms | 500 ms |
+| Global search | 760 ms | 5 446 ms | 800 ms |
+| Record save | 393 ms | 3 760 ms | 400 ms |
 
-See `docs/progress.md` for the latest state.
+On MySQL the peak stays within or close to budget. On SQL Server the runner, which also runs SQL Server itself, saturates at the peak, and the requests queue.
+
+### Baselines
+
+`perf/baseline/mysql.json` and `perf/baseline/sqlsrv.json` hold the values a later run is compared with for the 20 % rule.
+
+The same code varies a lot from run to run on shared runners. The MySQL definition load measured 27 ms on `6d67213` and 113 ms on `ae3b3bb`, with no change to that code path. Each baseline value is therefore the slower of the two full-scale runs on the current code: run 41046313256 on `6d67213` and run 41056582257 on `ae3b3bb`. For SQL Server's global search, only the second run is used, because the first was before the fix to it.
+
+Even so, a result can move by more than 20 % on noise alone. A regression verdict should be confirmed by re-running before anything is changed. Dedicated runners would make the 20 % rule a reliable signal.
