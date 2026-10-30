@@ -117,7 +117,17 @@ jobs:
               echo "== $(date -u +%H:%M:%S)"
               docker stats --no-stream --format '{{.Name}} cpu={{.CPUPerc}} mem={{.MemUsage}}'
               if [ "${{ matrix.db }}" = mysql ]; then
-                docker compose exec -T mysql mysql -uroot -p"Root-$LCF_DB_PASSWORD" -N -e "select command, state, time, left(info, 160) from information_schema.processlist where command <> 'Sleep' and id <> connection_id() order by time desc limit 8" 2>/dev/null
+                my() { docker compose exec -T mysql mysql -uroot -p"Root-$LCF_DB_PASSWORD" "$@" 2>/dev/null; }
+                my -N -e "select command, state, time, left(info, 160) from information_schema.processlist where command <> 'Sleep' and id <> connection_id() order by time desc limit 8"
+                # The longest-running statement in full, and the plan it is running with.
+                slow=$(my -N -e "select id from information_schema.processlist where command in ('Query', 'Execute') and time >= 1 and info like 'select%' and id <> connection_id() order by time desc limit 1")
+                if [ -n "$slow" ]; then
+                  my -N -e "select info from information_schema.processlist where id = $slow"
+                  my -e "explain format=tree for connection $slow" || my -e "explain for connection $slow"
+                fi
+              else
+                # The longest-running requests: what they wait on, their reads, and their text.
+                docker compose exec -T sqlserver bash -c 'c=$(ls -d /opt/mssql-tools*/bin/sqlcmd | tail -n 1); case "$c" in *18*) t=-C;; esac; "$c" $t -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -W -s "|" -Q "set nocount on; select top 4 r.session_id, r.status, r.wait_type, r.cpu_time, r.total_elapsed_time, r.logical_reads, left(replace(t.text, char(10), char(32)), 700) as text from sys.dm_exec_requests r cross apply sys.dm_exec_sql_text(r.sql_handle) t where r.session_id <> @@spid and r.session_id > 50 order by r.total_elapsed_time desc"' 2>&1 | head -n 12
               fi
               sleep 20
             done ) > perf-diag.txt 2>&1 &
