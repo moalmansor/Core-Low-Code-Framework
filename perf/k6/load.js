@@ -1,7 +1,7 @@
 // Load test of architecture §20.2: the request budgets at p95 under the
-// concurrency budget (≈ 50 requests per second sustained, 150 at peak) with
-// an error rate below 0.1 %. Run against the Docker stack after the dataset
-// of backend/tests/Performance has been built:
+// concurrency budget (≈ 50 requests per second sustained, 150 at peak, set by
+// LCF_RATE and LCF_PEAK_RATE) with an error rate below 0.1 %. Run against the
+// Docker stack after the dataset of backend/tests/Performance has been built:
 //
 //   k6 run -e LCF_URL=http://localhost:8080 -e LCF_TARGETS=perf-targets.json \
 //          -e LCF_K6_OUT=k6-summary.json perf/k6/load.js
@@ -22,6 +22,10 @@ const SESSIONS = Math.min(
 );
 const SUSTAINED = __ENV.LCF_SUSTAINED || "5m";
 const PEAK = __ENV.LCF_PEAK || "2m";
+// Arrival rates: §20.2's 50/s sustained and 150/s peak are for the reference
+// environment of §20.1; a smaller machine is loaded in proportion (docs/performance.md).
+const RATE = Number(__ENV.LCF_RATE || 50);
+const PEAK_RATE = Number(__ENV.LCF_PEAK_RATE || 150);
 
 const trends = {
   definition: new Trend("lcf_definition", true),
@@ -39,21 +43,21 @@ export const options = {
   scenarios: {
     sustained: {
       executor: "constant-arrival-rate",
-      rate: 50,
+      rate: RATE,
       timeUnit: "1s",
       duration: SUSTAINED,
-      preAllocatedVUs: 100,
-      maxVUs: 500,
+      preAllocatedVUs: Math.max(10, RATE * 2),
+      maxVUs: RATE * 10,
       exec: "mix",
     },
     peak: {
       executor: "constant-arrival-rate",
-      rate: 150,
+      rate: PEAK_RATE,
       timeUnit: "1s",
       duration: PEAK,
       startTime: SUSTAINED,
-      preAllocatedVUs: 300,
-      maxVUs: 1000,
+      preAllocatedVUs: Math.max(30, PEAK_RATE * 2),
+      maxVUs: Math.max(100, PEAK_RATE * 7),
       exec: "mix",
     },
   },
@@ -165,8 +169,9 @@ function orderValues() {
     ship_date: "2026-10-03",
     invoice_date: "2026-10-02",
     close_date: "2026-10-20",
-    received_at: "2026-10-01T09:30:00",
-    confirmed_at: "2026-10-01T10:00:00",
+    // Date-times carry their offset: the API refuses a local time without one.
+    received_at: "2026-10-01T09:30:00Z",
+    confirmed_at: "2026-10-01T10:00:00Z",
     urgent: true,
     gift: false,
     insured: true,

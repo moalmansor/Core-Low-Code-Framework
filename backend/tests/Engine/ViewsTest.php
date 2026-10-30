@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Core\Settings\SettingsService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -213,7 +214,7 @@ it('renders View Mode panels, preview cards with auto-fill, and the print view a
 });
 
 it('counts a list exactly up to the counting limit, says more past it, and breaks sort ties by id', function () {
-    app(App\Modules\Core\Settings\SettingsService::class)->write('records', 'list_count_limit', 100);
+    app(SettingsService::class)->write('records', 'list_count_limit', 100);
     [, $form] = createForm($this, 'tallies');
     saveDraft($this, $form, [], [fieldDoc('title', 'text'), fieldDoc('amount', 'decimal', null, ['table' => ['filterable' => true]])])->assertOk();
     expect(publish($this, $form)['status'])->toBe('applied');

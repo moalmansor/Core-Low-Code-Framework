@@ -24,7 +24,8 @@ const rows = []
 let failed = false
 for (const b of config.budgets) {
   let value = null
-  if (b.source === 'k6') value = k6?.metrics?.[b.metric]?.values?.['p(95)'] ?? null
+  // A trend without samples (every request of that kind failed) was not measured, whatever its p95 says.
+  if (b.source === 'k6') value = k6?.metrics?.[b.metric]?.values?.count > 0 ? k6.metrics[b.metric].values['p(95)'] : null
   if (b.source === 'k6-rate') value = k6?.metrics?.[b.metric] ? k6.metrics[b.metric].values.rate * 100 : null
   if (b.source === 'measure') value = measure[b.key]?.value ?? null
   if (b.source === 'render') value = render[b.key]?.value ?? null
@@ -44,7 +45,9 @@ const table = [
   '|---|---|---|---|---|',
   ...rows,
   '',
-  rate === undefined ? '' : `Load: ${rate.toFixed(1)} requests/s on average over the run (50/s sustained, then 150/s peak).`,
+  rate === undefined
+    ? ''
+    : `Load: ${rate.toFixed(1)} requests/s on average over the run (${args.rate ?? 50}/s sustained, then ${args['peak-rate'] ?? 150}/s peak${args.rate && Number(args.rate) !== 50 ? `; §20.2 sets 50/s and 150/s for the reference environment of §20.1, see docs/performance.md` : ''}).`,
 ].join('\n')
 console.log(table)
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n### Performance (${args.engine ?? 'engine'})\n\n${table}\n`)

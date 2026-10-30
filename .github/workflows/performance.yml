@@ -2,7 +2,7 @@ name: Performance
 
 # The budgets of architecture §20.2 on the Docker stack, on both engines, against the reference dataset of
 # §20.1 (backend/tests/Performance): 1 000 000 records in the measured form, 200 forms, 5 000 users and
-# 20 000 000 history rows. k6 drives the request budgets at 50 requests/s sustained and 150/s at peak;
+# 20 000 000 history rows. k6 drives the request budgets at a load scaled to the runner (see the k6 step);
 # the harness times permissions, formulas, the 100 000-row import, the three-level download and an
 # additive publish; Playwright times the 100-field form render and the client formulas.
 # perf/compare.mjs fails the job on a result over budget or more than 20 % slower than the engine's
@@ -16,6 +16,12 @@ on:
       scale:
         description: Dataset scale (1 = the full §20.1 dataset)
         default: '1'
+      rate:
+        description: Requests per second, sustained (§20.2 sets 50 on the reference environment)
+        default: '10'
+      peak_rate:
+        description: Requests per second at peak (§20.2 sets 150 on the reference environment)
+        default: '30'
 
 permissions:
   contents: read
@@ -35,6 +41,8 @@ jobs:
         db: [mysql, sqlsrv]
     env:
       SCALE: ${{ inputs.scale || '1' }}
+      LCF_RATE: ${{ inputs.rate || '10' }}
+      LCF_PEAK_RATE: ${{ inputs.peak_rate || '30' }}
       LCF_DB_PASSWORD: ${{ format('Db-{0}-pw', github.run_id) }}
       LCF_SA_PASSWORD: ${{ format('Sa-{0}-Pw!', github.run_id) }}
     steps:
@@ -76,15 +84,21 @@ jobs:
           docker compose cp app:/var/www/backend/storage/app/perf-targets.json perf-targets.json
           docker compose exec -T -e HOME=/tmp app php artisan tinker --no-ansi --execute='foreach (app(App\Infrastructure\Database\Contracts\DatabaseDriver::class)->tableSizes() as $t => $bytes) { if ($bytes > 50e6) echo $t, " ", round($bytes / 1e6), " MB", PHP_EOL; }' || true
           df -h /
-      - name: Load test (k6)
-        run: |
-          docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD:/w" -w /w grafana/k6:0.54.0 run \
-            -e LCF_URL=http://localhost:8080 -e LCF_TARGETS=/w/perf-targets.json -e LCF_K6_OUT=/w/k6-summary.json perf/k6/load.js || echo "k6 thresholds failed; the comparison below decides"
+      # Before the load test, so no request still queued from it is timed with the jobs.
       - name: Job budgets (permissions, formulas, import, download, publish)
         run: |
           docker compose exec -T -e LCF_PERFORMANCE=1 app php tests/Performance/bench.php measure --targets=storage/app/perf-targets.json --out=storage/app/perf-measure.json
           docker compose cp app:/var/www/backend/storage/app/perf-measure.json perf-measure.json
           cat perf-measure.json
+      # §20.2 sets 50 requests/s sustained and 150 at peak for the reference environment of §20.1 (two 4-vCPU
+      # application servers, a worker, Redis and an 8-vCPU database server). One 4-vCPU runner holds all of
+      # them and k6 too, about a fifth of that hardware, so it is loaded at a fifth of the rates: the latency
+      # budgets are checked at that load. docs/performance.md explains the scaling.
+      - name: Load test (k6, ${{ env.LCF_RATE }}/s sustained, ${{ env.LCF_PEAK_RATE }}/s peak)
+        run: |
+          docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD:/w" -w /w grafana/k6:0.54.0 run \
+            -e LCF_URL=http://localhost:8080 -e LCF_TARGETS=/w/perf-targets.json -e LCF_K6_OUT=/w/k6-summary.json \
+            -e LCF_RATE=$LCF_RATE -e LCF_PEAK_RATE=$LCF_PEAK_RATE perf/k6/load.js || echo "k6 thresholds failed; the comparison below decides"
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: npm, cache-dependency-path: frontend/package-lock.json }
       - name: Browser budgets (form render, client formulas)
@@ -98,7 +112,7 @@ jobs:
           npx playwright install --with-deps chromium
           npx playwright test -c playwright.perf.config.ts
       - name: Compare with the budgets and the baseline
-        run: node perf/compare.mjs --engine ${{ matrix.db }} --k6 k6-summary.json --measure perf-measure.json --render perf-render.json --baseline perf/baseline/${{ matrix.db }}.json --out perf-results-${{ matrix.db }}.json
+        run: node perf/compare.mjs --engine ${{ matrix.db }} --k6 k6-summary.json --measure perf-measure.json --render perf-render.json --baseline perf/baseline/${{ matrix.db }}.json --out perf-results-${{ matrix.db }}.json --rate $LCF_RATE --peak-rate $LCF_PEAK_RATE
       - name: Container logs and errors (on failure)
         if: failure()
         run: |
