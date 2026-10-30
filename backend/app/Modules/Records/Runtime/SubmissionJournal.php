@@ -131,6 +131,14 @@ final class SubmissionJournal
 
     public function failed(int $id, Throwable $e, ?int $errorLogId = null): void
     {
+        if ($id < 0) {
+            // A fresh entry fails with its whole batch: the error rolls the batch back (a deadlock may already have
+            // ended its transaction), and the batch runs again or fails. Writing the entry now would outlive that
+            // rollback and collide with the retry's own entry.
+            unset($this->deferred[$id]);
+
+            return;
+        }
         $this->close($id, [
             'status' => 'failed',
             'error_message' => mb_substr(self::mask($e->getMessage()), 0, 2000),

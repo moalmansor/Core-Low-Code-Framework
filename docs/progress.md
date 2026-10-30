@@ -746,11 +746,19 @@ Done on the branch so far (2026-10-29):
   - `--danger` at #d0291d, with danger buttons on the token.
 - **Guides** (`docs/guides`) and the CHANGELOG entry.
 - **The SQL Server dataset failed** in the first full-scale run (int overflow). Fixed in `dff3314` and checked on SQL Server.
+- **Full-scale runs (2026-10-30), ADR-0073:**
+  - The first full-scale load test collapsed on both engines: every list page counted every match. Lists now count up to `records.list_count_limit` (Settings, Records; default 1 000) and say "more than N"; sorted lists break ties by id so the column's index serves the page.
+  - Cold permission resolution no longer sends every permission key as an `IN` list (4.7 s on SQL Server before).
+  - Import rows: 10 to 6 queries. The publish lock is read once per batch, a parallel batch writes each journal entry once with its outcome, and the pinned audit chain head is read once per batch. A deadlocked batch's failed entries are not written (they had collided with the batch's retry).
+  - `AccessPolicies` and `FeatureFlags` are scoped per request, so their memos work (definition 16 to 10 queries, search 67 to 27).
+  - The stack's MySQL buffer pool is `MYSQL_BUFFER_POOL_SIZE` (default 1G; the performance workflow uses 6G).
+  - Results on head `65f04ab`: every job budget passes on SQL Server (import 355 s, download 281 s, publish 3.9 s) and every one but the import on MySQL (download 195 s, publish 1.5 s). The MySQL import failed on the journal collision fixed since. Permission and formula budgets pass on both.
+  - The load test runs at a fifth of §20.2 (10/s sustained, 30/s peak) because one 4-vCPU runner holds the whole stack and k6, about a fifth of the §20.1 reference hardware. At that load the request p95s were still 10 to 20 s on both engines, with throughput near 10/s. The same requests locally (100 000 orders, 8 users, caches warm) run at 43/s with p95 inside budget except list (503 ms). The likely difference is the database working set against the runner's disk and memory, and the import's backlog. The workflow now gives MySQL 6 GB and waits for the queues to drain before k6.
 
 Next, in order:
-1. Push, then read the full-scale `performance.yml` run on both engines. Tune whatever misses a budget, commit `perf/baseline/{mysql,sqlsrv}.json` from a green run, and write `docs/performance.md`.
+1. Read the `performance.yml` run on the head commit. If the request budgets still fail at the scaled load, find out where the time goes in the stack: run the Docker stack locally (scale 0.1) under the load script in the scratchpad, and watch the database and worker CPU. Then commit `perf/baseline/{mysql,sqlsrv}.json` from a green run and write `docs/performance.md`. It must state that the full 50/150 requests per second on the reference environment was not run.
 2. Confirm that CI (all jobs, including e2e with the axe sweep on both engines) is green on the head commit.
-3. Final verification of §2–§7 and the PR closing #9, with the §8.2 report citing the head CI run. Raise in it the audit-archive conflict (ADR-0070).
+3. Final verification of §2–§7 and the PR closing #9, with the §8.2 report citing the head CI run. Raise in it the audit-archive conflict (ADR-0070), and say plainly which performance budgets were verified and at what load.
 
 ### Local development notes
 

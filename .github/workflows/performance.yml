@@ -55,6 +55,9 @@ jobs:
         run: |
           cp .env.example .env
           sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$LCF_DB_PASSWORD/; s/^DB_ROOT_PASSWORD=.*/DB_ROOT_PASSWORD=Root-$LCF_DB_PASSWORD/; s/^MSSQL_SA_PASSWORD=.*/MSSQL_SA_PASSWORD=$LCF_SA_PASSWORD/" .env
+          # The reference database server holds the working set in memory (32 GB); the runner has 16 GB for
+          # everything, so MySQL gets 6 GB of it (SQL Server sizes its own cache).
+          sed -i "s/^MYSQL_BUFFER_POOL_SIZE=.*/MYSQL_BUFFER_POOL_SIZE=6G/" .env
           cp backend/.env.example backend/.env
           if [ "${{ matrix.db }}" = sqlsrv ]; then
             sed -i "s/^DB_CONNECTION=.*/DB_CONNECTION=sqlsrv/; s/^DB_HOST=.*/DB_HOST=sqlserver/; s/^DB_PORT=.*/DB_PORT=1433/; s/^DB_USERNAME=.*/DB_USERNAME=sa/; s/^DB_PASSWORD=.*/DB_PASSWORD=$LCF_SA_PASSWORD/; s/^DB_TRUST_SERVER_CERTIFICATE=.*/DB_TRUST_SERVER_CERTIFICATE=true/" backend/.env
@@ -90,6 +93,17 @@ jobs:
           docker compose exec -T -e LCF_PERFORMANCE=1 app php tests/Performance/bench.php measure --targets=storage/app/perf-targets.json --out=storage/app/perf-measure.json
           docker compose cp app:/var/www/backend/storage/app/perf-measure.json perf-measure.json
           cat perf-measure.json
+      - name: Background work from the jobs finished
+        run: |
+          # The import's records and events are still being worked through by the queues; the load test
+          # measures requests, not requests competing with a 100 000-row backlog.
+          for i in $(seq 90); do
+            left=$(docker compose exec -T -e HOME=/tmp app php artisan tinker --no-ansi --execute='$q = Illuminate\Support\Facades\Queue::class; echo $q::connection("redis")->size("default") + $q::connection("redis")->size("mail") + $q::connection("redis")->size("schema") + $q::connection("redis_heavy")->size("heavy");' | tr -dc '0-9')
+            echo "jobs waiting: ${left:-?}"
+            [ "${left:-1}" = "0" ] && exit 0
+            sleep 10
+          done
+          echo "::warning::queues still busy after 15 minutes"
       # §20.2 sets 50 requests/s sustained and 150 at peak for the reference environment of §20.1 (two 4-vCPU
       # application servers, a worker, Redis and an 8-vCPU database server). One 4-vCPU runner holds all of
       # them and k6 too, about a fifth of that hardware, so it is loaded at a fifth of the rates: the latency
