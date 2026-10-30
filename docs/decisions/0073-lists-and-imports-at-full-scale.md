@@ -33,13 +33,17 @@ In the CI run the Docker stack's MySQL also ran on its default 128 MB buffer poo
    - A narrower filter brings back an exact count.
    - The count reads at most limit + 1 matches, whatever the size of the form.
 2. **The id breaks sort ties.** When a list is sorted by a column, ties are broken by the record id in the sort's own direction. Without a sort, the newest records come first, as before (`updated_at desc, id desc`). A sorted page now walks the column's index and stops after one page.
-3. **Permission resolution without a key list.** Computing all of a user's permissions reads every applicable grant without listing the keys. A single key (the explanation screen) still filters by key.
-4. **Fewer round trips per imported row.**
+3. **A list that is counted exactly is sorted from its matches.** Walking the sort column's index pays off only when matches are common. When few or no records match, the walk reads the whole form before it can stop. The second full-scale run showed this: the generated data leaves some top-level departments with no orders that match the reference filter. Their list requests each read all 1 000 000 orders, at 11 to 16 s per request, and held every worker.
+   - The bounded count already tells which case applies. When it is exact (at most `records.list_count_limit` matches), the page query joins the counted matches, at most limit + 1 ids, and sorts only those. MySQL 8.0 and 8.4 materialize the matches first. At 1 000 000 orders, an empty result went from 3.8 to 6.9 s for the page query to none at all, and a few hundred matches take about as long as the count.
+   - When the exact count shows that the requested page lies past the last match, no page query runs.
+   - Past the limit, matches are common enough (more than one in `N / limit` records) for the index walk to stop early, and the list keeps it.
+4. **Permission resolution without a key list.** Computing all of a user's permissions reads every applicable grant without listing the keys. A single key (the explanation screen) still filters by key.
+5. **Fewer round trips per imported row.**
    - **The form's publish lock is read once per batch** (`BatchMemo`). A batch's transaction holds the record table, so a publish that would lock the form waits for the batch to commit anyway. The application's state and maintenance mode are still read for every row: ADR-0072 keeps security checks out of the memo.
    - **Journal entries of a parallel batch are written once, with their outcome.** The batch's unique row in `import_job_batches` is written first, in the same transaction, so none of its idempotency keys can exist yet. The journal skips the lookup and writes each entry when the row is processed, rejected or failed: one insert instead of a lookup, an insert and an update. The entry still shares the batch's transaction with the record it describes.
    - **The batch's audit chain head is read once.** Inside a pinned batch (ADR-0072 item 5), the first entry locks the chain head and the lock holds until the batch commits. Later entries reuse the head the writer last wrote. Any rollback, a single row's savepoint included, makes the writer forget it, so the next entry reads the head the database kept. Inside the batch's transaction the entry needs no savepoint of its own, because the row's savepoint already covers the entry and the head update.
    - Together these take a row from ten queries to six (five without maintenance-mode reads). Throughput on SQL Server with two workers went from 64 to 117 rows a second before the journal and audit changes, which save one more query and one savepoint per row.
-5. **Database memory in the stack.** `docker-compose.yml` passes `MYSQL_BUFFER_POOL_SIZE` (root `.env`, default `1G`) as MySQL's `--innodb-buffer-pool-size`. The deployment guide sizes it for the reference server.
+6. **Database memory in the stack.** `docker-compose.yml` passes `MYSQL_BUFFER_POOL_SIZE` (root `.env`, default `1G`) as MySQL's `--innodb-buffer-pool-size`. The deployment guide sizes it for the reference server.
 
 ## Consequences
 

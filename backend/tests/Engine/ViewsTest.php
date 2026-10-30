@@ -234,4 +234,12 @@ it('counts a list exactly up to the counting limit, says more past it, and break
     saveViews($this, $form, [$view])->assertOk();
     $sorted = $this->getJson("/api/v1/r/{$form}?view={$view['uuid']}&sort=amount&direction=desc&per_page=3")->assertOk()->json('data.*.uuid');
     expect($sorted)->toBe([$uuids[100], $uuids[98], $uuids[96]]);
+
+    // Counted exactly, a sorted list pages through just the matches, in the same order.
+    $only = "/api/v1/r/{$form}?view={$view['uuid']}&sort=amount&direction=desc&per_page=3&filter[amount][from]=1&filter[amount][to]=1";
+    expect($this->getJson("{$only}&page=2")->assertOk()->json('data.*.uuid'))->toBe([$uuids[94], $uuids[92], $uuids[90]]);
+    expect($this->getJson("{$only}&page=17")->assertOk()->json('data.*.uuid'))->toBe([$uuids[4], $uuids[2], $uuids[0]]);
+    $past = $this->getJson("{$only}&page=18")->assertOk();
+    expect($past->json('data'))->toBe([])->and($past->json('meta.total'))->toBe(51)->and($past->json('meta.total_exact'))->toBeTrue();
+    expect($this->getJson("/api/v1/r/{$form}?per_page=3&filter[amount][from]=1&filter[amount][to]=1")->assertOk()->json('data.*.uuid'))->toBe([$uuids[100], $uuids[98], $uuids[96]]);
 });

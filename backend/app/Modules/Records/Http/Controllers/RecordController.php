@@ -102,17 +102,22 @@ final class RecordController extends Controller
         if ($view !== null) {
             $views->filter($q, $rt, $user, $view, $data['vf'] ?? []);
         }
-        [$total, $exact] = $this->boundedCount($q, $rt->table);
+        [$total, $exact, $matches] = $this->boundedCount($q, $rt->table);
         $perPage = $data['per_page'] ?? ($presented['page_size'] ?? 25);
         $page = $data['page'] ?? 1;
         $totals = $presented === null ? [] : $views->totals($q, $rt, $user, $presented);
+        if ($exact) {
+            // Few enough matches to count exactly: sort just those (ADR-0073). Walking the
+            // sort column's index instead reads the whole form when almost nothing matches.
+            $q->select($rt->table.'.*')->joinSub($matches, 'lcf_matches', 'lcf_matches.id', '=', $rt->table.'.id');
+        }
         if ($view !== null) {
             $sortPath = isset($data['sort']) ? explode('.', (string) $data['sort']) : null;
             $views->order($q, $rt, $user, $view, $sortPath === null ? null : ['path' => $sortPath, 'dir' => $data['direction'] ?? 'asc']);
         } else {
             $query->order($q, $rt, $levels['fields'], $data);
         }
-        $rows = $q->forPage($page, $perPage)->get()->map(static fn ($r) => (array) $r)->all();
+        $rows = $exact && ($page - 1) * $perPage >= $total ? [] : $q->forPage($page, $perPage)->get()->map(static fn ($r) => (array) $r)->all();
         $records = $this->store->hydrate($rt, $rows, false);
         $out = $this->presenter->many($rt, $records, $levels['fields']);
         if ($presented !== null) {
@@ -134,15 +139,17 @@ final class RecordController extends Controller
      * The number of matching records, counted exactly up to the
      * `records.list_count_limit` setting: past it the list says "N+", so a
      * broad filter on a large form never counts every match on each page.
+     * Also returns the bounded query of matching ids that was counted.
      *
-     * @return array{0: int, 1: bool}
+     * @return array{0: int, 1: bool, 2: Builder}
      */
     private function boundedCount(Builder $q, string $table): array
     {
         $limit = (int) app(SettingsService::class)->get('records', 'list_count_limit');
-        $n = DB::query()->fromSub((clone $q)->select($table.'.id')->limit($limit + 1), 'matches')->count();
+        $matches = (clone $q)->select($table.'.id')->limit($limit + 1);
+        $n = DB::query()->fromSub($matches, 'matches')->count();
 
-        return $n > $limit ? [$limit, false] : [$n, true];
+        return $n > $limit ? [$limit, false, $matches] : [$n, true, $matches];
     }
 
     public function show(Form $form, string $record): JsonResponse
