@@ -64,6 +64,8 @@ jobs:
           else
             sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$LCF_DB_PASSWORD/" backend/.env
           fi
+          # Requests slower than 3 s leave their PHP stack in the app container's log (read after the load test).
+          echo "PHP_FPM_SLOWLOG_TIMEOUT=3s" >> backend/.env
       - name: Build and start the stack
         run: |
           docker compose build
@@ -110,9 +112,26 @@ jobs:
       # budgets are checked at that load. docs/performance.md explains the scaling.
       - name: Load test (k6, ${{ env.LCF_RATE }}/s sustained, ${{ env.LCF_PEAK_RATE }}/s peak)
         run: |
+          # Every 20 s while the load runs: CPU and memory per container, and the database's busy sessions.
+          ( while true; do
+              echo "== $(date -u +%H:%M:%S)"
+              docker stats --no-stream --format '{{.Name}} cpu={{.CPUPerc}} mem={{.MemUsage}}'
+              if [ "${{ matrix.db }}" = mysql ]; then
+                docker compose exec -T mysql mysql -uroot -p"Root-$LCF_DB_PASSWORD" -N -e "select command, state, time, left(info, 160) from information_schema.processlist where command <> 'Sleep' and id <> connection_id() order by time desc limit 8" 2>/dev/null
+              fi
+              sleep 20
+            done ) > perf-diag.txt 2>&1 &
+          echo $! > perf-diag.pid
           docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD:/w" -w /w grafana/k6:0.54.0 run \
             -e LCF_URL=http://localhost:8080 -e LCF_TARGETS=/w/perf-targets.json -e LCF_K6_OUT=/w/k6-summary.json \
             -e LCF_RATE=$LCF_RATE -e LCF_PEAK_RATE=$LCF_PEAK_RATE perf/k6/load.js || echo "k6 thresholds failed; the comparison below decides"
+          kill "$(cat perf-diag.pid)" || true
+      - name: Where the time went under load (samples, slow requests)
+        if: always()
+        run: |
+          cat perf-diag.txt || true
+          echo "== slow requests (> 3 s): $(docker compose logs app --no-color | grep -c 'executing too slow' || true)"
+          docker compose logs app --no-color | grep -A 14 'executing too slow' | sed 's/^app-1 *| //' | head -n 300 || true
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: npm, cache-dependency-path: frontend/package-lock.json }
       - name: Browser budgets (form render, client formulas)
@@ -138,6 +157,7 @@ jobs:
           name: performance-${{ matrix.db }}
           path: |
             k6-summary.json
+            perf-diag.txt
             perf-measure.json
             perf-render.json
             perf-results-${{ matrix.db }}.json

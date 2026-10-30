@@ -31,7 +31,7 @@ RUN set -eux; \
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/zz-lcf.ini
 COPY docker/php/fpm-pool.conf /usr/local/etc/php-fpm.d/zz-lcf-pool.conf
 # PHP-FPM pool size (architecture §20.1); override per deployment.
-ENV PHP_FPM_MAX_CHILDREN=32 PHP_FPM_START_SERVERS=8 PHP_FPM_MIN_SPARE=4 PHP_FPM_MAX_SPARE=16 PHP_FPM_MAX_REQUESTS=1000
+ENV PHP_FPM_MAX_CHILDREN=32 PHP_FPM_START_SERVERS=8 PHP_FPM_MIN_SPARE=4 PHP_FPM_MAX_SPARE=16 PHP_FPM_MAX_REQUESTS=1000 PHP_FPM_SLOWLOG_TIMEOUT=0
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/backend
 
