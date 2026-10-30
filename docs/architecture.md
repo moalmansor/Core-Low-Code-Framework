@@ -7513,8 +7513,9 @@ Budgets are asserted by k6 load scripts and Playwright performance marks in Phas
 ### 20.3 Capacity assumptions & levers
 
 Metadata caching (§3.1, §16.5) means a typical request does 0 metadata queries;
-records use indexed filters only (filterable fields get indexes); list counts use
-estimated counts above 100 000 rows (exact count on demand); heavy work is queued;
+records use indexed filters only (filterable fields get indexes); list counts are
+exact up to `records.list_count_limit` (default 1 000) and say "more than N" past it,
+and a list counted exactly is sorted from its matches (ADR-0073); heavy work is queued;
 read replicas can be configured for reports/downloads (`read` connection) without
 code changes.
 
