@@ -117,6 +117,11 @@ final class RecordController extends Controller
         } else {
             $query->order($q, $rt, $levels['fields'], $data);
         }
+        if (! $exact && ($index = $this->sortIndex($q, $rt)) !== null) {
+            // More matches than the count limit: walking the sorted column's index finds a page
+            // within limit-to-form-size rows, whatever the sampled statistics favour (ADR-0073).
+            app(DatabaseDriver::class)->readInIndexOrder($q, $rt->table, $index);
+        }
         $rows = $exact && ($page - 1) * $perPage >= $total ? [] : $q->forPage($page, $perPage)->get()->map(static fn ($r) => (array) $r)->all();
         $records = $this->store->hydrate($rt, $rows, false);
         $out = $this->presenter->many($rt, $records, $levels['fields']);
@@ -150,6 +155,27 @@ final class RecordController extends Controller
         $n = DB::query()->fromSub($matches, 'matches')->count();
 
         return $n > $limit ? [$limit, false, $matches] : [$n, true, $matches];
+    }
+
+    /** The single-column index on the list's first sort column, when it sorts by a column of the form's own table. */
+    private function sortIndex(Builder $q, FormRuntime $rt): ?string
+    {
+        $first = $q->orders[0] ?? null;
+        if (! is_array($first) || ! is_string($first['column'] ?? null) || ! str_starts_with($first['column'], $rt->table.'.')) {
+            return null;
+        }
+        $column = substr($first['column'], strlen($rt->table) + 1);
+        foreach ($rt->definition['schema']['tables'] ?? [] as $table) {
+            if (($table['name'] ?? null) === $rt->table) {
+                foreach ($table['indexes'] ?? [] as $index) {
+                    if (($index['columns'] ?? null) === [$column]) {
+                        return $index['name'];
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     public function show(Form $form, string $record): JsonResponse

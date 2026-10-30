@@ -2,6 +2,10 @@
 // the engine's baseline: a result over its budget, or more than 20 % slower
 // than the baseline, fails the run.
 //
+// --latency-stage sustained checks the request p95s on that k6 stage only and
+// reports the others without asserting them (ADR-0074: a runner smaller than the
+// §20.1 environment saturates at the scaled peak). Without it, the whole run counts.
+//
 //   node perf/compare.mjs --k6 k6-summary.json --measure perf-measure.json \
 //     --render perf-render.json --baseline perf/baseline/mysql.json --out perf-results.json
 //
@@ -19,13 +23,17 @@ const render = read(args.render) ?? {}
 const baseline = read(args.baseline)
 const tolerance = config.regression_tolerance
 
+// A trend's name, narrowed to one k6 stage when one is given.
+const stageMetric = (metric, stage) => (stage ? `${metric}{stage:${stage}}` : metric)
+const p95 = (name) => (k6?.metrics?.[name]?.values?.count > 0 ? k6.metrics[name].values['p(95)'] : null)
+
 const results = {}
 const rows = []
 let failed = false
 for (const b of config.budgets) {
   let value = null
   // A trend without samples (every request of that kind failed) was not measured, whatever its p95 says.
-  if (b.source === 'k6') value = k6?.metrics?.[b.metric]?.values?.count > 0 ? k6.metrics[b.metric].values['p(95)'] : null
+  if (b.source === 'k6') value = p95(stageMetric(b.metric, args['latency-stage']))
   if (b.source === 'k6-rate') value = k6?.metrics?.[b.metric] ? k6.metrics[b.metric].values.rate * 100 : null
   if (b.source === 'measure') value = measure[b.key]?.value ?? null
   if (b.source === 'render') value = render[b.key]?.value ?? null
@@ -39,6 +47,16 @@ for (const b of config.budgets) {
   const fmt = (v) => (v === null ? '—' : `${Math.round(v * 100) / 100} ${b.unit}`)
   rows.push(`| ${b.label} | ${fmt(value)} | ${b.source === 'k6-rate' ? '<' : '≤'} ${b.budget} ${b.unit} | ${fmt(base)} | ${verdict === 'pass' ? '✅ pass' : `❌ ${verdict}`} |`)
 }
+// The stages that were not asserted, for the record.
+const others = args['latency-stage'] ? ['sustained', 'peak'].filter((st) => st !== args['latency-stage']) : []
+const reported = others.flatMap((st) =>
+  config.budgets
+    .filter((b) => b.source === 'k6')
+    .map((b) => {
+      const v = p95(stageMetric(b.metric, st))
+      return `| ${b.label} | ${st} | ${v === null ? '—' : `${Math.round(v * 100) / 100} ${b.unit}`} | ${b.budget} ${b.unit} |`
+    }),
+)
 const rate = k6?.metrics?.http_reqs?.values?.rate
 const table = [
   '| Budget | p95 / result | Budget | Baseline | Verdict |',
@@ -48,6 +66,8 @@ const table = [
   rate === undefined
     ? ''
     : `Load: ${rate.toFixed(1)} requests/s on average over the run (${args.rate ?? 50}/s sustained, then ${args['peak-rate'] ?? 150}/s peak${args.rate && Number(args.rate) !== 50 ? `; §20.2 sets 50/s and 150/s for the reference environment of §20.1, see docs/performance.md` : ''}).`,
+  ...(args['latency-stage'] ? ['', `Request p95s are checked on the ${args['latency-stage']} stage; the error rate covers the whole run.`] : []),
+  ...(reported.length > 0 ? ['', 'Not asserted (reported only, ADR-0074):', '', '| Request | Stage | p95 | Budget |', '|---|---|---|---|', ...reported] : []),
 ].join('\n')
 console.log(table)
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n### Performance (${args.engine ?? 'engine'})\n\n${table}\n`)

@@ -7508,7 +7508,9 @@ As built (ADR-0064 to ADR-0066):
 | Publish of an additive change on a 1 M-row table (MySQL INSTANT / SQL Server metadata-only add) | ≤ 30 s |
 
 Budgets are asserted by k6 load scripts and Playwright performance marks in Phase
-6; regressions beyond 20 % fail the performance job.
+6; regressions beyond 20 % fail the performance job. In CI the load is scaled to the
+runner, and the request p95s are asserted on its sustained stage (ADR-0074;
+`docs/performance.md`).
 
 ### 20.3 Capacity assumptions & levers
 

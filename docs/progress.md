@@ -761,8 +761,13 @@ Done on the branch so far (2026-10-29):
     - MySQL: its CPU sits at 300 to 390 % (all four cores) while PHP stays below 75 %, and every slow request is the list page select on the broad path. Locally, with the exact full-scale generator values on 999 000 rows, that select walks 354 to 1 004 rows of the amount index (3 to 136 ms). Forbidding that index costs 1.5 to 6 s, so CI most likely runs another plan. Commit `6ded0fc` makes the run print the running plan (`EXPLAIN FOR CONNECTION`) to confirm before fixing.
     - SQL Server: app and database together reach about 400 % at peak. Locally its bounded count intersects five single-column indexes with hash joins (82 ms CPU at 66 000 rows), likely over 1 s at 1 000 000. `6ded0fc` also prints SQL Server's longest requests with their reads.
 
+  - Run 41036865112 on `797f723` settled both questions:
+    - **MySQL:** the list plan turns on sampled statistics. As loaded it started from the department scope (902 ms); after `ANALYZE TABLE` it walked the amount index (4.6 ms), and it still flipped under load (list p95 1.16 s at 10/s). Fixed: past the count limit, the page query carries `JOIN_PREFIX` and `ORDER_INDEX` hints for the sort column's own index (`DatabaseDriver::readInIndexOrder`, ADR-0073 item 4). Tested on both engines.
+    - **Per stage:** at 10/s every request budget passes on SQL Server, and on MySQL all but the list. At 30/s the runner saturates (12.7 and 10.2 requests/s served) and everything queues for seconds. CI now checks the request p95s on the sustained stage and reports the peak without asserting it (ADR-0074, raised for the owner in the PR). The error rate still covers the whole run.
+  - `docs/performance.md` written (method, scaling, how to run at full rate, how to read a run, results).
+
 Next, in order:
-1. Read the `performance.yml` run on `6ded0fc`, decide the list fix from the captured plans, test it on both engines, and re-run. Then commit `perf/baseline/{mysql,sqlsrv}.json` from a green run and write `docs/performance.md`. It must state that the full 50/150 requests per second on the reference environment was not run.
+1. Read the `performance.yml` run on the head commit. If every budget passes, commit `perf/baseline/{mysql,sqlsrv}.json` from a green run and write `docs/performance.md`. It must state that the full 50/150 requests per second on the reference environment was not run.
 2. Confirm that CI (all jobs, including e2e with the axe sweep on both engines) is green on the head commit.
 3. Final verification of §2–§7 and the PR closing #9, with the §8.2 report citing the head CI run. Raise in it the audit-archive conflict (ADR-0070), and say plainly which performance budgets were verified and at what load.
 

@@ -116,6 +116,15 @@ final class MySqlDriver extends AbstractDriver
         return $query->lock('for update skip locked');
     }
 
+    public function readInIndexOrder(Builder $query, string $table, string $index): Builder
+    {
+        $this->assertIdentifier($table);
+        $this->assertIdentifier($index);
+        $t = $this->wrap($table);
+
+        return $query->select(new Raw(sprintf('/*+ JOIN_PREFIX(%1$s) ORDER_INDEX(%1$s %2$s) */ %1$s.*', $t, $this->wrap($index))));
+    }
+
     public function namedLock(string $name, int $timeoutSeconds): bool
     {
         $row = $this->connection->selectOne('select get_lock(?, ?) as acquired', [substr($name, 0, 64), $timeoutSeconds]);

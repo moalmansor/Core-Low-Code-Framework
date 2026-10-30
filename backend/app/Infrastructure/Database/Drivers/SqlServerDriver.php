@@ -121,6 +121,14 @@ final class SqlServerDriver extends AbstractDriver
         return $query->lock('with(rowlock, updlock, readpast)');
     }
 
+    public function readInIndexOrder(Builder $query, string $table, string $index): Builder
+    {
+        $this->assertIdentifier($table);
+        $this->assertIdentifier($index);
+
+        return $query->select($table.'.*');
+    }
+
     public function namedLock(string $name, int $timeoutSeconds): bool
     {
         $row = $this->connection->selectOne(

@@ -37,13 +37,20 @@ In the CI run the Docker stack's MySQL also ran on its default 128 MB buffer poo
    - The bounded count already tells which case applies. When it is exact (at most `records.list_count_limit` matches), the page query joins the counted matches, at most limit + 1 ids, and sorts only those. MySQL 8.0 and 8.4 materialize the matches first. At 1 000 000 orders, an empty result went from 3.8 to 6.9 s for the page query to none at all, and a few hundred matches take about as long as the count.
    - When the exact count shows that the requested page lies past the last match, no page query runs.
    - Past the limit, matches are common enough (more than one in `N / limit` records) for the index walk to stop early, and the list keeps it.
-4. **Permission resolution without a key list.** Computing all of a user's permissions reads every applicable grant without listing the keys. A single key (the explanation screen) still filters by key.
-5. **Fewer round trips per imported row.**
+4. **Past the limit, MySQL is told to walk the sort column's index.**
+   - MySQL chooses between walking the sorted column's index and starting from the record scope's departments and sorting every match. It decides from sampled statistics, and the choice sits on a knife edge.
+   - In run 41036865112, the full-scale dataset as loaded chose the scope-first plan, at 902 ms per list. `ANALYZE TABLE` barely changed the statistics, but the plan flipped to the index walk, at 4.6 ms. Even after that, the list's p95 at 10 requests a second was 1.16 s, so the plan still flipped under load.
+   - When the count is not exact and the first sort column has its own single-column index, the page query carries `JOIN_PREFIX` and `ORDER_INDEX` optimizer hints for that index (`DatabaseDriver::readInIndexOrder`).
+   - The walk then reads at most about `25 × N / limit` index entries, since there are more than `limit` matches: about 25 000 at 1 000 000 records with the default limit. Most of the time it reads far fewer, whatever the statistics.
+   - SQL Server already walks the index under the query's row goal, so its driver leaves the query unchanged.
+   - Sorting by a linked field, or with no sort, keeps the optimizer's own choice.
+5. **Permission resolution without a key list.** Computing all of a user's permissions reads every applicable grant without listing the keys. A single key (the explanation screen) still filters by key.
+6. **Fewer round trips per imported row.**
    - **The form's publish lock is read once per batch** (`BatchMemo`). A batch's transaction holds the record table, so a publish that would lock the form waits for the batch to commit anyway. The application's state and maintenance mode are still read for every row: ADR-0072 keeps security checks out of the memo.
    - **Journal entries of a parallel batch are written once, with their outcome.** The batch's unique row in `import_job_batches` is written first, in the same transaction, so none of its idempotency keys can exist yet. The journal skips the lookup and writes each entry when the row is processed, rejected or failed: one insert instead of a lookup, an insert and an update. The entry still shares the batch's transaction with the record it describes.
    - **The batch's audit chain head is read once.** Inside a pinned batch (ADR-0072 item 5), the first entry locks the chain head and the lock holds until the batch commits. Later entries reuse the head the writer last wrote. Any rollback, a single row's savepoint included, makes the writer forget it, so the next entry reads the head the database kept. Inside the batch's transaction the entry needs no savepoint of its own, because the row's savepoint already covers the entry and the head update.
    - Together these take a row from ten queries to six (five without maintenance-mode reads). Throughput on SQL Server with two workers went from 64 to 117 rows a second before the journal and audit changes, which save one more query and one savepoint per row.
-6. **Database memory in the stack.** `docker-compose.yml` passes `MYSQL_BUFFER_POOL_SIZE` (root `.env`, default `1G`) as MySQL's `--innodb-buffer-pool-size`. The deployment guide sizes it for the reference server.
+7. **Database memory in the stack.** `docker-compose.yml` passes `MYSQL_BUFFER_POOL_SIZE` (root `.env`, default `1G`) as MySQL's `--innodb-buffer-pool-size`. The deployment guide sizes it for the reference server.
 
 ## Consequences
 

@@ -25,7 +25,7 @@ The `Performance` workflow (`.github/workflows/performance.yml`) runs on every p
    | 15 % | Record save, with an edit of the new record a third of the time |
 
 5. **Times the browser budgets** with Playwright (`frontend/e2e-perf`): rendering the 100-field form, and client-side formulas.
-6. **Compares** with `perf/compare.mjs`. A result over its §20.2 budget fails the run. So does a result more than 20 % slower than the engine's baseline in `perf/baseline/{mysql,sqlsrv}.json`, once a baseline is committed. The table appears in the job summary.
+6. **Compares** with `perf/compare.mjs`. In CI the request p95s are checked on the sustained stage. The peak stage is reported next to them without being asserted, and the error rate covers the whole run (ADR-0074). A result over its §20.2 budget fails the run. So does a result more than 20 % slower than the engine's baseline in `perf/baseline/{mysql,sqlsrv}.json`, once a baseline is committed. The table appears in the job summary.
 
 ## The load is scaled to the runner
 
@@ -37,7 +37,7 @@ The `Performance` workflow (`.github/workflows/performance.yml`) runs on every p
 
 A GitHub-hosted runner has 4 vCPUs. It holds the whole stack, the database and k6, which is roughly a fifth of that hardware. The workflow therefore loads it at a fifth of the rates by default: 10 requests a second sustained and 30 at peak. The `rate` and `peak_rate` inputs change this for a manual run.
 
-**The full 50 and 150 requests a second have not been run on the reference environment.** The budgets checked in CI are the latency budgets at the scaled load. Someone with hardware matching §20.1 runs the same script at full rate, against the stack built from the same image:
+**The full 50 and 150 requests a second have not been run on the reference environment.** CI checks the request budgets at the scaled sustained rate. The scaled peak saturates the runner, so its p95s are reported without being asserted (ADR-0074). Someone with hardware matching §20.1 runs the same script at full rate, against the stack built from the same image:
 
 ```sh
 docker run --rm --network host -v "$PWD:/w" -w /w grafana/k6:0.54.0 run \

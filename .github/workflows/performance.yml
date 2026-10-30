@@ -110,8 +110,8 @@ jobs:
       # application servers, a worker, Redis and an 8-vCPU database server). One 4-vCPU runner holds all of
       # them and k6 too, about a fifth of that hardware, so it is loaded at a fifth of the rates: the latency
       # budgets are checked at that load. docs/performance.md explains the scaling.
-      # The plan MySQL picks for the load test's list query (the first division's scope) on the loaded
-      # dataset, with the statistics it is based on, before and after the statistics are rebuilt.
+      # The plan MySQL picks, unhinted, for the load test's list query (the first division's scope) on the
+      # dataset as loaded, with the sampled statistics it is based on (ADR-0073 item 4).
       - name: List query plan (MySQL)
         if: matrix.db == 'mysql'
         continue-on-error: true
@@ -123,9 +123,7 @@ jobs:
             my -e "explain format=tree $q" | sed 's/\\n/\n/g'
             timeout 120 docker compose exec -T mysql mysql -uroot -p"Root-$LCF_DB_PASSWORD" lcf -e "explain analyze $q" 2>/dev/null | sed 's/\\n/\n/g' || echo "explain analyze took over 120 s"
           }
-          echo "== as loaded"; plan
-          my -e "analyze table f_perf_order, department_closure"
-          echo "== after analyze table"; plan
+          plan
       - name: Load test (k6, ${{ env.LCF_RATE }}/s sustained, ${{ env.LCF_PEAK_RATE }}/s peak)
         run: |
           # Every 20 s while the load runs: CPU and memory per container, and the database's busy sessions.
@@ -165,7 +163,7 @@ jobs:
           npx playwright install --with-deps chromium
           npx playwright test -c playwright.perf.config.ts
       - name: Compare with the budgets and the baseline
-        run: node perf/compare.mjs --engine ${{ matrix.db }} --k6 k6-summary.json --measure perf-measure.json --render perf-render.json --baseline perf/baseline/${{ matrix.db }}.json --out perf-results-${{ matrix.db }}.json --rate $LCF_RATE --peak-rate $LCF_PEAK_RATE
+        run: node perf/compare.mjs --engine ${{ matrix.db }} --k6 k6-summary.json --measure perf-measure.json --render perf-render.json --baseline perf/baseline/${{ matrix.db }}.json --out perf-results-${{ matrix.db }}.json --rate $LCF_RATE --peak-rate $LCF_PEAK_RATE --latency-stage sustained
       - name: Container logs and errors (on failure)
         if: failure()
         run: |

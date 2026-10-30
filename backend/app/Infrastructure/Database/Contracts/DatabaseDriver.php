@@ -100,6 +100,14 @@ interface DatabaseDriver
     /** Row lock that skips rows locked by other transactions (queue claims). */
     public function skipLocked(Builder $query): Builder;
 
+    /**
+     * Reads `$table` first, through `$index` in the query's order, so a sorted page stops
+     * after its rows instead of collecting and sorting every match (MySQL: optimizer hints,
+     * whose choice otherwise turns on sampled statistics; SQL Server: unchanged, as its
+     * row goal already walks the index). Selects `$table.*`.
+     */
+    public function readInIndexOrder(Builder $query, string $table, string $index): Builder;
+
     public function namedLock(string $name, int $timeoutSeconds): bool;
 
     public function releaseNamedLock(string $name): void;

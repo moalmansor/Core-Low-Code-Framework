@@ -234,6 +234,14 @@ it('counts a list exactly up to the counting limit, says more past it, and break
     saveViews($this, $form, [$view])->assertOk();
     $sorted = $this->getJson("/api/v1/r/{$form}?view={$view['uuid']}&sort=amount&direction=desc&per_page=3")->assertOk()->json('data.*.uuid');
     expect($sorted)->toBe([$uuids[100], $uuids[98], $uuids[96]]);
+    if (DB::getDriverName() === 'mysql') {
+        // Past the count limit MySQL is told to read the sorted column's index in order (ADR-0073).
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->getJson("/api/v1/r/{$form}?view={$view['uuid']}&sort=amount&direction=desc&per_page=3")->assertOk();
+        expect(collect(DB::getQueryLog())->pluck('query')->filter(fn ($q) => str_contains($q, 'ORDER_INDEX('))->count())->toBe(1);
+        DB::disableQueryLog();
+    }
 
     // Counted exactly, a sorted list pages through just the matches, in the same order.
     $only = "/api/v1/r/{$form}?view={$view['uuid']}&sort=amount&direction=desc&per_page=3&filter[amount][from]=1&filter[amount][to]=1";

@@ -77,3 +77,4 @@ One short record per significant decision (specification §8.1). New records are
 | [0071](0071-data-keys-and-rotation.md) | Per-organization data keys and the key rotation procedure |
 | [0072](0072-bulk-work-throughput.md) | Bulk-work throughput: parallel import batches, batch memo, one audit chain per batch |
 | [0073](0073-lists-and-imports-at-full-scale.md) | Lists and imports at full scale: bounded counts, id tie-breaks, fewer round trips per imported row |
+| [0074](0074-request-budgets-on-the-sustained-stage.md) | CI checks the request budgets on the sustained stage of the scaled load |
