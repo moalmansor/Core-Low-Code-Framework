@@ -19,7 +19,7 @@ All notable changes to this project are documented here, one section per phase.
   - the reference dataset (1 M records, 200 forms, 5 000 users, 20 M history rows), built through the API;
   - a k6 load test at 50 requests/s sustained and 150/s at peak, run in CI at a fifth of those rates on one runner;
   - job measurements and browser timing marks;
-  - the `performance.yml` workflow on both engines, failing over budget or on a regression above 20 %. In CI the request budgets are checked on the sustained stage, and the peak is reported (ADR-0074).
+  - the `performance.yml` workflow on both engines, failing over budget or on a regression above 20 %. In CI the request budgets are checked on the sustained stage, the peak is reported, and a regression against the baseline is a warning (ADR-0074).
 - **`docs/performance.md`** (method, scaling, how to run at full rate, results) and **`docs/final-verification.md`** (every §2–§7 requirement with where it was built and how it is verified).
 - **Accessibility:** an axe sweep of every screen against WCAG 2.1 AA, in English and in Arabic (`25-accessibility.spec.ts`).
 - **Guides:** administrator, developer extensions, and deployment/backup/restore (`docs/guides`).
@@ -35,7 +35,7 @@ All notable changes to this project are documented here, one section per phase.
   - access policies and feature flags are kept for the request;
   - cold permission resolution no longer sends every permission key;
   - an imported row takes 6 queries instead of 10;
-  - global search reads each form's name once instead of once per hit.
+  - global search reads every searched form's name in one query, instead of once per hit.
 - **`MYSQL_BUFFER_POOL_SIZE`** sizes MySQL's memory in the Docker stack (default 1 GB).
 - **`--danger` is now `#d0291d`**, and danger buttons use it: 4.5:1 on every surface.
 

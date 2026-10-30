@@ -163,7 +163,7 @@ jobs:
           npx playwright install --with-deps chromium
           npx playwright test -c playwright.perf.config.ts
       - name: Compare with the budgets and the baseline
-        run: node perf/compare.mjs --engine ${{ matrix.db }} --k6 k6-summary.json --measure perf-measure.json --render perf-render.json --baseline perf/baseline/${{ matrix.db }}.json --out perf-results-${{ matrix.db }}.json --rate $LCF_RATE --peak-rate $LCF_PEAK_RATE --latency-stage sustained
+        run: node perf/compare.mjs --engine ${{ matrix.db }} --k6 k6-summary.json --measure perf-measure.json --render perf-render.json --baseline perf/baseline/${{ matrix.db }}.json --out perf-results-${{ matrix.db }}.json --rate $LCF_RATE --peak-rate $LCF_PEAK_RATE --latency-stage sustained --regressions warn
       - name: Container logs and errors (on failure)
         if: failure()
         run: |

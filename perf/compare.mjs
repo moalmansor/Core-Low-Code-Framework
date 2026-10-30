@@ -2,6 +2,9 @@
 // the engine's baseline: a result over its budget, or more than 20 % slower
 // than the baseline, fails the run.
 //
+// --regressions warn reports a result more than 20 % over its baseline without
+// failing the run (ADR-0074: on shared runners, identical code varies by more).
+//
 // --latency-stage sustained checks the request p95s on that k6 stage only and
 // reports the others without asserting them (ADR-0074: a runner smaller than the
 // §20.1 environment saturates at the scaled peak). Without it, the whole run counts.
@@ -42,10 +45,11 @@ for (const b of config.budgets) {
   if (value === null) verdict = 'not measured'
   else if (b.source === 'k6-rate' ? value >= b.budget : value > b.budget) verdict = 'over budget'
   else if (base !== null && base > 0 && b.source !== 'k6-rate' && value > base * (1 + tolerance)) verdict = `regression (> ${Math.round(tolerance * 100)} % over baseline)`
-  if (verdict !== 'pass') failed = true
+  const warnOnly = verdict.startsWith('regression') && args.regressions === 'warn'
+  if (verdict !== 'pass' && !warnOnly) failed = true
   results[b.key] = value === null ? null : Math.round(value * 100) / 100
   const fmt = (v) => (v === null ? '—' : `${Math.round(v * 100) / 100} ${b.unit}`)
-  rows.push(`| ${b.label} | ${fmt(value)} | ${b.source === 'k6-rate' ? '<' : '≤'} ${b.budget} ${b.unit} | ${fmt(base)} | ${verdict === 'pass' ? '✅ pass' : `❌ ${verdict}`} |`)
+  rows.push(`| ${b.label} | ${fmt(value)} | ${b.source === 'k6-rate' ? '<' : '≤'} ${b.budget} ${b.unit} | ${fmt(base)} | ${verdict === 'pass' ? '✅ pass' : warnOnly ? `⚠️ ${verdict}, confirm by re-running` : `❌ ${verdict}`} |`)
 }
 // The stages that were not asserted, for the record.
 const others = args['latency-stage'] ? ['sustained', 'peak'].filter((st) => st !== args['latency-stage']) : []

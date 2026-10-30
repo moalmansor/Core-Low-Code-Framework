@@ -25,7 +25,7 @@ The `Performance` workflow (`.github/workflows/performance.yml`) runs on every p
    | 15 % | Record save, with an edit of the new record a third of the time |
 
 5. **Times the browser budgets** with Playwright (`frontend/e2e-perf`): rendering the 100-field form, and client-side formulas.
-6. **Compares** with `perf/compare.mjs`. In CI the request p95s are checked on the sustained stage. The peak stage is reported next to them without being asserted, and the error rate covers the whole run (ADR-0074). A result over its §20.2 budget fails the run. So does a result more than 20 % slower than the engine's baseline in `perf/baseline/{mysql,sqlsrv}.json`, once a baseline is committed. The table appears in the job summary.
+6. **Compares** with `perf/compare.mjs`. In CI the request p95s are checked on the sustained stage. The peak stage is reported next to them without being asserted, and the error rate covers the whole run. A regression against the baseline is reported as a warning (ADR-0074). A result over its §20.2 budget fails the run. So does a result more than 20 % slower than the engine's baseline in `perf/baseline/{mysql,sqlsrv}.json`, once a baseline is committed. The table appears in the job summary.
 
 ## The load is scaled to the runner
 
@@ -98,4 +98,11 @@ On MySQL the peak stays within or close to budget. On SQL Server the runner, whi
 
 The same code varies a lot from run to run on shared runners. The MySQL definition load measured 27 ms on `6d67213` and 113 ms on `ae3b3bb`, with no change to that code path. Each baseline value is therefore the slower of the two full-scale runs on the current code: run 41046313256 on `6d67213` and run 41056582257 on `ae3b3bb`. For SQL Server's global search, only the second run is used, because the first was before the fix to it.
 
-Even so, a result can move by more than 20 % on noise alone. A regression verdict should be confirmed by re-running before anything is changed. Dedicated runners would make the 20 % rule a reliable signal.
+Even so, a result moves by more than 20 % on noise alone. The next run, on `7120fe2`, measured identical code with the MySQL import at 440 s against a 276 s baseline, and four other results more than 20 % over theirs. CI therefore reports a regression as "⚠️ regression, confirm by re-running" and does not fail on it (`--regressions warn`, ADR-0074). The §20.2 budgets still fail the run. Dedicated runners would make the 20 % rule a reliable gate again, and removing the flag restores it.
+
+### SQL Server global search
+
+Global search across 20 forms is the budget closest to its limit on SQL Server. Its sustained p95 was 477 ms in run 41056582257 and 867 ms in run 41076401700, on the same code.
+- Each search scans the 20 forms' searchable columns with a case- and accent-insensitive `LIKE '%term%'`. No index can serve that, and the collation-aware comparison is the main cost.
+- From this commit on, a search reads all 20 form names in one query (87 to 68 queries per search).
+- Contention on the shared runner decides the rest. On dedicated hardware, or with fewer searchable forms, it has more headroom.

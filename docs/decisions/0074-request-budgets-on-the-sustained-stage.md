@@ -1,4 +1,4 @@
-# ADR-0074: CI checks the request budgets on the sustained stage of the scaled load
+# ADR-0074: CI checks the request budgets on the sustained stage of the scaled load, and reports regressions without failing
 
 - Status: Accepted (Phase 6). Raised in the Phase 6 pull request for the owner to confirm or reject.
 - Date: 2026-10-30
@@ -35,8 +35,24 @@ Run [41036865112](https://github.com/moalmansor/Core-Low-Code-Framework/actions/
 4. Every other budget is unchanged: the jobs, permissions, formulas, the browser timings and the 20 % regression rule against the baseline.
 5. A run without `--latency-stage`, as on hardware matching §20.1 at the full 50 and 150 requests a second, checks the whole run as before.
 
+### Regressions against the baseline
+
+The baselines were committed from two full-scale runs, each value the slower of the two. The next runs then measured identical code (`b9f3072`, `8a6f195` and `7120fe2` change no application code) as follows:
+
+| Result | Range over four runs |
+|---|---|
+| MySQL import, 100 000 rows | 236 to 440 s |
+| MySQL form definition p95 | 27 to 113 ms |
+| SQL Server global search p95 | 477 to 867 ms |
+
+In run 41076401700 on `7120fe2`, the 20 % rule failed five MySQL results whose code had not changed. On shared GitHub runners, the noise is larger than the threshold.
+
+6. In CI, `perf/compare.mjs --regressions warn` reports a result more than 20 % over its baseline as "⚠️ regression, confirm by re-running" without failing the run. The §20.2 budgets still fail it.
+7. A run without `--regressions warn`, as on dedicated or reference hardware, fails on a regression as architecture §20.2 says.
+
 ## Consequences
 
 - The workflow gates the latency budgets at a load the runner can serve. It also gates regressions of more than 20 % at that load, once a baseline is committed.
 - **The 150 requests a second peak budget of §20.2 is not verified by CI**, and neither is the 50 requests a second sustained budget at full scale. `docs/performance.md` and the Phase 6 report say so. Verifying them needs the §20.1 environment, with the commands in `docs/performance.md`.
 - If the owner prefers the whole run to count, removing `--latency-stage sustained` from `performance.yml` restores it. The job will then fail until it runs on larger runners.
+- The regression rule is advisory in CI until the performance job runs on hardware whose run-to-run variance is below 20 %. A warning still appears in the job summary. Removing `--regressions warn` from `performance.yml` restores the failing rule.
