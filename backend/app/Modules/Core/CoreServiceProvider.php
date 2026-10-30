@@ -11,6 +11,7 @@ use App\Modules\Access\AccessResolver;
 use App\Modules\Access\Models\Permission;
 use App\Modules\Access\Models\Role;
 use App\Modules\Core\Correlation\CorrelationId;
+use App\Modules\Core\Flags\FeatureFlags;
 use App\Modules\Core\I18n\TranslatableRegistry;
 use App\Modules\Core\I18n\Translator;
 use App\Modules\Core\Mail\SettingsSmtpTransport;
@@ -47,6 +48,8 @@ final class CoreServiceProvider extends ServiceProvider
         $this->app->scoped(TenantContext::class);
         $this->app->scoped(CorrelationId::class);
         $this->app->scoped(AccessResolver::class);
+        // One per request or job, so a person's flags are read once for every check in it.
+        $this->app->scoped(FeatureFlags::class);
         $this->app->scoped(Translator::class);
         $this->app->scoped(ErrorReporter::class);
         $this->app->singleton(AccessCache::class);

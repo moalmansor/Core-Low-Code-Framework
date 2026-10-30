@@ -160,6 +160,8 @@ final class GlobalSearch
         $needle = mb_strtolower(Unicode::normalizeArabic($term));
         $roles = $user->activeRoles()->pluck('roles.id')->map(static fn ($v) => (int) $v)->all();
         $configs = DB::table('search_configs')->where('is_enabled', true)->orderBy('form_id')->limit(200)->get();
+        // The configured forms in one read, not one per configuration.
+        $configForms = Form::query()->whereIn('id', $configs->pluck('form_id')->all())->get()->keyBy('id');
         $results = [];
         $forms = 0;
         foreach ($configs as $c) {
@@ -167,7 +169,7 @@ final class GlobalSearch
             if ($scopeRoles !== [] && array_intersect($scopeRoles, $roles) === []) {
                 continue;
             }
-            $form = Form::query()->find($c->form_id);
+            $form = $configForms->get($c->form_id);
             if ($form === null || $form->state !== 'published' || ! $this->access->allows($user, 'form.'.strtolower((string) $form->uuid).'.view')
                 || ! app(FeatureFlags::class)->allows($user, 'form', (int) $form->id)) {
                 continue;

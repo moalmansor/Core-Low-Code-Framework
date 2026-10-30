@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\IpUtils;
+use Throwable;
 
 /**
  * Access policies per role (specification §4.36, ADR-0060).
@@ -156,6 +157,18 @@ final class AccessPolicies
      * @param  array<string, mixed>  $p  from check()
      */
     public function save(?AccessPolicy $existing, array $p, User $actor, Request $request): AccessPolicy
+    {
+        try {
+            return $this->persist($existing, $p, $actor, $request);
+        } catch (Throwable $e) {
+            // The save checks read the policies as they would be; a refused save rolls them back, so forget what was read.
+            $this->memo = [];
+            throw $e;
+        }
+    }
+
+    /** @param  array<string, mixed>  $p */
+    private function persist(?AccessPolicy $existing, array $p, User $actor, Request $request): AccessPolicy
     {
         return DB::transaction(function () use ($existing, $p, $actor, $request): AccessPolicy {
             $policy = $existing ?? new AccessPolicy;
