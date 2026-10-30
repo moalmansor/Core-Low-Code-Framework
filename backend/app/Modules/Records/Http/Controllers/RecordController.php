@@ -11,6 +11,7 @@ use App\Modules\Access\FieldAccessResolver;
 use App\Modules\Access\RecordScope;
 use App\Modules\Adoption\UsageRecorder;
 use App\Modules\Core\I18n\Translator;
+use App\Modules\Core\Settings\SettingsService;
 use App\Modules\DataQuality\DuplicateGuard;
 use App\Modules\Extensions\HookRunner;
 use App\Modules\Forms\Definition\ClientDefinition;
@@ -33,6 +34,7 @@ use App\Modules\Records\Runtime\References;
 use App\Modules\Retention\SubjectKeys;
 use App\Modules\Views\PrintLayouts;
 use App\Modules\Views\ViewRuntime;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -100,7 +102,7 @@ final class RecordController extends Controller
         if ($view !== null) {
             $views->filter($q, $rt, $user, $view, $data['vf'] ?? []);
         }
-        $total = (clone $q)->count();
+        [$total, $exact] = $this->boundedCount($q, $rt->table);
         $perPage = $data['per_page'] ?? ($presented['page_size'] ?? 25);
         $page = $data['page'] ?? 1;
         $totals = $presented === null ? [] : $views->totals($q, $rt, $user, $presented);
@@ -123,9 +125,24 @@ final class RecordController extends Controller
 
         return response()->json([
             'data' => $out,
-            'meta' => ['total' => $total, 'page' => $page, 'per_page' => $perPage, 'view' => $presented, 'totals' => $totals === [] ? (object) [] : $totals,
+            'meta' => ['total' => $total, 'total_exact' => $exact, 'page' => $page, 'per_page' => $perPage, 'view' => $presented, 'totals' => $totals === [] ? (object) [] : $totals,
                 'views' => array_map(static fn ($v) => ['uuid' => $v['uuid'], 'key' => $v['key'], 'name' => $v['i18n']['name']], $views->available($rt, $user))],
         ]);
+    }
+
+    /**
+     * The number of matching records, counted exactly up to the
+     * `records.list_count_limit` setting: past it the list says "N+", so a
+     * broad filter on a large form never counts every match on each page.
+     *
+     * @return array{0: int, 1: bool}
+     */
+    private function boundedCount(Builder $q, string $table): array
+    {
+        $limit = (int) app(SettingsService::class)->get('records', 'list_count_limit');
+        $n = DB::query()->fromSub((clone $q)->select($table.'.id')->limit($limit + 1), 'matches')->count();
+
+        return $n > $limit ? [$limit, false] : [$n, true];
     }
 
     public function show(Form $form, string $record): JsonResponse

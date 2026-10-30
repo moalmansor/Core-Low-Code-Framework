@@ -211,3 +211,26 @@ it('renders View Mode panels, preview cards with auto-fill, and the print view a
     $pdf = $this->get("/api/v1/r/{$f['req']}/{$f['r1']}/print?format=pdf")->assertOk();
     expect($pdf->headers->get('Content-Type'))->toBe('application/pdf')->and(substr((string) $pdf->getContent(), 0, 5))->toBe('%PDF-');
 });
+
+it('counts a list exactly up to the counting limit, says more past it, and breaks sort ties by id', function () {
+    app(App\Modules\Core\Settings\SettingsService::class)->write('records', 'list_count_limit', 100);
+    [, $form] = createForm($this, 'tallies');
+    saveDraft($this, $form, [], [fieldDoc('title', 'text'), fieldDoc('amount', 'decimal', null, ['table' => ['filterable' => true]])])->assertOk();
+    expect(publish($this, $form)['status'])->toBe('applied');
+    $uuids = [];
+    foreach (range(1, 101) as $i) {
+        $uuids[] = $this->postJson("/api/v1/r/{$form}", ['values' => ['title' => "T{$i}", 'amount' => (string) ($i % 2)]])->assertCreated()->json('data.uuid');
+    }
+
+    $page = $this->getJson("/api/v1/r/{$form}?per_page=10")->assertOk();
+    expect($page->json('meta.total'))->toBe(100)->and($page->json('meta.total_exact'))->toBeFalse();
+    expect($this->getJson("/api/v1/r/{$form}?per_page=10&page=11")->assertOk()->json('data'))->toHaveCount(1);
+    $narrow = $this->getJson("/api/v1/r/{$form}?filter[amount][from]=1&filter[amount][to]=1")->assertOk();
+    expect($narrow->json('meta.total'))->toBe(51)->and($narrow->json('meta.total_exact'))->toBeTrue();
+
+    // Equal amounts keep a stable order: the newest id first when sorting descending.
+    $view = viewDoc('all', [['title'], ['amount']]);
+    saveViews($this, $form, [$view])->assertOk();
+    $sorted = $this->getJson("/api/v1/r/{$form}?view={$view['uuid']}&sort=amount&direction=desc&per_page=3")->assertOk()->json('data.*.uuid');
+    expect($sorted)->toBe([$uuids[100], $uuids[98], $uuids[96]]);
+});

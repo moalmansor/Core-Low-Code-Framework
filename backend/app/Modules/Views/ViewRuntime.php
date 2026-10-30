@@ -141,7 +141,7 @@ final class ViewRuntime
 
     /**
      * Sorts by a path of the view (`{path, dir}`), falling back to the
-     * view's default sort and then the newest records.
+     * view's default sort and then the newest records; ties are broken by id.
      *
      * @param  array<string, mixed>  $view
      * @param  array<string, mixed>|null  $sort
@@ -149,6 +149,7 @@ final class ViewRuntime
     public function order(Builder $q, FormRuntime $rt, User $user, array $view, ?array $sort): void
     {
         $sorts = $sort !== null ? [$sort] : $view['defaultSort'];
+        $last = null;
         foreach ($sorts as $s) {
             $path = $s['path'] ?? null;
             $dir = ($s['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
@@ -160,16 +161,26 @@ final class ViewRuntime
                 $q->orderBy($rt->table.'.'.match ($r['system']) {
                     'status' => 'status_id', default => $r['system'],
                 }, $dir);
+                $last = $dir;
             } elseif ($r['hops'] === []) {
                 $q->orderBy($rt->table.'.'.$rt->column($r['field']['uuid'])['name'], $dir);
+                $last = $dir;
             } else {
                 $sub = $this->paths->sortExpression($rt, $path, $user, $rt->table);
                 if ($sub !== null) {
                     $q->orderBy($sub, $dir);
+                    $last = $dir;
                 }
             }
         }
-        $q->orderBy($rt->table.'.updated_at', 'desc')->orderBy($rt->table.'.id', 'desc');
+        if ($last === null) {
+            $q->orderBy($rt->table.'.updated_at', 'desc')->orderBy($rt->table.'.id', 'desc');
+
+            return;
+        }
+        // The id breaks ties in the sort's own direction: an index on the sorted column ends in the id,
+        // so the database walks it and stops after one page instead of sorting every match.
+        $q->orderBy($rt->table.'.id', $last);
     }
 
     /**

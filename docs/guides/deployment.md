@@ -48,6 +48,14 @@ That environment holds 1 000 000 records in the largest form, 200 forms and
 5 000 users, and serves 500 concurrent active users. The measured results are in
 [`docs/performance.md`](../performance.md).
 
+Give the database its memory:
+- **MySQL**: set `MYSQL_BUFFER_POOL_SIZE` (root `.env`, default `1G`; the stack
+  passes it as `--innodb-buffer-pool-size`) to about half to two thirds of the
+  memory the database host can spare: `20G` on the reference server. MySQL's own
+  default, 128 MB, sends most reads of a large form to disk.
+- **SQL Server** takes memory as it needs it; on a host shared with other
+  services, cap it with `max server memory`.
+
 ## 3. Recurring tasks
 
 The `scheduler` service runs them; only one scheduler may run. Notable ones:

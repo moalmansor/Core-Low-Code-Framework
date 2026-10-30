@@ -676,6 +676,7 @@
   "settings.records.import_max_rows": "الحد الأقصى للصفوف في الاستيراد",
   "settings.records.import_time_limit_minutes": "الحد الزمني لكل استيراد (بالدقائق)",
   "settings.records.job_file_hours": "تُحفظ الملفات المصدَّرة لمدة (ساعات)",
+  "settings.records.list_count_limit": "تَعُدّ قوائم السجلات النتائج بدقة حتى هذا العدد، ثم تعرض «N+»",
   "settings.reports.max_records": "أقصى عدد من السجلات يقرؤه التقرير الواحد (ويُنبّه التقرير إذا توقف عنده)",
   "settings.schema.blocking_confirmation_rows": "طلب تأكيد إضافي عند تجاوز هذا العدد من الصفوف",
   "settings.schema.reconcile_daily": "تشغيل فحص مطابقة البنية يوميًا",

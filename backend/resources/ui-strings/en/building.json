@@ -676,6 +676,7 @@
   "settings.records.import_max_rows": "Maximum rows per import",
   "settings.records.import_time_limit_minutes": "Time limit per import (minutes)",
   "settings.records.job_file_hours": "Exported files are kept for (hours)",
+  "settings.records.list_count_limit": "Record lists count matches exactly up to this many, then show “N+”",
   "settings.reports.max_records": "Most records one report reads (a report that stops there says so)",
   "settings.schema.blocking_confirmation_rows": "Ask for extra confirmation above this many rows",
   "settings.schema.reconcile_daily": "Run the schema reconciliation check every day",

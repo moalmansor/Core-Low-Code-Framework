@@ -595,7 +595,7 @@ final class ImportService
                         $counts[$prepared['action'] === 'create' ? 'created' : 'updated']++;
                     }
                 }
-            });
+            }, $parallel);
             if ($parallel) {
                 // The batch's counts stay on its own row: every row this batch inserted holds a shared lock on
                 // the import's row (the journal's foreign key), so updating that row here would deadlock with

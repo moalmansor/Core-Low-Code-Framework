@@ -27,6 +27,7 @@ use App\Modules\Retention\SubjectKeys;
 use App\Modules\Workflow\Runtime\SlaTimers;
 use App\Modules\Workflow\Runtime\WorkflowEngine;
 use App\Modules\Workflow\Runtime\WorkflowRuntime;
+use App\Support\BatchMemo;
 use App\Support\Json\Canonical;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -507,7 +508,10 @@ final class RecordPipeline
         if (in_array($ability, ['create', 'edit'], true) && ($modes[$ability] ?? true) === false) {
             throw new RecordException(403, 'mode_disabled', __('records.mode_disabled'));
         }
-        if (PublishLockedRecords::locked($form->id)) {
+        // Read once per bulk unit (an import batch): the batch's transaction holds the record table, so a
+        // publish that would lock the form waits for the batch to commit anyway. Maintenance mode, above,
+        // is a security check and is read for every record (ADR-0072).
+        if (app(BatchMemo::class)->remember('publish_locked.'.$form->id, static fn () => PublishLockedRecords::locked($form->id))) {
             throw new RecordException(423, 'locked', __('forms.locked'));
         }
 

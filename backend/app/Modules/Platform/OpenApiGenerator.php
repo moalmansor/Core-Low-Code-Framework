@@ -59,7 +59,7 @@ final class OpenApiGenerator
                     ['name' => 'direction', 'in' => 'query', 'schema' => ['type' => 'string', 'enum' => ['asc', 'desc']]],
                 ],
                 'responses' => ['200' => ['description' => 'A page of records', 'content' => ['application/json' => ['schema' => ['type' => 'object', 'properties' => [
-                    'data' => ['type' => 'array', 'items' => $ref], 'meta' => ['type' => 'object', 'properties' => ['total' => ['type' => 'integer'], 'page' => ['type' => 'integer'], 'per_page' => ['type' => 'integer']]],
+                    'data' => ['type' => 'array', 'items' => $ref], 'meta' => ['type' => 'object', 'properties' => ['total' => ['type' => 'integer'], 'total_exact' => ['type' => 'boolean', 'description' => 'False when matches were counted only up to records.list_count_limit: there are more than total.'], 'page' => ['type' => 'integer'], 'per_page' => ['type' => 'integer']]],
                 ]]]]]] + $errors]];
             $item = ['get' => ['tags' => [$label], 'summary' => "Read one {$label}", 'operationId' => "get_{$key}", 'responses' => ['200' => $one] + $errors]];
             $uuid = ['name' => 'record', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid']];

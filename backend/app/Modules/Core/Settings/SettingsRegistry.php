@@ -84,6 +84,8 @@ final class SettingsRegistry
         $d('records', 'import_time_limit_minutes', 60, ['required', 'integer', 'between:1,1440']);
         // Exports of more rows than this run as background jobs; smaller ones download at once.
         $d('records', 'export_sync_rows', 5000, ['required', 'integer', 'between:0,100000']);
+        // Record lists count matches exactly up to this many, then say "N+" (§6, ADR-0073).
+        $d('records', 'list_count_limit', 1000, ['required', 'integer', 'between:100,1000000']);
         // Exported and generated files (exports, error reports, downloads) expire after this many hours.
         $d('records', 'job_file_hours', 72, ['required', 'integer', 'between:1,2160']);
 

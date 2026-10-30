@@ -26,6 +26,15 @@ final class AuditWriter
     // Static: the writer is resolved afresh by each service that records, and the pin holds for all of them.
     private static ?int $pinned = null;
 
+    /**
+     * The pinned chain's head as this transaction last wrote it. The first entry locks the head row, and the
+     * lock is held until the transaction ends, so later entries of the batch need not read it again. Any
+     * rollback (a row's savepoint included) forgets it: the next entry reads the head the database kept.
+     *
+     * @var array{chain: int, seq: int, hash: string}|null
+     */
+    private static ?array $head = null;
+
     /** Attribute names whose values are always masked in audit entries. */
     /** Field names (last path segment) whose values are never stored in clear. */
     private const SENSITIVE = '/(^|_)(password|passwd|secret|token|api_?key|private_key|recovery_codes?|credentials?|encrypted_value)s?(_hash)?$/';
@@ -80,12 +89,16 @@ final class AuditWriter
         ];
         $chain = $this->chainFor($objectType, $objectId);
 
-        return DB::transaction(function () use ($entry, $chain): int {
-            $head = $this->driver->lockForUpdate(DB::table('audit_chain_heads')->where('chain_id', $chain))->first();
-            $seq = (int) $head->last_seq + 1;
+        $write = function () use ($entry, $chain): int {
+            $head = self::$pinned === $chain && self::$head !== null && self::$head['chain'] === $chain ? self::$head : null;
+            if ($head === null) {
+                $row = $this->driver->lockForUpdate(DB::table('audit_chain_heads')->where('chain_id', $chain))->first();
+                $head = ['chain' => $chain, 'seq' => (int) $row->last_seq, 'hash' => (string) $row->last_hash];
+            }
+            $seq = $head['seq'] + 1;
             $entry['chain_id'] = $chain;
             $entry['chain_seq'] = $seq;
-            $entry['prev_hash'] = (string) $head->last_hash;
+            $entry['prev_hash'] = $head['hash'];
             $entry['hash'] = self::hash($entry['prev_hash'], $entry);
             $row = $entry;
             $row['changes'] = $entry['changes'] === null ? null : json_encode($entry['changes'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
@@ -96,9 +109,22 @@ final class AuditWriter
                 'last_hash' => $entry['hash'],
                 'updated_at' => $entry['occurred_at'],
             ]);
+            if (self::$pinned === $chain) {
+                self::$head = ['chain' => $chain, 'seq' => $seq, 'hash' => $entry['hash']];
+            }
 
             return $id;
-        });
+        };
+
+        // A pinned batch writes inside its rows' own transactions, which already make the entry and the head
+        // move together; anywhere else the entry gets a transaction of its own.
+        return self::$pinned !== null && DB::transactionLevel() > 0 ? $write() : DB::transaction($write);
+    }
+
+    /** A rollback at any level, or the end of the outermost transaction, forgets the remembered head. */
+    public static function forgetHead(): void
+    {
+        self::$head = null;
     }
 
     /**
@@ -164,10 +190,12 @@ final class AuditWriter
     {
         $previous = self::$pinned;
         self::$pinned = $chain % self::CHAINS;
+        self::$head = null;
         try {
             return $fn();
         } finally {
             self::$pinned = $previous;
+            self::$head = null;
         }
     }
 

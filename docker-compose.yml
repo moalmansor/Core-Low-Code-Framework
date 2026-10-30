@@ -96,7 +96,8 @@ services:
       MYSQL_USER: ${DB_USERNAME:-lcf}
       MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}
-    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci", "--default-time-zone=+00:00"]
+    # The buffer pool holds the working set in memory (MySQL's own default, 128 MB, sends a large form's reads to disk).
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci", "--default-time-zone=+00:00", "--innodb-buffer-pool-size=${MYSQL_BUFFER_POOL_SIZE:-1G}"]
     volumes: [mysql:/var/lib/mysql]
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
